@@ -3,8 +3,12 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, CheckCircle2 } from 'lucide-react';
+import { useSearchParams } from "next/navigation";
 
 export default function FindIdResultPage() {
+  const searchParams = useSearchParams();
+  const maskedHandle = searchParams.get("maskedHandle") ?? "";
+
   return (
     <div className="flex min-h-screen bg-white font-sans text-black">
       
@@ -52,7 +56,8 @@ export default function FindIdResultPage() {
           {/* 결과 카드 */}
           <div className="p-8 border border-zinc-200 rounded-3xl bg-zinc-50 space-y-2">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">User ID</p>
-            <p className="text-3xl font-black text-black tracking-tight">sky****</p>
+            <p className="text-3xl font-black text-black tracking-tight">
+              {maskedHandle || "조회 결과 없음"}</p>
             <p className="text-sm text-zinc-500 pt-2 font-medium">
               가입일: 2026.03.15
             </p>
