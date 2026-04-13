@@ -1,3 +1,5 @@
+'use client';
+
 import {
   Compass,
   Gamepad2,
@@ -8,7 +10,7 @@ import {
   User,
   Users,
 } from "lucide-react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 const items = [
   { label: "Home", icon: Home, active: true },
@@ -20,6 +22,21 @@ const items = [
 ];
 
 export function Sidebar() {
+  const router = useRouter();
+  const apiBase =
+    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
+
+  const handleLogout = async () => {
+    try {
+      await fetch(`${apiBase}/api/v1/auth/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } finally {
+      router.push("/login");
+    }
+  };
+
   return (
     <aside className="fixed left-0 top-16 hidden h-[calc(100vh-4rem)] w-64 flex-col border-r border-zinc-200 bg-zinc-50/80 px-4 py-6 lg:flex">
       <div className="mb-8 flex items-center gap-3 rounded-2xl bg-black px-4 py-4 text-white shadow-lg">
@@ -55,13 +72,14 @@ export function Sidebar() {
         </nav>
 
         <div className="mt-auto border-t border-zinc-200 pt-6">
-          <Link
-            href="/login"
+          <button
+            type="button"
+            onClick={handleLogout}
             className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium text-slate-600 transition hover:bg-white hover:text-black"
           >
             <LogOut size={18} />
             Logout
-          </Link>
+          </button>
         </div>
       </div>
     </aside>

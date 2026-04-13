@@ -83,11 +83,14 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           handle: signupId.trim(),
           nickname: signupName.trim(),
           password: signupPassword,
           passwordConfirm: signupPasswordConfirm,
+          agreedToTerms: true,
+          agreedToPrivacy: true,
         }),
       });
 
@@ -116,6 +119,7 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({
           handle: loginHandle.trim(),
           password: loginPassword,
