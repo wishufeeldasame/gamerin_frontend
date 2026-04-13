@@ -87,6 +87,7 @@ export default function LoginPage() {
         body: JSON.stringify({
           handle: signupId.trim(),
           nickname: signupName.trim(),
+          email: signupEmail.trim(),
           password: signupPassword,
           passwordConfirm: signupPasswordConfirm,
           agreedToTerms: true,
@@ -95,7 +96,12 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        throw new Error('회원가입에 실패했습니다.');
+        const errorData = await response.json().catch(() => null);
+        const message =
+        errorData?.message ||
+        errorData?.error ||
+        '회원가입에 실패했습니다.';
+        throw new Error(message);
       }
 
       resetSignup();
