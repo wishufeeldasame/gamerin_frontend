@@ -1,33 +1,67 @@
+'use client';
+
 import { ImagePlus, Sparkles, Video } from "lucide-react";
+import { useAuth } from "@/app/context/AuthContext"; // [추가] 인증 컨텍스트 임포트
+import { useState } from "react";
 
 export function PostComposer() {
+  const { user } = useAuth(); // [추가] 로그인 유저 정보 가져오기
+  const [content, setContent] = useState(''); // [추가] 입력 내용 상태 관리
+
   return (
-    <section className="rounded-[28px] border border-zinc-200 bg-white p-5 shadow-[0_20px_60px_-45px_rgba(0,0,0,0.5)]">
+    <section className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm transition-all hover:shadow-md">
       <div className="flex gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-yellow-400 text-sm font-black text-black">
-          ME
+        {/* 아바타: 'ME' 대신 실제 유저의 첫 글자 노출 */}
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-inner">
+          {user ? user.nickname.substring(0, 1).toUpperCase() : 'G'}
         </div>
 
         <div className="min-w-0 flex-1">
+          {/* 입력 영역: Placeholder에 유저 닉네임 연동 */}
           <textarea
-            placeholder="Share your latest game moment..."
-            className="min-h-28 w-full resize-none border-none bg-transparent text-base text-black outline-none placeholder:text-zinc-400"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder={user ? `${user.nickname}님, 공유하고 싶은 게임 순간이 있나요?` : "로그인 후 게임 순간을 공유해보세요!"}
+            className="min-h-[100px] w-full resize-none border-none bg-transparent text-[16px] font-medium text-black outline-none placeholder:text-zinc-400"
           />
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+          {/* 하단 툴바 영역 */}
+          <div className="mt-4 flex flex-col gap-3 border-t border-zinc-50 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
-              <button className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200">
-                <ImagePlus size={18} />
+              {/* 이미지 추가 */}
+              <button 
+                title="이미지 추가"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 transition-all hover:bg-black hover:text-white"
+              >
+                <ImagePlus size={20} />
               </button>
-              <button className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200">
-                <Video size={18} />
+              
+              {/* 비디오/하이라이트 추가 */}
+              <button 
+                title="하이라이트 추가"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 transition-all hover:bg-black hover:text-white"
+              >
+                <Video size={20} />
               </button>
-              <button className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-700 transition hover:bg-zinc-200">
-                <Sparkles size={18} />
+
+              {/* AI 전적 분석 */}
+              <button 
+                title="AI 전적 분석"
+                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-purple-500 transition-all hover:bg-purple-600 hover:text-white group"
+              >
+                <Sparkles size={20} className="group-hover:animate-pulse" />
               </button>
             </div>
 
-            <button className="rounded-full bg-black px-5 py-2.5 text-sm font-bold text-white transition hover:bg-zinc-800">
+            {/* 게시 버튼: 내용이 없거나 로그인하지 않으면 비활성화 처리 */}
+            <button 
+              disabled={!content.trim() || !user}
+              className={`rounded-2xl px-8 py-3 text-sm font-black text-white transition-all shadow-lg shadow-zinc-200 ${
+                content.trim() && user 
+                ? "bg-black hover:scale-[1.02] active:scale-[0.98]" 
+                : "bg-zinc-200 cursor-not-allowed shadow-none"
+              }`}
+            >
               Post
             </button>
           </div>

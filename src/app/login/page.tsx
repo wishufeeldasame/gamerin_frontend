@@ -6,13 +6,14 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { useAuth } from "@/app/context/AuthContext"; // [추가] AuthContext 임포트
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth(); // [추가] login 함수 사용 선언
 
   const [showIdLogin, setShowIdLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -64,13 +65,6 @@ export default function LoginPage() {
     if (isStep1Valid) setSignupStep(2);
   };
 
-  const handleCompleteSignupLegacy = () => {
-    if (isStep2Valid) {
-      alert('회원가입 완료');
-      resetSignup();
-    }
-  };
-
   const resetSignupForm = () => {
     resetSignup();
   };
@@ -112,6 +106,7 @@ export default function LoginPage() {
     }
   };
 
+  // [수정] 로그인 성공 시 전역 상태에 정보를 저장하도록 변경
   const handleLocalLogin = async () => {
     if (!loginHandle.trim() || !loginPassword.trim()) {
       setLoginError('아이디와 비밀번호를 입력해주세요.');
@@ -132,9 +127,21 @@ export default function LoginPage() {
         }),
       });
 
+      // 백엔드 응답 데이터를 JSON으로 파싱
+      const data = await response.json();
+
       if (!response.ok) {
-        throw new Error('아이디 또는 비밀번호가 올바르지 않습니다.');
+        throw new Error(data.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
+
+      // [핵심] 로그인 성공 시 AuthContext에 유저 정보 저장
+      login({
+        id: data.id || "1",
+        name: data.nickname || signupName,
+        nickname: data.nickname || loginHandle,
+        gameTier: data.gameTier || "Unranked",
+        bio: data.bio || ""
+      });
 
       router.push('/home');
     } catch (error) {
@@ -276,7 +283,7 @@ export default function LoginPage() {
 
       {showSignupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
             <button
               type="button"
               onClick={() => setShowSignupModal(false)}
