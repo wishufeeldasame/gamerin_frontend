@@ -1,8 +1,10 @@
-﻿import { Header } from "./components/Header";
-import { Sidebar } from "./components/Sidebar";
+'use client';
+
+import { useState } from 'react';
 import { PostComposer } from "./components/PostComposer";
 import { Post } from "./components/Post";
 import { RightSidebar } from "./components/RightSidebar";
+import { motion } from "framer-motion";
 
 const posts = [
   {
@@ -10,10 +12,9 @@ const posts = [
     initials: "AK",
     timeAgo: "2h ago",
     game: "Elden Ring",
-    content:
-      "Just defeated Malenia after 47 attempts! This boss fight is absolutely insane. The feeling of finally winning is unmatched.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1774060526585-19be7b4af255?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxlbGRlbiUyMHJpbmclMjBnYW1lfGVufDF8fHx8MTc3NTgyMjY2M3ww&ixlib=rb-4.1.0&q=80&w=1080",
+    // 👉 수정: 외계어를 지우고 🔥(불꽃) 이모지로 변경
+    content: "드디어 말레니아를 47번의 시도 끝에 잡았습니다! 이 보스전은 정말 미쳤네요. 승리했을 때의 쾌감은 무엇과도 바꿀 수 없습니다. 🔥",
+    imageUrl: "https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080",
     likes: 324,
     comments: 45,
     shares: 12,
@@ -23,10 +24,9 @@ const posts = [
     initials: "MS",
     timeAgo: "5h ago",
     game: "Cyberpunk 2077",
-    content:
-      "Night City never looked so good with the new graphics update. The ray tracing is absolutely stunning!",
-    imageUrl:
-      "https://images.unsplash.com/photo-1607796884038-3638822d5ee2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxjeWJlcnB1bmslMjBnYW1lJTIwbmVvbnxlbnwxfHx8fDE3NzU4MjI2NjR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    // 👉 수정: 외계어를 지우고 ✨(반짝이) 이모지로 변경
+    content: "레이 트레이싱 업데이트 이후 나이트 시티의 야경이 정말 환상적입니다. 그래픽의 끝판왕이네요! ✨",
+    imageUrl: "https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1080",
     likes: 892,
     comments: 67,
     shares: 34,
@@ -36,51 +36,69 @@ const posts = [
     initials: "CL",
     timeAgo: "8h ago",
     game: "League of Legends",
-    content:
-      "Finally hit Diamond! It's been a long journey from Bronze. Thanks to everyone who supported me along the way.",
-    imageUrl:
-      "https://images.unsplash.com/photo-1529981188441-8a2e6fe30103?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwyfHxmYW50YXN5JTIwZ2FtZSUyMGJhdHRsZXxlbnwxfHx8fDE3NzU4MjI2NjR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+    // 👉 수정: 외계어를 지우고 💎(다이아) 이모지로 변경
+    content: "드디어 다이아 달성! 브론즈부터 시작해서 정말 긴 여정이었습니다. 응원해주신 분들 모두 감사합니다. 💎",
+    imageUrl: "https://images.unsplash.com/photo-1529981188441-8a2e6fe30103?q=80&w=1080",
     likes: 567,
     comments: 89,
     shares: 23,
-  },
-  {
-    author: "Emma Wilson",
-    initials: "EW",
-    timeAgo: "1d ago",
-    game: "Minecraft",
-    content:
-      "Spent the entire weekend building this castle. What do you guys think? Should I add more details?",
-    imageUrl:
-      "https://images.unsplash.com/photo-1759663174567-5e444de2488c?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxtaW5lY3JhZnQlMjBibG9ja3klMjBnYW1lfGVufDF8fHx8MTc3NTgyMjY2NHww&ixlib=rb-4.1.0&q=80&w=1080",
-    likes: 1243,
-    comments: 156,
-    shares: 78,
-  },
+  }
 ];
 
 export default function HomePage() {
-  return (
-    <div className="min-h-screen bg-white">
-      <Header />
-      <Sidebar />
+  const [activeTab, setActiveTab] = useState<'all' | 'following'>('all');
 
-      <main className="px-4 pb-8 pt-20 lg:ml-64 lg:mr-80">
-        <div className="mx-auto max-w-2xl">
+  return (
+    <div className="flex justify-center overflow-visible">
+      {/* 1. 중앙 메인 피드 영역 (Layout.tsx의 children으로 들어감) */}
+      <main className="flex-1 max-w-2xl border-x border-zinc-50 min-h-screen">
+        
+        {/* 상단 탭 필터링 */}
+        <div className="sticky top-16 z-20 bg-white/80 backdrop-blur-md border-b border-zinc-100 flex">
+          {['추천 피드', '팔로잉'].map((tab, idx) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(idx === 0 ? 'all' : 'following')}
+              className={`flex-1 py-4 text-[15px] font-black transition-all relative ${
+                (idx === 0 && activeTab === 'all') || (idx === 1 && activeTab === 'following')
+                ? "text-black" : "text-zinc-400 hover:text-zinc-600"
+              }`}
+            >
+              {tab}
+              {((idx === 0 && activeTab === 'all') || (idx === 1 && activeTab === 'following')) && (
+                <motion.div 
+                  layoutId="underline" 
+                  className="absolute bottom-0 left-1/2 -translate-x-1/2 w-16 h-1 bg-black rounded-full" 
+                />
+              )}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 space-y-6">
+          {/* 게시글 작성창 */}
           <PostComposer />
 
-          <div className="mt-6 space-y-6">
-            {posts.map((post) => (
-              <Post
-                key={`${post.author}-${post.timeAgo}-${post.game}`}
-                {...post}
-              />
+          {/* 피드 목록 애니메이션 */}
+          <div className="space-y-4">
+            {posts.map((post, index) => (
+              <motion.div
+                key={`${post.author}-${index}`}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Post {...post} />
+              </motion.div>
             ))}
           </div>
         </div>
       </main>
 
-      <RightSidebar />
+      {/* 2. 오른쪽 사이드바 (메인 홈 피드에서만 노출) */}
+      <aside className="hidden xl:block w-80 h-[calc(100vh-4rem)] sticky top-16 p-6">
+        <RightSidebar />
+      </aside>
     </div>
   );
 }
