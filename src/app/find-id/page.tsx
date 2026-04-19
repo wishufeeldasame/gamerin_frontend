@@ -27,30 +27,35 @@ export default function FindIdPage() {
       return;
     }
 
-  try {
-    const response = await fetch(`${API_BASE}/api/v1/auth/find-id`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email: normalizedEmail,
-      }),
-    });
-  
-    const data = await response.json();
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/auth/find-id`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: normalizedEmail,
+        }),
+      });
+    
+      const data = await response.json();
 
+      if (!response.ok) {
+        throw new Error(data.message || "아이디 찾기에 실패했습니다.");
+      }
 
-    if (!response.ok) {
-      throw new Error(data.message || "아이디 찾기에 실패했습니다.");
+      // 백엔드 응답에서 필요한 데이터(maskedHandle, createdAt) 추출
+      const maskedHandle = data?.data?.maskedHandle ?? "";
+      const createdAt = data?.data?.createdAt ?? "";
+
+      // 결과 페이지로 이동하면서 두 데이터를 쿼리 파라미터로 전달
+      router.push(
+        `/find-id-result?maskedHandle=${encodeURIComponent(maskedHandle)}&createdAt=${encodeURIComponent(createdAt)}`
+      );
+    } catch (error) {
+      setErrorType("notFound");
     }
-
-    const maskedHandle = data?.data?.maskedHandle ?? "";
-    router.push(`/find-id-result?maskedHandle=${encodeURIComponent(maskedHandle)}`);
-  } catch (error) {
-    setErrorType("notFound");
-  }
-};
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);

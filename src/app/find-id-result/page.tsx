@@ -8,11 +8,19 @@ import { useSearchParams } from "next/navigation";
 export default function FindIdResultPage() {
   const searchParams = useSearchParams();
   const maskedHandle = searchParams.get("maskedHandle") ?? "";
+  
+  // 1. URL 파라미터에서 createdAt 가져오기
+  const createdAt = searchParams.get("createdAt");
+
+  // 2. 날짜 포맷팅 함수 (예: 2026-03-15T12:00:00Z -> 2026.03.15)
+  const formattedDate = createdAt 
+    ? new Date(createdAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1)
+    : "정보 없음";
 
   return (
     <div className="flex min-h-screen bg-white font-sans text-black">
       
-      {/* 1. 왼쪽: GamerIN 로고 전용 영역 (일체감 유지) */}
+      {/* 1. 왼쪽: GamerIN 로고 전용 영역 */}
       <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100">
         <div className="relative w-80 h-80 flex items-center justify-center">
           <Image 
@@ -38,7 +46,6 @@ export default function FindIdResultPage() {
         
         <div className="w-full max-w-[420px] mx-auto space-y-10 pt-16 md:pt-0">
           
-          {/* 타이틀 및 아이콘 */}
           <div className="space-y-6">
             <div className="w-16 h-16 bg-black rounded-full flex items-center justify-center shadow-lg">
               <CheckCircle2 size={32} className="text-white" />
@@ -57,13 +64,15 @@ export default function FindIdResultPage() {
           <div className="p-8 border border-zinc-200 rounded-3xl bg-zinc-50 space-y-2">
             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">User ID</p>
             <p className="text-3xl font-black text-black tracking-tight">
-              {maskedHandle || "조회 결과 없음"}</p>
+              {maskedHandle || "조회 결과 없음"}
+            </p>
+            
+            {/* 3. 하드코딩된 날짜 대신 변수(formattedDate) 사용 */}
             <p className="text-sm text-zinc-500 pt-2 font-medium">
-              가입일: 2026.03.15
+              가입일: {formattedDate}
             </p>
           </div>
 
-          {/* 로그인 버튼 */}
           <Link
             href="/login"
             className="flex items-center justify-center w-full h-14 bg-black text-white rounded-full font-black text-[16px] hover:bg-zinc-800 transition-all active:scale-[0.98] no-underline"
