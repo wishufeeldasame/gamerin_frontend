@@ -8,13 +8,13 @@ import {
   UserMinus, 
   Plus, 
   MessageCircle,
-  Youtube,
-  Twitch,
+  PlayCircle,
+  Gamepad2,
   Tv,
   Globe
 } from 'lucide-react';
 import { Post } from './Post';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
 // ✅ 에러 해결 1: 실제 파일명 'AddAcountModal.tsx'에 맞춰 import 경로 수정
@@ -50,6 +50,36 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
+  const [profileCover, setProfileCover] = useState<string | null>(null);
+  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
+  const [userInfo, setUserInfo] = useState({
+    name: '김신의',
+    bio: 'Next.js & TypeScript 기반 풀스택 개발자. 발로란트 불멸 티어 櫨',
+    location: 'Seoul, Korea',
+    website: 'https://github.com/sinui-kim',
+  });
+
+  useEffect(() => {
+    const savedCover = localStorage.getItem('gamerin_profile_cover');
+    const savedAvatar = localStorage.getItem('gamerin_profile_avatar');
+
+    setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
+    setProfileAvatar(savedAvatar);
+  }, []);
+
+  useEffect(() => {
+    if (profileCover) {
+      localStorage.setItem('gamerin_profile_cover', profileCover);
+    }
+  }, [profileCover]);
+
+  useEffect(() => {
+    if (profileAvatar) {
+      localStorage.setItem('gamerin_profile_avatar', profileAvatar);
+    } else {
+      localStorage.removeItem('gamerin_profile_avatar');
+    }
+  }, [profileAvatar]);
 
   const handleRefreshStats = () => {
     setIsRefreshing(true);
@@ -61,7 +91,7 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
       {/* 1. 커버 이미지 영역 */}
       <div className="relative h-64 bg-zinc-900 overflow-hidden">
         <img
-          src="https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440"
+          src={profileCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'}
           alt="Cover"
           className="w-full h-full object-cover opacity-60"
         />
@@ -72,8 +102,16 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
         <div className="relative flex justify-between items-end -mt-20">
           {/* 2. 프로필 이미지 */}
           <div className="relative">
-            <div className="w-40 h-40 bg-black rounded-[48px] border-[6px] border-white flex items-center justify-center text-white text-4xl font-black shadow-2xl">
-              KS
+            <div className="w-40 h-40 bg-black rounded-[48px] border-[6px] border-white flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden">
+              {profileAvatar ? (
+                <img
+                  src={profileAvatar}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                'KS'
+              )}
             </div>
             <div className="absolute bottom-2 right-2 w-8 h-8 bg-green-500 border-4 border-white rounded-full" />
           </div>
@@ -108,14 +146,14 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
         {/* 4. 유저 상세 정보 */}
         <div className="mt-6 space-y-4">
           <div>
-            <h1 className="text-3xl font-black text-black tracking-tighter">김신의</h1>
+            <h1 className="text-3xl font-black text-black tracking-tighter">{userInfo.name}</h1>
             <p className="text-zinc-400 font-bold">@sinui_kim</p>
           </div>
           <p className="text-[16px] text-zinc-800 font-medium max-w-2xl leading-relaxed italic">
-            "Next.js 기반의 프론트엔드 리드이자, 발로란트 불멸 티어 게이머입니다."
+            "{userInfo.bio}"
           </p>
           <div className="flex items-center gap-6 text-sm font-black text-zinc-400">
-            <div className="flex items-center gap-1.5"><MapPin size={16} /> <span>Seoul, Korea</span></div>
+            <div className="flex items-center gap-1.5"><MapPin size={16} /> <span>{userInfo.location}</span></div>
             <div className="flex items-center gap-1.5"><Calendar size={16} /> <span>2024년 3월 가입</span></div>
           </div>
         </div>
@@ -175,7 +213,17 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
 
       {/* 모달 렌더링 */}
       {showFetchStatsModal && <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} />}
-      {showEditProfileModal && <EditProfileModal onClose={() => setShowEditProfileModal(false)} />}
+      {showEditProfileModal && (
+        <EditProfileModal
+          onClose={() => setShowEditProfileModal(false)}
+          coverImage={profileCover}
+          onSaveCover={(newCover) => setProfileCover(newCover)}
+          avatarImage={profileAvatar}
+          onSaveAvatar={(newAvatar) => setProfileAvatar(newAvatar)}
+          userInfo={userInfo}
+          onSaveUserInfo={(newUserInfo) => setUserInfo(newUserInfo)}
+        />
+      )}
       {showAddAccountModal && (
         <AddAccountModal 
           onClose={() => setShowAddAccountModal(false)} 

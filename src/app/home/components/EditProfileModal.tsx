@@ -1,23 +1,86 @@
 'use client';
 
 import { X, Camera, MapPin, Globe, AlignLeft, User } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface EditProfileModalProps {
   onClose: () => void;
+  coverImage: string | null;
+  onSaveCover: (coverUrl: string) => void;
+  avatarImage: string | null;
+  onSaveAvatar: (avatarUrl: string | null) => void;
+  userInfo?: {
+    name: string;
+    bio: string;
+    location: string;
+    website: string;
+  };
+  onSaveUserInfo?: (userInfo: { name: string; bio: string; location: string; website: string }) => void;
 }
 
-export function EditProfileModal({ onClose }: EditProfileModalProps) {
+export function EditProfileModal({ onClose, coverImage, onSaveCover, avatarImage, onSaveAvatar, userInfo, onSaveUserInfo }: EditProfileModalProps) {
   const [formData, setFormData] = useState({
-    name: '김신의',
-    bio: 'Next.js & TypeScript 기반 풀스택 개발자. 발로란트 불멸 티어 櫨',
-    location: 'Seoul, Korea',
-    website: 'https://github.com/sinui-kim',
+    name: userInfo?.name || '김신의',
+    bio: userInfo?.bio || 'Next.js & TypeScript 기반 풀스택 개발자. 발로란트 불멸 티어 櫨',
+    location: userInfo?.location || 'Seoul, Korea',
+    website: userInfo?.website || 'https://github.com/sinui-kim',
   });
+  const [coverPreview, setCoverPreview] = useState<string>(coverImage || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(avatarImage);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    setCoverPreview(coverImage || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
+  }, [coverImage]);
+
+  useEffect(() => {
+    setAvatarPreview(avatarImage);
+  }, [avatarImage]);
+
+  const handleCoverClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleCoverSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setCoverPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAvatarClick = () => {
+    avatarFileInputRef.current?.click();
+  };
+
+  const handleAvatarSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === 'string') {
+        setAvatarPreview(reader.result);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = () => {
-    // TODO: 프로필 변경사항 저장 로직
+    onSaveCover(coverPreview);
+    onSaveAvatar(avatarPreview);
+    onSaveUserInfo?.(formData);
     onClose();
   };
 
@@ -60,9 +123,12 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
           </div>
 
           {/* 2. 커버 이미지 수정 섹션 */}
-          <div className="relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden">
+          <div
+            onClick={handleCoverClick}
+            className="relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden"
+          >
             <img
-              src="https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1080"
+              src={coverPreview}
               alt="Cover"
               className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
             />
@@ -74,18 +140,40 @@ export function EditProfileModal({ onClose }: EditProfileModalProps) {
                 <span className="text-white text-[11px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">Change Cover</span>
               </div>
             </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleCoverSelect}
+            />
           </div>
 
           {/* 3. 프로필 이미지 수정 섹션 */}
           <div className="px-8 -mt-16 relative z-10">
-            <div className="relative w-32 h-32 group cursor-pointer">
+            <div className="relative w-32 h-32 group cursor-pointer" onClick={handleAvatarClick}>
               <div className="w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden">
-                KS
+                {avatarPreview ? (
+                  <img
+                    src={avatarPreview}
+                    alt="Avatar"
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  'KS'
+                )}
               </div>
               <div className="absolute inset-0 bg-black/40 rounded-[40px] opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border-4 border-white/0 group-hover:border-white/20">
                 <Camera className="w-8 h-8 text-white" />
               </div>
             </div>
+            <input
+              ref={avatarFileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarSelect}
+            />
           </div>
 
           {/* 4. 입력 폼 섹션 */}
