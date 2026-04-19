@@ -39,14 +39,42 @@ interface FetchGameStatsModalProps {
 export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
   // 연결 중인 게임의 이름을 담는 상태 (로딩 효과용)
   const [connectingGame, setConnectingGame] = useState<string | null>(null);
+  const [pubgNickname, setPubgNickname] = useState('');
+  const [pubgPromptOpen, setPubgPromptOpen] = useState(false);
 
   const handleConnect = (gameName: string) => {
+    if (gameName === 'PUBG') {
+      setPubgNickname('');
+      setPubgPromptOpen(true);
+      return;
+    }
+
     setConnectingGame(gameName);
     // 실제 구현 시에는 여기서 API를 호출하게 됩니다.
     setTimeout(() => {
       setConnectingGame(null);
       alert(`${gameName} 연동이 완료되었습니다!`);
     }, 1500);
+  };
+
+  const handlePubgSubmit = () => {
+    if (!pubgNickname.trim()) {
+      alert('PUBG 닉네임을 입력해주세요.');
+      return;
+    }
+
+    setPubgPromptOpen(false);
+    setConnectingGame('PUBG');
+
+    setTimeout(() => {
+      setConnectingGame(null);
+      alert(`PUBG (${pubgNickname}) 연동이 완료되었습니다!`);
+    }, 1500);
+  };
+
+  const handlePubgCancel = () => {
+    setPubgPromptOpen(false);
+    setPubgNickname('');
   };
 
   return (
@@ -103,9 +131,9 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
                 
                 <button 
                   onClick={() => handleConnect(game.name)}
-                  disabled={connectingGame !== null}
+                  disabled={connectingGame !== null || pubgPromptOpen}
                   className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all shadow-sm ${
-                    connectingGame === game.name
+                    connectingGame === game.name || pubgPromptOpen
                       ? "bg-zinc-200 text-zinc-500 cursor-not-allowed"
                       : "bg-black text-white hover:bg-zinc-800 active:scale-95"
                   }`}
@@ -125,6 +153,57 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
               </p>
             </div>
           </div>
+
+          {pubgPromptOpen && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-6"
+            >
+              <div className="relative w-full max-w-md rounded-[32px] bg-white shadow-2xl border border-zinc-200 overflow-hidden">
+                <div className="p-6 border-b border-zinc-100">
+                  <div className="flex items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-xl font-black">PUBG 계정 연동</h3>
+                      <p className="text-sm text-zinc-500 mt-1">닉네임을 입력하면 PUBG 계정 연동을 시작합니다.</p>
+                    </div>
+                    <button
+                      onClick={handlePubgCancel}
+                      className="w-10 h-10 rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 transition"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">닉네임</label>
+                  <input
+                    value={pubgNickname}
+                    onChange={(event) => setPubgNickname(event.target.value)}
+                    placeholder="PUBG 닉네임을 입력하세요"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none focus:border-black focus:bg-white transition"
+                  />
+                </div>
+
+                <div className="flex items-center gap-4 p-6 border-t border-zinc-100 bg-zinc-50">
+                  <button
+                    onClick={handlePubgCancel}
+                    className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 font-black text-sm text-zinc-700 hover:bg-zinc-100 transition"
+                  >
+                    취소
+                  </button>
+                  <button
+                    onClick={handlePubgSubmit}
+                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white hover:bg-zinc-800 transition"
+                  >
+                    연결하기
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
         </motion.div>
       </div>
     </AnimatePresence>
