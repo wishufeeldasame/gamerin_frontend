@@ -126,16 +126,22 @@ export default function LoginPage() {
         throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
 
-      // 1. 토큰 저장 (이게 있어야 다른 페이지에서 로그아웃 버튼이 보임)
+      // 1. 토큰 저장
       const accessToken = data?.data?.accessToken || data?.accessToken;
       if (accessToken) {
         setAccessToken(accessToken);
       }
 
-      // 2. 전역 상태 업데이트 (이름, 닉네임 등을 시스템에 등록)
+      // 2. 전역 상태 업데이트
       const payload = data?.data ?? data;
+      
+      // 👉 [수정된 부분] ID가 없으면 강제로 에러를 발생시켜 안전하게 차단합니다.
+      if (!payload?.id) {
+        throw new Error('서버로부터 유저 고유 ID를 받아오지 못했습니다.');
+      }
+
       login({
-        id: String(payload?.id ?? '1'),
+        id: String(payload.id), // 하드코딩 제거, 확실한 id 값 사용
         name: payload?.nickname ?? loginHandle.trim(),
         nickname: payload?.nickname ?? loginHandle.trim(),
         handle: payload?.handle ?? loginHandle.trim(),

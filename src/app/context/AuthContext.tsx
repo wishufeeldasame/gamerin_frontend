@@ -37,10 +37,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('gamerin_user', JSON.stringify(userData));
   };
 
+
   const logout = () => {
-    // 3. 로그아웃 시 정보를 삭제합니다.
+    // 3. 로그아웃 시 정보와 토큰을 함께 완벽하게 삭제합니다.
     setUser(null);
     localStorage.removeItem('gamerin_user');
+    localStorage.removeItem('accessToken'); 
   };
 
   return (
