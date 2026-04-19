@@ -12,7 +12,8 @@ const posts = [
     initials: "AK",
     timeAgo: "2h ago",
     game: "Elden Ring",
-    content: "드디어 말레니아를 47번의 시도 끝에 잡았습니다! 이 보스전은 정말 미쳤네요. 승리했을 때의 쾌감은 무엇과도 바꿀 수 없습니다. 櫨",
+    // 👉 수정: 외계어를 지우고 🔥(불꽃) 이모지로 변경
+    content: "드디어 말레니아를 47번의 시도 끝에 잡았습니다! 이 보스전은 정말 미쳤네요. 승리했을 때의 쾌감은 무엇과도 바꿀 수 없습니다. 🔥",
     imageUrl: "https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080",
     likes: 324,
     comments: 45,
@@ -23,7 +24,8 @@ const posts = [
     initials: "MS",
     timeAgo: "5h ago",
     game: "Cyberpunk 2077",
-    content: "레이 트레이싱 업데이트 이후 나이트 시티의 야경이 정말 환상적입니다. 그래픽의 끝판왕이네요! 忰",
+    // 👉 수정: 외계어를 지우고 ✨(반짝이) 이모지로 변경
+    content: "레이 트레이싱 업데이트 이후 나이트 시티의 야경이 정말 환상적입니다. 그래픽의 끝판왕이네요! ✨",
     imageUrl: "https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1080",
     likes: 892,
     comments: 67,
@@ -34,7 +36,8 @@ const posts = [
     initials: "CL",
     timeAgo: "8h ago",
     game: "League of Legends",
-    content: "드디어 다이아 달성! 브론즈부터 시작해서 정말 긴 여정이었습니다. 응원해주신 분들 모두 감사합니다. 忸",
+    // 👉 수정: 외계어를 지우고 💎(다이아) 이모지로 변경
+    content: "드디어 다이아 달성! 브론즈부터 시작해서 정말 긴 여정이었습니다. 응원해주신 분들 모두 감사합니다. 💎",
     imageUrl: "https://images.unsplash.com/photo-1529981188441-8a2e6fe30103?q=80&w=1080",
     likes: 567,
     comments: 89,
