@@ -9,13 +9,17 @@ export default function FindIdResultPage() {
   const searchParams = useSearchParams();
   const maskedHandle = searchParams.get("maskedHandle") ?? "";
   
-  // 1. URL 파라미터에서 createdAt 가져오기
+// 1. URL 파라미터에서 createdAt 가져오기
   const createdAt = searchParams.get("createdAt");
 
-  // 2. 날짜 포맷팅 함수 (예: 2026-03-15T12:00:00Z -> 2026.03.15)
-  const formattedDate = createdAt 
-    ? new Date(createdAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1)
-    : "정보 없음";
+  // 👉 [수정된 부분] 날짜가 유효한지 먼저 검사 (방어막)
+  const parsedCreatedAt = createdAt ? Date.parse(createdAt) : NaN;
+
+  // 2. 날짜 포맷팅 함수 (유효한 날짜일 때만 변환, 아니면 "정보 없음")
+  const formattedDate =
+    createdAt && !Number.isNaN(parsedCreatedAt)
+      ? new Date(parsedCreatedAt).toLocaleDateString('ko-KR').replace(/\. /g, '.').slice(0, -1)
+      : "정보 없음";
 
   return (
     <div className="flex min-h-screen bg-white font-sans text-black">
