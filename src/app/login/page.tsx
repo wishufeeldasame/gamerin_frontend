@@ -6,14 +6,16 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { useAuth } from "@/app/context/AuthContext"; // [추가] AuthContext 임포트
+// --- [인증 관련 임포트 추가] ---
+import { useAuth } from '@/app/context/AuthContext';
+import { setAccessToken } from '@/lib/auth-store';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth(); // [추가] login 함수 사용 선언
+  const { login } = useAuth(); // AuthContext에서 login 함수 가져오기
 
   const [showIdLogin, setShowIdLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -38,10 +40,10 @@ export default function LoginPage() {
   const isPasswordLongEnough = signupPassword.length >= 8;
   const isStep1Valid = Boolean(
     signupName.trim() &&
-      emailRegex.test(signupEmail) &&
-      birthMonth &&
-      birthDay &&
-      birthYear
+    emailRegex.test(signupEmail) &&
+    birthMonth &&
+    birthDay &&
+    birthYear
   );
   const isStep2Valid =
     signupId.length >= 4 &&
@@ -65,18 +67,13 @@ export default function LoginPage() {
     if (isStep1Valid) setSignupStep(2);
   };
 
-  const resetSignupForm = () => {
-    resetSignup();
-  };
-
+  // 회원가입 로직
   const handleCompleteSignup = async () => {
     if (!isStep2Valid) return;
     try {
       const response = await fetch(`${API_BASE}/api/v1/auth/signup`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           handle: signupId.trim(),
@@ -91,11 +88,7 @@ export default function LoginPage() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => null);
-        const message =
-        errorData?.message ||
-        errorData?.error ||
-        '회원가입에 실패했습니다.';
-        throw new Error(message);
+        throw new Error(errorData?.message || '회원가입에 실패했습니다.');
       }
 
       resetSignup();
@@ -106,20 +99,20 @@ export default function LoginPage() {
     }
   };
 
-  // [수정] 로그인 성공 시 전역 상태에 정보를 저장하도록 변경
+  // --- [수정된 로그인 로직] ---
   const handleLocalLogin = async () => {
     if (!loginHandle.trim() || !loginPassword.trim()) {
       setLoginError('아이디와 비밀번호를 입력해주세요.');
       return;
     }
+
     setLoginError('');
     setLoginLoading(true);
+
     try {
       const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           handle: loginHandle.trim(),
@@ -127,27 +120,33 @@ export default function LoginPage() {
         }),
       });
 
-      // 백엔드 응답 데이터를 JSON으로 파싱
-      const data = await response.json();
-
+      const data = await response.json().catch(() => null);
+      
       if (!response.ok) {
-        throw new Error(data.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+        throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
 
-      // [핵심] 로그인 성공 시 AuthContext에 유저 정보 저장
+      // 1. 토큰 저장 (이게 있어야 다른 페이지에서 로그아웃 버튼이 보임)
+      const accessToken = data?.data?.accessToken || data?.accessToken;
+      if (accessToken) {
+        setAccessToken(accessToken);
+      }
+
+      // 2. 전역 상태 업데이트 (이름, 닉네임 등을 시스템에 등록)
+      const payload = data?.data ?? data;
       login({
-        id: data.id || "1",
-        name: data.nickname || signupName,
-        nickname: data.nickname || loginHandle,
-        gameTier: data.gameTier || "Unranked",
-        bio: data.bio || ""
+        id: String(payload?.id ?? '1'),
+        name: payload?.nickname ?? loginHandle.trim(),
+        nickname: payload?.nickname ?? loginHandle.trim(),
+        handle: payload?.handle ?? loginHandle.trim(),
+        gameTier: payload?.gameTier ?? 'Unranked',
+        bio: payload?.bio ?? '',
       });
 
+      // 3. 홈으로 이동
       router.push('/home');
     } catch (error) {
-      setLoginError(
-        error instanceof Error ? error.message : '로그인에 실패했습니다.'
-      );
+      setLoginError(error instanceof Error ? error.message : '로그인에 실패했습니다.');
     } finally {
       setLoginLoading(false);
     }
@@ -185,9 +184,7 @@ export default function LoginPage() {
               className="group flex h-12 w-full items-center justify-center gap-3 rounded-full border border-zinc-300 bg-white transition-all hover:border-zinc-800 hover:bg-zinc-50"
             >
               <Image src="/google.png" alt="Google" width={20} height={20} />
-              <span className="text-[15px] font-bold text-zinc-900">
-                Google로 계속하기
-              </span>
+              <span className="text-[15px] font-bold text-zinc-900">Google로 계속하기</span>
             </button>
 
             <button
@@ -200,9 +197,7 @@ export default function LoginPage() {
               </span>
               <ChevronDown
                 size={18}
-                className={`text-zinc-500 transition-transform duration-300 ${
-                  showIdLogin ? 'rotate-180' : ''
-                }`}
+                className={`text-zinc-500 transition-transform duration-300 ${showIdLogin ? 'rotate-180' : ''}`}
               />
             </button>
 
@@ -235,9 +230,7 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {loginError && (
-                  <p className="text-sm text-red-500">{loginError}</p>
-                )}
+                {loginError && <p className="text-sm text-red-500">{loginError}</p>}
                 <button
                   type="button"
                   onClick={handleLocalLogin}
@@ -251,17 +244,11 @@ export default function LoginPage() {
           </div>
 
           <div className="flex justify-center gap-6">
-            <Link
-              href="/find-id"
-              className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-            >
+            <Link href="/find-id" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
               아이디 찾기
             </Link>
             <div className="h-4 w-[1px] self-center bg-zinc-200" />
-            <Link
-              href="/find-Password"
-              className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-            >
+            <Link href="/find-Password" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
               비밀번호 찾기
             </Link>
           </div>
@@ -283,7 +270,7 @@ export default function LoginPage() {
 
       {showSignupModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl overflow-y-auto max-h-[90vh]">
+          <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <button
               type="button"
               onClick={() => setShowSignupModal(false)}
@@ -294,10 +281,7 @@ export default function LoginPage() {
 
             {signupStep === 1 && (
               <>
-                <h1 className="mb-8 text-3xl font-extrabold text-black md:text-3xl">
-                  계정을 생성하세요
-                </h1>
-
+                <h1 className="mb-8 text-3xl font-extrabold text-black">계정을 생성하세요</h1>
                 <div className="mb-5">
                   <div className="relative">
                     <input
@@ -313,7 +297,6 @@ export default function LoginPage() {
                     </span>
                   </div>
                 </div>
-
                 <div className="mb-8">
                   <input
                     type="email"
@@ -323,14 +306,11 @@ export default function LoginPage() {
                     className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
                   />
                 </div>
-
                 <div className="mb-3">
                   <h2 className="mb-2 text-lg font-bold text-black">생년월일</h2>
                   <p className="mb-5 text-sm leading-6 text-gray-500">
-                    이 정보는 공개적으로 표시되지 않습니다. 계정 주제와 상관없이
-                    나이 확인을 위해 사용됩니다.
+                    본인 확인 및 계정 보호를 위해 사용됩니다.
                   </p>
-
                   <div className="grid grid-cols-3 gap-3">
                     <select
                       value={birthMonth}
@@ -339,12 +319,9 @@ export default function LoginPage() {
                     >
                       <option value="">월</option>
                       {Array.from({ length: 12 }, (_, i) => (
-                        <option key={i + 1} value={String(i + 1)}>
-                          {i + 1}월
-                        </option>
+                        <option key={i + 1} value={String(i + 1)}>{i + 1}월</option>
                       ))}
                     </select>
-
                     <select
                       value={birthDay}
                       onChange={(e) => setBirthDay(e.target.value)}
@@ -352,53 +329,32 @@ export default function LoginPage() {
                     >
                       <option value="">일</option>
                       {Array.from({ length: 31 }, (_, i) => (
-                        <option key={i + 1} value={String(i + 1)}>
-                          {i + 1}
-                        </option>
+                        <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
                       ))}
                     </select>
-
                     <select
                       value={birthYear}
                       onChange={(e) => setBirthYear(e.target.value)}
                       className="rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
                     >
-                      <option value="">년</option>
+                      <option value="">연도</option>
                       {Array.from({ length: 100 }, (_, i) => {
                         const year = new Date().getFullYear() - i;
-                        return (
-                          <option key={year} value={String(year)}>
-                            {year}
-                          </option>
-                        );
+                        return <option key={year} value={String(year)}>{year}</option>;
                       })}
                     </select>
                   </div>
                 </div>
-
                 <button
                   type="button"
                   onClick={handleNextStep}
                   disabled={!isStep1Valid}
                   className={`mt-8 w-full rounded-full py-4 text-lg font-bold transition ${
-                    !isStep1Valid
-                      ? 'cursor-not-allowed bg-gray-300 text-white'
-                      : 'bg-black text-white hover:opacity-90'
+                    !isStep1Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
                   }`}
                 >
                   다음
                 </button>
-
-                <div className="mt-8 border-t border-gray-200 pt-6 text-center text-sm text-gray-600">
-                  이미 계정이 있으신가요?{' '}
-                  <button
-                    type="button"
-                    onClick={resetSignupForm}
-                    className="font-bold text-black hover:underline"
-                  >
-                    로그인
-                  </button>
-                </div>
               </>
             )}
 
@@ -407,11 +363,9 @@ export default function LoginPage() {
                 <h1 className="mb-4 text-3xl font-extrabold text-black md:text-2xl">
                   아이디와 비밀번호를 설정하세요
                 </h1>
-
                 <p className="mb-10 text-base text-gray-600">
-                  게머린에서 사용할 아이디와 비밀번호를 입력해주세요.
+                  로그인에 사용할 아이디와 비밀번호를 입력해주세요.
                 </p>
-
                 <div className="mb-5">
                   <div className="relative">
                     <input
@@ -419,11 +373,9 @@ export default function LoginPage() {
                       value={signupId}
                       onChange={(e) => {
                         const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
-                        if (value.length <= 20) {
-                          setSignupId(value);
-                        }
+                        if (value.length <= 20) setSignupId(value);
                       }}
-                      placeholder="아이디 (영문, 숫자, _ 만 사용 가능)"
+                      placeholder="아이디 (영문, 숫자, _ 사용 가능)"
                       maxLength={20}
                       className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
                     />
@@ -432,7 +384,6 @@ export default function LoginPage() {
                     </span>
                   </div>
                 </div>
-
                 <div className="mb-2">
                   <input
                     type="password"
@@ -440,19 +391,13 @@ export default function LoginPage() {
                     onChange={(e) => setSignupPassword(e.target.value)}
                     placeholder="비밀번호 (최소 8자)"
                     className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
-                      signupPassword.length > 0 && !isPasswordLongEnough
-                        ? 'border-red-500'
-                        : 'border-gray-300 focus:border-black'
+                      signupPassword.length > 0 && !isPasswordLongEnough ? 'border-red-500' : 'border-gray-300 focus:border-black'
                     }`}
                   />
                 </div>
-
                 {signupPassword.length > 0 && !isPasswordLongEnough && (
-                  <p className="mb-5 ml-2 text-sm text-red-500">
-                    비밀번호는 최소 8자 이상이어야 합니다.
-                  </p>
+                  <p className="mb-5 ml-2 text-sm text-red-500">비밀번호는 최소 8자 이상이어야 합니다.</p>
                 )}
-
                 <div className="mb-2">
                   <input
                     type="password"
@@ -461,51 +406,26 @@ export default function LoginPage() {
                     placeholder="비밀번호 확인"
                     className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
                       signupPasswordConfirm.length > 0
-                        ? signupPassword === signupPasswordConfirm
-                          ? 'border-gray-300 focus:border-black'
-                          : 'border-red-500'
+                        ? signupPassword === signupPasswordConfirm ? 'border-gray-300 focus:border-black' : 'border-red-500'
                         : 'border-gray-300 focus:border-black'
                     }`}
                   />
                 </div>
-
                 {signupPasswordConfirm.length > 0 && (
-                  <p
-                    className={`mb-8 ml-2 text-sm ${
-                      signupPassword === signupPasswordConfirm
-                        ? 'text-green-600'
-                        : 'text-red-500'
-                    }`}
-                  >
-                    {signupPassword === signupPasswordConfirm
-                      ? '비밀번호가 일치합니다.'
-                      : '비밀번호가 일치하지 않습니다.'}
+                  <p className={`mb-8 ml-2 text-sm ${signupPassword === signupPasswordConfirm ? 'text-green-600' : 'text-red-500'}`}>
+                    {signupPassword === signupPasswordConfirm ? '비밀번호가 일치합니다.' : '비밀번호가 일치하지 않습니다.'}
                   </p>
                 )}
-
                 <button
                   type="button"
                   onClick={handleCompleteSignup}
                   disabled={!isStep2Valid}
                   className={`mt-4 w-full rounded-full py-4 text-lg font-bold transition ${
-                    !isStep2Valid
-                      ? 'cursor-not-allowed bg-gray-300 text-white'
-                      : 'bg-black text-white hover:opacity-90'
+                    !isStep2Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
                   }`}
                 >
                   가입 완료
                 </button>
-
-                <div className="mt-8 border-t border-gray-200 pt-6 text-center text-sm text-gray-600">
-                  이미 계정이 있으신가요?{' '}
-                  <button
-                    type="button"
-                    onClick={resetSignupForm}
-                    className="font-bold text-black hover:underline"
-                  >
-                    로그인
-                  </button>
-                </div>
               </>
             )}
           </div>
