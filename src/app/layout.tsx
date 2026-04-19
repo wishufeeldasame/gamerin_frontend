@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-// 1. AuthProvider를 가져옵니다 (경로는 신의님이 만드신 폴더 위치에 맞춰주세요)
-import { AuthProvider } from "./context/AuthContext"; 
+// 1. 전역 인증 상태 관리를 위해 AuthProvider를 가져옵니다.
+import { AuthProvider } from '@/app/context/AuthContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

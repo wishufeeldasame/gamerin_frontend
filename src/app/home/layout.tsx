@@ -19,9 +19,9 @@ export default function HomeLayout({
           <Sidebar />
         </aside>
 
-        {/* 여기가 핵심! 
-           children 자리에는 /home/friends, / home/profile 등 
-           신의님이 클릭한 페이지의 내용(page.tsx)이 들어옵니다.
+        {/* 여기가 핵심!
+            children 자리에는 /home/friends, /home/profile 등
+            선택한 하위 페이지의 내용(page.tsx)이 들어옵니다.
         */}
         <main className="flex-1 min-h-screen">
           {children}

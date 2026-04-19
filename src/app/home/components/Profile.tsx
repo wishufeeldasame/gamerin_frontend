@@ -17,10 +17,9 @@ import { Post } from './Post';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 
-// ✅ 에러 해결 1: 실제 파일명 'AddAcountModal.tsx'에 맞춰 import 경로 수정
 import { FetchGameStatsModal } from './FetchGameStatsModal';
 import { EditProfileModal } from './EditProfileModal';
-import { AddAccountModal } from './AddAcountModal'; 
+import { AddAccountModal } from './AddAccountModal'; 
 
 // ✅ 에러 해결 3: 누락되었던 데이터 선언 추가
 const gameStats = [
