@@ -52,7 +52,7 @@ export default function FindIdPage() {
       router.push(
         `/find-id-result?maskedHandle=${encodeURIComponent(maskedHandle)}&createdAt=${encodeURIComponent(createdAt)}`
       );
-    } catch (error) {
+    } catch {
       setErrorType("notFound");
     }
   };
@@ -150,7 +150,7 @@ export default function FindIdPage() {
             <p className="text-[15px] font-medium text-zinc-600">
               비밀번호를 잊으셨나요?{' '}
               <Link
-                href="/find-Password"
+                href="/auth/forgot-password"
                 className="ml-1.5 font-black text-black underline-offset-4 hover:underline"
               >
                 비밀번호 찾기

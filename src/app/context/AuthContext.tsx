@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import { removeAccessToken } from '@/lib/auth-store';
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
@@ -42,7 +43,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // 3. 로그아웃 시 정보와 토큰을 함께 완벽하게 삭제합니다.
     setUser(null);
     localStorage.removeItem('gamerin_user');
-    localStorage.removeItem('accessToken'); 
+    removeAccessToken();
   };
 
   return (

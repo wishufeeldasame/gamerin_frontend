@@ -136,12 +136,12 @@ export default function LoginPage() {
       const payload = data?.data ?? data;
       
       // 👉 [수정된 부분] ID가 없으면 강제로 에러를 발생시켜 안전하게 차단합니다.
-      if (!payload?.id) {
+      if (!payload?.userId) {
         throw new Error('서버로부터 유저 고유 ID를 받아오지 못했습니다.');
       }
 
       login({
-        id: String(payload.id), // 하드코딩 제거, 확실한 id 값 사용
+        id: String(payload.userId), // 하드코딩 제거, 확실한 id 값 사용
         name: payload?.nickname ?? loginHandle.trim(),
         nickname: payload?.nickname ?? loginHandle.trim(),
         handle: payload?.handle ?? loginHandle.trim(),
@@ -254,7 +254,7 @@ export default function LoginPage() {
               아이디 찾기
             </Link>
             <div className="h-4 w-[1px] self-center bg-zinc-200" />
-            <Link href="/find-Password" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
+            <Link href="/auth/forgot-password" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
               비밀번호 찾기
             </Link>
           </div>
