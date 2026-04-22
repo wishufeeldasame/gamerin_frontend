@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -68,10 +69,13 @@ export function Post({
       {imageUrl && (
         <div className="px-5 pb-4">
           <div className="relative rounded-[24px] overflow-hidden border border-zinc-50 shadow-inner">
-            <img
+            <Image
               src={imageUrl}
               alt={`${game} post by ${author}`}
-              className="w-full object-cover max-h-[420px] hover:scale-105 transition-transform duration-700"
+              width={1200}
+              height={800}
+              sizes="(max-width: 768px) 100vw, 700px"
+              className="h-auto max-h-[420px] w-full object-cover hover:scale-105 transition-transform duration-700"
             />
           </div>
         </div>

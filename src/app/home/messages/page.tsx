@@ -1,8 +1,7 @@
 'use client';
 
-import { Search, Send, MoreHorizontal, ShieldCheck, Plus, Image as ImageIcon } from 'lucide-react';
+import { Search, Send, MoreHorizontal, ShieldCheck, Plus } from 'lucide-react';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
 
 export default function MessagesPage() {
   const [message, setMessage] = useState('');

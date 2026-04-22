@@ -1,7 +1,7 @@
 'use client';
 
 import { Heart, MessageCircle, UserPlus, X, Bell } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 interface NotificationPanelProps {
   onClose: () => void;

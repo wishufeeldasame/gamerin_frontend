@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { X, Camera, MapPin, Globe, AlignLeft, User } from 'lucide-react';
 import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -127,10 +128,13 @@ export function EditProfileModal({ onClose, coverImage, onSaveCover, avatarImage
             onClick={handleCoverClick}
             className="relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden"
           >
-            <img
+            <Image
               src={coverPreview}
               alt="Cover"
-              className="w-full h-full object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
+              fill
+              unoptimized
+              sizes="(max-width: 768px) 100vw, 768px"
+              className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-all">
               <div className="flex flex-col items-center gap-2">
@@ -152,12 +156,15 @@ export function EditProfileModal({ onClose, coverImage, onSaveCover, avatarImage
           {/* 3. 프로필 이미지 수정 섹션 */}
           <div className="px-8 -mt-16 relative z-10">
             <div className="relative w-32 h-32 group cursor-pointer" onClick={handleAvatarClick}>
-              <div className="w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden">
+              <div className="relative w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden">
                 {avatarPreview ? (
-                  <img
+                  <Image
                     src={avatarPreview}
                     alt="Avatar"
-                    className="w-full h-full object-cover"
+                    fill
+                    unoptimized
+                    sizes="128px"
+                    className="object-cover"
                   />
                 ) : (
                   'KS'

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import {
   Gamepad2,
   Settings,
@@ -132,12 +133,15 @@ export default function ProfilePage() {
         <div className="relative flex justify-between items-end -mt-16 mb-8">
           {/* 프로필 이미지 */}
           <div className="relative">
-            <div className="w-36 h-36 bg-black border-[6px] border-white rounded-[40px] overflow-hidden flex items-center justify-center text-4xl font-black text-white shadow-2xl">
+            <div className="relative w-36 h-36 bg-black border-[6px] border-white rounded-[40px] overflow-hidden flex items-center justify-center text-4xl font-black text-white shadow-2xl">
               {profileAvatar ? (
-                <img
+                <Image
                   src={profileAvatar}
                   alt="Profile"
-                  className="w-full h-full object-cover"
+                  fill
+                  unoptimized
+                  sizes="144px"
+                  className="object-cover"
                 />
               ) : (
                 userData.name.substring(0, 1).toUpperCase()

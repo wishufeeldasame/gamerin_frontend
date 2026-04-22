@@ -1,11 +1,25 @@
 'use client';
 
-import { X, Star, Calendar, Clock, Award, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import Image from 'next/image';
+import { X, Star, Calendar, Clock, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+export interface Mentor {
+  id: number;
+  name: string;
+  image: string;
+  rating: number;
+  reviews: number;
+  games: string[];
+  rank: string;
+  price: number;
+  badge: string;
+  verified: boolean;
+}
+
 interface MentorDetailModalProps {
-  mentor: any;
+  mentor: Mentor;
   onClose: () => void;
 }
 
@@ -17,6 +31,7 @@ const mentorReviews = [
 export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedTime, setSelectedTime] = useState('');
+  const isBookingReady = Boolean(selectedDate && selectedTime);
 
   return (
     <AnimatePresence>
@@ -34,10 +49,12 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
         >
           {/* Left: Mentor Visual */}
           <div className="md:w-2/5 bg-black relative">
-            <img 
+            <Image
               src={mentor.image} 
-              className="w-full h-full object-cover opacity-60 grayscale-[0.3]"
               alt={mentor.name}
+              fill
+              sizes="(max-width: 768px) 100vw, 40vw"
+              className="object-cover opacity-60 grayscale-[0.3]"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
             <div className="absolute bottom-10 left-10 right-10">
@@ -80,6 +97,7 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
                   <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
                   <input 
                     type="date" 
+                    value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
                     className="w-full pl-11 pr-4 py-3 bg-zinc-100 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-black"
                   />
@@ -90,6 +108,7 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
                 <div className="relative">
                   <Clock className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
                   <select 
+                    value={selectedTime}
                     onChange={(e) => setSelectedTime(e.target.value)}
                     className="w-full pl-11 pr-4 py-3 bg-zinc-100 border-none rounded-2xl text-sm font-bold focus:ring-2 focus:ring-black appearance-none"
                   >
@@ -115,7 +134,7 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
                       <div className="text-[10px] font-bold text-zinc-400 uppercase">{review.date}</div>
                     </div>
                     <p className="text-zinc-500 text-sm font-medium leading-snug group-hover:text-black transition-colors">
-                      "{review.comment}"
+                      &quot;{review.comment}&quot;
                     </p>
                   </div>
                 ))}
@@ -128,8 +147,11 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
                 <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest">Total Price</p>
                 <p className="text-2xl font-black text-black italic">₩{mentor.price.toLocaleString()}</p>
               </div>
-              <button className="px-10 py-4 bg-black text-white text-sm font-black uppercase rounded-[20px] hover:bg-zinc-800 transition-all shadow-xl active:scale-95">
-                Confirm Booking
+              <button
+                disabled={!isBookingReady}
+                className="px-10 py-4 bg-black text-white text-sm font-black uppercase rounded-[20px] hover:bg-zinc-800 transition-all shadow-xl active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:shadow-none"
+              >
+                {isBookingReady ? 'Confirm Booking' : 'Select Date & Time'}
               </button>
             </div>
           </div>

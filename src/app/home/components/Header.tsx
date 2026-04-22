@@ -61,7 +61,7 @@ export function Header() {
                   {user.nickname.substring(0, 1).toUpperCase()}
                 </div>
                 <button 
-                  onClick={logout}
+                  onClick={() => logout()}
                   className="p-1.5 text-black/40 hover:text-black transition-colors"
                   title="로그아웃"
                 >

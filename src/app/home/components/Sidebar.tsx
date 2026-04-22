@@ -61,7 +61,7 @@ export function Sidebar() {
             
             {/* 로그아웃 버튼 */}
             <button 
-              onClick={logout}
+              onClick={() => logout()}
               className="flex items-center justify-center gap-2 w-full py-2.5 bg-white border border-zinc-200 rounded-xl text-[10px] font-black text-zinc-400 hover:text-red-500 hover:border-red-100 hover:bg-red-50 transition-all uppercase tracking-widest"
             >
               <LogOut size={14} strokeWidth={3} />

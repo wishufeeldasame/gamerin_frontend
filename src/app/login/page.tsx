@@ -1,7 +1,7 @@
 'use client';
 
 import { Eye, EyeOff, ChevronDown } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -15,7 +15,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080'
 
 export default function LoginPage() {
   const router = useRouter();
-  const { login } = useAuth(); // AuthContext에서 login 함수 가져오기
+  const { user, isAuthReady, login } = useAuth();
 
   const [showIdLogin, setShowIdLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -161,6 +161,15 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     window.location.href = `${API_BASE}/oauth2/authorization/google`;
   };
+
+  useEffect(() => {
+    if (!isAuthReady || !user) return;
+    router.replace('/home');
+  }, [isAuthReady, router, user]);
+
+  if (isAuthReady && user) {
+    return null;
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-white p-6 font-sans text-black">

@@ -1,6 +1,6 @@
 'use client';
 
-import { TrendingUp, UserPlus, Flame } from "lucide-react";
+import { UserPlus, Flame } from "lucide-react";
 
 const trendingGames = [
   { name: "Marvel Rivals", meta: "12.4K posts" },

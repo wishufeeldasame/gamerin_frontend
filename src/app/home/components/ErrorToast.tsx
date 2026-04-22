@@ -1,10 +1,16 @@
 'use client';
 
 import { AlertCircle, X, CheckCircle2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useEffect } from 'react';
 
-export function ErrorToast({ message, onClose, duration = 5000 }: any) {
+interface ToastProps {
+  message: string;
+  onClose: () => void;
+  duration?: number;
+}
+
+export function ErrorToast({ message, onClose, duration = 5000 }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);
@@ -31,7 +37,7 @@ export function ErrorToast({ message, onClose, duration = 5000 }: any) {
   );
 }
 
-export function SuccessToast({ message, onClose, duration = 3000 }: any) {
+export function SuccessToast({ message, onClose, duration = 3000 }: ToastProps) {
   useEffect(() => {
     const timer = setTimeout(onClose, duration);
     return () => clearTimeout(timer);

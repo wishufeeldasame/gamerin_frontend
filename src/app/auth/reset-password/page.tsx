@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -32,7 +32,7 @@ async function readErrorMessage(response: Response, fallback: string) {
   return text.trim() || fallback;
 }
 
-export default function ResetPasswordPage() {
+function ResetPasswordPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { logout } = useAuth();
@@ -105,7 +105,7 @@ export default function ResetPasswordPage() {
         );
       }
 
-      logout();
+      logout({ redirectTo: null });
       setIsSuccess(true);
     } catch (error) {
       setError(
@@ -287,5 +287,23 @@ export default function ResetPasswordPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ResetPasswordPageFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white p-6 font-sans text-black">
+      <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
+        Reset Password Loading...
+      </p>
+    </div>
+  );
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<ResetPasswordPageFallback />}>
+      <ResetPasswordPageContent />
+    </Suspense>
   );
 }

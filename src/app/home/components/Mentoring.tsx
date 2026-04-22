@@ -1,11 +1,12 @@
 'use client';
 
-import { Search, Star, Filter, Award, CheckCircle2 } from 'lucide-react';
+import Image from 'next/image';
+import { Search, Star, Filter, CheckCircle2 } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { MentorDetailModal } from './MentorDetailModal';
+import { MentorDetailModal, type Mentor } from './MentorDetailModal';
 
-const mentors = [
+const mentors: Mentor[] = [
   {
     id: 1,
     name: 'ProGamer',
@@ -45,7 +46,7 @@ const mentors = [
 ];
 
 export function Mentoring() {
-  const [selectedMentor, setSelectedMentor] = useState<any>(null);
+  const [selectedMentor, setSelectedMentor] = useState<Mentor | null>(null);
 
   return (
     <div className="max-w-6xl mx-auto py-10 px-6">
@@ -83,10 +84,12 @@ export function Mentoring() {
           >
             {/* Image Section */}
             <div className="relative h-64 overflow-hidden">
-              <img
+              <Image
                 src={mentor.image}
                 alt={mentor.name}
-                className="w-full h-full object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110"
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                className="object-cover grayscale-[0.5] group-hover:grayscale-0 transition-all duration-500 group-hover:scale-110"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               

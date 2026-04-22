@@ -1,10 +1,24 @@
 'use client';
 
-import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, MoreHorizontal, Send } from 'lucide-react';
+import Image from 'next/image';
+import { ArrowLeft, Heart, MessageCircle, Share2, MoreHorizontal, Send } from 'lucide-react';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
 
-export function PostDetail({ author, initials, timeAgo, game, content, imageUrl, likes, comments, shares, onBack }: any) {
+interface PostDetailProps {
+  author: string;
+  initials: string;
+  timeAgo: string;
+  game: string;
+  content: string;
+  imageUrl?: string | null;
+  likes: number;
+  comments: number;
+  shares: number;
+  onBack: () => void;
+}
+
+export function PostDetail({ author, initials, timeAgo, game, content, imageUrl, likes, comments, shares, onBack }: PostDetailProps) {
   const [isLiked, setIsLiked] = useState(false);
   const [commentText, setCommentText] = useState('');
 
@@ -39,7 +53,14 @@ export function PostDetail({ author, initials, timeAgo, game, content, imageUrl,
           
           {imageUrl && (
             <div className="rounded-[32px] overflow-hidden border border-zinc-50 mb-8 shadow-inner">
-              <img src={imageUrl} alt={game} className="w-full object-cover max-h-[500px]" />
+              <Image
+                src={imageUrl}
+                alt={game}
+                width={1200}
+                height={800}
+                sizes="(max-width: 768px) 100vw, 800px"
+                className="h-auto max-h-[500px] w-full object-cover"
+              />
             </div>
           )}
 
@@ -53,8 +74,12 @@ export function PostDetail({ author, initials, timeAgo, game, content, imageUrl,
                 <MessageCircle size={22} />
                 <span>{comments}</span>
               </div>
+              <div className="flex items-center gap-2 font-black text-sm text-zinc-400">
+                <Share2 size={22} />
+                <span>{shares}</span>
+              </div>
             </div>
-            <button className="text-zinc-400 hover:text-black transition-all"><Share2 size={22} /></button>
+            <button className="text-zinc-400 hover:text-black transition-all"><Send size={22} /></button>
           </div>
 
           {/* 댓글 입력 영역 */}

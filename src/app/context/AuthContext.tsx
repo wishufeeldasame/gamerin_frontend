@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { removeAccessToken } from '@/lib/auth-store';
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
@@ -15,39 +16,51 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  isAuthReady: boolean;
   login: (userData: User) => void;
-  logout: () => void;
+  logout: (options?: { redirectTo?: string | null }) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
-    // 1. 브라우저가 켜질 때 로컬 스토리지에서 로그인 정보가 있는지 확인합니다.
-    const savedUser = localStorage.getItem('gamerin_user');
+    const savedUser = window.localStorage.getItem('gamerin_user');
+
     if (savedUser) {
-      setUser(JSON.parse(savedUser));
+      try {
+        setUser(JSON.parse(savedUser));
+      } catch {
+        window.localStorage.removeItem('gamerin_user');
+      }
     }
+
+    setIsAuthReady(true);
   }, []);
 
   const login = (userData: User) => {
-    // 2. 로그인 성공 시 유저 정보를 저장합니다.
     setUser(userData);
-    localStorage.setItem('gamerin_user', JSON.stringify(userData));
+    window.localStorage.setItem('gamerin_user', JSON.stringify(userData));
   };
 
 
-  const logout = () => {
-    // 3. 로그아웃 시 정보와 토큰을 함께 완벽하게 삭제합니다.
+  const logout = (options?: { redirectTo?: string | null }) => {
     setUser(null);
-    localStorage.removeItem('gamerin_user');
+    window.localStorage.removeItem('gamerin_user');
     removeAccessToken();
+
+    const redirectTo = options?.redirectTo ?? '/login';
+    if (redirectTo) {
+      router.replace(redirectTo);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, isAuthReady, login, logout }}>
       {children}
     </AuthContext.Provider>
   );

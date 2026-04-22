@@ -1,17 +1,12 @@
 'use client';
 
+import Image from 'next/image';
 import { 
   MapPin, 
   Calendar, 
   RefreshCw, 
-  UserPlus, 
-  UserMinus, 
   Plus, 
   MessageCircle,
-  PlayCircle,
-  Gamepad2,
-  Tv,
-  Globe
 } from 'lucide-react';
 import { Post } from './Post';
 import { useState, useEffect } from 'react';
@@ -19,7 +14,7 @@ import { motion } from 'framer-motion';
 
 import { FetchGameStatsModal } from './FetchGameStatsModal';
 import { EditProfileModal } from './EditProfileModal';
-import { AddAccountModal } from './AddAccountModal'; 
+import { AddAccountModal } from './AddAcountModal'; 
 
 // ✅ 에러 해결 3: 누락되었던 데이터 선언 추가
 const gameStats = [
@@ -89,10 +84,13 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
     <div className="pb-20 bg-white">
       {/* 1. 커버 이미지 영역 */}
       <div className="relative h-64 bg-zinc-900 overflow-hidden">
-        <img
+        <Image
           src={profileCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'}
           alt="Cover"
-          className="w-full h-full object-cover opacity-60"
+          fill
+          unoptimized
+          sizes="(max-width: 768px) 100vw, 1024px"
+          className="object-cover opacity-60"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent" />
       </div>
@@ -101,12 +99,15 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
         <div className="relative flex justify-between items-end -mt-20">
           {/* 2. 프로필 이미지 */}
           <div className="relative">
-            <div className="w-40 h-40 bg-black rounded-[48px] border-[6px] border-white flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden">
+            <div className="relative w-40 h-40 bg-black rounded-[48px] border-[6px] border-white flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden">
               {profileAvatar ? (
-                <img
+                <Image
                   src={profileAvatar}
                   alt="Profile"
-                  className="w-full h-full object-cover"
+                  fill
+                  unoptimized
+                  sizes="160px"
+                  className="object-cover"
                 />
               ) : (
                 'KS'
@@ -149,7 +150,7 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
             <p className="text-zinc-400 font-bold">@sinui_kim</p>
           </div>
           <p className="text-[16px] text-zinc-800 font-medium max-w-2xl leading-relaxed italic">
-            "{userInfo.bio}"
+            &quot;{userInfo.bio}&quot;
           </p>
           <div className="flex items-center gap-6 text-sm font-black text-zinc-400">
             <div className="flex items-center gap-1.5"><MapPin size={16} /> <span>{userInfo.location}</span></div>

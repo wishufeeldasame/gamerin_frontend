@@ -1,6 +1,6 @@
 'use client';
 
-import { ShieldCheck, Star, Users, Award, Zap, ChevronRight } from 'lucide-react';
+import { ShieldCheck, Star, Users, Zap, ChevronRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const mentors = [

@@ -1,11 +1,12 @@
 'use client';
 
+import { Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronLeft, CheckCircle2 } from 'lucide-react';
 import { useSearchParams } from "next/navigation";
 
-export default function FindIdResultPage() {
+function FindIdResultPageContent() {
   const searchParams = useSearchParams();
   const maskedHandle = searchParams.get("maskedHandle") ?? "";
   
@@ -93,5 +94,23 @@ export default function FindIdResultPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function FindIdResultPageFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-white font-sans text-black">
+      <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
+        Result Loading...
+      </p>
+    </div>
+  );
+}
+
+export default function FindIdResultPage() {
+  return (
+    <Suspense fallback={<FindIdResultPageFallback />}>
+      <FindIdResultPageContent />
+    </Suspense>
   );
 }
