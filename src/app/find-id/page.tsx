@@ -46,7 +46,8 @@ export default function FindIdPage() {
 
       // 백엔드 응답에서 필요한 데이터(maskedHandle, createdAt) 추출
       const maskedHandle = data?.data?.maskedHandle ?? "";
-      const createdAt = data?.data?.createdAt ?? "";
+      const createdAt = data?.data?.createdAt ?? data?.data?.created_at ?? "";
+
 
       // 결과 페이지로 이동하면서 두 데이터를 쿼리 파라미터로 전달
       router.push(
