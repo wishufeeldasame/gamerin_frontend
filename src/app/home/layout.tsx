@@ -3,8 +3,82 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
-import { Header } from "./components/Header";
-import { Sidebar } from "./components/Sidebar";
+import { setAccessToken } from '@/lib/auth-store';
+import { Header } from './components/Header';
+import { Sidebar } from './components/Sidebar';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
+type JwtPayload = {
+  sub?: string;
+  userId?: string;
+  id?: string;
+  handle?: string;
+  nickname?: string;
+  name?: string;
+  gameTier?: string;
+  bio?: string;
+};
+
+type MeResponse = {
+  userId?: string;
+  handle?: string;
+  nickname?: string;
+  role?: string;
+  status?: string;
+};
+
+function decodeJwtPayload(token: string): JwtPayload | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const json = decodeURIComponent(
+      atob(paddedBase64)
+        .split('')
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join('')
+    );
+
+    return JSON.parse(json) as JwtPayload;
+  } catch {
+    return null;
+  }
+}
+
+function buildUser(data: MeResponse | null, fallback: JwtPayload | null) {
+  const handle = data?.handle ?? fallback?.handle ?? 'user';
+  const nickname = data?.nickname ?? fallback?.nickname ?? fallback?.name ?? handle;
+
+  return {
+    id: String(data?.userId ?? fallback?.userId ?? fallback?.id ?? fallback?.sub ?? handle),
+    name: nickname,
+    nickname,
+    handle,
+    gameTier: fallback?.gameTier ?? 'Unranked',
+    bio: fallback?.bio ?? '',
+  };
+}
+
+async function fetchMe(accessToken: string): Promise<MeResponse | null> {
+  try {
+    const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) return null;
+
+    const body = await response.json().catch(() => null);
+    return body?.data ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default function HomeLayout({
   children,
@@ -12,12 +86,41 @@ export default function HomeLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthReady } = useAuth();
+  const { user, isAuthReady, login } = useAuth();
 
   useEffect(() => {
-    if (!isAuthReady || user) return;
-    router.replace('/login');
-  }, [isAuthReady, router, user]);
+    if (!isAuthReady) return;
+
+    let cancelled = false;
+
+    const syncSocialLogin = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get('accessToken');
+
+      if (token) {
+        setAccessToken(token);
+
+        const fallback = decodeJwtPayload(token);
+        const me = await fetchMe(token);
+
+        if (cancelled) return;
+
+        login(buildUser(me, fallback));
+        router.replace('/home');
+        return;
+      }
+
+      if (!user) {
+        router.replace('/login');
+      }
+    };
+
+    syncSocialLogin();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, login, router, user]);
 
   if (!isAuthReady || !user) {
     return null;
