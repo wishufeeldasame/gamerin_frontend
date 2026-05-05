@@ -1,106 +1,198 @@
 'use client';
 
 import Image from 'next/image';
-import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from "lucide-react";
-import { motion } from "framer-motion";
+import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { ExternalLinkCard, PostMedia, PostRecord, formatRelativeTime, getInitials } from '@/lib/feed-api';
 
-// 기존 타입 정의를 유지하여 데이터 호환성을 확보합니다.
-type PostProps = {
-  author: string;
-  initials: string;
-  timeAgo: string;
-  game: string;
-  content: string;
-  imageUrl: string;
-  likes: number;
-  comments: number;
-  shares: number;
-};
+interface PostProps {
+  post: PostRecord;
+  onToggleLike?: (post: PostRecord) => void;
+  onOpenDetail?: (post: PostRecord) => void;
+}
 
-export function Post({
-  author,
-  initials,
-  timeAgo,
-  game,
-  content,
-  imageUrl,
-  likes,
-  comments,
-  shares,
-}: PostProps) {
+function MediaBlock({ media }: { media: PostMedia[] }) {
+  if (media.length === 0) {
+    return null;
+  }
+
+  if (media.length === 1) {
+    const item = media[0];
+    if (item.mediaType === 'VIDEO') {
+      return (
+        <div className="px-5 pb-4">
+          <div className="overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
+            <video
+              controls
+              poster={item.thumbnailUrl ?? undefined}
+              className="max-h-[420px] w-full bg-black object-cover"
+              src={item.mediaUrl}
+            />
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="px-5 pb-4">
+        <div className="relative overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
+          <Image
+            src={item.mediaUrl}
+            alt="Post media"
+            width={1200}
+            height={800}
+            unoptimized
+            sizes="(max-width: 768px) 100vw, 700px"
+            className="h-auto max-h-[420px] w-full object-cover transition-transform duration-700 hover:scale-105"
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <motion.article 
-      whileHover={{ y: -4 }} // 살짝 떠오르는 효과로 클릭하고 싶게 만듭니다.
-      className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm hover:shadow-xl transition-all duration-300"
+    <div className="grid grid-cols-2 gap-2 px-5 pb-4">
+      {media.slice(0, 4).map((item) => (
+        <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
+          {item.mediaType === 'VIDEO' ? (
+            <video
+              controls
+              poster={item.thumbnailUrl ?? undefined}
+              className="h-52 w-full bg-black object-cover"
+              src={item.mediaUrl}
+            />
+          ) : (
+            <Image
+              src={item.mediaUrl}
+              alt="Post media"
+              width={800}
+              height={800}
+              unoptimized
+              className="h-52 w-full object-cover"
+            />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function LinkCard({ card }: { card: ExternalLinkCard }) {
+  return (
+    <div className="px-5 pb-4">
+      <a
+        href={card.url}
+        target="_blank"
+        rel="noreferrer"
+        className="block overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50 transition-all hover:border-black hover:bg-white"
+      >
+        {card.thumbnailUrl ? (
+          <div className="relative h-52 w-full">
+            <Image
+              src={card.thumbnailUrl}
+              alt={card.title || card.host}
+              fill
+              unoptimized
+              sizes="(max-width: 768px) 100vw, 700px"
+              className="object-cover"
+            />
+          </div>
+        ) : null}
+        <div className="space-y-1 p-5">
+          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{card.host}</p>
+          <h3 className="text-base font-black text-black">{card.title}</h3>
+          <p className="line-clamp-2 text-sm font-medium text-zinc-600">{card.description}</p>
+        </div>
+      </a>
+    </div>
+  );
+}
+
+export function Post({ post, onToggleLike, onOpenDetail }: PostProps) {
+  const initials = getInitials(post.author);
+  const hasMedia = post.media.length > 0;
+
+  return (
+    <motion.article
+      whileHover={{ y: -4 }}
+      className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
     >
-      {/* 1. 상단 유저 정보 영역 */}
       <div className="p-5">
-        <div className="flex items-center justify-between mb-4">
+        <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            {/* 아바타: 노란색 대신 블랙으로 변경하여 무게감 확보 */}
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-inner">
-              {initials}
-            </div>
+            {post.authorProfileImageUrl ? (
+              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl shadow-inner">
+                <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
+              </div>
+            ) : (
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-inner">
+                {initials}
+              </div>
+            )}
 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
-                <h2 className="text-[16px] font-black text-black tracking-tight">{author}</h2>
-                {/* 게임 태그: 더 작고 볼드하게 */}
-                <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-black text-zinc-500 uppercase tracking-wider">
-                  {game}
-                </span>
+                <h2 className="text-[16px] font-black tracking-tight text-black">{post.author}</h2>
+                {post.game ? (
+                  <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-zinc-500">
+                    {post.game}
+                  </span>
+                ) : null}
               </div>
-              <span className="text-[11px] font-bold text-zinc-400">{timeAgo}</span>
+              <span className="text-[11px] font-bold text-zinc-400">
+                @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
+              </span>
             </div>
           </div>
-          
-          <button className="text-zinc-300 hover:text-black transition-colors">
+
+          <button className="text-zinc-300 transition-colors hover:text-black">
             <MoreHorizontal size={20} />
           </button>
         </div>
 
-        {/* 2. 본문 텍스트: 행간을 조절하여 가독성 업그레이드 */}
-        <p className="text-[15px] leading-7 text-zinc-800 font-medium px-1">
-          {content}
-        </p>
+        {post.content ? (
+          <button
+            type="button"
+            onClick={() => onOpenDetail?.(post)}
+            className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800"
+          >
+            {post.content}
+          </button>
+        ) : null}
       </div>
 
-      {/* 3. 이미지 영역: 꽉 채우지 않고 여백을 주어 고급스럽게 연출 */}
-      {imageUrl && (
-        <div className="px-5 pb-4">
-          <div className="relative rounded-[24px] overflow-hidden border border-zinc-50 shadow-inner">
-            <Image
-              src={imageUrl}
-              alt={`${game} post by ${author}`}
-              width={1200}
-              height={800}
-              sizes="(max-width: 768px) 100vw, 700px"
-              className="h-auto max-h-[420px] w-full object-cover hover:scale-105 transition-transform duration-700"
-            />
+      {hasMedia ? <MediaBlock media={post.media} /> : null}
+      {!hasMedia && post.externalLink ? <LinkCard card={post.externalLink} /> : null}
+
+      <div className="flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400">
+        <div className="flex items-center gap-6">
+          <button
+            type="button"
+            onClick={() => onToggleLike?.(post)}
+            className={`group flex items-center gap-2 transition-colors ${
+              post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
+            }`}
+          >
+            <Heart size={20} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
+            <span className="text-sm font-black text-zinc-800">{post.likes}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onOpenDetail?.(post)}
+            className="flex items-center gap-2 transition-colors hover:text-black"
+          >
+            <MessageCircle size={20} />
+            <span className="text-sm font-black text-zinc-800">{post.comments}</span>
+          </button>
+
+          <div className="flex items-center gap-2">
+            <Repeat2 size={20} />
+            <span className="text-sm font-black text-zinc-800">{post.shares}</span>
           </div>
         </div>
-      )}
 
-      {/* 4. 하단 반응형 바: 아이콘 색감을 차분하게 빼고 텍스트를 볼드하게 */}
-      <div className="flex items-center justify-between px-6 py-4 border-t border-zinc-50 bg-white text-zinc-400">
-        <div className="flex items-center gap-6">
-          <button className="flex items-center gap-2 hover:text-red-500 transition-colors group">
-            <Heart size={20} className="group-hover:fill-red-500 transition-all" />
-            <span className="text-sm font-black text-zinc-800">{likes}</span>
-          </button>
-          
-          <button className="flex items-center gap-2 hover:text-black transition-colors">
-            <MessageCircle size={20} />
-            <span className="text-sm font-black text-zinc-800">{comments}</span>
-          </button>
-
-          <button className="flex items-center gap-2 hover:text-black transition-colors">
-            <Repeat2 size={20} />
-            <span className="text-sm font-black text-zinc-800">{shares}</span>
-          </button>
-        </div>
-
-        <button className="p-2 hover:bg-zinc-50 rounded-xl transition-all text-zinc-400 hover:text-black">
+        <button className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black">
           <Share2 size={20} />
         </button>
       </div>
