@@ -71,13 +71,19 @@ export default function SocialCompletePage() {
 
       const payload = body.data;
       const accessToken = payload?.accessToken;
+      const userId = payload?.userId; // 체크를 위해 변수로 따로 뺍니다.
 
-      if (accessToken) {
-        setAccessToken(accessToken);
+      // 1. 필수 데이터가 하나라도 없으면 '입구 컷' (수정된 부분)
+      if (!accessToken || !userId) {
+        alert("로그인 정보가 올바르지 않습니다. 다시 시도해 주세요.");
+        return; // 여기서 실행을 멈춰서 잘못된 로그인을 막습니다.
       }
 
+      // 2. 데이터가 확실히 있을 때만 실행 (안전함)
+      setAccessToken(accessToken);
+      
       login({
-        id: String(payload?.userId),
+        id: String(userId), // 이제 userId는 무조건 존재하므로 "undefined"가 될 일이 없어요.
         name: payload?.nickname ?? trimmedNickname,
         nickname: payload?.nickname ?? trimmedNickname,
         handle: payload?.handle ?? trimmedHandle,
