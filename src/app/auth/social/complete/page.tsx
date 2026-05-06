@@ -136,6 +136,9 @@ export default function SocialCompletePage() {
                 if (error) setError('');
               }}
               placeholder="아이디"
+              type="text"
+              autoComplete="username"
+              aria-label="아이디"
               className="h-14 w-full rounded-2xl border border-zinc-200 bg-white px-5 text-[15px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-zinc-400 focus:border-black focus:ring-1 focus:ring-black"
             />
 
@@ -146,6 +149,9 @@ export default function SocialCompletePage() {
                 if (error) setError('');
               }}
               placeholder="닉네임"
+              type="text"
+              autoComplete="nickname"
+              aria-label="닉네임"
               className="h-14 w-full rounded-2xl border border-zinc-200 bg-white px-5 text-[15px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-zinc-400 focus:border-black focus:ring-1 focus:ring-black"
             />
 
