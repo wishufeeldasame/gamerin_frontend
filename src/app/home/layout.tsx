@@ -94,8 +94,10 @@ export default function HomeLayout({
     let cancelled = false;
 
     const syncSocialLogin = async () => {
-      const params = new URLSearchParams(window.location.search);
-      const token = params.get('accessToken');
+      // window.location.hash는 "#accessToken=..." 형태입니다.
+    const hash = window.location.hash.substring(1); // 맨 앞 '#' 제거
+    const params = new URLSearchParams(hash); 
+    const token = params.get('accessToken');
 
       if (token) {
         setAccessToken(token);
