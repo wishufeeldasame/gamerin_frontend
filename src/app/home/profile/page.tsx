@@ -10,6 +10,9 @@ import {
   Layers,
   Plus,
   RefreshCw,
+  ExternalLink,
+  Trash2,
+  Tv,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -29,6 +32,52 @@ import {
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
+
+type ConnectedPlatformId = 'youtube' | 'twitch' | 'soop';
+
+type ConnectedAccount = {
+  id: ConnectedPlatformId;
+  label: string;
+  handle: string;
+  url: string;
+};
+
+const connectedPlatformMeta: Record<
+  ConnectedPlatformId,
+  {
+    label: string;
+    placeholder: string;
+    color: string;
+    icon: typeof Tv;
+    buildUrl: (handle: string) => string;
+  }
+> = {
+  youtube: {
+    label: 'YouTube',
+    placeholder: '@johndoe_gaming',
+    color: 'bg-red-500',
+    icon: Tv,
+    buildUrl: (handle) => `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`,
+  },
+  twitch: {
+    label: 'Twitch',
+    placeholder: 'johndoe',
+    color: 'bg-purple-600',
+    icon: Tv,
+    buildUrl: (handle) => `https://www.twitch.tv/${handle.replace(/^@/, '')}`,
+  },
+  soop: {
+    label: 'SOOP (AfreecaTV)',
+    placeholder: 'johndoe',
+    color: 'bg-blue-500',
+    icon: Tv,
+    buildUrl: (handle) => `https://ch.sooplive.co.kr/${handle.replace(/^@/, '')}`,
+  },
+};
+
+function normalizeHandle(value: string) {
+  return value.trim().replace(/\s+/g, '');
+}
 
 function formatGameStatsSummary(stats: unknown) {
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
@@ -85,6 +134,16 @@ export default function ProfilePage() {
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => loadUserSettings().privacy);
+  const [connectedAccounts, setConnectedAccounts] = useState<Record<ConnectedPlatformId, ConnectedAccount | null>>({
+    youtube: null,
+    twitch: null,
+    soop: null,
+  });
+  const [platformInputs, setPlatformInputs] = useState<Record<ConnectedPlatformId, string>>({
+    youtube: '',
+    twitch: '',
+    soop: '',
+  });
   const [loading, setLoading] = useState(true);
   const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
@@ -96,6 +155,20 @@ export default function ProfilePage() {
 
     setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
     setProfileAvatar(savedAvatar);
+
+    try {
+      const savedAccounts = localStorage.getItem('gamerin_connected_accounts');
+      if (savedAccounts) {
+        const parsedAccounts = JSON.parse(savedAccounts) as Partial<Record<ConnectedPlatformId, ConnectedAccount>>;
+        setConnectedAccounts({
+          youtube: parsedAccounts.youtube ?? null,
+          twitch: parsedAccounts.twitch ?? null,
+          soop: parsedAccounts.soop ?? null,
+        });
+      }
+    } catch {
+      localStorage.removeItem('gamerin_connected_accounts');
+    }
   }, []);
 
   useEffect(() => {
@@ -236,6 +309,128 @@ export default function ProfilePage() {
       setLoadingMoreMedia(false);
     }
   };
+
+  const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
+    setConnectedAccounts(nextAccounts);
+    localStorage.setItem('gamerin_connected_accounts', JSON.stringify(nextAccounts));
+  };
+
+  const handleConnectPlatform = (platformId: ConnectedPlatformId) => {
+    const handle = normalizeHandle(platformInputs[platformId]);
+    if (!handle) {
+      alert('연동할 계정 ID를 입력해주세요.');
+      return;
+    }
+
+    const meta = connectedPlatformMeta[platformId];
+    const nextAccounts = {
+      ...connectedAccounts,
+      [platformId]: {
+        id: platformId,
+        label: meta.label,
+        handle,
+        url: meta.buildUrl(handle),
+      },
+    };
+
+    saveConnectedAccounts(nextAccounts);
+    setPlatformInputs({ ...platformInputs, [platformId]: '' });
+  };
+
+  const handleDisconnectPlatform = (platformId: ConnectedPlatformId) => {
+    const nextAccounts = {
+      ...connectedAccounts,
+      [platformId]: null,
+    };
+
+    saveConnectedAccounts(nextAccounts);
+  };
+
+  const renderConnectedAccounts = () => (
+    <section className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
+      <div className="mb-6">
+        <h2 className="text-3xl font-black text-black">연결된 계정</h2>
+        <p className="mt-1 text-sm font-bold text-zinc-400">
+          YouTube, Twitch, SOOP 채널을 프로필에 표시할 수 있습니다.
+        </p>
+      </div>
+
+      <div className="space-y-4">
+        {(Object.keys(connectedPlatformMeta) as ConnectedPlatformId[]).map((platformId) => {
+          const meta = connectedPlatformMeta[platformId];
+          const account = connectedAccounts[platformId];
+          const Icon = meta.icon;
+
+          return (
+            <div key={platformId} className="rounded-2xl bg-zinc-50 p-4">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                <div className="flex min-w-0 items-center gap-4">
+                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white ${meta.color}`}>
+                    <Icon size={24} />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-black text-black">{meta.label}</h3>
+                    {account ? (
+                      <a
+                        href={account.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="truncate text-sm font-bold text-blue-600 hover:underline"
+                      >
+                        {account.handle}
+                      </a>
+                    ) : (
+                      <p className="text-sm font-bold text-zinc-400">아직 연결되지 않았습니다.</p>
+                    )}
+                  </div>
+                </div>
+
+                {account ? (
+                  <div className="flex gap-2">
+                    <a
+                      href={account.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-zinc-100"
+                    >
+                      <ExternalLink size={16} />
+                      열기
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => handleDisconnectPlatform(platformId)}
+                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-red-500 transition hover:bg-red-50"
+                    >
+                      <Trash2 size={16} />
+                      해제
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={platformInputs[platformId]}
+                      onChange={(event) =>
+                        setPlatformInputs({ ...platformInputs, [platformId]: event.target.value })
+                      }
+                      placeholder={meta.placeholder}
+                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleConnectPlatform(platformId)}
+                      className="h-11 rounded-xl bg-black px-5 text-sm font-black text-white transition hover:bg-zinc-800"
+                    >
+                      연결
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
 
   if (!currentUser || loading) {
     return (
@@ -441,6 +636,8 @@ export default function ProfilePage() {
 
         {activeTab === 'media' ? (
           <div className="space-y-6">
+            {renderConnectedAccounts()}
+
             {mediaItems.length === 0 ? (
               <div className="py-24 text-center">
                 <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Media Yet</h3>
