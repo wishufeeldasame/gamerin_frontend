@@ -175,6 +175,7 @@ export default function HomePage() {
                         post={post}
                         onToggleLike={handleToggleLike}
                         onOpenDetail={(selected) => setSelectedPostId(selected.postId)}
+                        onShare={handlePostUpdated}
                       />
                     </motion.div>
                   ))}

@@ -310,6 +310,12 @@ export default function ProfilePage() {
     }
   };
 
+  const handlePostUpdated = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      current.map((item) => (item.postId === updatedPost.postId ? updatedPost : item))
+    );
+  };
+
   const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
     setConnectedAccounts(nextAccounts);
     localStorage.setItem('gamerin_connected_accounts', JSON.stringify(nextAccounts));
@@ -618,7 +624,7 @@ export default function ProfilePage() {
                 <p className="text-sm font-bold text-zinc-400">This profile has not published any posts yet.</p>
               </div>
             ) : (
-              posts.map((post) => <Post key={post.postId} post={post} />)
+              posts.map((post) => <Post key={post.postId} post={post} onShare={handlePostUpdated} />)
             )}
 
             {postsHasNext ? (

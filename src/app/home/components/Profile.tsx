@@ -11,6 +11,7 @@ import {
 import { Post } from './Post';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { PostRecord } from '@/lib/feed-api';
 
 import { FetchGameStatsModal } from './FetchGameStatsModal';
 import { EditProfileModal } from './EditProfileModal';
@@ -23,17 +24,32 @@ const gameStats = [
   { game: 'Elden Ring', achievement: '100% Complete', playTime: '156h' },
 ];
 
-const userPosts = [
+const userPosts: PostRecord[] = [
   {
+    postId: 'sample-profile-post',
     author: '김신의',
-    initials: 'KS',
-    timeAgo: '3h ago',
+    authorHandle: 'ksdev',
+    authorProfileImageUrl: null,
+    authorVerifiedBadge: false,
     game: 'Elden Ring',
     content: '드디어 1회차 클리어했습니다! 보스전 손맛이 정말 미쳤네요. 櫨',
-    imageUrl: 'https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080',
+    media: [
+      {
+        mediaId: 'sample-profile-media',
+        mediaType: 'IMAGE',
+        mediaUrl: 'https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080',
+        thumbnailUrl: null,
+        sortOrder: 0,
+        durationSeconds: null,
+      },
+    ],
+    externalLink: null,
     likes: 156,
     comments: 23,
     shares: 8,
+    likedByMe: false,
+    mine: true,
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
   },
 ];
 
@@ -205,8 +221,8 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
            <div className="border-b border-zinc-100 mb-6">
               <button className="pb-4 border-b-4 border-black font-black text-sm px-2 italic uppercase">Posts</button>
            </div>
-           {userPosts.map((post, index) => (
-            <Post key={index} {...post} />
+           {userPosts.map((post) => (
+            <Post key={post.postId} post={post} />
           ))}
         </div>
       </div>

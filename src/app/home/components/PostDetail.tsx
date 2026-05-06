@@ -14,6 +14,7 @@ import {
   likePost,
   unlikePost,
 } from '@/lib/feed-api';
+import { SharePostModal } from './SharePostModal';
 
 interface PostDetailProps {
   postId: string;
@@ -27,6 +28,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -240,7 +242,12 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
                 <span>{post.shares}</span>
               </div>
             </div>
-            <button className="text-zinc-400 transition-all hover:text-black">
+            <button
+              type="button"
+              onClick={() => setShareOpen(true)}
+              className="text-zinc-400 transition-all hover:text-black"
+              aria-label="게시물 공유"
+            >
               <Send size={22} />
             </button>
           </div>
@@ -290,6 +297,17 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
           </div>
         </div>
       </article>
+
+      {shareOpen ? (
+        <SharePostModal
+          post={post}
+          onClose={() => setShareOpen(false)}
+          onShared={(sharedPost) => {
+            setPost(sharedPost);
+            onPostUpdated?.(sharedPost);
+          }}
+        />
+      ) : null}
     </motion.div>
   );
 }

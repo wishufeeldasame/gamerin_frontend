@@ -2,13 +2,16 @@
 
 import Image from 'next/image';
 import { Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from 'lucide-react';
+import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { ExternalLinkCard, PostMedia, PostRecord, formatRelativeTime, getInitials } from '@/lib/feed-api';
+import { SharePostModal } from './SharePostModal';
 
 interface PostProps {
   post: PostRecord;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
+  onShare?: (post: PostRecord) => void;
 }
 
 function MediaBlock({ media }: { media: PostMedia[] }) {
@@ -108,16 +111,18 @@ function LinkCard({ card }: { card: ExternalLinkCard }) {
   );
 }
 
-export function Post({ post, onToggleLike, onOpenDetail }: PostProps) {
+export function Post({ post, onToggleLike, onOpenDetail, onShare }: PostProps) {
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
+  const [shareOpen, setShareOpen] = useState(false);
 
   return (
-    <motion.article
-      whileHover={{ y: -4 }}
-      className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
-    >
-      <div className="p-5">
+    <>
+      <motion.article
+        whileHover={{ y: -4 }}
+        className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+      >
+        <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
             {post.authorProfileImageUrl ? (
@@ -159,13 +164,13 @@ export function Post({ post, onToggleLike, onOpenDetail }: PostProps) {
             {post.content}
           </button>
         ) : null}
-      </div>
+        </div>
 
-      {hasMedia ? <MediaBlock media={post.media} /> : null}
-      {!hasMedia && post.externalLink ? <LinkCard card={post.externalLink} /> : null}
+        {hasMedia ? <MediaBlock media={post.media} /> : null}
+        {!hasMedia && post.externalLink ? <LinkCard card={post.externalLink} /> : null}
 
-      <div className="flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400">
+          <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
@@ -190,12 +195,26 @@ export function Post({ post, onToggleLike, onOpenDetail }: PostProps) {
             <Repeat2 size={20} />
             <span className="text-sm font-black text-zinc-800">{post.shares}</span>
           </div>
-        </div>
+          </div>
 
-        <button className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black">
-          <Share2 size={20} />
-        </button>
-      </div>
-    </motion.article>
+          <button
+            type="button"
+            onClick={() => setShareOpen(true)}
+            className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black"
+            aria-label="게시물 공유"
+          >
+            <Share2 size={20} />
+          </button>
+        </div>
+      </motion.article>
+
+      {shareOpen ? (
+        <SharePostModal
+          post={post}
+          onClose={() => setShareOpen(false)}
+          onShared={(sharedPost) => onShare?.(sharedPost)}
+        />
+      ) : null}
+    </>
   );
 }
