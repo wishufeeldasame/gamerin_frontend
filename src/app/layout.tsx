@@ -26,7 +26,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko"> {/* 한국어 서비스이므로 ko로 변경 */}
+    <html lang="ko" suppressHydrationWarning> {/* 한국어 서비스이므로 ko로 변경 */}
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                if (localStorage.getItem('gamerin_theme') === 'dark') {
+                  document.documentElement.classList.add('dark');
+                }
+              } catch {}
+            `,
+          }}
+        />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   Settings,
   Edit3,
@@ -25,6 +26,7 @@ import {
   fetchUserPosts,
   getInitials,
 } from '@/lib/feed-api';
+import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 
@@ -82,6 +84,7 @@ export default function ProfilePage() {
   const [postsHasNext, setPostsHasNext] = useState(false);
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
+  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => loadUserSettings().privacy);
   const [loading, setLoading] = useState(true);
   const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
@@ -94,6 +97,22 @@ export default function ProfilePage() {
     setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
     setProfileAvatar(savedAvatar);
   }, []);
+
+  useEffect(() => {
+    const syncPrivacySettings = () => {
+      const nextPrivacySettings = loadUserSettings().privacy;
+      setPrivacySettings(nextPrivacySettings);
+
+      if (!nextPrivacySettings.showStats && activeTab === 'stats') {
+        setActiveTab('posts');
+      }
+    };
+
+    window.addEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
+    return () => {
+      window.removeEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
+    };
+  }, [activeTab]);
 
   useEffect(() => {
     if (profileCover) {
@@ -236,7 +255,7 @@ export default function ProfilePage() {
 
   const tabs = [
     { name: 'posts' as const, icon: <Grid size={16} /> },
-    { name: 'stats' as const, icon: <BarChart3 size={16} /> },
+    ...(privacySettings.showStats ? [{ name: 'stats' as const, icon: <BarChart3 size={16} /> }] : []),
     { name: 'media' as const, icon: <Layers size={16} /> },
   ];
 
@@ -274,9 +293,13 @@ export default function ProfilePage() {
           </div>
 
           <div className="mb-2 flex gap-3">
-            <button className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200">
+            <Link
+              href="/home/settings"
+              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+              aria-label="설정"
+            >
               <Settings size={20} />
-            </button>
+            </Link>
             <button
               onClick={() => setShowEditProfileModal(true)}
               className="flex items-center gap-2 rounded-2xl bg-black px-8 py-3 text-sm font-black text-white shadow-lg shadow-zinc-200 transition-all hover:bg-zinc-800"
@@ -296,6 +319,12 @@ export default function ProfilePage() {
           <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
             {profile.bio || 'Tell your gaming story on GamerIN.'}
           </p>
+
+          {!privacySettings.profilePublic ? (
+            <div className="inline-flex rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-zinc-500">
+              비공개 프로필 모드
+            </div>
+          ) : null}
 
           <div className="flex gap-8 pt-2">
             <div className="flex items-center gap-2">
