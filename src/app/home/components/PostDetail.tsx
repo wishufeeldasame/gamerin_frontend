@@ -1,9 +1,10 @@
 'use client';
 
 import Image from 'next/image';
-import { ArrowLeft, Heart, MessageCircle, Share2, MoreHorizontal, Send } from 'lucide-react';
+import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
   PostRecord,
@@ -14,6 +15,12 @@ import {
   likePost,
   unlikePost,
 } from '@/lib/feed-api';
+import {
+  BOOKMARKS_CHANGED_EVENT,
+  getBookmarkCount,
+  isPostBookmarked,
+  toggleBookmarkedPost,
+} from '@/lib/bookmark-store';
 import { SharePostModal } from './SharePostModal';
 
 interface PostDetailProps {
@@ -23,13 +30,17 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
+  const { user } = useAuth();
   const [post, setPost] = useState<PostRecord | null>(null);
   const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [bookmarkCount, setBookmarkCount] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const bookmarkUserKey = user?.id ?? user?.handle ?? null;
 
   useEffect(() => {
     let cancelled = false;
@@ -58,6 +69,22 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       cancelled = true;
     };
   }, [postId]);
+
+  useEffect(() => {
+    const syncBookmarkState = () => {
+      setBookmarked(isPostBookmarked(postId, bookmarkUserKey));
+      setBookmarkCount(getBookmarkCount(postId));
+    };
+
+    syncBookmarkState();
+    window.addEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
+    window.addEventListener('storage', syncBookmarkState);
+
+    return () => {
+      window.removeEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
+      window.removeEventListener('storage', syncBookmarkState);
+    };
+  }, [bookmarkUserKey, postId]);
 
   const handleToggleLike = async () => {
     if (!post) {
@@ -108,6 +135,15 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     } finally {
       setSubmittingComment(false);
     }
+  };
+
+  const handleToggleBookmark = () => {
+    if (!post) {
+      return;
+    }
+
+    setBookmarked(toggleBookmarkedPost(post, bookmarkUserKey));
+    setBookmarkCount(getBookmarkCount(post.postId));
   };
 
   if (loading) {
@@ -237,10 +273,16 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
                 <MessageCircle size={22} />
                 <span>{post.comments}</span>
               </div>
-              <div className="flex items-center gap-2 text-sm font-black text-zinc-400">
-                <Share2 size={22} />
-                <span>{post.shares}</span>
-              </div>
+              <button
+                type="button"
+                onClick={handleToggleBookmark}
+                className={`flex items-center gap-2 text-sm font-black transition-all ${
+                  bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
+                }`}
+              >
+                <Bookmark size={22} className={bookmarked ? 'fill-black' : ''} />
+                <span>{bookmarkCount}</span>
+              </button>
             </div>
             <button
               type="button"
