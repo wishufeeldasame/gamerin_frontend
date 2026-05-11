@@ -3,6 +3,10 @@ import { PostRecord } from '@/lib/feed-api';
 export const BOOKMARK_STORAGE_KEY = 'gamerin_bookmarked_posts';
 export const BOOKMARKS_CHANGED_EVENT = 'gamerin-bookmarks-changed';
 
+export type BookmarkedPost = PostRecord & {
+  bookmarkedAt?: string;
+};
+
 function canUseStorage() {
   return typeof window !== 'undefined' && Boolean(window.localStorage);
 }
@@ -11,7 +15,14 @@ function getBookmarkStorageKey(userKey?: string | null) {
   return userKey ? `${BOOKMARK_STORAGE_KEY}:${userKey}` : `${BOOKMARK_STORAGE_KEY}:guest`;
 }
 
-export function getBookmarkedPosts(userKey?: string | null): PostRecord[] {
+function normalizeBookmarkedPost(post: PostRecord | BookmarkedPost): BookmarkedPost {
+  return {
+    ...post,
+    bookmarkedAt: 'bookmarkedAt' in post && post.bookmarkedAt ? post.bookmarkedAt : post.createdAt,
+  };
+}
+
+export function getBookmarkedPosts(userKey?: string | null): BookmarkedPost[] {
   if (!canUseStorage()) {
     return [];
   }
@@ -23,7 +34,7 @@ export function getBookmarkedPosts(userKey?: string | null): PostRecord[] {
     }
 
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as PostRecord[]) : [];
+    return Array.isArray(parsed) ? (parsed as PostRecord[]).map(normalizeBookmarkedPost) : [];
   } catch {
     return [];
   }
@@ -67,7 +78,14 @@ export function saveBookmarkedPost(post: PostRecord, userKey?: string | null) {
   }
 
   const current = getBookmarkedPosts(userKey);
-  const next = [post, ...current.filter((item) => item.postId !== post.postId)];
+  const previous = current.find((item) => item.postId === post.postId);
+  const next = [
+    {
+      ...post,
+      bookmarkedAt: previous?.bookmarkedAt ?? new Date().toISOString(),
+    },
+    ...current.filter((item) => item.postId !== post.postId),
+  ];
   window.localStorage.setItem(getBookmarkStorageKey(userKey), JSON.stringify(next));
   window.dispatchEvent(new Event(BOOKMARKS_CHANGED_EVENT));
 }
@@ -79,6 +97,15 @@ export function removeBookmarkedPost(postId: string, userKey?: string | null) {
 
   const next = getBookmarkedPosts(userKey).filter((post) => post.postId !== postId);
   window.localStorage.setItem(getBookmarkStorageKey(userKey), JSON.stringify(next));
+  window.dispatchEvent(new Event(BOOKMARKS_CHANGED_EVENT));
+}
+
+export function clearBookmarkedPosts(userKey?: string | null) {
+  if (!canUseStorage()) {
+    return;
+  }
+
+  window.localStorage.setItem(getBookmarkStorageKey(userKey), JSON.stringify([]));
   window.dispatchEvent(new Event(BOOKMARKS_CHANGED_EVENT));
 }
 
