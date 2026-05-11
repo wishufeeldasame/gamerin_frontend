@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useRef, useState } from 'react';
-import { ImagePlus, Link2, Sparkles, Video, X } from 'lucide-react';
+import { ImagePlus, Link2, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
 
@@ -173,10 +173,6 @@ export function PostComposer({ onCreated }: PostComposerProps) {
               >
                 <X size={20} />
               </button>
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-purple-500 transition-all hover:bg-purple-600 hover:text-white">
-                <Sparkles size={20} />
-              </div>
 
               <div className="ml-2 hidden items-center gap-2 rounded-2xl bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:flex">
                 <Link2 size={14} />

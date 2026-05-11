@@ -1,44 +1,51 @@
 'use client';
 
 import Image from 'next/image';
-import { 
-  MapPin, 
-  Calendar, 
-  RefreshCw, 
-  Plus, 
-  MessageCircle,
-} from 'lucide-react';
-import { Post } from './Post';
-import { useState, useEffect } from 'react';
+import { Calendar, MapPin, MessageCircle, Plus, RefreshCw } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-
+import { PostRecord } from '@/lib/feed-api';
+import { Post } from './Post';
 import { FetchGameStatsModal } from './FetchGameStatsModal';
 import { EditProfileModal } from './EditProfileModal';
-import { AddAccountModal } from './AddAcountModal'; 
+import { AddAccountModal } from './AddAcountModal';
 
-// ✅ 에러 해결 3: 누락되었던 데이터 선언 추가
 const gameStats = [
   { game: 'League of Legends', rank: 'Diamond II', winRate: '58%', games: 324 },
   { game: 'Valorant', rank: 'Platinum I', winRate: '52%', games: 187 },
   { game: 'Elden Ring', achievement: '100% Complete', playTime: '156h' },
 ];
 
-const userPosts = [
+const userPosts: PostRecord[] = [
   {
-    author: '김신의',
-    initials: 'KS',
-    timeAgo: '3h ago',
+    postId: 'profile-sample-1',
+    author: 'GamerIN User',
+    authorHandle: 'sinui_kim',
+    authorProfileImageUrl: null,
+    authorVerifiedBadge: false,
     game: 'Elden Ring',
-    content: '드디어 1회차 클리어했습니다! 보스전 손맛이 정말 미쳤네요. 櫨',
-    imageUrl: 'https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080',
+    content: 'Elden Ring boss clear. What a run.',
+    media: [
+      {
+        mediaId: 'profile-sample-media-1',
+        mediaType: 'IMAGE',
+        mediaUrl: 'https://images.unsplash.com/photo-1774060526585-19be7b4af255?q=80&w=1080',
+        thumbnailUrl: null,
+        sortOrder: 0,
+        durationSeconds: null,
+      },
+    ],
+    externalLink: null,
     likes: 156,
     comments: 23,
     shares: 8,
+    likedByMe: false,
+    mine: true,
+    createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
   },
 ];
 
 export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
-  // ✅ 에러 해결 2: 누락되었던 모든 State setter 선언 추가
   const [isFollowing, setIsFollowing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
@@ -47,8 +54,8 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
   const [profileCover, setProfileCover] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState({
-    name: '김신의',
-    bio: 'Next.js & TypeScript 기반 풀스택 개발자. 발로란트 불멸 티어 櫨',
+    name: 'GamerIN User',
+    bio: 'Next.js and TypeScript player building a gaming story.',
     location: 'Seoul, Korea',
     website: 'https://github.com/sinui-kim',
   });
@@ -81,9 +88,8 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
   };
 
   return (
-    <div className="pb-20 bg-white">
-      {/* 1. 커버 이미지 영역 */}
-      <div className="relative h-64 bg-zinc-900 overflow-hidden">
+    <div className="bg-white pb-20">
+      <div className="relative h-64 overflow-hidden bg-zinc-900">
         <Image
           src={profileCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'}
           alt="Cover"
@@ -95,44 +101,35 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
         <div className="absolute inset-0 bg-gradient-to-t from-white to-transparent" />
       </div>
 
-      <div className="max-w-4xl mx-auto px-6">
-        <div className="relative flex justify-between items-end -mt-20">
-          {/* 2. 프로필 이미지 */}
+      <div className="mx-auto max-w-4xl px-6">
+        <div className="relative -mt-20 flex items-end justify-between">
           <div className="relative">
-            <div className="relative w-40 h-40 bg-black rounded-[48px] border-[6px] border-white flex items-center justify-center text-white text-4xl font-black shadow-2xl overflow-hidden">
+            <div className="relative flex h-40 w-40 items-center justify-center overflow-hidden rounded-[48px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
               {profileAvatar ? (
-                <Image
-                  src={profileAvatar}
-                  alt="Profile"
-                  fill
-                  unoptimized
-                  sizes="160px"
-                  className="object-cover"
-                />
+                <Image src={profileAvatar} alt="Profile" fill unoptimized sizes="160px" className="object-cover" />
               ) : (
-                'KS'
+                'GU'
               )}
             </div>
-            <div className="absolute bottom-2 right-2 w-8 h-8 bg-green-500 border-4 border-white rounded-full" />
+            <div className="absolute bottom-2 right-2 h-8 w-8 rounded-full border-4 border-white bg-green-500" />
           </div>
 
-          {/* 3. 액션 버튼 */}
-          <div className="flex gap-3 mb-4">
+          <div className="mb-4 flex gap-3">
             {isOwnProfile ? (
               <button
                 onClick={() => setShowEditProfileModal(true)}
-                className="px-8 py-3 bg-black text-white rounded-2xl font-black text-sm hover:bg-zinc-800 transition-all shadow-lg"
+                className="rounded-2xl bg-black px-8 py-3 text-sm font-black text-white shadow-lg transition-all hover:bg-zinc-800"
               >
                 Edit Profile
               </button>
             ) : (
               <div className="flex gap-2">
-                <button className="p-3 bg-zinc-100 rounded-2xl hover:bg-zinc-200 transition-all text-black">
+                <button className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200">
                   <MessageCircle size={20} />
                 </button>
                 <button
                   onClick={() => setIsFollowing(!isFollowing)}
-                  className={`px-8 py-3 rounded-2xl font-black text-sm transition-all ${
+                  className={`rounded-2xl px-8 py-3 text-sm font-black transition-all ${
                     isFollowing ? 'bg-zinc-100 text-black' : 'bg-black text-white shadow-lg'
                   }`}
                 >
@@ -143,77 +140,84 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
           </div>
         </div>
 
-        {/* 4. 유저 상세 정보 */}
         <div className="mt-6 space-y-4">
           <div>
-            <h1 className="text-3xl font-black text-black tracking-tighter">{userInfo.name}</h1>
-            <p className="text-zinc-400 font-bold">@sinui_kim</p>
+            <h1 className="text-3xl font-black tracking-tighter text-black">{userInfo.name}</h1>
+            <p className="font-bold text-zinc-400">@sinui_kim</p>
           </div>
-          <p className="text-[16px] text-zinc-800 font-medium max-w-2xl leading-relaxed italic">
+          <p className="max-w-2xl text-[16px] font-medium italic leading-relaxed text-zinc-800">
             &quot;{userInfo.bio}&quot;
           </p>
           <div className="flex items-center gap-6 text-sm font-black text-zinc-400">
-            <div className="flex items-center gap-1.5"><MapPin size={16} /> <span>{userInfo.location}</span></div>
-            <div className="flex items-center gap-1.5"><Calendar size={16} /> <span>2024년 3월 가입</span></div>
+            <div className="flex items-center gap-1.5">
+              <MapPin size={16} />
+              <span>{userInfo.location}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Calendar size={16} />
+              <span>Joined March 2024</span>
+            </div>
           </div>
         </div>
 
-        {/* 5. 개인 전적 (Game Stats) */}
         <div className="mt-12">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-black text-black tracking-tight uppercase italic">Verified Stats</h2>
+          <div className="mb-6 flex items-center justify-between">
+            <h2 className="text-xl font-black uppercase italic tracking-tight text-black">Verified Stats</h2>
             <div className="flex gap-2">
-               <button 
+              <button
                 onClick={() => setShowFetchStatsModal(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-zinc-100 text-black rounded-xl font-black text-xs hover:bg-black hover:text-white transition-all"
+                className="flex items-center gap-2 rounded-xl bg-zinc-100 px-4 py-2 text-xs font-black text-black transition-all hover:bg-black hover:text-white"
               >
-                <Plus size={14} /> STAT SYNC
+                <Plus size={14} />
+                STAT SYNC
               </button>
-              <button onClick={handleRefreshStats} className="p-2 bg-zinc-50 rounded-xl hover:bg-zinc-100">
+              <button onClick={handleRefreshStats} className="rounded-xl bg-zinc-50 p-2 hover:bg-zinc-100">
                 <RefreshCw size={16} className={isRefreshing ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {gameStats.map((stat, idx) => (
-              <motion.div 
-                key={idx}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {gameStats.map((stat) => (
+              <motion.div
+                key={stat.game}
                 whileHover={{ y: -4 }}
-                className="p-6 bg-zinc-50 border border-zinc-100 rounded-[32px] flex items-center justify-between group hover:border-black transition-all"
+                className="group flex items-center justify-between rounded-[32px] border border-zinc-100 bg-zinc-50 p-6 transition-all hover:border-black"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-black rounded-2xl flex items-center justify-center font-black text-white text-[10px] text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-center text-[10px] font-black text-white">
                     LV.42
                   </div>
                   <div>
                     <p className="text-sm font-black text-black">{stat.game}</p>
-                    <p className="text-xs font-bold text-zinc-400">{'rank' in stat ? stat.rank : stat.achievement}</p>
+                    <p className="text-xs font-bold text-zinc-400">
+                      {'rank' in stat ? stat.rank : stat.achievement}
+                    </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-sm font-black text-black">{'winRate' in stat ? `WIN ${stat.winRate}` : stat.playTime}</p>
-                  <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Performance</p>
+                  <p className="text-sm font-black text-black">
+                    {'winRate' in stat ? `WIN ${stat.winRate}` : stat.playTime}
+                  </p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-400">Performance</p>
                 </div>
               </motion.div>
             ))}
           </div>
         </div>
 
-        {/* 6. 게시물 목록 */}
         <div className="mt-12 space-y-6">
-           <div className="border-b border-zinc-100 mb-6">
-              <button className="pb-4 border-b-4 border-black font-black text-sm px-2 italic uppercase">Posts</button>
-           </div>
-           {userPosts.map((post, index) => (
-            <Post key={index} {...post} />
+          <div className="mb-6 border-b border-zinc-100">
+            <button className="border-b-4 border-black px-2 pb-4 text-sm font-black uppercase italic">Posts</button>
+          </div>
+          {userPosts.map((post) => (
+            <Post key={post.postId} post={post} />
           ))}
         </div>
       </div>
 
-      {/* 모달 렌더링 */}
-      {showFetchStatsModal && <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} />}
-      {showEditProfileModal && (
+      {showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}
           coverImage={profileCover}
@@ -223,13 +227,10 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
           userInfo={userInfo}
           onSaveUserInfo={(newUserInfo) => setUserInfo(newUserInfo)}
         />
-      )}
-      {showAddAccountModal && (
-        <AddAccountModal 
-          onClose={() => setShowAddAccountModal(false)} 
-          onAdd={(p, u) => console.log(p, u)} 
-        />
-      )}
+      ) : null}
+      {showAddAccountModal ? (
+        <AddAccountModal onClose={() => setShowAddAccountModal(false)} onAdd={(platform, url) => console.log(platform, url)} />
+      ) : null}
     </div>
   );
 }
