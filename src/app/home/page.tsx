@@ -22,6 +22,20 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const syncPostFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSelectedPostId(params.get('postId'));
+    };
+
+    syncPostFromUrl();
+    window.addEventListener('popstate', syncPostFromUrl);
+
+    return () => {
+      window.removeEventListener('popstate', syncPostFromUrl);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     const loadInitialData = async () => {
@@ -93,6 +107,16 @@ export default function HomePage() {
     );
   };
 
+  const handleOpenPost = (postId: string) => {
+    setSelectedPostId(postId);
+    window.history.pushState(null, '', `/home?postId=${encodeURIComponent(postId)}`);
+  };
+
+  const handleClosePost = () => {
+    setSelectedPostId(null);
+    window.history.pushState(null, '', '/home');
+  };
+
   const handleLoadMore = async () => {
     if (!hasNext || !nextCursor || loadingMore) {
       return;
@@ -118,7 +142,7 @@ export default function HomePage() {
           <div className="p-4">
             <PostDetail
               postId={selectedPostId}
-              onBack={() => setSelectedPostId(null)}
+              onBack={handleClosePost}
               onPostUpdated={handlePostUpdated}
             />
           </div>
@@ -174,7 +198,7 @@ export default function HomePage() {
                       <Post
                         post={post}
                         onToggleLike={handleToggleLike}
-                        onOpenDetail={(selected) => setSelectedPostId(selected.postId)}
+                        onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                         onShare={handlePostUpdated}
                       />
                     </motion.div>

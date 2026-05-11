@@ -2,14 +2,10 @@
 
 import { Check, Search, Send, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, getInitials } from '@/lib/feed-api';
-
-type ShareRecipient = {
-  id: string;
-  name: string;
-  handle: string;
-  role: string;
-};
+import { sharePostMessage } from '@/lib/message-api';
+import { MESSAGE_RECIPIENTS, MessageRecipient } from '@/lib/message-store';
 
 interface SharePostModalProps {
   post: PostRecord;
@@ -17,40 +13,8 @@ interface SharePostModalProps {
   onShared?: (post: PostRecord) => void;
 }
 
-const recipients: ShareRecipient[] = [
-  { id: 'jin', name: 'Jin Park', handle: '@jinplays', role: 'FPS COACH' },
-  { id: 'luna', name: 'Luna Choi', handle: '@lunaraid', role: 'MMO GUILD LEAD' },
-  { id: 'theo', name: 'Theo Han', handle: '@theostream', role: 'CREATOR' },
-  { id: 'sarah', name: 'Sarah Chen', handle: '@sarahfps', role: 'DUO PARTNER' },
-  { id: 'mike', name: 'Mike Rodriguez', handle: '@mikerg', role: 'SCRIM MATE' },
-];
-
-function saveSharedPost(post: PostRecord, selectedRecipients: ShareRecipient[], message: string) {
-  const raw = window.localStorage.getItem('gamerin_shared_posts');
-  const previous = raw ? (JSON.parse(raw) as unknown[]) : [];
-
-  window.localStorage.setItem(
-    'gamerin_shared_posts',
-    JSON.stringify([
-      {
-        id: crypto.randomUUID(),
-        postId: post.postId,
-        postAuthor: post.author,
-        postContent: post.content,
-        recipients: selectedRecipients.map((recipient) => ({
-          id: recipient.id,
-          name: recipient.name,
-          handle: recipient.handle,
-        })),
-        message,
-        createdAt: new Date().toISOString(),
-      },
-      ...previous,
-    ])
-  );
-}
-
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
+  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -58,16 +22,18 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
   const filteredRecipients = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return recipients;
+    if (!normalized) return MESSAGE_RECIPIENTS;
 
-    return recipients.filter((recipient) =>
+    return MESSAGE_RECIPIENTS.filter((recipient) =>
       [recipient.name, recipient.handle, recipient.role].some((value) =>
         value.toLowerCase().includes(normalized)
       )
     );
   }, [query]);
 
-  const selectedRecipients = recipients.filter((recipient) => selectedIds.includes(recipient.id));
+  const selectedRecipients: MessageRecipient[] = MESSAGE_RECIPIENTS.filter((recipient) =>
+    selectedIds.includes(recipient.id)
+  );
   const canSend = selectedRecipients.length > 0 && !sent;
 
   const toggleRecipient = (recipientId: string) => {
@@ -81,7 +47,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const handleSend = () => {
     if (!canSend) return;
 
-    saveSharedPost(post, selectedRecipients, message.trim());
+    void sharePostMessage(user?.id, post, selectedRecipients, message.trim());
     setSent(true);
     onShared?.({
       ...post,
