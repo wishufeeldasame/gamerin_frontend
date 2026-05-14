@@ -80,6 +80,17 @@ async function fetchMe(accessToken: string): Promise<MeResponse | null> {
   }
 }
 
+function getRedirectAccessToken() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const queryToken = searchParams.get('accessToken');
+  if (queryToken) {
+    return queryToken;
+  }
+
+  const hashParams = new URLSearchParams(window.location.hash.slice(1));
+  return hashParams.get('accessToken');
+}
+
 export default function HomeLayout({
   children,
 }: {
@@ -94,10 +105,7 @@ export default function HomeLayout({
     let cancelled = false;
 
     const syncSocialLogin = async () => {
-      // window.location.hash는 "#accessToken=..." 형태입니다.
-    const hash = window.location.hash.substring(1); // 맨 앞 '#' 제거
-    const params = new URLSearchParams(hash); 
-    const token = params.get('accessToken');
+      const token = getRedirectAccessToken();
 
       if (token) {
         setAccessToken(token);

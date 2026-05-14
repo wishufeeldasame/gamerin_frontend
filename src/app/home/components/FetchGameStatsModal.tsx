@@ -3,8 +3,11 @@
 import { X, ShieldCheck, Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
+import { getAccessToken } from '@/lib/auth-store';
 
-// ✅ 에러 해결: 누락되었던 availableGames 데이터 소스를 상수로 추가합니다.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
 const availableGames = [
   {
     name: 'League of Legends',
@@ -36,8 +39,22 @@ interface FetchGameStatsModalProps {
   onClose: () => void;
 }
 
+interface ApiResponse<T> {
+  success: boolean;
+  data: T;
+}
+
+interface PubgSummaryResponse {
+  gameName: string;
+  tierLabel: string | null;
+  kda: number;
+  winRate: number;
+  games: number;
+  connected: boolean;
+}
+
 export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
-  // 연결 중인 게임의 이름을 담는 상태 (로딩 효과용)
+  const { updateUser } = useAuth();
   const [connectingGame, setConnectingGame] = useState<string | null>(null);
   const [pubgNickname, setPubgNickname] = useState('');
   const [pubgPromptOpen, setPubgPromptOpen] = useState(false);
@@ -50,26 +67,77 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
     }
 
     setConnectingGame(gameName);
-    // 실제 구현 시에는 여기서 API를 호출하게 됩니다.
     setTimeout(() => {
       setConnectingGame(null);
-      alert(`${gameName} 연동이 완료되었습니다!`);
-    }, 1500);
+      alert(`${gameName} integration is not connected yet.`);
+    }, 1000);
   };
 
-  const handlePubgSubmit = () => {
-    if (!pubgNickname.trim()) {
-      alert('PUBG 닉네임을 입력해주세요.');
+  const handlePubgSubmit = async () => {
+    const playerName = pubgNickname.trim();
+    if (!playerName) {
+      alert('Please enter your PUBG nickname.');
+      return;
+    }
+
+    const accessToken = getAccessToken();
+    if (!accessToken) {
+      alert('Please log in before connecting PUBG.');
       return;
     }
 
     setPubgPromptOpen(false);
     setConnectingGame('PUBG');
 
-    setTimeout(() => {
+    try {
+      const connectResponse = await fetch(`${API_BASE}/api/v1/pubg/connect`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+        body: JSON.stringify({ playerName }),
+      });
+
+      const connectBody = (await connectResponse.json().catch(() => null)) as
+        | ApiResponse<{ connected: boolean; playerName: string }>
+        | { message?: string }
+        | null;
+
+      if (!connectResponse.ok) {
+        throw new Error(
+          (connectBody as { message?: string } | null)?.message ??
+            'Failed to connect PUBG.'
+        );
+      }
+
+      const summaryResponse = await fetch(`${API_BASE}/api/v1/pubg/me`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        credentials: 'include',
+      });
+
+      if (summaryResponse.ok) {
+        const summaryBody = (await summaryResponse.json().catch(() => null)) as
+          | ApiResponse<PubgSummaryResponse>
+          | null;
+        const tierLabel = summaryBody?.data?.tierLabel;
+        if (tierLabel) {
+          updateUser({ gameTier: tierLabel });
+        }
+      }
+
       setConnectingGame(null);
-      alert(`PUBG (${pubgNickname}) 연동이 완료되었습니다!`);
-    }, 1500);
+      setPubgNickname('');
+      alert(`PUBG (${playerName}) connected successfully.`);
+      onClose();
+    } catch (error) {
+      setConnectingGame(null);
+      setPubgPromptOpen(true);
+      alert(error instanceof Error ? error.message : 'Failed to connect PUBG.');
+    }
   };
 
   const handlePubgCancel = () => {
@@ -79,76 +147,80 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-        {/* 배경 클릭 시 닫기 */}
-        <motion.div 
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+        <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="absolute inset-0" 
-          onClick={onClose} 
+          className="absolute inset-0"
+          onClick={onClose}
         />
 
-        <motion.div 
+        <motion.div
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="relative bg-white w-full max-w-lg rounded-[40px] overflow-hidden shadow-2xl"
+          className="relative w-full max-w-lg overflow-hidden rounded-[40px] bg-white shadow-2xl"
         >
-          {/* 상단 블랙 헤더 영역 */}
           <div className="bg-black p-8 text-white">
-            <div className="flex justify-between items-center mb-6">
-              <div className="w-12 h-12 bg-zinc-800 rounded-2xl flex items-center justify-center shadow-inner">
+            <div className="mb-6 flex items-center justify-between">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-zinc-800 shadow-inner">
                 <ShieldCheck size={28} className="text-green-500" />
               </div>
-              <button 
-                onClick={onClose} 
-                className="w-10 h-10 flex items-center justify-center hover:bg-zinc-800 rounded-full transition-all text-zinc-500 hover:text-white"
+              <button
+                onClick={onClose}
+                className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition-all hover:bg-zinc-800 hover:text-white"
               >
-                <X size={24}/>
+                <X size={24} />
               </button>
             </div>
-            <h2 className="text-2xl font-black tracking-tighter italic uppercase">Stat Sync Engine</h2>
-            <p className="text-zinc-500 font-bold text-sm mt-1">공식 API를 통해 당신의 실력을 인증하세요.</p>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter">
+              Stat Sync Engine
+            </h2>
+            <p className="mt-1 text-sm font-bold text-zinc-500">
+              Connect your official game account and import live stats.
+            </p>
           </div>
 
-          {/* 게임 리스트 영역 */}
-          <div className="p-8 space-y-4 max-h-[400px] overflow-y-auto scrollbar-hide">
+          <div className="scrollbar-hide max-h-[400px] space-y-4 overflow-y-auto p-8">
             {availableGames.map((game) => (
-              <div 
-                key={game.name} 
-                className="flex items-center justify-between p-5 border border-zinc-100 rounded-[28px] hover:border-black transition-all group bg-zinc-50/50 hover:bg-white"
+              <div
+                key={game.name}
+                className="group flex items-center justify-between rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white"
               >
                 <div className="flex items-center gap-4">
-                  <div className="w-11 h-11 bg-white border border-zinc-100 rounded-xl flex items-center justify-center group-hover:bg-black group-hover:text-white transition-all shadow-sm">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-100 bg-white shadow-sm transition-all group-hover:bg-black group-hover:text-white">
                     <Gamepad2 size={20} />
                   </div>
                   <div>
-                    <h3 className="font-black text-black text-[15px] leading-none mb-1">{game.name}</h3>
-                    <p className="text-[11px] font-bold text-zinc-400 uppercase tracking-tight">{game.description}</p>
+                    <h3 className="mb-1 text-[15px] font-black leading-none text-black">
+                      {game.name}
+                    </h3>
+                    <p className="text-[11px] font-bold uppercase tracking-tight text-zinc-400">
+                      {game.description}
+                    </p>
                   </div>
                 </div>
-                
-                <button 
+
+                <button
                   onClick={() => handleConnect(game.name)}
                   disabled={connectingGame !== null || pubgPromptOpen}
-                  className={`px-5 py-2.5 rounded-xl font-black text-xs transition-all shadow-sm ${
+                  className={`rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
                     connectingGame === game.name || pubgPromptOpen
-                      ? "bg-zinc-200 text-zinc-500 cursor-not-allowed"
-                      : "bg-black text-white hover:bg-zinc-800 active:scale-95"
+                      ? 'cursor-not-allowed bg-zinc-200 text-zinc-500'
+                      : 'bg-black text-white hover:bg-zinc-800 active:scale-95'
                   }`}
                 >
-                  {connectingGame === game.name ? "SYNCING..." : "CONNECT"}
+                  {connectingGame === game.name ? 'SYNCING...' : 'CONNECT'}
                 </button>
               </div>
             ))}
           </div>
 
-          {/* 하단 푸터 */}
-          <div className="p-8 bg-zinc-50 border-t border-zinc-100">
+          <div className="border-t border-zinc-100 bg-zinc-50 p-8">
             <div className="flex items-center justify-center gap-2">
-              <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
-              <p className="text-[11px] font-black text-zinc-400 uppercase tracking-widest text-center">
+              <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+              <p className="text-center text-[11px] font-black uppercase tracking-widest text-zinc-400">
                 Encryption Active: Secured via Game API
               </p>
             </div>
@@ -161,44 +233,48 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
               exit={{ opacity: 0, scale: 0.95 }}
               className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-6"
             >
-              <div className="relative w-full max-w-md rounded-[32px] bg-white shadow-2xl border border-zinc-200 overflow-hidden">
-                <div className="p-6 border-b border-zinc-100">
+              <div className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-zinc-200 bg-white shadow-2xl">
+                <div className="border-b border-zinc-100 p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-black">PUBG 계정 연동</h3>
-                      <p className="text-sm text-zinc-500 mt-1">닉네임을 입력하면 PUBG 계정 연동을 시작합니다.</p>
+                      <h3 className="text-xl font-black">Connect PUBG</h3>
+                      <p className="mt-1 text-sm text-zinc-500">
+                        Enter your nickname to start PUBG account sync.
+                      </p>
                     </div>
                     <button
                       onClick={handlePubgCancel}
-                      className="w-10 h-10 rounded-full bg-zinc-100 text-zinc-500 hover:bg-zinc-200 transition"
+                      className="h-10 w-10 rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
                     >
                       <X size={20} />
                     </button>
                   </div>
                 </div>
 
-                <div className="p-6 space-y-4">
-                  <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">닉네임</label>
+                <div className="space-y-4 p-6">
+                  <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
+                    Nickname
+                  </label>
                   <input
                     value={pubgNickname}
                     onChange={(event) => setPubgNickname(event.target.value)}
-                    placeholder="PUBG 닉네임을 입력하세요"
-                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none focus:border-black focus:bg-white transition"
+                    placeholder="Enter your PUBG nickname"
+                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:border-black focus:bg-white"
                   />
                 </div>
 
-                <div className="flex items-center gap-4 p-6 border-t border-zinc-100 bg-zinc-50">
+                <div className="flex items-center gap-4 border-t border-zinc-100 bg-zinc-50 p-6">
                   <button
                     onClick={handlePubgCancel}
-                    className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 font-black text-sm text-zinc-700 hover:bg-zinc-100 transition"
+                    className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-100"
                   >
-                    취소
+                    Cancel
                   </button>
                   <button
                     onClick={handlePubgSubmit}
-                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white hover:bg-zinc-800 transition"
+                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
                   >
-                    연결하기
+                    Connect
                   </button>
                 </div>
               </div>

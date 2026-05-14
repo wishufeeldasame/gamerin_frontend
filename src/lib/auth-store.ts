@@ -1,8 +1,10 @@
 'use client';
 
 let accessTokenMemory: string | null = null;
+let refreshPromise: Promise<string | null> | null = null;
 
 const ACCESS_TOKEN_KEY = 'gamerin_access_token';
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export function setAccessToken(token: string) {
   accessTokenMemory = token;
@@ -32,4 +34,58 @@ export function removeAccessToken() {
   if (typeof window !== 'undefined') {
     window.localStorage.removeItem(ACCESS_TOKEN_KEY);
   }
+}
+
+type RefreshPayload = {
+  success?: boolean;
+  data?: {
+    accessToken?: string;
+  };
+  message?: string;
+};
+
+export async function refreshAccessToken() {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+
+      const payload = (await response.json().catch(() => null)) as RefreshPayload | null;
+      const nextToken = payload?.data?.accessToken ?? null;
+
+      if (!response.ok || !nextToken) {
+        removeAccessToken();
+        return null;
+      }
+
+      setAccessToken(nextToken);
+      return nextToken;
+    } catch {
+      removeAccessToken();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
+export async function ensureAccessToken() {
+  const token = getAccessToken();
+  if (token) {
+    return token;
+  }
+
+  return refreshAccessToken();
 }
