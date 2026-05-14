@@ -6,7 +6,7 @@ import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
 import { PostDetail } from './components/PostDetail';
-import { PostRecord, TrendingGame, fetchFeed, fetchTrendingGames, likePost, unlikePost } from '@/lib/feed-api';
+import { PostRecord, TrendingGame, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
 
@@ -42,10 +42,9 @@ export default function HomePage() {
       try {
         setLoading(true);
         setError(null);
-        const [feedPage, trending] = await Promise.all([
-          fetchFeed(activeTab),
-          fetchTrendingGames(),
-        ]);
+        const feedPage = await fetchFeed(activeTab);
+        // TODO: 백엔드에 /api/v1/feed/trending/games 구현 후 다시 활성화.
+        // const trending = await fetchTrendingGames();
 
         if (cancelled) {
           return;
@@ -54,7 +53,8 @@ export default function HomePage() {
         setPosts(feedPage.items);
         setNextCursor(feedPage.nextCursor);
         setHasNext(feedPage.hasNext);
-        setTrendingGames(trending);
+        // setTrendingGames(trending);
+        setTrendingGames([]);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');

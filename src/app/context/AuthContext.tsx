@@ -2,7 +2,12 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAccessToken, refreshAccessToken, removeAccessToken } from '@/lib/auth-store';
+import {
+  AUTH_CLEARED_EVENT,
+  AUTH_USER_KEY,
+  clearStoredAuth,
+  refreshAccessToken,
+} from '@/lib/auth-store';
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
@@ -30,8 +35,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
 
   useEffect(() => {
+    const handleAuthCleared = () => {
+      setUser(null);
+    };
+
+    window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+    return () => window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+  }, []);
+
+  useEffect(() => {
     const bootstrapAuth = async () => {
-      const savedUser = window.localStorage.getItem('gamerin_user');
+      const savedUser = window.localStorage.getItem(AUTH_USER_KEY);
 
       if (!savedUser) {
         setIsAuthReady(true);
@@ -40,19 +54,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const parsedUser = JSON.parse(savedUser);
-        setUser(parsedUser);
+        const refreshedToken = await refreshAccessToken();
 
-        if (!getAccessToken()) {
-          const refreshedToken = await refreshAccessToken();
-          if (!refreshedToken) {
-            setUser(null);
-            window.localStorage.removeItem('gamerin_user');
-          }
+        if (!refreshedToken) {
+          setUser(null);
+          clearStoredAuth({ notify: false });
+          return;
         }
+
+        setUser(parsedUser);
       } catch {
         setUser(null);
-        window.localStorage.removeItem('gamerin_user');
-        removeAccessToken();
+        clearStoredAuth({ notify: false });
       } finally {
         setIsAuthReady(true);
       }
@@ -63,7 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback((userData: User) => {
     setUser(userData);
-    window.localStorage.setItem('gamerin_user', JSON.stringify(userData));
+    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
@@ -73,15 +86,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const nextUser = { ...currentUser, ...updates };
-      window.localStorage.setItem('gamerin_user', JSON.stringify(nextUser));
+      window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
       return nextUser;
     });
   }, []);
 
   const logout = useCallback((options?: { redirectTo?: string | null }) => {
     setUser(null);
-    window.localStorage.removeItem('gamerin_user');
-    removeAccessToken();
+    clearStoredAuth({ notify: false });
 
     const redirectTo = options?.redirectTo ?? '/login';
     if (redirectTo) {
