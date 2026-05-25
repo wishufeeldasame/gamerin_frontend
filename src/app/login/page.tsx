@@ -13,6 +13,31 @@ import { setAccessToken } from '@/lib/auth-store';
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
+type MePayload = {
+  data?: {
+    userId?: string;
+    handle?: string;
+    nickname?: string;
+  };
+};
+
+async function fetchMeWithAccessToken(accessToken: string) {
+  const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+    },
+    credentials: 'include',
+  });
+
+  const body = (await response.json().catch(() => null)) as MePayload | null;
+
+  if (!response.ok || !body?.data?.userId) {
+    throw new Error('발급된 accessToken으로 사용자 인증을 확인하지 못했습니다.');
+  }
+
+  return body.data;
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const { user, isAuthReady, login } = useAuth();
@@ -128,15 +153,17 @@ export default function LoginPage() {
 
       // 1. 토큰 저장
       const accessToken = data?.data?.accessToken || data?.accessToken;
-      if (accessToken) {
-        setAccessToken(accessToken);
+      if (!accessToken) {
+        throw new Error('로그인 응답에 accessToken이 없습니다. 다시 로그인해 주세요.');
       }
+      setAccessToken(accessToken);
 
       // 2. 전역 상태 업데이트
       const payload = data?.data ?? data;
+      const me = await fetchMeWithAccessToken(accessToken);
       
       // 👉 [수정된 부분] ID가 없으면 강제로 에러를 발생시켜 안전하게 차단합니다.
-      if (!payload?.userId) {
+      if (!payload?.userId && !me?.userId) {
         throw new Error('서버로부터 유저 고유 ID를 받아오지 못했습니다.');
       }
 

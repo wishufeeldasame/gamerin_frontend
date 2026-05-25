@@ -1,12 +1,137 @@
 'use client';
 
-import { ChangeEvent, useRef, useState } from 'react';
-import { ImagePlus, Link2, Sparkles, Video, X } from 'lucide-react';
+import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
 
 interface PostComposerProps {
   onCreated?: (post: PostRecord) => void;
+}
+
+interface ThumbnailOption {
+  id: string;
+  file: File;
+  previewUrl: string;
+  label: string;
+  kind: 'generated' | 'uploaded';
+}
+
+const MAX_IMAGE_COUNT = 4;
+const MAX_VIDEO_THUMBNAILS = 4;
+
+function makeObjectUrl(file: File) {
+  return URL.createObjectURL(file);
+}
+
+function revokeUrl(url: string | null) {
+  if (url) {
+    URL.revokeObjectURL(url);
+  }
+}
+
+function revokeThumbnailOptions(options: ThumbnailOption[]) {
+  options.forEach((option) => revokeUrl(option.previewUrl));
+}
+
+function buildThumbnailOption(file: File, label: string, kind: ThumbnailOption['kind']): ThumbnailOption {
+  return {
+    id: `${kind}-${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    previewUrl: makeObjectUrl(file),
+    label,
+    kind,
+  };
+}
+
+async function waitForVideoEvent(video: HTMLVideoElement, eventName: 'loadedmetadata' | 'seeked') {
+  await new Promise<void>((resolve, reject) => {
+    const onSuccess = () => {
+      cleanup();
+      resolve();
+    };
+
+    const onError = () => {
+      cleanup();
+      reject(new Error(`Video ${eventName} failed.`));
+    };
+
+    const cleanup = () => {
+      video.removeEventListener(eventName, onSuccess);
+      video.removeEventListener('error', onError);
+    };
+
+    video.addEventListener(eventName, onSuccess, { once: true });
+    video.addEventListener('error', onError, { once: true });
+  });
+}
+
+async function createThumbnailFile(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  timeInSeconds: number,
+  index: number,
+  baseName: string
+) {
+  video.currentTime = timeInSeconds;
+  await waitForVideoEvent(video, 'seeked');
+
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('Canvas is unavailable.');
+  }
+
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((value) => resolve(value), 'image/jpeg', 0.92);
+  });
+
+  if (!blob) {
+    throw new Error('Thumbnail generation failed.');
+  }
+
+  return new File([blob], `${baseName}-thumbnail-${index + 1}.jpg`, { type: 'image/jpeg' });
+}
+
+async function generateThumbnailOptions(file: File) {
+  const objectUrl = makeObjectUrl(file);
+
+  try {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.playsInline = true;
+    video.src = objectUrl;
+
+    await waitForVideoEvent(video, 'loadedmetadata');
+
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(video.videoWidth || 1280, 320);
+    canvas.height = Math.max(video.videoHeight || 720, 180);
+
+    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+    const sampleTimes = Array.from({ length: MAX_VIDEO_THUMBNAILS }, (_, index) => {
+      const ratio = MAX_VIDEO_THUMBNAILS === 1 ? 0 : index / (MAX_VIDEO_THUMBNAILS - 1);
+      return Math.min(Math.max(duration * ratio, 0), Math.max(duration - 0.1, 0));
+    });
+
+    const uniqueTimes = sampleTimes.filter(
+      (time, index, allTimes) => allTimes.findIndex((item) => Math.abs(item - time) < 0.05) === index
+    );
+
+    const baseName = file.name.replace(/\.[^.]+$/, '') || 'video';
+    const options: ThumbnailOption[] = [];
+
+    for (let index = 0; index < uniqueTimes.length; index += 1) {
+      const thumbnailFile = await createThumbnailFile(video, canvas, uniqueTimes[index], index, baseName);
+      options.push(buildThumbnailOption(thumbnailFile, index === 0 ? 'Default' : `Option ${index + 1}`, 'generated'));
+    }
+
+    return options;
+  } finally {
+    revokeUrl(objectUrl);
+  }
 }
 
 export function PostComposer({ onCreated }: PostComposerProps) {
@@ -16,41 +141,109 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
 
   const [content, setContent] = useState('');
-  const [gameName, setGameName] = useState('');
   const [externalLinkUrl, setExternalLinkUrl] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [durationSeconds, setDurationSeconds] = useState('');
+  const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
+  const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
 
   const hasFiles = imageFiles.length > 0 || Boolean(videoFile);
+  const selectedThumbnail = thumbnailOptions.find((option) => option.id === selectedThumbnailId) ?? null;
+
+  useEffect(() => {
+    return () => {
+      imagePreviewUrls.forEach((url) => revokeUrl(url));
+    };
+  }, [imagePreviewUrls]);
+
+  useEffect(() => {
+    return () => {
+      revokeUrl(videoPreviewUrl);
+    };
+  }, [videoPreviewUrl]);
+
+  useEffect(() => {
+    return () => {
+      revokeThumbnailOptions(thumbnailOptions);
+    };
+  }, [thumbnailOptions]);
+
+  const clearThumbnailSelection = () => {
+    setThumbnailOptions([]);
+    setSelectedThumbnailId(null);
+    if (thumbnailInputRef.current) {
+      thumbnailInputRef.current.value = '';
+    }
+  };
+
+  const clearImageSelection = () => {
+    setImageFiles([]);
+    setImagePreviewUrls([]);
+    if (imageInputRef.current) {
+      imageInputRef.current.value = '';
+    }
+  };
+
+  const clearVideoSelection = () => {
+    setVideoFile(null);
+    setVideoPreviewUrl(null);
+    clearThumbnailSelection();
+    if (videoInputRef.current) {
+      videoInputRef.current.value = '';
+    }
+  };
 
   const resetComposer = () => {
     setContent('');
-    setGameName('');
     setExternalLinkUrl('');
-    setImageFiles([]);
-    setVideoFile(null);
-    setThumbnailFile(null);
-    setDurationSeconds('');
-    if (imageInputRef.current) imageInputRef.current.value = '';
-    if (videoInputRef.current) videoInputRef.current.value = '';
-    if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
+    clearImageSelection();
+    clearVideoSelection();
   };
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []);
-    setVideoFile(null);
-    setThumbnailFile(null);
-    setDurationSeconds('');
-    setImageFiles(files.slice(0, 4));
+    const files = Array.from(event.target.files ?? []).slice(0, MAX_IMAGE_COUNT);
+    clearVideoSelection();
+    setImageFiles(files);
+    setImagePreviewUrls(files.map((file) => makeObjectUrl(file)));
   };
 
-  const handleVideoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const selected = event.target.files?.[0] ?? null;
-    setImageFiles([]);
+    clearImageSelection();
+    clearVideoSelection();
+
+    if (!selected) {
+      return;
+    }
+
     setVideoFile(selected);
+    setVideoPreviewUrl(makeObjectUrl(selected));
+    setGeneratingThumbnails(true);
+
+    try {
+      const options = await generateThumbnailOptions(selected);
+      setThumbnailOptions(options);
+      setSelectedThumbnailId(options[0]?.id ?? null);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to prepare video preview.');
+    } finally {
+      setGeneratingThumbnails(false);
+    }
+  };
+
+  const handleThumbnailUpload = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    if (!file) {
+      return;
+    }
+
+    const uploadedOption = buildThumbnailOption(file, 'Uploaded', 'uploaded');
+    setThumbnailOptions((current) => [...current.filter((option) => option.kind !== 'uploaded'), uploadedOption]);
+    setSelectedThumbnailId(uploadedOption.id);
   };
 
   const canSubmit =
@@ -68,36 +261,29 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       return;
     }
 
-    if (videoFile && (!thumbnailFile || !durationSeconds.trim())) {
-      alert('Video posts require both a thumbnail file and duration seconds.');
-      return;
-    }
-
     try {
       setSubmitting(true);
 
       let createdPost: PostRecord;
       if (hasFiles) {
         const formData = new FormData();
-        if (content.trim()) formData.append('content', content.trim());
-        if (gameName.trim()) formData.append('gameName', gameName.trim());
+        if (content.trim()) {
+          formData.append('content', content.trim());
+        }
 
         imageFiles.forEach((file) => formData.append('mediaFiles', file));
+
         if (videoFile) {
           formData.append('mediaFiles', videoFile);
-        }
-        if (thumbnailFile) {
-          formData.append('thumbnailFile', thumbnailFile);
-        }
-        if (durationSeconds.trim()) {
-          formData.append('durationSeconds', durationSeconds.trim());
+          if (selectedThumbnail) {
+            formData.append('thumbnailFile', selectedThumbnail.file);
+          }
         }
 
         createdPost = await createMultipartPost(formData);
       } else {
         createdPost = await createJsonPost({
           content: content.trim(),
-          gameName: gameName.trim(),
           externalLinkUrl: externalLinkUrl.trim(),
         });
       }
@@ -112,81 +298,117 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   };
 
   return (
-    <section className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm transition-all hover:shadow-md">
+    <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-inner">
-          {user ? getInitials(user.nickname) : 'G'}
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-sm font-black text-white">
+          {user ? getInitials(user.nickname, 'JD') : 'JD'}
         </div>
 
         <div className="min-w-0 flex-1 space-y-4">
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder={user ? `${user.nickname}, what game moment do you want to share?` : 'Log in to create a post.'}
-            className="min-h-[110px] w-full resize-none border-none bg-transparent text-[16px] font-medium text-black outline-none placeholder:text-zinc-400"
+            placeholder={user ? "What's on your mind?" : 'Log in to create a post.'}
+            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
           />
 
-          <div className="grid gap-3 md:grid-cols-2">
-            <input
-              value={gameName}
-              onChange={(event) => setGameName(event.target.value)}
-              maxLength={50}
-              placeholder="Game name (optional)"
-              className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
-            />
-            <input
-              value={externalLinkUrl}
-              onChange={(event) => setExternalLinkUrl(event.target.value)}
-              placeholder="External link URL"
-              className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
-            />
-          </div>
+          {videoPreviewUrl ? (
+            <div className="space-y-3">
+              <div className="overflow-hidden rounded-[18px] border border-zinc-200 bg-black">
+                <video
+                  controls
+                  src={videoPreviewUrl}
+                  poster={selectedThumbnail?.previewUrl ?? undefined}
+                  className="aspect-video w-full bg-black object-contain"
+                />
+              </div>
 
-          <div className="flex flex-wrap gap-2">
-            {imageFiles.map((file) => (
-              <span key={file.name} className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-600">
-                {file.name}
-              </span>
-            ))}
-            {videoFile ? (
-              <span className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-600">{videoFile.name}</span>
-            ) : null}
-            {thumbnailFile ? (
-              <span className="rounded-xl bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-600">
-                thumb: {thumbnailFile.name}
-              </span>
-            ) : null}
-          </div>
+              <div className="rounded-[18px] border border-zinc-200 bg-white p-4">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-[18px] font-black text-black">썸네일 선택 (선택사항)</p>
+                    <p className="text-sm font-medium text-zinc-500">
+                      선택하지 않으면 자동으로 생성된 첫 번째 썸네일이 사용됩니다.
+                    </p>
+                  </div>
 
-          {videoFile ? (
-            <div className="grid gap-3 md:grid-cols-2">
-              <button
-                type="button"
-                onClick={() => thumbnailInputRef.current?.click()}
-                className="rounded-2xl border border-dashed border-zinc-300 px-4 py-3 text-left text-sm font-bold text-zinc-600 transition hover:border-black hover:text-black"
-              >
-                {thumbnailFile ? `Thumbnail: ${thumbnailFile.name}` : 'Select video thumbnail'}
-              </button>
-              <input
-                ref={thumbnailInputRef}
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={(event) => setThumbnailFile(event.target.files?.[0] ?? null)}
-              />
-              <input
-                type="number"
-                min="0"
-                value={durationSeconds}
-                onChange={(event) => setDurationSeconds(event.target.value)}
-                placeholder="Duration seconds"
-                className="rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
-              />
+                  <button
+                    type="button"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 text-sm font-bold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
+                  >
+                    <Upload size={16} />
+                    직접 업로드
+                  </button>
+                </div>
+
+                <input
+                  ref={thumbnailInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleThumbnailUpload}
+                />
+
+                {generatingThumbnails ? (
+                  <div className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
+                    Preparing thumbnail options...
+                  </div>
+                ) : (
+                  <div className="flex gap-3 overflow-x-auto pb-1">
+                    {thumbnailOptions.map((option) => {
+                      const isSelected = option.id === selectedThumbnailId;
+
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => setSelectedThumbnailId(option.id)}
+                          className={`shrink-0 overflow-hidden rounded-[16px] border text-left transition ${
+                            isSelected ? 'border-zinc-900 shadow-sm' : 'border-zinc-200 hover:border-zinc-300'
+                          }`}
+                        >
+                          <div className="h-20 w-32 bg-zinc-100">
+                            <img src={option.previewUrl} alt={option.label} className="h-full w-full object-cover" />
+                          </div>
+                          <div className="flex items-center justify-between px-3 py-2">
+                            <span className="text-sm font-bold text-zinc-800">{option.label}</span>
+                            {option.kind === 'uploaded' ? (
+                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-black text-zinc-500">
+                                Custom
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
           ) : null}
 
-          <div className="flex flex-col gap-3 border-t border-zinc-50 pt-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2">
+          {imagePreviewUrls.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3">
+              {imagePreviewUrls.map((url, index) => (
+                <div key={url} className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50">
+                  <img src={url} alt={`Selected image ${index + 1}`} className="h-44 w-full object-cover" />
+                </div>
+              ))}
+            </div>
+          ) : null}
+
+          {!hasFiles ? (
+            <input
+              value={externalLinkUrl}
+              onChange={(event) => setExternalLinkUrl(event.target.value)}
+              placeholder="https://example.com"
+              className="h-12 w-full rounded-[16px] border border-zinc-200 bg-zinc-50 px-4 text-sm font-medium text-black outline-none transition focus:border-zinc-400"
+            />
+          ) : null}
+
+          <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-wrap items-center gap-5 text-zinc-500">
               <input
                 ref={imageInputRef}
                 type="file"
@@ -205,56 +427,56 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
               <button
                 type="button"
-                title="Add images"
                 onClick={() => imageInputRef.current?.click()}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 transition-all hover:bg-black hover:text-white"
+                className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
               >
-                <ImagePlus size={20} />
+                <ImagePlus size={18} />
+                Photo
               </button>
 
               <button
                 type="button"
-                title="Add video"
                 onClick={() => videoInputRef.current?.click()}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 transition-all hover:bg-black hover:text-white"
+                className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
               >
-                <Video size={20} />
+                <Video size={18} />
+                Video
               </button>
 
-              <button
-                type="button"
-                title="Clear attachments"
-                onClick={() => {
-                  setImageFiles([]);
-                  setVideoFile(null);
-                  setThumbnailFile(null);
-                  setDurationSeconds('');
-                  setExternalLinkUrl('');
-                  if (imageInputRef.current) imageInputRef.current.value = '';
-                  if (videoInputRef.current) videoInputRef.current.value = '';
-                  if (thumbnailInputRef.current) thumbnailInputRef.current.value = '';
-                }}
-                className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-zinc-500 transition-all hover:bg-black hover:text-white"
-              >
-                <X size={20} />
-              </button>
-
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-zinc-50 text-purple-500 transition-all hover:bg-purple-600 hover:text-white">
-                <Sparkles size={20} />
+              <div className="inline-flex items-center gap-2 text-[17px] font-medium text-zinc-400">
+                <Smile size={18} />
+                Feeling
               </div>
 
-              <div className="ml-2 hidden items-center gap-2 rounded-2xl bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:flex">
-                <Link2 size={14} />
-                {externalLinkUrl.trim() ? 'Link card mode' : 'No link'}
-              </div>
+              {!hasFiles ? (
+                <div className="hidden items-center gap-2 rounded-full bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:inline-flex">
+                  <Link2 size={14} />
+                  {externalLinkUrl.trim() ? 'Link card mode' : 'No link'}
+                </div>
+              ) : null}
+
+              {hasFiles ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearImageSelection();
+                    clearVideoSelection();
+                    setExternalLinkUrl('');
+                  }}
+                  className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-black"
+                >
+                  <X size={16} />
+                  Clear attachments
+                </button>
+              ) : null}
             </div>
 
             <button
               type="button"
               disabled={!canSubmit}
               onClick={handleSubmit}
-              className={`rounded-2xl px-8 py-3 text-sm font-black text-white transition-all shadow-lg shadow-zinc-200 ${
-                canSubmit ? 'bg-black hover:scale-[1.02] active:scale-[0.98]' : 'cursor-not-allowed bg-zinc-200 shadow-none'
+              className={`inline-flex h-11 items-center justify-center rounded-2xl px-7 text-lg font-medium text-white transition ${
+                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
               }`}
             >
               {submitting ? 'Posting...' : 'Post'}
