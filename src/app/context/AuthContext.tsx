@@ -29,12 +29,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
 
-  const clearPersistedAuth = useCallback(() => {
-    setUser(null);
-    window.localStorage.removeItem('gamerin_user');
-    removeAccessToken();
-  }, []);
-
   useEffect(() => {
     const bootstrapAuth = async () => {
       const savedUser = window.localStorage.getItem('gamerin_user');
@@ -46,27 +40,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       try {
         const parsedUser = JSON.parse(savedUser);
-
-        let token = getAccessToken();
-        if (!token) {
-          token = await refreshAccessToken();
-        }
-
-        if (!token) {
-          clearPersistedAuth();
-          return;
-        }
-
         setUser(parsedUser);
+
+        if (!getAccessToken()) {
+          const refreshedToken = await refreshAccessToken();
+          if (!refreshedToken) {
+            setUser(null);
+            window.localStorage.removeItem('gamerin_user');
+          }
+        }
       } catch {
-        clearPersistedAuth();
+        setUser(null);
+        window.localStorage.removeItem('gamerin_user');
+        removeAccessToken();
       } finally {
         setIsAuthReady(true);
       }
     };
 
     void bootstrapAuth();
-  }, [clearPersistedAuth]);
+  }, []);
 
   const login = useCallback((userData: User) => {
     setUser(userData);
@@ -86,13 +79,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback((options?: { redirectTo?: string | null }) => {
-    clearPersistedAuth();
+    setUser(null);
+    window.localStorage.removeItem('gamerin_user');
+    removeAccessToken();
 
     const redirectTo = options?.redirectTo ?? '/login';
     if (redirectTo) {
       router.replace(redirectTo);
     }
-  }, [clearPersistedAuth, router]);
+  }, [router]);
 
   return (
     <AuthContext.Provider value={{ user, isAuthReady, login, updateUser, logout }}>

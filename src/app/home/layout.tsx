@@ -1,10 +1,9 @@
 'use client';
 
-import { useState } from 'react';
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
-import { ensureAccessToken, setAccessToken } from '@/lib/auth-store';
+import { setAccessToken } from '@/lib/auth-store';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 
@@ -98,15 +97,14 @@ export default function HomeLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthReady, login, logout } = useAuth();
-  const [isSessionVerified, setIsSessionVerified] = useState(false);
+  const { user, isAuthReady, login } = useAuth();
 
   useEffect(() => {
     if (!isAuthReady) return;
 
     let cancelled = false;
 
-    const syncSession = async () => {
+    const syncSocialLogin = async () => {
       const token = getRedirectAccessToken();
 
       if (token) {
@@ -118,36 +116,23 @@ export default function HomeLayout({
         if (cancelled) return;
 
         login(buildUser(me, fallback));
-        setIsSessionVerified(true);
         router.replace('/home');
         return;
       }
 
       if (!user) {
         router.replace('/login');
-        return;
       }
-
-      const activeToken = await ensureAccessToken();
-
-      if (cancelled) return;
-
-      if (!activeToken) {
-        logout({ redirectTo: '/login' });
-        return;
-      }
-
-      setIsSessionVerified(true);
     };
 
-    void syncSession();
+    syncSocialLogin();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthReady, login, logout, router, user]);
+  }, [isAuthReady, login, router, user]);
 
-  if (!isAuthReady || !user || !isSessionVerified) {
+  if (!isAuthReady || !user) {
     return null;
   }
 
