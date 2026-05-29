@@ -1,7 +1,7 @@
 'use client';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
+import { ImagePlus, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
 
@@ -19,6 +19,17 @@ interface ThumbnailOption {
 
 const MAX_IMAGE_COUNT = 4;
 const MAX_VIDEO_THUMBNAILS = 4;
+const MAX_VIDEO_COUNT = 1;
+const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
+const MAX_VIDEO_DURATION_SECONDS = 120;
+
+function isImageFile(file: File) {
+  return file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(file.name);
+}
+
+function isVideoFile(file: File) {
+  return file.type.startsWith('video/') || /\.(mp4|mov|m4v)$/i.test(file.name);
+}
 
 function makeObjectUrl(file: File) {
   return URL.createObjectURL(file);
@@ -111,6 +122,10 @@ async function generateThumbnailOptions(file: File) {
     canvas.height = Math.max(video.videoHeight || 720, 180);
 
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
+    if (duration > MAX_VIDEO_DURATION_SECONDS) {
+      throw new Error('Video duration must be 2 minutes or shorter.');
+    }
+
     const sampleTimes = Array.from({ length: MAX_VIDEO_THUMBNAILS }, (_, index) => {
       const ratio = MAX_VIDEO_THUMBNAILS === 1 ? 0 : index / (MAX_VIDEO_THUMBNAILS - 1);
       return Math.min(Math.max(duration * ratio, 0), Math.max(duration - 0.1, 0));
@@ -141,7 +156,6 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
 
   const [content, setContent] = useState('');
-  const [externalLinkUrl, setExternalLinkUrl] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -199,24 +213,51 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
   const resetComposer = () => {
     setContent('');
-    setExternalLinkUrl('');
     clearImageSelection();
     clearVideoSelection();
   };
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).slice(0, MAX_IMAGE_COUNT);
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length > MAX_IMAGE_COUNT) {
+      alert(`You can upload up to ${MAX_IMAGE_COUNT} images.`);
+    }
+
+    const files = selectedFiles.slice(0, MAX_IMAGE_COUNT);
+    if (files.some((file) => !isImageFile(file))) {
+      alert('Only image files can be uploaded as photos.');
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+      return;
+    }
+
     clearVideoSelection();
     setImageFiles(files);
     setImagePreviewUrls(files.map((file) => makeObjectUrl(file)));
   };
 
   const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
-    const selected = event.target.files?.[0] ?? null;
+    const selectedFiles = Array.from(event.target.files ?? []);
+    if (selectedFiles.length > MAX_VIDEO_COUNT) {
+      alert('You can upload only one video.');
+    }
+
+    const selected = selectedFiles[0] ?? null;
     clearImageSelection();
     clearVideoSelection();
 
     if (!selected) {
+      return;
+    }
+
+    if (!isVideoFile(selected)) {
+      alert('Only video files can be uploaded as videos.');
+      return;
+    }
+
+    if (selected.size > MAX_VIDEO_FILE_SIZE_BYTES) {
+      alert('Video file must be 500MB or smaller.');
       return;
     }
 
@@ -227,8 +268,9 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     try {
       const options = await generateThumbnailOptions(selected);
       setThumbnailOptions(options);
-      setSelectedThumbnailId(options[0]?.id ?? null);
+      setSelectedThumbnailId(null);
     } catch (error) {
+      clearVideoSelection();
       alert(error instanceof Error ? error.message : 'Failed to prepare video preview.');
     } finally {
       setGeneratingThumbnails(false);
@@ -241,6 +283,14 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       return;
     }
 
+    if (!isImageFile(file)) {
+      alert('Video thumbnail must be an image file.');
+      if (thumbnailInputRef.current) {
+        thumbnailInputRef.current.value = '';
+      }
+      return;
+    }
+
     const uploadedOption = buildThumbnailOption(file, 'Uploaded', 'uploaded');
     setThumbnailOptions((current) => [...current.filter((option) => option.kind !== 'uploaded'), uploadedOption]);
     setSelectedThumbnailId(uploadedOption.id);
@@ -249,15 +299,16 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const canSubmit =
     Boolean(user) &&
     !submitting &&
-    Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
+    !generatingThumbnails &&
+    Boolean(content.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = async () => {
     if (!user || !canSubmit) {
       return;
     }
 
-    if (hasFiles && externalLinkUrl.trim()) {
-      alert('Media upload and external link card cannot be used together.');
+    if (videoFile && imageFiles.length > 0) {
+      alert('Images and videos cannot be uploaded together.');
       return;
     }
 
@@ -284,7 +335,6 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       } else {
         createdPost = await createJsonPost({
           content: content.trim(),
-          externalLinkUrl: externalLinkUrl.trim(),
         });
       }
 
@@ -331,6 +381,18 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                       선택하지 않으면 자동으로 생성된 첫 번째 썸네일이 사용됩니다.
                     </p>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedThumbnailId(null)}
+                    className={`h-10 rounded-full border px-4 text-sm font-bold transition ${
+                      selectedThumbnailId === null
+                        ? 'border-zinc-900 bg-zinc-900 text-white'
+                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    No thumbnail
+                  </button>
 
                   <button
                     type="button"
@@ -398,15 +460,6 @@ export function PostComposer({ onCreated }: PostComposerProps) {
             </div>
           ) : null}
 
-          {!hasFiles ? (
-            <input
-              value={externalLinkUrl}
-              onChange={(event) => setExternalLinkUrl(event.target.value)}
-              placeholder="https://example.com"
-              className="h-12 w-full rounded-[16px] border border-zinc-200 bg-zinc-50 px-4 text-sm font-medium text-black outline-none transition focus:border-zinc-400"
-            />
-          ) : null}
-
           <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-5 text-zinc-500">
               <input
@@ -448,20 +501,12 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 Feeling
               </div>
 
-              {!hasFiles ? (
-                <div className="hidden items-center gap-2 rounded-full bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:inline-flex">
-                  <Link2 size={14} />
-                  {externalLinkUrl.trim() ? 'Link card mode' : 'No link'}
-                </div>
-              ) : null}
-
               {hasFiles ? (
                 <button
                   type="button"
                   onClick={() => {
                     clearImageSelection();
                     clearVideoSelection();
-                    setExternalLinkUrl('');
                   }}
                   className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-black"
                 >

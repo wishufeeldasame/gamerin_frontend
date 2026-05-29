@@ -1,7 +1,6 @@
 'use client';
 
-import { UserPlus, Flame } from 'lucide-react';
-import { TrendingGame } from '@/lib/feed-api';
+import { UserPlus } from 'lucide-react';
 
 const suggestedFriends = [
   { name: 'Jin Park', tag: '@jinplays', badge: 'FPS coach' },
@@ -9,43 +8,9 @@ const suggestedFriends = [
   { name: 'Theo Han', tag: '@theostream', badge: 'Creator' },
 ];
 
-interface RightSidebarProps {
-  trendingGames?: TrendingGame[];
-}
-
-export function RightSidebar({ trendingGames = [] }: RightSidebarProps) {
+export function RightSidebar() {
   return (
     <aside className="space-y-6">
-      <section className="rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm">
-        <div className="mb-5 flex items-center gap-2">
-          <Flame size={20} className="fill-black text-black" />
-          <h2 className="text-[17px] font-black uppercase tracking-tight text-black">Trending Games</h2>
-        </div>
-
-        <div className="space-y-2">
-          {trendingGames.length === 0 ? (
-            <div className="rounded-2xl bg-zinc-50 px-4 py-4 text-sm font-bold text-zinc-400">
-              No trending game data yet.
-            </div>
-          ) : (
-            trendingGames.map((game, idx) => (
-              <div
-                key={game.gameName}
-                className="group flex cursor-pointer items-center justify-between rounded-2xl bg-zinc-50 px-4 py-4 transition-all hover:scale-[1.02] hover:bg-black"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-xs font-black text-zinc-400 group-hover:text-white/50">{idx + 1}</span>
-                  <p className="text-sm font-black text-black transition-colors group-hover:text-white">{game.gameName}</p>
-                </div>
-                <p className="text-[11px] font-bold text-zinc-400 group-hover:text-zinc-500">
-                  {game.postCount.toLocaleString()} posts
-                </p>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
       <section className="rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-2">
           <UserPlus size={20} className="text-black" />

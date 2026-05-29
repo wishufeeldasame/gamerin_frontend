@@ -6,14 +6,13 @@ import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
 import { PostDetail } from './components/PostDetail';
-import { PostRecord, TrendingGame, fetchFeed, fetchTrendingGames, likePost, unlikePost } from '@/lib/feed-api';
+import { PostRecord, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
   const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [trendingGames, setTrendingGames] = useState<TrendingGame[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -28,10 +27,7 @@ export default function HomePage() {
       try {
         setLoading(true);
         setError(null);
-        const [feedPage, trending] = await Promise.all([
-          fetchFeed(activeTab),
-          fetchTrendingGames(),
-        ]);
+        const feedPage = await fetchFeed(activeTab);
 
         if (cancelled) {
           return;
@@ -40,7 +36,6 @@ export default function HomePage() {
         setPosts(feedPage.items);
         setNextCursor(feedPage.nextCursor);
         setHasNext(feedPage.hasNext);
-        setTrendingGames(trending);
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');
@@ -198,7 +193,7 @@ export default function HomePage() {
       </main>
 
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 p-6 xl:block">
-        <RightSidebar trendingGames={trendingGames} />
+        <RightSidebar />
       </aside>
     </div>
   );

@@ -1,15 +1,8 @@
 'use client';
 
-import { Check, Search, Send, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { PostRecord, getInitials } from '@/lib/feed-api';
-
-type ShareRecipient = {
-  id: string;
-  name: string;
-  handle: string;
-  role: string;
-};
+import { Check, Copy, Send, X } from 'lucide-react';
+import { useState } from 'react';
+import { PostRecord, ShareTarget, getInitials, sharePost } from '@/lib/feed-api';
 
 interface SharePostModalProps {
   post: PostRecord;
@@ -17,93 +10,65 @@ interface SharePostModalProps {
   onShared?: (post: PostRecord) => void;
 }
 
-const recipients: ShareRecipient[] = [
-  { id: 'jin', name: 'Jin Park', handle: '@jinplays', role: 'FPS COACH' },
-  { id: 'luna', name: 'Luna Choi', handle: '@lunaraid', role: 'MMO GUILD LEAD' },
-  { id: 'theo', name: 'Theo Han', handle: '@theostream', role: 'CREATOR' },
-  { id: 'sarah', name: 'Sarah Chen', handle: '@sarahfps', role: 'DUO PARTNER' },
-  { id: 'mike', name: 'Mike Rodriguez', handle: '@mikerg', role: 'SCRIM MATE' },
+const shareOptions: { target: ShareTarget; label: string; description: string }[] = [
+  { target: 'COPY_LINK', label: 'Copy link', description: 'Record a link copy share.' },
+  { target: 'WEB_SHARE', label: 'Web share', description: 'Record a browser share action.' },
+  { target: 'OTHER', label: 'Other', description: 'Record another share action.' },
 ];
 
-function saveSharedPost(post: PostRecord, selectedRecipients: ShareRecipient[], message: string) {
-  const raw = window.localStorage.getItem('gamerin_shared_posts');
-  const previous = raw ? (JSON.parse(raw) as unknown[]) : [];
+function buildPostUrl(postId: string) {
+  if (typeof window === 'undefined') {
+    return `/home?post=${postId}`;
+  }
 
-  window.localStorage.setItem(
-    'gamerin_shared_posts',
-    JSON.stringify([
-      {
-        id: crypto.randomUUID(),
-        postId: post.postId,
-        postAuthor: post.author,
-        postContent: post.content,
-        recipients: selectedRecipients.map((recipient) => ({
-          id: recipient.id,
-          name: recipient.name,
-          handle: recipient.handle,
-        })),
-        message,
-        createdAt: new Date().toISOString(),
-      },
-      ...previous,
-    ])
-  );
+  return `${window.location.origin}/home?post=${postId}`;
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
-  const [query, setQuery] = useState('');
-  const [message, setMessage] = useState('');
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [selectedTarget, setSelectedTarget] = useState<ShareTarget>('COPY_LINK');
+  const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
 
-  const filteredRecipients = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return recipients;
+  const handleShare = async () => {
+    if (submitting || sent) {
+      return;
+    }
 
-    return recipients.filter((recipient) =>
-      [recipient.name, recipient.handle, recipient.role].some((value) =>
-        value.toLowerCase().includes(normalized)
-      )
-    );
-  }, [query]);
+    try {
+      setSubmitting(true);
+      const response = await sharePost(post.postId, selectedTarget);
 
-  const selectedRecipients = recipients.filter((recipient) => selectedIds.includes(recipient.id));
-  const canSend = selectedRecipients.length > 0 && !sent;
+      if (selectedTarget === 'COPY_LINK' && navigator.clipboard) {
+        await navigator.clipboard.writeText(buildPostUrl(post.postId)).catch(() => undefined);
+      }
 
-  const toggleRecipient = (recipientId: string) => {
-    setSelectedIds((current) =>
-      current.includes(recipientId)
-        ? current.filter((id) => id !== recipientId)
-        : [...current, recipientId]
-    );
-  };
+      setSent(true);
+      onShared?.({
+        ...post,
+        shares: response.shares,
+      });
 
-  const handleSend = () => {
-    if (!canSend) return;
-
-    saveSharedPost(post, selectedRecipients, message.trim());
-    setSent(true);
-    onShared?.({
-      ...post,
-      shares: post.shares + 1,
-    });
-
-    window.setTimeout(onClose, 900);
+      window.setTimeout(onClose, 700);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to share post.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] bg-white shadow-2xl">
+      <div className="w-full max-w-md overflow-hidden rounded-[28px] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
-            <h2 className="text-xl font-black text-black">게시물 공유</h2>
-            <p className="text-sm font-bold text-zinc-400">메시지로 보낼 사람을 선택하세요.</p>
+            <h2 className="text-xl font-black text-black">Share post</h2>
+            <p className="text-sm font-bold text-zinc-400">Choose how this share should be recorded.</p>
           </div>
           <button
             type="button"
             onClick={onClose}
             className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
-            aria-label="닫기"
+            aria-label="Close"
           >
             <X size={20} />
           </button>
@@ -121,77 +86,50 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
               </div>
             </div>
             <p className="line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
-              {post.content || '미디어 게시물'}
+              {post.content || 'Media post'}
             </p>
           </div>
 
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="친구 검색"
-              className="h-12 w-full rounded-2xl border border-zinc-100 bg-zinc-50 pl-11 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
-            />
-          </div>
-
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {filteredRecipients.map((recipient) => {
-              const selected = selectedIds.includes(recipient.id);
+          <div className="space-y-2">
+            {shareOptions.map((option) => {
+              const selected = selectedTarget === option.target;
 
               return (
                 <button
-                  key={recipient.id}
+                  key={option.target}
                   type="button"
-                  onClick={() => toggleRecipient(recipient.id)}
-                  className={`flex w-full items-center justify-between rounded-2xl p-3 text-left transition ${
+                  onClick={() => setSelectedTarget(option.target)}
+                  className={`flex w-full items-center justify-between rounded-2xl p-4 text-left transition ${
                     selected ? 'bg-black text-white' : 'bg-zinc-50 text-black hover:bg-zinc-100'
                   }`}
                 >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
-                      selected ? 'bg-white text-black' : 'bg-black text-white'
-                    }`}>
-                      {getInitials(recipient.name)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-black">{recipient.name}</span>
-                      <span className={`block truncate text-xs font-bold ${
-                        selected ? 'text-white/70' : 'text-zinc-400'
-                      }`}>
-                        {recipient.handle} · {recipient.role}
-                      </span>
+                  <span>
+                    <span className="block text-sm font-black">{option.label}</span>
+                    <span className={`block text-xs font-bold ${selected ? 'text-white/70' : 'text-zinc-400'}`}>
+                      {option.description}
                     </span>
                   </span>
-                  {selected ? <Check size={18} /> : null}
+                  {option.target === 'COPY_LINK' ? <Copy size={18} /> : selected ? <Check size={18} /> : null}
                 </button>
               );
             })}
           </div>
 
-          <textarea
-            value={message}
-            onChange={(event) => setMessage(event.target.value)}
-            placeholder="메시지 추가..."
-            rows={3}
-            className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black"
-          />
-
           <button
             type="button"
-            onClick={handleSend}
-            disabled={!canSend}
+            onClick={handleShare}
+            disabled={submitting || sent}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
           >
             {sent ? (
               <>
                 <Check size={18} />
-                전송 완료
+                Shared
               </>
             ) : (
               <>
                 <Send size={18} />
-                보내기
+                {submitting ? 'Sharing...' : 'Share'}
               </>
             )}
           </button>
