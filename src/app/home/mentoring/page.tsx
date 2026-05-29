@@ -100,14 +100,20 @@ function buildProgramContent(method: string, content: string) {
   return `[진행 방식]\n${method.trim() || '협의 후 진행'}\n\n[상세 설명]\n${content.trim()}`;
 }
 
-function splitProgramContent(rawContent: string) {
-  const methodMatch = rawContent.match(/\[진행 방식\]\s*([\s\S]*?)(?:\n\s*\[상세 설명\]|$)/);
-  const contentMatch = rawContent.match(/\[상세 설명\]\s*([\s\S]*)$/);
+function splitProgramContent(rawContent?: string | null) {
+  const safeContent = rawContent ?? '';
+  const methodMatch = safeContent.match(/\[진행 방식\]\s*([\s\S]*?)(?:\n\s*\[상세 설명\]|$)/);
+  const contentMatch = safeContent.match(/\[상세 설명\]\s*([\s\S]*)$/);
 
   return {
     method: methodMatch?.[1]?.trim() ?? '',
-    content: contentMatch?.[1]?.trim() ?? rawContent,
+    content: contentMatch?.[1]?.trim() ?? safeContent,
   };
+}
+
+function formatRating(value?: number | null) {
+  const rating = Number(value);
+  return Number.isFinite(rating) ? rating.toFixed(1) : '0.0';
 }
 
 function programMentorName(program: MentoringProgramResponse | MentoringProgramDetailResponse) {
@@ -116,11 +122,13 @@ function programMentorName(program: MentoringProgramResponse | MentoringProgramD
   return '멘토';
 }
 
-function applicationGuide(role: 'mentor' | 'mentee', status: ApplicationStatus, paymentStatus: PaymentStatus) {
+function applicationGuide(role: 'mentor' | 'mentee', status: ApplicationStatus, paymentStatus?: PaymentStatus) {
   if (status === 'APPLIED') {
+    const currentPaymentLabel = paymentStatus ? paymentLabel[paymentStatus] ?? paymentStatus : '확인 중';
+
     return role === 'mentor'
       ? '멘티의 신청이 들어왔습니다. 수락하면 멘토링을 시작할 수 있습니다.'
-      : `멘토의 수락을 기다리는 중입니다. 결제 상태: ${paymentLabel[paymentStatus] ?? paymentStatus}`;
+      : `멘토의 수락을 기다리는 중입니다. 결제 상태: ${currentPaymentLabel}`;
   }
   if (status === 'ACCEPTED') return role === 'mentor' ? '시작 버튼을 눌러 진행 상태로 바꿔주세요.' : '멘토가 신청을 수락했습니다.';
   if (status === 'ONGOING') return role === 'mentor' ? '수업이 끝나면 종료 보고를 눌러주세요.' : '멘토링 진행 중입니다.';
@@ -205,7 +213,7 @@ export default function MentoringPage() {
       });
       setProgramPage(page);
 
-      const mentorIds = Array.from(new Set(page.content.map((program) => program.mentorId)));
+      const mentorIds = Array.from(new Set(page.content.map((program) => program.mentorId).filter(Boolean)));
       const mentorResults = await Promise.allSettled(
         mentorIds.map(async (mentorId) => ({
           mentorId,
@@ -251,13 +259,18 @@ export default function MentoringPage() {
       const profile = await fetchMentorProfile(currentUserId);
       setMentorProfile(profile);
       setMentorAbout(profile.about ?? '');
-    } catch {
+    } catch (error) {
+      if (isMentoringAuthError(error)) {
+        showError(error);
+        return;
+      }
+
       setMentorProfile(null);
       setMentorAbout('');
     } finally {
       setMentorProfileLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, showError]);
 
   const loadApplications = useCallback(async () => {
     const [menteeResult, mentorResult] = await Promise.allSettled([
@@ -580,7 +593,7 @@ export default function MentoringPage() {
                             {splitProgramContent(program.content).content}
                           </p>
                           <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)} · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
+                            멘토 {programMentorName(program)} · 평점 {formatRating(mentorStatsById[program.mentorId]?.ratingAvg)}
                           </p>
                         </div>
                         <div className="text-left md:text-right">
@@ -801,7 +814,7 @@ export default function MentoringPage() {
                   <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">{mentorProfile.about}</p>
                   <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                     <div className="rounded-xl bg-zinc-50 p-3">
-                      <p className="text-lg font-black text-black">{mentorProfile.ratingAvg.toFixed(1)}</p>
+                      <p className="text-lg font-black text-black">{formatRating(mentorProfile.ratingAvg)}</p>
                       <p className="text-xs font-bold text-zinc-400">평점</p>
                     </div>
                     <div className="rounded-xl bg-zinc-50 p-3">

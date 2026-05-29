@@ -223,17 +223,55 @@ export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
   };
 }
 
+function toNumber(value: unknown) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function normalizePageResponse<T>(page: PageResponse<T> | null | undefined, pageNumber = 0, pageSize = 10): PageResponse<T> {
+  if (!page) {
+    return emptyPage(pageNumber, pageSize);
+  }
+
+  const content = Array.isArray(page.content) ? page.content : [];
+
+  return {
+    ...page,
+    content,
+    totalPages: toNumber(page.totalPages),
+    totalElements: toNumber(page.totalElements),
+    number: toNumber(page.number ?? pageNumber),
+    size: toNumber(page.size ?? pageSize),
+    empty: page.empty ?? content.length === 0,
+    numberOfElements: page.numberOfElements ?? content.length,
+  };
+}
+
+function normalizeMentorProfile(profile: MentorProfileResponse | null | undefined): MentorProfileResponse {
+  if (!profile) {
+    throw new Error('멘토 프로필 정보를 불러오지 못했습니다.');
+  }
+
+  return {
+    ...profile,
+    about: profile.about ?? '',
+    ratingAvg: toNumber(profile.ratingAvg),
+    reviewCount: toNumber(profile.reviewCount),
+    menteeCount: toNumber(profile.menteeCount),
+  };
+}
+
 export function registerMentor(payload: { about: string }) {
   return mentoringRequest<MentorProfileResponse>(`${MENTORING_BASE}/mentors`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  }).then(normalizeMentorProfile);
 }
 
 export function fetchMentorProfile(mentorId: string) {
   return mentoringRequest<MentorProfileResponse>(`${MENTORING_BASE}/mentors/${mentorId}`, {
     authRequired: false,
-  });
+  }).then(normalizeMentorProfile);
 }
 
 export function createMentoringProgram(payload: MentoringProgramRequest) {
@@ -260,7 +298,7 @@ export function fetchMentoringPrograms(params: {
   return mentoringRequest<PageResponse<MentoringProgramResponse>>(
     `${MENTORING_BASE}/programs?${search.toString()}`,
     { authRequired: false }
-  );
+  ).then((page) => normalizePageResponse(page, params.page ?? 0, params.size ?? 10));
 }
 
 export function fetchMentoringProgramDetail(programId: string) {
@@ -292,13 +330,13 @@ export function applyToMentoringProgram(payload: { programId: string; message: s
 export function fetchMenteeApplications(page = 0, size = 10) {
   return mentoringRequest<PageResponse<MentoringApplicationResponse>>(
     `${MENTORING_BASE}/applications/mentee?page=${page}&size=${size}`
-  );
+  ).then((responsePage) => normalizePageResponse(responsePage, page, size));
 }
 
 export function fetchMentorApplications(page = 0, size = 10) {
   return mentoringRequest<PageResponse<MentoringApplicationResponse>>(
     `${MENTORING_BASE}/applications/mentor?page=${page}&size=${size}`
-  );
+  ).then((responsePage) => normalizePageResponse(responsePage, page, size));
 }
 
 export function acceptMentoringApplication(applicationId: string) {
