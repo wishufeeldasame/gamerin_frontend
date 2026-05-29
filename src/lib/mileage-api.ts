@@ -1,0 +1,115 @@
+import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
+
+const API_BASE = getApiBaseUrl();
+const MILEAGE_BASE = '/api/v1/mileage';
+
+export interface ApiEnvelope<T> {
+  success?: boolean;
+  data?: T;
+  message?: string;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  totalPages: number;
+  totalElements: number;
+  number: number;
+  size: number;
+  first?: boolean;
+  last?: boolean;
+  empty?: boolean;
+  numberOfElements?: number;
+}
+
+export interface MileageBalanceResponse {
+  currentBalance: number;
+}
+
+export interface MileageTransactionResponse {
+  id: string;
+  amount: number;
+  balanceAfter: number;
+  type: string;
+  typeDescription: string;
+  description: string;
+  createdAt: string;
+}
+
+type RequestOptions = Omit<RequestInit, 'headers'> & {
+  headers?: Record<string, string>;
+};
+
+async function mileageRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const send = async (accessToken?: string | null) => {
+    const headers = new Headers(options.headers);
+
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+
+    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+
+    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | T | null;
+    return { response, payload };
+  };
+
+  let accessToken = await ensureAccessToken({ clearOnFailure: false });
+
+  if (!accessToken) {
+    throw new Error('로그인이 필요합니다.');
+  }
+
+  let result = await send(accessToken);
+
+  if (result.response.status === 401) {
+    const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
+
+    if (!refreshedToken) {
+      throw new Error('로그인이 필요합니다.');
+    }
+
+    accessToken = refreshedToken;
+    result = await send(accessToken);
+  }
+
+  if (!result.response.ok) {
+    const message =
+      result.payload && typeof result.payload === 'object' && 'message' in result.payload
+        ? result.payload.message
+        : null;
+
+    throw new Error(message || '마일리지 요청을 처리하지 못했습니다.');
+  }
+
+  if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
+    return (result.payload as ApiEnvelope<T>).data as T;
+  }
+
+  return result.payload as T;
+}
+
+export function fetchMyMileageBalance() {
+  return mileageRequest<MileageBalanceResponse>(`${MILEAGE_BASE}/me/balance`);
+}
+
+export function fetchMyMileageTransactions(page = 0, size = 10) {
+  return mileageRequest<PageResponse<MileageTransactionResponse>>(
+    `${MILEAGE_BASE}/me/transactions?page=${page}&size=${size}`
+  );
+}
+
+export function chargeMileage(amount: number) {
+  return mileageRequest<MileageBalanceResponse>(`${MILEAGE_BASE}/charge`, {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  });
+}

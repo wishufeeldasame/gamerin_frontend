@@ -2,12 +2,15 @@
 
 import {
   AlertCircle,
+  ArrowDownLeft,
+  ArrowUpRight,
   Check,
   Clock3,
   CreditCard,
   Loader2,
   MessageCircle,
   Plus,
+  Wallet,
   Trash2,
   UserPlus,
   X,
@@ -17,8 +20,10 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   acceptMentoringApplication,
   applyToMentoringProgram,
+  cancelMentoringApplication,
   completeMentoringApplication,
   createMentoringProgram,
+  deleteMentoringApplication,
   deleteMentoringProgram,
   emptyPage,
   fetchMenteeApplications,
@@ -39,8 +44,16 @@ import {
   type PageResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
+import {
+  chargeMileage,
+  fetchMyMileageBalance,
+  fetchMyMileageTransactions,
+  type MileageTransactionResponse,
+  type PageResponse as MileagePageResponse,
+} from '@/lib/mileage-api';
 
 type MentoringTab = 'find' | 'mine' | 'become';
+type MentoringBannerType = 'auth' | 'mileage' | null;
 
 type ProgramForm = {
   gameName: string;
@@ -89,6 +102,27 @@ function formatMileage(value: number) {
   return `${Number(value || 0).toLocaleString()} M`;
 }
 
+function formatSignedMileage(value: number) {
+  const amount = Number(value || 0);
+  return `${amount > 0 ? '+' : ''}${amount.toLocaleString()} M`;
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function parseTags(value: string) {
   return value
     .split(',')
@@ -131,6 +165,29 @@ function applicationGuide(role: 'mentor' | 'mentee', status: ApplicationStatus, 
   return '';
 }
 
+function isMileageShortageError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes('마일리지') ||
+    message.includes('마일리지가 부족') ||
+    message.includes('잔액') ||
+    message.includes('부족합니다') ||
+    message.includes('insufficient') ||
+    message.includes('balance') ||
+    message.includes('留덉씪由ъ') ||
+    message.includes('遺議깊빀')
+  );
+}
+
+function isApplicationBlockingReapply(status: ApplicationStatus) {
+  return status === 'APPLIED' || status === 'ACCEPTED' || status === 'ONGOING' || status === 'FINISHED';
+}
+
 export default function MentoringPage() {
   const { user, logout } = useAuth();
   const currentUserId = user?.id ?? '';
@@ -155,8 +212,14 @@ export default function MentoringPage() {
 
   const [menteeApplications, setMenteeApplications] = useState<MentoringApplicationResponse[]>([]);
   const [mentorApplications, setMentorApplications] = useState<MentoringApplicationResponse[]>([]);
+  const [mileageBalance, setMileageBalance] = useState(0);
+  const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
+  const [mileagePage, setMileagePage] = useState<MileagePageResponse<MileageTransactionResponse> | null>(null);
+  const [mileageLoading, setMileageLoading] = useState(false);
+  const [chargeAmount, setChargeAmount] = useState('10000');
 
   const [notice, setNotice] = useState('');
+  const [bannerType, setBannerType] = useState<MentoringBannerType>(null);
   const [authMessage, setAuthMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [pendingAction, setPendingAction] = useState('');
@@ -164,6 +227,21 @@ export default function MentoringPage() {
   const totalPages = Math.max(programPage.totalPages || 1, 1);
 
   const visiblePrograms = useMemo(() => programPage.content, [programPage.content]);
+  const selectedProgramApplication = useMemo(() => {
+    if (!selectedProgram) {
+      return null;
+    }
+
+    const latestApplication = menteeApplications
+      .filter((application) => application.programId === selectedProgram.id)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+
+    if (!latestApplication || !isApplicationBlockingReapply(latestApplication.status)) {
+      return null;
+    }
+
+    return latestApplication;
+  }, [menteeApplications, selectedProgram]);
 
   const currentUserOwnsProgram = useCallback(
     (mentorId?: string | null) => normalizeId(mentorId) === normalizeId(currentUserId),
@@ -176,24 +254,35 @@ export default function MentoringPage() {
   }, []);
 
   const showError = useCallback((error: unknown) => {
+    if (isMileageShortageError(error)) {
+      setBannerType('mileage');
+      setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해 주세요.');
+      setErrorMessage('');
+      return;
+    }
+
     if (isMentoringAuthError(error)) {
+      setBannerType('auth');
       setAuthMessage('세션이 만료되었거나 백엔드가 현재 토큰을 거부했습니다. 다시 로그인 후 멘토링을 이용해주세요.');
       setErrorMessage('');
       return;
     }
 
+    setBannerType(null);
     setAuthMessage('');
     setErrorMessage(error instanceof Error ? error.message : '요청 처리 중 문제가 발생했습니다.');
   }, []);
 
   const clearMessages = () => {
     setNotice('');
+    setBannerType(null);
     setAuthMessage('');
     setErrorMessage('');
   };
 
   const loadPrograms = useCallback(async () => {
     setProgramsLoading(true);
+    setBannerType(null);
     setAuthMessage('');
     setErrorMessage('');
 
@@ -280,6 +369,28 @@ export default function MentoringPage() {
     setMentorApplications(mentorResult.status === 'fulfilled' ? mentorResult.value.content : []);
   }, [showError]);
 
+  const loadMileageData = useCallback(async () => {
+    setMileageLoading(true);
+
+    try {
+      const [balance, transactions] = await Promise.all([
+        fetchMyMileageBalance(),
+        fetchMyMileageTransactions(0, 10),
+      ]);
+
+      setMileageBalance(balance.currentBalance ?? 0);
+      setMileageTransactions(transactions.content ?? []);
+      setMileagePage(transactions);
+    } catch (error) {
+      setMileageBalance(0);
+      setMileageTransactions([]);
+      setMileagePage(null);
+      showError(error);
+    } finally {
+      setMileageLoading(false);
+    }
+  }, [showError]);
+
   const refreshMentoringData = useCallback(async () => {
     if (activeTab === 'find') {
       await loadPrograms();
@@ -287,12 +398,12 @@ export default function MentoringPage() {
     }
 
     if (activeTab === 'mine') {
-      await loadApplications();
+      await Promise.all([loadApplications(), loadMileageData()]);
       return;
     }
 
     await Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms()]);
-  }, [activeTab, loadApplications, loadCurrentMentorProfile, loadOwnedPrograms, loadPrograms]);
+  }, [activeTab, loadApplications, loadCurrentMentorProfile, loadMileageData, loadOwnedPrograms, loadPrograms]);
 
   useEffect(() => {
     if (activeTab === 'find') {
@@ -302,9 +413,19 @@ export default function MentoringPage() {
 
   useEffect(() => {
     if (activeTab === 'mine') {
-      void loadApplications();
+      void Promise.all([loadApplications(), loadMileageData()]);
     }
-  }, [activeTab, loadApplications]);
+  }, [activeTab, loadApplications, loadMileageData]);
+
+  useEffect(() => {
+    if (!currentUserId) {
+      setMenteeApplications([]);
+      setMentorApplications([]);
+      return;
+    }
+
+    void loadApplications();
+  }, [currentUserId, loadApplications]);
 
   useEffect(() => {
     if (activeTab === 'become') {
@@ -345,6 +466,18 @@ export default function MentoringPage() {
       showNotice('멘토 등록이 완료되었습니다. 이제 프로그램을 만들 수 있습니다.');
       await loadOwnedPrograms();
     } catch (error) {
+      if (isMileageShortageError(error)) {
+        const moveToCharge = window.confirm(
+          '마일리지가 부족합니다. 충전 내역 패널로 이동하시겠습니까?'
+        );
+
+        if (moveToCharge) {
+          setChargeAmount(String(selectedProgram.price || 10000));
+          setActiveTab('mine');
+          void loadMileageData();
+        }
+      }
+
       showError(error);
     } finally {
       setPendingAction('');
@@ -425,7 +558,7 @@ export default function MentoringPage() {
       });
       setApplicationMessage('');
       showNotice('멘토링 신청이 접수되었습니다.');
-      await loadApplications();
+      await Promise.all([loadApplications(), loadMileageData()]);
       setActiveTab('mine');
     } catch (error) {
       showError(error);
@@ -436,11 +569,12 @@ export default function MentoringPage() {
 
   const runApplicationAction = async (
     applicationId: string,
-    action: 'accept' | 'reject' | 'start' | 'finish' | 'complete'
+    action: 'accept' | 'reject' | 'cancel' | 'start' | 'finish' | 'complete'
   ) => {
     const actionMap = {
       accept: acceptMentoringApplication,
       reject: rejectMentoringApplication,
+      cancel: cancelMentoringApplication,
       start: startMentoringApplication,
       finish: finishMentoringApplication,
       complete: completeMentoringApplication,
@@ -459,8 +593,64 @@ export default function MentoringPage() {
 
     try {
       await actionMap[action](applicationId);
-      showNotice(messageMap[action]);
-      await loadApplications();
+      showNotice(
+        action === 'cancel' ? '멘토링 신청을 취소하고 마일리지를 환불받았습니다.' : messageMap[action]
+      );
+      await Promise.all([loadApplications(), loadMileageData()]);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPendingAction('');
+    }
+  };
+
+  const handleChargeMileage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const amount = Number(chargeAmount);
+    if (Number.isNaN(amount) || amount <= 0) {
+      setErrorMessage('충전 금액을 올바르게 입력해 주세요.');
+      return;
+    }
+
+    setPendingAction('charge-mileage');
+    clearMessages();
+
+    try {
+      const result = await chargeMileage(amount);
+      setMileageBalance(result.currentBalance ?? 0);
+      showNotice('마일리지를 충전했습니다.');
+      await loadMileageData();
+    } catch (error) {
+      if (isMileageShortageError(error)) {
+        const moveToCharge = window.confirm(
+          '마일리지가 부족합니다. 충전 내역 패널로 이동하시겠습니까?'
+        );
+
+        if (moveToCharge) {
+          setChargeAmount(String(selectedProgram.price || 10000));
+          setActiveTab('mine');
+          void loadMileageData();
+        }
+      }
+
+      showError(error);
+    } finally {
+      setPendingAction('');
+    }
+  };
+
+  const handleDeleteApplication = async (applicationId: string) => {
+    const ok = window.confirm('취소한 멘토링 신청 내역을 삭제할까요?');
+    if (!ok) return;
+
+    setPendingAction(`delete-application:${applicationId}`);
+    clearMessages();
+
+    try {
+      await deleteMentoringApplication(applicationId);
+      showNotice('취소한 멘토링 신청 내역을 삭제했습니다.');
+      await Promise.all([loadApplications(), loadMileageData()]);
     } catch (error) {
       showError(error);
     } finally {
@@ -504,17 +694,29 @@ export default function MentoringPage() {
               <div className="flex gap-3">
                 <AlertCircle className="mt-0.5 shrink-0 text-yellow-700" size={20} />
                 <div>
-                  <p className="font-black text-yellow-900">세션 확인이 필요합니다</p>
+                  <p className="font-black text-yellow-900">
+                    {bannerType === 'mileage' ? '마일리지가 부족합니다' : '세션 확인이 필요합니다'}
+                  </p>
                   <p className="mt-1 text-sm font-bold leading-6 text-yellow-800">{authMessage}</p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => logout({ redirectTo: '/login' })}
-                className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
-              >
-                다시 로그인
-              </button>
+              {bannerType === 'mileage' ? (
+                <button
+                  type="button"
+                  onClick={() => changeTab('mine')}
+                  className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
+                >
+                  충전하기
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => logout({ redirectTo: '/login' })}
+                  className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
+                >
+                  다시 로그인
+                </button>
+              )}
             </div>
           </div>
         ) : null}
@@ -643,6 +845,17 @@ export default function MentoringPage() {
                     <p className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-black text-zinc-500">
                       내가 등록한 프로그램입니다.
                     </p>
+                  ) : selectedProgramApplication ? (
+                    <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
+                      <p className="text-sm font-black text-green-800">이미 신청함</p>
+                      <p className="mt-2 text-xs font-bold leading-5 text-green-700">
+                        이 멘토링은 이미 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-green-700">
+                        <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
+                        <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
+                      </div>
+                    </div>
                   ) : (
                     <form onSubmit={handleApplyProgram} className="mt-5">
                       <div className="mb-4 rounded-xl bg-yellow-50 p-4 text-xs font-bold leading-5 text-yellow-800">
@@ -680,12 +893,58 @@ export default function MentoringPage() {
         ) : null}
 
         {activeTab === 'mine' ? (
-          <section className="grid gap-6 lg:grid-cols-2">
+          <section className="space-y-6">
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-2xl border border-zinc-100 bg-white p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Mileage</p>
+                    <h2 className="mt-1 text-2xl font-black text-black">내 마일리지</h2>
+                  </div>
+                  <div className="rounded-2xl bg-zinc-100 p-3 text-zinc-700">
+                    <Wallet size={20} />
+                  </div>
+                </div>
+                <p className="mt-5 text-3xl font-black text-black">{formatMileage(mileageBalance)}</p>
+                <p className="mt-2 text-sm font-bold text-zinc-500">
+                  멘토링 결제, 환불, 정산 내역이 이 탭에서 함께 반영됩니다.
+                </p>
+              </div>
+
+              <form onSubmit={handleChargeMileage} className="rounded-2xl border border-zinc-100 bg-white p-5">
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Test Charge</p>
+                <h2 className="mt-1 text-2xl font-black text-black">가상 충전</h2>
+                <p className="mt-2 text-sm font-bold text-zinc-500">
+                  잔액이 부족할 때 테스트용으로 바로 충전할 수 있습니다.
+                </p>
+                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                  <input
+                    value={chargeAmount}
+                    onChange={(event) => setChargeAmount(event.target.value.replace(/[^0-9]/g, ''))}
+                    inputMode="numeric"
+                    className="h-12 flex-1 rounded-xl border border-zinc-200 px-4 text-sm font-bold outline-none"
+                    placeholder="충전 금액"
+                  />
+                  <button
+                    type="submit"
+                    disabled={pendingAction === 'charge-mileage'}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-black text-white disabled:bg-zinc-200"
+                  >
+                    <Plus size={16} />
+                    {pendingAction === 'charge-mileage' ? '충전 중...' : '충전하기'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
             <ApplicationList
               title="내가 신청한 멘토링"
               role="mentee"
               applications={menteeApplications}
               pendingAction={pendingAction}
+              onCancel={(id) => runApplicationAction(id, 'cancel')}
+              onDelete={(id) => handleDeleteApplication(id)}
               onComplete={(id) => runApplicationAction(id, 'complete')}
             />
             <ApplicationList
@@ -697,6 +956,13 @@ export default function MentoringPage() {
               onReject={(id) => runApplicationAction(id, 'reject')}
               onStart={(id) => runApplicationAction(id, 'start')}
               onFinish={(id) => runApplicationAction(id, 'finish')}
+            />
+            </div>
+
+            <MileageTransactionPanel
+              transactions={mileageTransactions}
+              loading={mileageLoading}
+              totalElements={mileagePage?.totalElements ?? 0}
             />
           </section>
         ) : null}
@@ -900,6 +1166,8 @@ function ApplicationList({
   pendingAction,
   onAccept,
   onReject,
+  onCancel,
+  onDelete,
   onStart,
   onFinish,
   onComplete,
@@ -910,6 +1178,8 @@ function ApplicationList({
   pendingAction: string;
   onAccept?: (id: string) => void;
   onReject?: (id: string) => void;
+  onCancel?: (id: string) => void;
+  onDelete?: (id: string) => void;
   onStart?: (id: string) => void;
   onFinish?: (id: string) => void;
   onComplete?: (id: string) => void;
@@ -927,6 +1197,8 @@ function ApplicationList({
               pendingAction={pendingAction}
               onAccept={() => onAccept?.(application.id)}
               onReject={() => onReject?.(application.id)}
+              onCancel={() => onCancel?.(application.id)}
+              onDelete={() => onDelete?.(application.id)}
               onStart={() => onStart?.(application.id)}
               onFinish={() => onFinish?.(application.id)}
               onComplete={() => onComplete?.(application.id)}
@@ -948,6 +1220,8 @@ function ApplicationCard({
   pendingAction,
   onAccept,
   onReject,
+  onCancel,
+  onDelete,
   onStart,
   onFinish,
   onComplete,
@@ -957,6 +1231,8 @@ function ApplicationCard({
   pendingAction: string;
   onAccept?: () => void;
   onReject?: () => void;
+  onCancel?: () => void;
+  onDelete?: () => void;
   onStart?: () => void;
   onFinish?: () => void;
   onComplete?: () => void;
@@ -1022,6 +1298,30 @@ function ApplicationCard({
           </>
         ) : null}
 
+        {role === 'mentee' && application.status === 'APPLIED' ? (
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={actionPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+          >
+            <X size={14} />
+            신청 취소
+          </button>
+        ) : null}
+
+        {role === 'mentee' && application.status === 'CANCELLED' ? (
+          <button
+            type="button"
+            onClick={onDelete}
+            disabled={actionPending}
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+          >
+            <Trash2 size={14} />
+            삭제
+          </button>
+        ) : null}
+
         {role === 'mentor' && application.status === 'ACCEPTED' ? (
           <button
             type="button"
@@ -1059,5 +1359,73 @@ function ApplicationCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function MileageTransactionPanel({
+  transactions,
+  loading,
+  totalElements,
+}: {
+  transactions: MileageTransactionResponse[];
+  loading: boolean;
+  totalElements: number;
+}) {
+  return (
+    <section className="rounded-2xl border border-zinc-100 bg-white p-5">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Transactions</p>
+          <h2 className="mt-1 text-2xl font-black text-black">마일리지 거래 내역</h2>
+        </div>
+        <p className="text-sm font-bold text-zinc-500">총 {totalElements.toLocaleString()}건</p>
+      </div>
+
+      {loading ? (
+        <div className="flex h-40 items-center justify-center">
+          <Loader2 className="animate-spin text-zinc-400" />
+        </div>
+      ) : transactions.length > 0 ? (
+        <div className="mt-5 space-y-3">
+          {transactions.map((transaction) => {
+            const positive = transaction.amount >= 0;
+
+            return (
+              <article
+                key={transaction.id}
+                className="flex flex-col gap-3 rounded-xl border border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`rounded-xl p-2 ${
+                      positive ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'
+                    }`}
+                  >
+                    {positive ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
+                  </div>
+                  <div>
+                    <p className="font-black text-black">{transaction.typeDescription}</p>
+                    <p className="mt-1 text-sm font-bold text-zinc-500">{transaction.description}</p>
+                    <p className="mt-1 text-xs font-bold text-zinc-400">{formatDateTime(transaction.createdAt)}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className={`text-lg font-black ${positive ? 'text-blue-600' : 'text-red-500'}`}>
+                    {formatSignedMileage(transaction.amount)}
+                  </p>
+                  <p className="mt-1 text-xs font-bold text-zinc-400">
+                    잔액 {formatMileage(transaction.balanceAfter)}
+                  </p>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-5 rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
+          거래 내역이 아직 없습니다.
+        </p>
+      )}
+    </section>
   );
 }

@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getAccessToken } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 
 const availableGames = [
   {

@@ -9,9 +9,10 @@ import { motion } from 'framer-motion';
 // --- [인증 관련 임포트 추가] ---
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 
 type LoginUserPayload = {
   userId?: string | number;

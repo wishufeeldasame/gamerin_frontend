@@ -8,6 +8,9 @@ import {
   clearStoredAuth,
   refreshAccessToken,
 } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
+
+const API_BASE = getApiBaseUrl();
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
@@ -24,7 +27,7 @@ interface AuthContextType {
   isAuthReady: boolean;
   login: (userData: User) => void;
   updateUser: (updates: Partial<User>) => void;
-  logout: (options?: { redirectTo?: string | null }) => void;
+  logout: (options?: { redirectTo?: string | null }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -91,7 +94,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const logout = useCallback((options?: { redirectTo?: string | null }) => {
+  const logout = useCallback(async (options?: { redirectTo?: string | null }) => {
+    await fetch(`${API_BASE}/api/v1/auth/logout`, {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+    }).catch(() => null);
+
     setUser(null);
     clearStoredAuth({ notify: false });
 

@@ -1,6 +1,7 @@
 import { ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 const MENTORING_BASE = '/api/v1/mentoring';
 
 export type MentorStatus = 'ACTIVE' | 'INACTIVE' | string;
@@ -313,6 +314,19 @@ export function rejectMentoringApplication(applicationId: string) {
     `${MENTORING_BASE}/applications/${applicationId}/reject`,
     { method: 'PATCH' }
   );
+}
+
+export function cancelMentoringApplication(applicationId: string) {
+  return mentoringRequest<MentoringApplicationResponse>(
+    `${MENTORING_BASE}/applications/${applicationId}/cancel`,
+    { method: 'PATCH' }
+  );
+}
+
+export async function deleteMentoringApplication(applicationId: string) {
+  await mentoringRequest<null>(`${MENTORING_BASE}/applications/${applicationId}`, {
+    method: 'DELETE',
+  });
 }
 
 export function startMentoringApplication(applicationId: string) {
