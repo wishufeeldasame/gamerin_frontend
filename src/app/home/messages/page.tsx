@@ -6,10 +6,10 @@ import {
   CheckCheck,
   ImagePlus,
   Inbox,
+  Loader2,
   MessageSquare,
   MoreHorizontal,
   Plus,
-  RotateCcw,
   Search,
   Send,
   ShieldCheck,
@@ -17,38 +17,53 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
-  fetchConversations,
-  readConversation,
-  sendMessage,
-  startConversation,
+  createConversation,
+  fetchConversationList,
+  fetchConversationMessages,
+  isMessageAuthError,
+  markConversationRead,
+  searchMessageRecipients,
+  sendConversationMessage,
 } from '@/lib/message-api';
 import {
-  Conversation,
   ChatAttachment,
-  MESSAGE_RECIPIENTS,
+  ChatMessage,
+  Conversation,
   MessageRecipient,
   formatChatTime,
   formatConversationTime,
   getInitials,
+  mergeMessages,
 } from '@/lib/message-store';
+
+const MESSAGE_POLL_INTERVAL_MS = 7000;
+const MESSAGE_PAGE_SIZE = 30;
+
+type DraftAttachment = {
+  id: string;
+  type: 'image' | 'video';
+  name: string;
+  file: File;
+  previewUrl: string;
+};
 
 function getLastPreview(conversation: Conversation) {
   const lastMessage = conversation.messages.at(-1);
   if (!lastMessage) return '아직 대화가 없습니다.';
 
   if (lastMessage.sharedPost) {
-    return lastMessage.text ? `${lastMessage.text} · 게시물 공유` : '게시물을 공유했습니다.';
+    return lastMessage.text ? `${lastMessage.text} · 게시글 공유` : '게시글을 공유했습니다.';
   }
 
-  if (lastMessage.attachments?.length) {
+  if (lastMessage.attachments.length > 0) {
     const label = lastMessage.attachments[0].type === 'video' ? '동영상' : '사진';
     return lastMessage.text ? `${lastMessage.text} · ${label}` : `${label}을 보냈습니다.`;
   }
 
-  return lastMessage.text;
+  return lastMessage.text || '메시지를 보냈습니다.';
 }
 
 function createAttachmentId() {
@@ -57,15 +72,6 @@ function createAttachmentId() {
   }
 
   return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error('파일을 읽지 못했습니다.'));
-    reader.readAsDataURL(file);
-  });
 }
 
 function HighlightedText({ text, query }: { text: string; query: string }) {
@@ -124,9 +130,11 @@ function ConversationCard({
             <p className="truncate text-sm font-black">
               <HighlightedText text={conversation.recipient.name} query={query} />
             </p>
-            <p className={`truncate text-[11px] font-bold uppercase tracking-widest ${
-              active ? 'text-white/55' : 'text-zinc-400'
-            }`}>
+            <p
+              className={`truncate text-[11px] font-bold uppercase tracking-widest ${
+                active ? 'text-white/55' : 'text-zinc-400'
+              }`}
+            >
               <HighlightedText text={conversation.recipient.role} query={query} />
             </p>
           </div>
@@ -150,19 +158,48 @@ function ConversationCard({
 }
 
 function NewChatPicker({
-  existingIds,
   onStart,
   onClose,
 }: {
-  existingIds: string[];
   onStart: (recipient: MessageRecipient) => void;
   onClose: () => void;
 }) {
-  const availableRecipients = MESSAGE_RECIPIENTS.filter((recipient) => !existingIds.includes(recipient.id));
+  const [query, setQuery] = useState('');
+  const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoading(true);
+        setErrorMessage('');
+        const next = await searchMessageRecipients(query, 12);
+        if (!cancelled) {
+          setRecipients(next);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : '사용자를 불러오지 못했습니다.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [query]);
 
   return (
     <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-3">
-      <div className="mb-2 flex items-center justify-between px-2">
+      <div className="mb-3 flex items-center justify-between px-2">
         <p className="text-xs font-black uppercase tracking-widest text-zinc-400">새 대화</p>
         <button
           type="button"
@@ -173,9 +210,29 @@ function NewChatPicker({
           <X size={16} />
         </button>
       </div>
-      {availableRecipients.length > 0 ? (
+
+      <label className="relative mb-3 block">
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="이름 또는 핸들 검색"
+          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
+        />
+      </label>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
+          <Loader2 size={16} className="mr-2 animate-spin" />
+          검색 중...
+        </div>
+      ) : errorMessage ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+          {errorMessage}
+        </div>
+      ) : recipients.length > 0 ? (
         <div className="space-y-1">
-          {availableRecipients.map((recipient) => (
+          {recipients.map((recipient) => (
             <button
               key={recipient.id}
               type="button"
@@ -195,7 +252,7 @@ function NewChatPicker({
           ))}
         </div>
       ) : (
-        <p className="px-2 py-3 text-sm font-bold text-zinc-400">시작할 수 있는 새 대화가 없습니다.</p>
+        <p className="px-2 py-3 text-sm font-bold text-zinc-400">검색 결과가 없습니다.</p>
       )}
     </div>
   );
@@ -205,7 +262,7 @@ function SharedPostCard({
   message,
   onOpenPost,
 }: {
-  message: Conversation['messages'][number];
+  message: ChatMessage;
   onOpenPost: (postId: string) => void;
 }) {
   if (!message.sharedPost) return null;
@@ -217,7 +274,7 @@ function SharedPostCard({
       className="mt-3 block w-full overflow-hidden rounded-2xl border border-white/20 bg-white text-left text-black shadow-sm transition hover:border-black"
     >
       <div className="border-b border-zinc-100 px-4 py-3">
-        <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">공유 게시물</p>
+        <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">공유 게시글</p>
         <p className="mt-1 text-sm font-black text-black">{message.sharedPost.author}</p>
         <p className="text-xs font-bold text-zinc-400">@{message.sharedPost.authorHandle}</p>
       </div>
@@ -250,46 +307,196 @@ function AttachmentGrid({ attachments }: { attachments: ChatAttachment[] }) {
 
 export default function MessagesPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout, isAuthReady } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
+  const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
+  const [nextCursorByConversation, setNextCursorByConversation] = useState<Record<string, string | null>>({});
+  const [hasNextByConversation, setHasNextByConversation] = useState<Record<string, boolean>>({});
   const [activeConversationId, setActiveConversationId] = useState('');
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
-  const [lastFailedMessage, setLastFailedMessage] = useState('');
-  const [lastFailedAttachments, setLastFailedAttachments] = useState<ChatAttachment[]>([]);
-  const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
+  const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [loadingConversations, setLoadingConversations] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [pageError, setPageError] = useState('');
+  const [composerError, setComposerError] = useState('');
+  const [isAuthError, setIsAuthError] = useState(false);
+
+  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
+  const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
+  const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
+
+  const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
+    for (const target of targets) {
+      URL.revokeObjectURL(target.previewUrl);
+    }
+  }, []);
+
+  const clearAttachments = useCallback(() => {
+    setAttachments((current) => {
+      revokeAttachmentUrls(current);
+      return [];
+    });
+
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+  }, [revokeAttachmentUrls]);
+
+  useEffect(() => () => revokeAttachmentUrls(attachments), [attachments, revokeAttachmentUrls]);
 
   useEffect(() => {
-    const load = async () => {
-      const loaded = await fetchConversations(user?.id);
-      setConversations(loaded);
-      setActiveConversationId((current) => current || loaded[0]?.id || '');
+    if (!attachmentMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+
+      if (attachmentMenuRef.current?.contains(target)) {
+        return;
+      }
+
+      setAttachmentMenuOpen(false);
     };
 
-    void load();
-  }, [user?.id]);
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, [attachmentMenuOpen]);
+
+  const replaceConversation = useCallback((target: Conversation) => {
+    setConversations((current) => {
+      const next = current.some((conversation) => conversation.id === target.id)
+        ? current.map((conversation) => (conversation.id === target.id ? target : conversation))
+        : [target, ...current];
+
+      return next.sort(
+        (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
+      );
+    });
+  }, []);
+
+  const loadConversations = useCallback(
+    async (options?: { silent?: boolean }) => {
+      try {
+        if (!options?.silent) {
+          setLoadingConversations(true);
+        }
+
+        const data = await fetchConversationList();
+        setConversations(data);
+        setPageError('');
+        setIsAuthError(false);
+
+        setActiveConversationId((current) => {
+          if (current && data.some((conversation) => conversation.id === current)) {
+            return current;
+          }
+
+          return data[0]?.id ?? '';
+        });
+      } catch (error) {
+        const nextMessage = error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.';
+        setPageError(nextMessage);
+        setIsAuthError(isMessageAuthError(error));
+      } finally {
+        if (!options?.silent) {
+          setLoadingConversations(false);
+        }
+      }
+    },
+    []
+  );
+
+  const loadMessages = useCallback(
+    async (conversationId: string, options?: { cursor?: string | null; silent?: boolean }) => {
+      if (!conversationId) return;
+
+      try {
+        if (options?.cursor) {
+          setLoadingOlderMessages(true);
+        } else if (!options?.silent) {
+          setLoadingMessages(true);
+        }
+
+        const page = await fetchConversationMessages(conversationId, options?.cursor, MESSAGE_PAGE_SIZE);
+
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: mergeMessages(current[conversationId] ?? [], page.items),
+        }));
+        setNextCursorByConversation((current) => ({
+          ...current,
+          [conversationId]: page.nextCursor,
+        }));
+        setHasNextByConversation((current) => ({
+          ...current,
+          [conversationId]: page.hasNext,
+        }));
+        setPageError('');
+        setIsAuthError(false);
+      } catch (error) {
+        const nextMessage = error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.';
+        setPageError(nextMessage);
+        setIsAuthError(isMessageAuthError(error));
+      } finally {
+        if (options?.cursor) {
+          setLoadingOlderMessages(false);
+        } else if (!options?.silent) {
+          setLoadingMessages(false);
+        }
+      }
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!activeConversationId || conversations.length === 0) return;
+    if (!isAuthReady || !user) return;
+    void loadConversations();
+  }, [isAuthReady, loadConversations, user]);
 
-    const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId);
+  useEffect(() => {
+    if (!activeConversationId) return;
+    void loadMessages(activeConversationId);
+  }, [activeConversationId, loadMessages]);
+
+  useEffect(() => {
     if (!activeConversation || activeConversation.unreadCount === 0) return;
 
     const markRead = async () => {
-      const next = await readConversation(user?.id, conversations, activeConversationId);
-      setConversations(next);
+      try {
+        await markConversationRead(activeConversation.id);
+        setConversations((current) =>
+          current.map((conversation) =>
+            conversation.id === activeConversation.id ? { ...conversation, unreadCount: 0 } : conversation
+          )
+        );
+      } catch (error) {
+        if (isMessageAuthError(error)) {
+          setIsAuthError(true);
+        }
+      }
     };
 
     void markRead();
-  }, [activeConversationId, conversations, user?.id]);
+  }, [activeConversation]);
 
-  const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
+  useEffect(() => {
+    if (!activeConversationId) return;
+
+    const intervalId = window.setInterval(() => {
+      void loadConversations({ silent: true });
+      void loadMessages(activeConversationId, { silent: true });
+    }, MESSAGE_POLL_INTERVAL_MS);
+
+    return () => window.clearInterval(intervalId);
+  }, [activeConversationId, loadConversations, loadMessages]);
 
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -308,106 +515,173 @@ export default function MessagesPage() {
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversationId(conversationId);
     setMobileView('chat');
-    setLastFailedMessage('');
-    setLastFailedAttachments([]);
-    setAttachments([]);
+    setComposerError('');
+    clearAttachments();
     setAttachmentMenuOpen(false);
   };
 
   const handleStartConversation = async (recipient: MessageRecipient) => {
-    const next = await startConversation(user?.id, conversations, recipient);
-    setConversations(next);
-    setActiveConversationId(recipient.id);
-    setShowNewChat(false);
-    setMobileView('chat');
+    try {
+      const conversation = await createConversation({ recipientId: recipient.id });
+      replaceConversation(conversation);
+      setMessagesByConversation((current) => ({
+        ...current,
+        [conversation.id]: conversation.messages,
+      }));
+      setActiveConversationId(conversation.id);
+      setShowNewChat(false);
+      setMobileView('chat');
+      setPageError('');
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : '대화를 시작하지 못했습니다.';
+      setPageError(nextMessage);
+      setIsAuthError(isMessageAuthError(error));
+    }
   };
+
+  const updateConversationPreviewWithMessage = useCallback((conversationId: string, nextMessage: ChatMessage) => {
+    setConversations((current) =>
+      current
+        .map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                updatedAt: nextMessage.createdAt,
+                unreadCount: 0,
+                messages: [...conversation.messages.filter((messageItem) => messageItem.id !== nextMessage.id), nextMessage],
+              }
+            : conversation
+        )
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    );
+  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (!activeConversation || sending) return;
+
     const trimmedMessage = message.trim();
-    if ((!trimmedMessage && attachments.length === 0) || !activeConversation || sending) return;
+    if (!trimmedMessage && attachments.length === 0) return;
 
     try {
       setSending(true);
-      setLastFailedMessage('');
-      setLastFailedAttachments([]);
-      const next = await sendMessage(user?.id, conversations, activeConversation.id, trimmedMessage, attachments);
-      setConversations(next);
+      setComposerError('');
+
+      const sentMessage = await sendConversationMessage({
+        conversationId: activeConversation.id,
+        content: trimmedMessage,
+        attachments: attachments.map((attachment) => attachment.file),
+      });
+
+      setMessagesByConversation((current) => ({
+        ...current,
+        [activeConversation.id]: mergeMessages(current[activeConversation.id] ?? [], [sentMessage]),
+      }));
+      updateConversationPreviewWithMessage(activeConversation.id, sentMessage);
       setMessage('');
-      setAttachments([]);
+      clearAttachments();
       setAttachmentMenuOpen(false);
-    } catch {
-      setLastFailedMessage(trimmedMessage);
-      setLastFailedAttachments(attachments);
+      void loadConversations({ silent: true });
+    } catch (error) {
+      const nextMessage = error instanceof Error ? error.message : '메시지 전송에 실패했습니다.';
+      setComposerError(nextMessage);
+      setIsAuthError(isMessageAuthError(error));
     } finally {
       setSending(false);
     }
   };
 
-  const handleRetry = async () => {
-    if (!activeConversation || (!lastFailedMessage && lastFailedAttachments.length === 0) || sending) return;
+  const handleLoadOlderMessages = async () => {
+    if (!activeConversationId || !hasNextMessages || loadingOlderMessages) return;
+    await loadMessages(activeConversationId, {
+      cursor: nextCursorByConversation[activeConversationId] ?? null,
+    });
+  };
 
-    try {
-      setSending(true);
-      const next = await sendMessage(
-        user?.id,
-        conversations,
-        activeConversation.id,
-        lastFailedMessage,
-        lastFailedAttachments
+  const pushDraftAttachments = (files: File[], type: 'image' | 'video') => {
+    setComposerError('');
+
+    if (type === 'image') {
+      if (attachments.some((attachment) => attachment.type === 'video')) {
+        setComposerError('이미지와 영상을 한 메시지에 함께 보낼 수 없습니다.');
+        return;
+      }
+
+      if (files.length > 4) {
+        setComposerError('이미지는 최대 4개까지 보낼 수 있습니다.');
+        return;
+      }
+
+      if (files.some((file) => file.size > 20 * 1024 * 1024)) {
+        setComposerError('이미지 파일은 최대 20MB까지 업로드할 수 있습니다.');
+        return;
+      }
+
+      clearAttachments();
+      setAttachments(
+        files.slice(0, 4).map((file) => ({
+          id: createAttachmentId(),
+          type: 'image',
+          name: file.name,
+          file,
+          previewUrl: URL.createObjectURL(file),
+        }))
       );
-      setConversations(next);
-      setLastFailedMessage('');
-      setLastFailedAttachments([]);
-      setMessage('');
-    } catch {
-      setMessage(lastFailedMessage);
-      setAttachments(lastFailedAttachments);
-    } finally {
-      setSending(false);
+      return;
     }
-  };
 
-  const handleImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files ?? []).slice(0, 4);
-    const nextAttachments = await Promise.all(
-      files.map(async (file) => ({
-        id: createAttachmentId(),
-        type: 'image' as const,
-        name: file.name,
-        url: await readFileAsDataUrl(file),
-      }))
-    );
+    const video = files[0];
+    if (!video) return;
 
-    setAttachments(nextAttachments);
-    setAttachmentMenuOpen(false);
-  };
+    if (attachments.some((attachment) => attachment.type === 'image')) {
+      setComposerError('이미지와 영상을 한 메시지에 함께 보낼 수 없습니다.');
+      return;
+    }
 
-  const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+    if (video.size > 100 * 1024 * 1024) {
+      setComposerError('영상 파일은 최대 100MB까지 업로드할 수 있습니다.');
+      return;
+    }
 
+    clearAttachments();
     setAttachments([
       {
         id: createAttachmentId(),
         type: 'video',
-        name: file.name,
-        url: await readFileAsDataUrl(file),
+        name: video.name,
+        file: video,
+        previewUrl: URL.createObjectURL(video),
       },
     ]);
+  };
+
+  const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    pushDraftAttachments(files, 'image');
     setAttachmentMenuOpen(false);
   };
 
-  const clearAttachments = () => {
-    setAttachments([]);
-    if (imageInputRef.current) imageInputRef.current.value = '';
-    if (videoInputRef.current) videoInputRef.current.value = '';
+  const handleVideoSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files ?? []);
+    pushDraftAttachments(files, 'video');
+    setAttachmentMenuOpen(false);
   };
 
   const handleOpenPost = (postId: string) => {
     router.push(`/home?postId=${encodeURIComponent(postId)}`);
   };
+
+  if (!isAuthReady) {
+    return (
+      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-white">
+        <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
+          <Loader2 size={18} className="animate-spin" />
+          메시지 화면을 불러오는 중...
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-white">
@@ -442,7 +716,7 @@ export default function MessagesPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="대화 또는 게이머 검색"
+              placeholder="대화 또는 사용자 검색"
               className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black"
             />
           </label>
@@ -450,14 +724,21 @@ export default function MessagesPage() {
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
           {showNewChat ? (
-            <NewChatPicker
-              existingIds={conversations.map((conversation) => conversation.id)}
-              onStart={handleStartConversation}
-              onClose={() => setShowNewChat(false)}
-            />
+            <NewChatPicker onStart={handleStartConversation} onClose={() => setShowNewChat(false)} />
           ) : null}
 
-          {filteredConversations.length > 0 ? (
+          {pageError ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+              {pageError}
+            </div>
+          ) : null}
+
+          {loadingConversations ? (
+            <div className="flex items-center justify-center py-10 text-sm font-bold text-zinc-400">
+              <Loader2 size={16} className="mr-2 animate-spin" />
+              대화 목록을 불러오는 중...
+            </div>
+          ) : filteredConversations.length > 0 ? (
             filteredConversations.map((conversation) => (
               <ConversationCard
                 key={conversation.id}
@@ -470,7 +751,7 @@ export default function MessagesPage() {
           ) : (
             <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
-              <p className="text-sm font-black text-zinc-500">검색 결과가 없습니다.</p>
+              <p className="text-sm font-black text-zinc-500">표시할 대화가 없습니다.</p>
             </div>
           )}
         </div>
@@ -508,9 +789,11 @@ export default function MessagesPage() {
                     </p>
                     <ShieldCheck size={16} className="text-blue-500" />
                   </div>
-                  <p className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
-                    activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
-                  }`}>
+                  <p
+                    className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
+                      activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
+                    }`}
+                  >
                     {activeConversation.recipient.online ? 'Online now' : activeConversation.recipient.role}
                   </p>
                 </div>
@@ -524,55 +807,75 @@ export default function MessagesPage() {
               </button>
             </div>
 
-            <div className="flex-1 space-y-6 overflow-y-auto p-8">
-              {activeConversation.messages.length > 0 ? (
-                activeConversation.messages.map((chatMessage) => {
-                  const mine = chatMessage.senderId === 'me';
+            <div className="flex-1 overflow-y-auto p-8">
+              {hasNextMessages ? (
+                <div className="mb-6 flex justify-center">
+                  <button
+                    type="button"
+                    onClick={handleLoadOlderMessages}
+                    disabled={loadingOlderMessages}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {loadingOlderMessages ? '이전 메시지 불러오는 중...' : '이전 메시지 더보기'}
+                  </button>
+                </div>
+              ) : null}
 
-                  return (
-                    <div
-                      key={chatMessage.id}
-                      className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}
-                    >
-                      {!mine ? (
-                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-[10px] font-black text-black">
-                          {getInitials(activeConversation.recipient.name)}
-                        </div>
-                      ) : null}
+              {loadingMessages && activeMessages.length === 0 ? (
+                <div className="flex h-full items-center justify-center">
+                  <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
+                    <Loader2 size={18} className="animate-spin" />
+                    메시지를 불러오는 중...
+                  </div>
+                </div>
+              ) : activeMessages.length > 0 ? (
+                <div className="space-y-6">
+                  {activeMessages.map((chatMessage) => {
+                    const mine = chatMessage.senderId === 'me';
 
-                      <div className={`max-w-[72%] ${mine ? 'items-end' : 'items-start'}`}>
-                        <div
-                          className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
-                            mine
-                              ? 'rounded-br-none bg-black text-white'
-                              : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
-                          }`}
-                        >
-                          {chatMessage.text ? <p>{chatMessage.text}</p> : null}
-                          <AttachmentGrid attachments={chatMessage.attachments ?? []} />
-                          <SharedPostCard message={chatMessage} onOpenPost={handleOpenPost} />
-                        </div>
-                        <div className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
-                          mine ? 'justify-end' : 'justify-start'
-                        }`}>
-                          {mine ? <CheckCheck size={13} /> : null}
-                          <span>
-                            {chatMessage.deliveryStatus === 'failed'
-                              ? 'Failed'
-                              : `${mine ? 'Read' : ''} ${formatChatTime(chatMessage.createdAt)}`}
-                          </span>
+                    return (
+                      <div
+                        key={chatMessage.id}
+                        className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}
+                      >
+                        {!mine ? (
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-[10px] font-black text-black">
+                            {getInitials(activeConversation.recipient.name)}
+                          </div>
+                        ) : null}
+
+                        <div className={`max-w-[72%] ${mine ? 'items-end' : 'items-start'}`}>
+                          <div
+                            className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+                              mine
+                                ? 'rounded-br-none bg-black text-white'
+                                : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
+                            }`}
+                          >
+                            {chatMessage.text ? <p>{chatMessage.text}</p> : null}
+                            <AttachmentGrid attachments={chatMessage.attachments} />
+                            <SharedPostCard message={chatMessage} onOpenPost={handleOpenPost} />
+                          </div>
+                          <div
+                            className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
+                              mine ? 'justify-end' : 'justify-start'
+                            }`}
+                          >
+                            {mine ? <CheckCheck size={13} /> : null}
+                            <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })}
+                </div>
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <div className="text-center">
                     <MessageSquare className="mx-auto mb-4 text-zinc-300" size={42} />
-                    <p className="text-lg font-black text-black">새 대화를 시작해보세요.</p>
+                    <p className="text-lg font-black text-black">대화를 시작해보세요.</p>
                     <p className="mt-2 text-sm font-bold text-zinc-400">
-                      프론트 임시 저장으로 메시지를 주고받는 흐름을 확인할 수 있습니다.
+                      아직 메시지가 없습니다. 첫 메시지를 보내보세요.
                     </p>
                   </div>
                 </div>
@@ -580,43 +883,61 @@ export default function MessagesPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">
-              {lastFailedMessage || lastFailedAttachments.length > 0 ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+              {isAuthError ? (
+                <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
                   <span className="flex min-w-0 items-center gap-2">
                     <AlertCircle size={16} className="shrink-0" />
-                    <span className="truncate">메시지 전송에 실패했습니다.</span>
+                    <span className="truncate">세션이 만료되었거나 인증이 필요합니다.</span>
                   </span>
                   <button
                     type="button"
-                    onClick={handleRetry}
-                    disabled={sending}
-                    className="flex shrink-0 items-center gap-1 rounded-xl bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:bg-red-100 disabled:text-red-300"
+                    onClick={() => void logout()}
+                    className="rounded-xl bg-black px-3 py-2 text-xs font-black text-white"
                   >
-                    <RotateCcw size={14} />
-                    재전송
+                    다시 로그인
                   </button>
                 </div>
               ) : null}
+
+              {composerError ? (
+                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{composerError}</span>
+                </div>
+              ) : null}
+
               {attachments.length > 0 ? (
-                <div className="mx-auto mb-3 flex max-w-4xl flex-wrap gap-2">
+                <div className="mx-auto mb-3 flex max-w-4xl flex-wrap gap-3">
                   {attachments.map((attachment) => (
-                    <div
-                      key={attachment.id}
-                      className="group flex max-w-52 items-center gap-2 rounded-2xl border border-zinc-100 bg-zinc-50 px-3 py-2"
-                    >
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white text-zinc-500">
-                        {attachment.type === 'video' ? <Video size={16} /> : <ImagePlus size={16} />}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-xs font-black text-zinc-600">
-                        {attachment.name}
-                      </span>
+                    <div key={attachment.id} className="relative">
+                      <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm">
+                        {attachment.type === 'image' ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={attachment.previewUrl}
+                            alt={attachment.name}
+                            className="h-20 w-20 object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-20 w-20 items-center justify-center bg-zinc-900 text-white">
+                            <Video size={22} />
+                          </div>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() =>
-                          setAttachments((current) => current.filter((item) => item.id !== attachment.id))
+                          setAttachments((current) => {
+                            const target = current.find((item) => item.id === attachment.id);
+                            if (target) {
+                              URL.revokeObjectURL(target.previewUrl);
+                            }
+
+                            return current.filter((item) => item.id !== attachment.id);
+                          })
                         }
-                        className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black"
-                        aria-label="첨부 삭제"
+                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-white shadow transition hover:bg-black"
+                        aria-label="첨부 제거"
                       >
                         <X size={14} />
                       </button>
@@ -624,19 +945,23 @@ export default function MessagesPage() {
                   ))}
                 </div>
               ) : null}
-              <div className="relative mx-auto flex max-w-4xl items-center gap-3 rounded-[28px] bg-zinc-50 p-2 shadow-inner transition focus-within:bg-white focus-within:ring-2 focus-within:ring-black">
+
+              <div
+                ref={attachmentMenuRef}
+                className="relative mx-auto flex max-w-4xl items-center gap-3 rounded-[28px] bg-zinc-50 p-2 shadow-inner transition focus-within:bg-white focus-within:ring-2 focus-within:ring-black"
+              >
                 <input
                   ref={imageInputRef}
                   type="file"
                   multiple
-                  accept="image/*"
+                  accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
                   className="hidden"
                   onChange={handleImageSelect}
                 />
                 <input
                   ref={videoInputRef}
                   type="file"
-                  accept="video/*"
+                  accept="video/*,.mp4,.mov,.webm,.m4v"
                   className="hidden"
                   onChange={handleVideoSelect}
                 />
@@ -644,7 +969,7 @@ export default function MessagesPage() {
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
                   className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200"
-                  aria-label="첨부"
+                  aria-label="첨부 메뉴"
                 >
                   <Plus size={20} />
                 </button>
@@ -702,7 +1027,7 @@ export default function MessagesPage() {
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
               <Inbox className="mx-auto mb-4 text-zinc-300" size={48} />
-              <p className="text-lg font-black text-black">대화를 선택하세요.</p>
+              <p className="text-lg font-black text-black">대화를 선택해주세요.</p>
             </div>
           </div>
         )}

@@ -1,11 +1,10 @@
 'use client';
 
-import { Check, Search, Send, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
-import { useAuth } from '@/app/context/AuthContext';
+import { Check, Loader2, Search, Send, X } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { PostRecord, getInitials } from '@/lib/feed-api';
-import { sharePostMessage } from '@/lib/message-api';
-import { MESSAGE_RECIPIENTS, MessageRecipient } from '@/lib/message-store';
+import { searchMessageRecipients, sharePostMessage } from '@/lib/message-api';
+import { MessageRecipient } from '@/lib/message-store';
 
 interface SharePostModalProps {
   post: PostRecord;
@@ -14,27 +13,48 @@ interface SharePostModalProps {
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
-  const { user } = useAuth();
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
+  const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const filteredRecipients = useMemo(() => {
-    const normalized = query.trim().toLowerCase();
-    if (!normalized) return MESSAGE_RECIPIENTS;
+  useEffect(() => {
+    let cancelled = false;
 
-    return MESSAGE_RECIPIENTS.filter((recipient) =>
-      [recipient.name, recipient.handle, recipient.role].some((value) =>
-        value.toLowerCase().includes(normalized)
-      )
-    );
+    const timer = window.setTimeout(async () => {
+      try {
+        setLoading(true);
+        setErrorMessage('');
+        const next = await searchMessageRecipients(query, 20);
+        if (!cancelled) {
+          setRecipients(next);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setErrorMessage(error instanceof Error ? error.message : '수신자 검색에 실패했습니다.');
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    }, 200);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, [query]);
 
-  const selectedRecipients: MessageRecipient[] = MESSAGE_RECIPIENTS.filter((recipient) =>
-    selectedIds.includes(recipient.id)
+  const selectedRecipients = useMemo(
+    () => recipients.filter((recipient) => selectedIds.includes(recipient.id)),
+    [recipients, selectedIds]
   );
-  const canSend = selectedRecipients.length > 0 && !sent;
+  const canSend = selectedIds.length > 0 && !sending && !sent;
 
   const toggleRecipient = (recipientId: string) => {
     setSelectedIds((current) =>
@@ -44,17 +64,31 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
     );
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!canSend) return;
 
-    void sharePostMessage(user?.id, post, selectedRecipients, message.trim());
-    setSent(true);
-    onShared?.({
-      ...post,
-      shares: post.shares + 1,
-    });
+    try {
+      setSending(true);
+      setErrorMessage('');
 
-    window.setTimeout(onClose, 900);
+      await sharePostMessage({
+        post,
+        recipientIds: selectedIds,
+        content: message,
+      });
+
+      setSent(true);
+      onShared?.({
+        ...post,
+        shares: post.shares + 1,
+      });
+
+      window.setTimeout(onClose, 900);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '게시글 공유에 실패했습니다.');
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -62,8 +96,8 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       <div className="w-full max-w-lg overflow-hidden rounded-[28px] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
-            <h2 className="text-xl font-black text-black">게시물 공유</h2>
-            <p className="text-sm font-bold text-zinc-400">메시지로 보낼 사람을 선택하세요.</p>
+            <h2 className="text-xl font-black text-black">게시글 공유</h2>
+            <p className="text-sm font-bold text-zinc-400">메시지로 보낼 사람을 선택하세요</p>
           </div>
           <button
             type="button"
@@ -96,44 +130,65 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="친구 검색"
+              placeholder="이름 또는 핸들 검색"
               className="h-12 w-full rounded-2xl border border-zinc-100 bg-zinc-50 pl-11 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
             />
           </div>
 
           <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
-            {filteredRecipients.map((recipient) => {
-              const selected = selectedIds.includes(recipient.id);
+            {loading ? (
+              <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
+                <Loader2 size={16} className="mr-2 animate-spin" />
+                검색 중...
+              </div>
+            ) : recipients.length > 0 ? (
+              recipients.map((recipient) => {
+                const selected = selectedIds.includes(recipient.id);
 
-              return (
-                <button
-                  key={recipient.id}
-                  type="button"
-                  onClick={() => toggleRecipient(recipient.id)}
-                  className={`flex w-full items-center justify-between rounded-2xl p-3 text-left transition ${
-                    selected ? 'bg-black text-white' : 'bg-zinc-50 text-black hover:bg-zinc-100'
-                  }`}
-                >
-                  <span className="flex min-w-0 items-center gap-3">
-                    <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
-                      selected ? 'bg-white text-black' : 'bg-black text-white'
-                    }`}>
-                      {getInitials(recipient.name)}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-black">{recipient.name}</span>
-                      <span className={`block truncate text-xs font-bold ${
-                        selected ? 'text-white/70' : 'text-zinc-400'
-                      }`}>
-                        {recipient.handle} · {recipient.role}
+                return (
+                  <button
+                    key={recipient.id}
+                    type="button"
+                    onClick={() => toggleRecipient(recipient.id)}
+                    className={`flex w-full items-center justify-between rounded-2xl p-3 text-left transition ${
+                      selected ? 'bg-black text-white' : 'bg-zinc-50 text-black hover:bg-zinc-100'
+                    }`}
+                  >
+                    <span className="flex min-w-0 items-center gap-3">
+                      <span
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black ${
+                          selected ? 'bg-white text-black' : 'bg-black text-white'
+                        }`}
+                      >
+                        {getInitials(recipient.name)}
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-black">{recipient.name}</span>
+                        <span
+                          className={`block truncate text-xs font-bold ${
+                            selected ? 'text-white/70' : 'text-zinc-400'
+                          }`}
+                        >
+                          {recipient.handle} · {recipient.role}
+                        </span>
                       </span>
                     </span>
-                  </span>
-                  {selected ? <Check size={18} /> : null}
-                </button>
-              );
-            })}
+                    {selected ? <Check size={18} /> : null}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="rounded-2xl bg-zinc-50 px-4 py-5 text-center text-sm font-bold text-zinc-400">
+                검색 결과가 없습니다.
+              </div>
+            )}
           </div>
+
+          {selectedRecipients.length > 0 ? (
+            <div className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500">
+              {selectedRecipients.map((recipient) => recipient.name).join(', ')} 에게 공유합니다.
+            </div>
+          ) : null}
 
           <textarea
             value={message}
@@ -143,9 +198,15 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black"
           />
 
+          {errorMessage ? (
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+              {errorMessage}
+            </div>
+          ) : null}
+
           <button
             type="button"
-            onClick={handleSend}
+            onClick={() => void handleSend()}
             disabled={!canSend}
             className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
           >
@@ -153,6 +214,11 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
               <>
                 <Check size={18} />
                 전송 완료
+              </>
+            ) : sending ? (
+              <>
+                <Loader2 size={18} className="animate-spin" />
+                전송 중...
               </>
             ) : (
               <>
