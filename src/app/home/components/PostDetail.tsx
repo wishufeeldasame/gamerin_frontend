@@ -227,6 +227,8 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
     );
   }
 
+  const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
       <button
@@ -267,28 +269,29 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setMenuOpen((current) => !current)}
+                onClick={() => {
+                  if (canDeletePost) {
+                    setMenuOpen((current) => !current);
+                  }
+                }}
                 className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
+                aria-disabled={!canDeletePost}
               >
                 <MoreHorizontal size={24} />
               </button>
 
-              {menuOpen ? (
+              {menuOpen && canDeletePost ? (
                 <div className="absolute right-0 top-12 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
-                  {post.mine ? (
-                    <button
-                      type="button"
-                      onClick={handleDeletePost}
-                      disabled={deletingPost}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
-                    >
-                      {deletingPost ? '삭제 중...' : '삭제'}
-                    </button>
-                  ) : (
-                    <p className="px-4 py-3 text-sm font-bold text-zinc-400">사용 가능한 메뉴가 없습니다.</p>
-                  )}
+                  <button
+                    type="button"
+                    onClick={handleDeletePost}
+                    disabled={deletingPost}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  >
+                    {deletingPost ? '삭제 중...' : '삭제'}
+                  </button>
                 </div>
               ) : null}
             </div>
