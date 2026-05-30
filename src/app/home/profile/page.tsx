@@ -316,6 +316,10 @@ export default function ProfilePage() {
     );
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((item) => item.postId !== postId));
+  };
+
   const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
     setConnectedAccounts(nextAccounts);
     localStorage.setItem('gamerin_connected_accounts', JSON.stringify(nextAccounts));
@@ -624,7 +628,14 @@ export default function ProfilePage() {
                 <p className="text-sm font-bold text-zinc-400">This profile has not published any posts yet.</p>
               </div>
             ) : (
-              posts.map((post) => <Post key={post.postId} post={post} onShare={handlePostUpdated} />)
+              posts.map((post) => (
+                <Post
+                  key={post.postId}
+                  post={post}
+                  onShare={handlePostUpdated}
+                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                />
+              ))
             )}
 
             {postsHasNext ? (

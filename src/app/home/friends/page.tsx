@@ -126,6 +126,13 @@ export default function BookmarksPage() {
     saveBookmarkedPost(updatedPost, bookmarkUserKey);
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setBookmarks((current) => current.filter((post) => post.postId !== postId));
+    if (selectedPostId === postId) {
+      setSelectedPostId(null);
+    }
+  };
+
   const handleClearBookmarks = () => {
     if (bookmarks.length === 0) return;
 
@@ -145,6 +152,7 @@ export default function BookmarksPage() {
           postId={selectedPostId}
           onBack={() => setSelectedPostId(null)}
           onPostUpdated={handlePostUpdated}
+          onPostDeleted={handlePostDeleted}
         />
       </div>
     );
@@ -275,6 +283,7 @@ export default function BookmarksPage() {
                 post={post}
                 onOpenDetail={(selected) => setSelectedPostId(selected.postId)}
                 onShare={handlePostUpdated}
+                onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                 onBookmarkChange={(changedPost, bookmarked) => {
                   if (!bookmarked) {
                     setBookmarks((current) => current.filter((postItem) => postItem.postId !== changedPost.postId));

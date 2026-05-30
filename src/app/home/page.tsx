@@ -107,6 +107,10 @@ export default function HomePage() {
     );
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((item) => item.postId !== postId));
+  };
+
   const handleOpenPost = (postId: string) => {
     setSelectedPostId(postId);
     window.history.pushState(null, '', `/home?postId=${encodeURIComponent(postId)}`);
@@ -144,6 +148,7 @@ export default function HomePage() {
               postId={selectedPostId}
               onBack={handleClosePost}
               onPostUpdated={handlePostUpdated}
+              onPostDeleted={handlePostDeleted}
             />
           </div>
         ) : (
@@ -200,6 +205,7 @@ export default function HomePage() {
                         onToggleLike={handleToggleLike}
                         onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                         onShare={handlePostUpdated}
+                        onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                       />
                     </motion.div>
                   ))}

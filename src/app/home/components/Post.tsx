@@ -5,7 +5,7 @@ import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-r
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import { ExternalLinkCard, PostMedia, PostRecord, formatRelativeTime, getInitials } from '@/lib/feed-api';
+import { ExternalLinkCard, PostMedia, PostRecord, deletePost, formatRelativeTime, getInitials } from '@/lib/feed-api';
 import {
   BOOKMARKS_CHANGED_EVENT,
   getBookmarkCount,
@@ -20,6 +20,7 @@ interface PostProps {
   onOpenDetail?: (post: PostRecord) => void;
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
+  onDelete?: (post: PostRecord) => void;
 }
 
 function MediaBlock({ media }: { media: PostMedia[] }) {
@@ -119,11 +120,13 @@ function LinkCard({ card }: { card: ExternalLinkCard }) {
   );
 }
 
-export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChange }: PostProps) {
+export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChange, onDelete }: PostProps) {
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarkCount, setBookmarkCount] = useState(0);
   const bookmarkUserKey = user?.id ?? user?.handle ?? null;
@@ -149,6 +152,29 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
     setBookmarked(nextBookmarked);
     setBookmarkCount(getBookmarkCount(post.postId));
     onBookmarkChange?.(post, nextBookmarked);
+  };
+
+  const handleDelete = async () => {
+    if (deleting) {
+      return;
+    }
+
+    const confirmed = window.confirm('게시물을 삭제할까요?');
+    if (!confirmed) {
+      setMenuOpen(false);
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await deletePost(post.postId);
+      setMenuOpen(false);
+      onDelete?.(post);
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
@@ -185,9 +211,34 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
             </div>
           </div>
 
-          <button className="text-zinc-300 transition-colors hover:text-black">
-            <MoreHorizontal size={20} />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((current) => !current)}
+              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
+              aria-label="게시물 메뉴"
+              aria-expanded={menuOpen}
+            >
+              <MoreHorizontal size={20} />
+            </button>
+
+            {menuOpen ? (
+              <div className="absolute right-0 top-10 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                {post.mine ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  >
+                    {deleting ? '삭제 중...' : '삭제'}
+                  </button>
+                ) : (
+                  <p className="px-4 py-3 text-sm font-bold text-zinc-400">사용 가능한 메뉴가 없습니다.</p>
+                )}
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {post.content ? (
