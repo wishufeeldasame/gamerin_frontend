@@ -228,6 +228,10 @@ export async function createComment(postId: string, content: string) {
   });
 }
 
+export async function fetchPostComments(postId: string) {
+  return apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`);
+}
+
 export async function fetchMyProfile() {
   return apiRequest<UserProfile>('/api/v1/users/me');
 }

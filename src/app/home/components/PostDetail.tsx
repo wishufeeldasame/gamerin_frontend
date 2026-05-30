@@ -10,6 +10,7 @@ import {
   PostRecord,
   createComment,
   fetchPostDetail,
+  fetchPostComments,
   formatRelativeTime,
   getInitials,
   likePost,
@@ -32,7 +33,7 @@ interface PostDetailProps {
 export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
   const { user } = useAuth();
   const [post, setPost] = useState<PostRecord | null>(null);
-  const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
+  const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
@@ -49,9 +50,14 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       try {
         setLoading(true);
         setError(null);
-        const detail = await fetchPostDetail(postId);
+        setComments([]);
+        const [detail, commentList] = await Promise.all([
+          fetchPostDetail(postId),
+          fetchPostComments(postId),
+        ]);
         if (!cancelled) {
           setPost(detail);
+          setComments(commentList);
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -127,7 +133,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       };
 
       setPost(nextPost);
-      setSubmittedComments((current) => [createdComment, ...current]);
+      setComments((current) => [createdComment, ...current]);
       setCommentText('');
       onPostUpdated?.(nextPost);
     } catch (commentError) {
@@ -318,12 +324,10 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </div>
 
             <div className="space-y-4">
-              {submittedComments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">
-                  Existing comment listing is not provided by this API yet. New comments you add will appear here.
-                </p>
+              {comments.length === 0 ? (
+                <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
               ) : (
-                submittedComments.map((comment) => (
+                comments.map((comment) => (
                   <div key={comment.commentId} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
                     <div className="mb-2 flex items-center gap-2">
                       <span className="text-sm font-black text-black">{comment.author}</span>
