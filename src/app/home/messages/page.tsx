@@ -1,18 +1,20 @@
 'use client';
 
 import {
-  AlertCircle,
   ArrowLeft,
   CheckCheck,
+  CircleAlert,
+  Ellipsis,
   ImagePlus,
   Inbox,
   Loader2,
   MessageSquare,
-  MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   Send,
   ShieldCheck,
+  Trash2,
   Video,
   X,
 } from 'lucide-react';
@@ -21,12 +23,15 @@ import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useSta
 import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
+  deleteConversationMessage,
   fetchConversationList,
   fetchConversationMessages,
   isMessageAuthError,
+  leaveConversation,
   markConversationRead,
   searchMessageRecipients,
   sendConversationMessage,
+  updateConversationMessage,
 } from '@/lib/message-api';
 import {
   ChatAttachment,
@@ -50,6 +55,14 @@ type DraftAttachment = {
   previewUrl: string;
 };
 
+function createAttachmentId() {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
+    return crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 function getLastPreview(conversation: Conversation) {
   const lastMessage = conversation.messages.at(-1);
   if (!lastMessage) return '아직 대화가 없습니다.';
@@ -64,14 +77,6 @@ function getLastPreview(conversation: Conversation) {
   }
 
   return lastMessage.text || '메시지를 보냈습니다.';
-}
-
-function createAttachmentId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function HighlightedText({ text, query }: { text: string; query: string }) {
@@ -182,7 +187,7 @@ function NewChatPicker({
         }
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : '사용자를 불러오지 못했습니다.');
+          setErrorMessage(error instanceof Error ? error.message : '사용자 검색에 실패했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -305,12 +310,154 @@ function AttachmentGrid({ attachments }: { attachments: ChatAttachment[] }) {
   );
 }
 
+function MessageBubble({
+  chatMessage,
+  mine,
+  recipientName,
+  isActionOpen,
+  isEditing,
+  editingText,
+  actionLoading,
+  onToggleAction,
+  onStartEdit,
+  onCancelEdit,
+  onChangeEditText,
+  onSaveEdit,
+  onDelete,
+  onOpenPost,
+}: {
+  chatMessage: ChatMessage;
+  mine: boolean;
+  recipientName: string;
+  isActionOpen: boolean;
+  isEditing: boolean;
+  editingText: string;
+  actionLoading: boolean;
+  onToggleAction: () => void;
+  onStartEdit: () => void;
+  onCancelEdit: () => void;
+  onChangeEditText: (value: string) => void;
+  onSaveEdit: () => void;
+  onDelete: () => void;
+  onOpenPost: (postId: string) => void;
+}) {
+  const canEdit = mine && chatMessage.attachments.length === 0 && !chatMessage.sharedPost;
+
+  return (
+    <div className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}>
+      {!mine ? (
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-[10px] font-black text-black">
+          {getInitials(recipientName)}
+        </div>
+      ) : null}
+
+      <div className={`max-w-[76%] ${mine ? 'items-end' : 'items-start'}`}>
+        <div
+          className={`relative flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}
+          data-message-action-root="true"
+        >
+          {mine && isActionOpen ? (
+            <div className="absolute bottom-1 right-full mr-3 flex h-10 items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
+              {canEdit ? (
+                <button
+                  type="button"
+                  onClick={onStartEdit}
+                  className="flex h-full items-center justify-center px-4 text-zinc-500 transition hover:bg-zinc-50 hover:text-black"
+                  aria-label="메시지 수정"
+                >
+                  <Pencil size={16} />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={actionLoading}
+                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                aria-label="메시지 삭제"
+              >
+                <Trash2 size={16} className="-translate-x-[1px] shrink-0" />
+              </button>
+            </div>
+          ) : null}
+
+          <div
+            className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+              mine
+                ? 'rounded-br-none bg-black text-white'
+                : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
+            }`}
+          >
+            {isEditing ? (
+              <div className="space-y-3">
+                <textarea
+                  value={editingText}
+                  onChange={(event) => onChangeEditText(event.target.value)}
+                  rows={3}
+                  maxLength={2000}
+                  className="w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-white outline-none placeholder:text-white/45"
+                  placeholder="메시지를 수정해보세요"
+                />
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={onCancelEdit}
+                    className="rounded-xl bg-white/12 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
+                  >
+                    취소
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onSaveEdit}
+                    disabled={actionLoading}
+                    className="rounded-xl bg-white px-3 py-2 text-xs font-black text-black transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    저장
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {chatMessage.text ? <p>{chatMessage.text}</p> : null}
+                <AttachmentGrid attachments={chatMessage.attachments} />
+                <SharedPostCard message={chatMessage} onOpenPost={onOpenPost} />
+              </>
+            )}
+          </div>
+
+          {mine && !isEditing ? (
+            <button
+              type="button"
+              onClick={onToggleAction}
+              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500"
+              aria-label="메시지 액션"
+            >
+              <Ellipsis size={16} />
+            </button>
+          ) : null}
+        </div>
+
+        <div
+          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
+            mine ? 'justify-end' : 'justify-start'
+          }`}
+        >
+          {mine ? <CheckCheck size={13} /> : null}
+          <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
+          {chatMessage.editedAt ? <span className="text-zinc-400">edited</span> : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const router = useRouter();
   const { user, logout, isAuthReady } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
+  const headerMenuRef = useRef<HTMLDivElement | null>(null);
+
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
   const [nextCursorByConversation, setNextCursorByConversation] = useState<Record<string, string | null>>({});
@@ -324,11 +471,16 @@ export default function MessagesPage() {
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
   const [sending, setSending] = useState(false);
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
   const [isAuthError, setIsAuthError] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState('');
+  const [messageActionId, setMessageActionId] = useState<string | null>(null);
+  const [messageActionLoading, setMessageActionLoading] = useState(false);
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -370,6 +522,22 @@ export default function MessagesPage() {
     return () => document.removeEventListener('mousedown', handlePointerDown);
   }, [attachmentMenuOpen]);
 
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+
+      if (headerMenuRef.current?.contains(target)) return;
+      if (target.closest('[data-message-action-root="true"]')) return;
+
+      setHeaderMenuOpen(false);
+      setMessageActionId(null);
+    };
+
+    document.addEventListener('mousedown', handlePointerDown);
+    return () => document.removeEventListener('mousedown', handlePointerDown);
+  }, []);
+
   const replaceConversation = useCallback((target: Conversation) => {
     setConversations((current) => {
       const next = current.some((conversation) => conversation.id === target.id)
@@ -382,79 +550,125 @@ export default function MessagesPage() {
     });
   }, []);
 
-  const loadConversations = useCallback(
-    async (options?: { silent?: boolean }) => {
-      try {
-        if (!options?.silent) {
-          setLoadingConversations(true);
-        }
-
-        const data = await fetchConversationList();
-        setConversations(data);
-        setPageError('');
-        setIsAuthError(false);
-
-        setActiveConversationId((current) => {
-          if (current && data.some((conversation) => conversation.id === current)) {
-            return current;
-          }
-
-          return data[0]?.id ?? '';
-        });
-      } catch (error) {
-        const nextMessage = error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.';
-        setPageError(nextMessage);
-        setIsAuthError(isMessageAuthError(error));
-      } finally {
-        if (!options?.silent) {
-          setLoadingConversations(false);
-        }
+  const loadConversations = useCallback(async (options?: { silent?: boolean }) => {
+    try {
+      if (!options?.silent) {
+        setLoadingConversations(true);
       }
-    },
-    []
-  );
 
-  const loadMessages = useCallback(
-    async (conversationId: string, options?: { cursor?: string | null; silent?: boolean }) => {
-      if (!conversationId) return;
-
-      try {
-        if (options?.cursor) {
-          setLoadingOlderMessages(true);
-        } else if (!options?.silent) {
-          setLoadingMessages(true);
+      const data = await fetchConversationList();
+      setConversations(data);
+      setPageError('');
+      setIsAuthError(false);
+      setActiveConversationId((current) => {
+        if (current && data.some((conversation) => conversation.id === current)) {
+          return current;
         }
 
-        const page = await fetchConversationMessages(conversationId, options?.cursor, MESSAGE_PAGE_SIZE);
-
-        setMessagesByConversation((current) => ({
-          ...current,
-          [conversationId]: mergeMessages(current[conversationId] ?? [], page.items),
-        }));
-        setNextCursorByConversation((current) => ({
-          ...current,
-          [conversationId]: page.nextCursor,
-        }));
-        setHasNextByConversation((current) => ({
-          ...current,
-          [conversationId]: page.hasNext,
-        }));
-        setPageError('');
-        setIsAuthError(false);
-      } catch (error) {
-        const nextMessage = error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.';
-        setPageError(nextMessage);
-        setIsAuthError(isMessageAuthError(error));
-      } finally {
-        if (options?.cursor) {
-          setLoadingOlderMessages(false);
-        } else if (!options?.silent) {
-          setLoadingMessages(false);
-        }
+        return data[0]?.id ?? '';
+      });
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
+      setIsAuthError(isMessageAuthError(error));
+    } finally {
+      if (!options?.silent) {
+        setLoadingConversations(false);
       }
-    },
-    []
-  );
+    }
+  }, []);
+
+  const loadMessages = useCallback(async (conversationId: string, options?: { cursor?: string | null; silent?: boolean }) => {
+    if (!conversationId) return;
+
+    try {
+      if (options?.cursor) {
+        setLoadingOlderMessages(true);
+      } else if (!options?.silent) {
+        setLoadingMessages(true);
+      }
+
+      const page = await fetchConversationMessages(conversationId, options?.cursor, MESSAGE_PAGE_SIZE);
+
+      setMessagesByConversation((current) => ({
+        ...current,
+        [conversationId]: mergeMessages(current[conversationId] ?? [], page.items),
+      }));
+      setNextCursorByConversation((current) => ({
+        ...current,
+        [conversationId]: page.nextCursor,
+      }));
+      setHasNextByConversation((current) => ({
+        ...current,
+        [conversationId]: page.hasNext,
+      }));
+      setPageError('');
+      setIsAuthError(false);
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.');
+      setIsAuthError(isMessageAuthError(error));
+    } finally {
+      if (options?.cursor) {
+        setLoadingOlderMessages(false);
+      } else if (!options?.silent) {
+        setLoadingMessages(false);
+      }
+    }
+  }, []);
+
+  const updateConversationPreviewWithMessage = useCallback((conversationId: string, nextMessage: ChatMessage) => {
+    setConversations((current) =>
+      current
+        .map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                updatedAt: nextMessage.createdAt,
+                unreadCount: 0,
+                messages: [...conversation.messages.filter((item) => item.id !== nextMessage.id), nextMessage],
+              }
+            : conversation
+        )
+        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
+    );
+  }, []);
+
+  const replaceMessageInConversation = useCallback((conversationId: string, nextMessage: ChatMessage) => {
+    setMessagesByConversation((current) => ({
+      ...current,
+      [conversationId]: (current[conversationId] ?? []).map((item) =>
+        item.id === nextMessage.id ? nextMessage : item
+      ),
+    }));
+
+    setConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              messages: conversation.messages.map((item) => (item.id === nextMessage.id ? nextMessage : item)),
+            }
+          : conversation
+      )
+    );
+  }, []);
+
+  const removeMessageFromConversation = useCallback((conversationId: string, messageId: string) => {
+    setMessagesByConversation((current) => ({
+      ...current,
+      [conversationId]: (current[conversationId] ?? []).filter((item) => item.id !== messageId),
+    }));
+
+    setConversations((current) =>
+      current.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              messages: conversation.messages.filter((item) => item.id !== messageId),
+            }
+          : conversation
+      )
+    );
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady || !user) return;
@@ -516,6 +730,10 @@ export default function MessagesPage() {
     setActiveConversationId(conversationId);
     setMobileView('chat');
     setComposerError('');
+    setHeaderMenuOpen(false);
+    setMessageActionId(null);
+    setEditingMessageId(null);
+    setEditingText('');
     clearAttachments();
     setAttachmentMenuOpen(false);
   };
@@ -528,33 +746,23 @@ export default function MessagesPage() {
         ...current,
         [conversation.id]: conversation.messages,
       }));
+      setNextCursorByConversation((current) => ({
+        ...current,
+        [conversation.id]: null,
+      }));
+      setHasNextByConversation((current) => ({
+        ...current,
+        [conversation.id]: false,
+      }));
       setActiveConversationId(conversation.id);
       setShowNewChat(false);
       setMobileView('chat');
       setPageError('');
     } catch (error) {
-      const nextMessage = error instanceof Error ? error.message : '대화를 시작하지 못했습니다.';
-      setPageError(nextMessage);
+      setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
       setIsAuthError(isMessageAuthError(error));
     }
   };
-
-  const updateConversationPreviewWithMessage = useCallback((conversationId: string, nextMessage: ChatMessage) => {
-    setConversations((current) =>
-      current
-        .map((conversation) =>
-          conversation.id === conversationId
-            ? {
-                ...conversation,
-                updatedAt: nextMessage.createdAt,
-                unreadCount: 0,
-                messages: [...conversation.messages.filter((messageItem) => messageItem.id !== nextMessage.id), nextMessage],
-              }
-            : conversation
-        )
-        .sort((left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime())
-    );
-  }, []);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -584,8 +792,7 @@ export default function MessagesPage() {
       setAttachmentMenuOpen(false);
       void loadConversations({ silent: true });
     } catch (error) {
-      const nextMessage = error instanceof Error ? error.message : '메시지 전송에 실패했습니다.';
-      setComposerError(nextMessage);
+      setComposerError(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.');
       setIsAuthError(isMessageAuthError(error));
     } finally {
       setSending(false);
@@ -594,9 +801,120 @@ export default function MessagesPage() {
 
   const handleLoadOlderMessages = async () => {
     if (!activeConversationId || !hasNextMessages || loadingOlderMessages) return;
+
     await loadMessages(activeConversationId, {
       cursor: nextCursorByConversation[activeConversationId] ?? null,
     });
+  };
+
+  const handleStartEditMessage = (chatMessage: ChatMessage) => {
+    setEditingMessageId(chatMessage.id);
+    setEditingText(chatMessage.text);
+    setMessageActionId(chatMessage.id);
+    setComposerError('');
+  };
+
+  const handleCancelEditMessage = useCallback(() => {
+    setEditingMessageId(null);
+    setEditingText('');
+    setMessageActionLoading(false);
+  }, []);
+
+  const handleUpdateMessage = async (messageId: string) => {
+    if (!activeConversation) return;
+
+    const trimmedContent = editingText.trim();
+    if (!trimmedContent) {
+      setComposerError('메시지 내용은 비워둘 수 없습니다.');
+      return;
+    }
+
+    try {
+      setMessageActionLoading(true);
+      setComposerError('');
+
+      const updatedMessage = await updateConversationMessage({
+        conversationId: activeConversation.id,
+        messageId,
+        content: trimmedContent,
+      });
+
+      replaceMessageInConversation(activeConversation.id, updatedMessage);
+      handleCancelEditMessage();
+      void loadConversations({ silent: true });
+    } catch (error) {
+      setComposerError(error instanceof Error ? error.message : '메시지 수정에 실패했습니다.');
+      setIsAuthError(isMessageAuthError(error));
+      setMessageActionLoading(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!activeConversation || messageActionLoading) return;
+
+    try {
+      setMessageActionLoading(true);
+      setComposerError('');
+
+      await deleteConversationMessage({
+        conversationId: activeConversation.id,
+        messageId,
+      });
+
+      removeMessageFromConversation(activeConversation.id, messageId);
+      setMessageActionId(null);
+      if (editingMessageId === messageId) {
+        handleCancelEditMessage();
+      } else {
+        setMessageActionLoading(false);
+      }
+
+      void loadConversations({ silent: true });
+      void loadMessages(activeConversation.id, { silent: true });
+    } catch (error) {
+      setComposerError(error instanceof Error ? error.message : '메시지 삭제에 실패했습니다.');
+      setIsAuthError(isMessageAuthError(error));
+      setMessageActionLoading(false);
+    }
+  };
+
+  const handleLeaveActiveConversation = async () => {
+    if (!activeConversation || messageActionLoading) return;
+
+    try {
+      setMessageActionLoading(true);
+      setPageError('');
+
+      const removedConversationId = activeConversation.id;
+      await leaveConversation(removedConversationId);
+
+      const remainingConversations = conversations.filter((conversation) => conversation.id !== removedConversationId);
+      setConversations(remainingConversations);
+      setMessagesByConversation((current) => {
+        const next = { ...current };
+        delete next[removedConversationId];
+        return next;
+      });
+      setNextCursorByConversation((current) => {
+        const next = { ...current };
+        delete next[removedConversationId];
+        return next;
+      });
+      setHasNextByConversation((current) => {
+        const next = { ...current };
+        delete next[removedConversationId];
+        return next;
+      });
+      setActiveConversationId(remainingConversations[0]?.id ?? '');
+      setMobileView('list');
+      setHeaderMenuOpen(false);
+      setMessageActionId(null);
+      handleCancelEditMessage();
+    } catch (error) {
+      setPageError(error instanceof Error ? error.message : '대화방 나가기에 실패했습니다.');
+      setIsAuthError(isMessageAuthError(error));
+      setMessageActionLoading(false);
+    }
   };
 
   const pushDraftAttachments = (files: File[], type: 'image' | 'video') => {
@@ -604,7 +922,7 @@ export default function MessagesPage() {
 
     if (type === 'image') {
       if (attachments.some((attachment) => attachment.type === 'video')) {
-        setComposerError('이미지와 영상을 한 메시지에 함께 보낼 수 없습니다.');
+        setComposerError('이미지와 동영상은 같은 메시지에 함께 보낼 수 없습니다.');
         return;
       }
 
@@ -635,12 +953,12 @@ export default function MessagesPage() {
     if (!video) return;
 
     if (attachments.some((attachment) => attachment.type === 'image')) {
-      setComposerError('이미지와 영상을 한 메시지에 함께 보낼 수 없습니다.');
+      setComposerError('이미지와 동영상은 같은 메시지에 함께 보낼 수 없습니다.');
       return;
     }
 
     if (video.size > 100 * 1024 * 1024) {
-      setComposerError('영상 파일은 최대 100MB까지 업로드할 수 있습니다.');
+      setComposerError('동영상 파일은 최대 100MB까지 업로드할 수 있습니다.');
       return;
     }
 
@@ -751,20 +1069,20 @@ export default function MessagesPage() {
           ) : (
             <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
-              <p className="text-sm font-black text-zinc-500">표시할 대화가 없습니다.</p>
+              <p className="text-sm font-black text-zinc-500">시작된 대화가 없습니다.</p>
             </div>
           )}
         </div>
       </section>
 
       <section
-        className={`flex-1 flex-col bg-zinc-50/40 md:flex ${
+        className={`flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/90 px-8 py-5 backdrop-blur-md">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-8 py-5 backdrop-blur-md">
               <div className="flex items-center gap-4">
                 <button
                   type="button"
@@ -798,13 +1116,30 @@ export default function MessagesPage() {
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
-                aria-label="대화 옵션"
-              >
-                <MoreHorizontal size={24} />
-              </button>
+
+              <div ref={headerMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setHeaderMenuOpen((current) => !current)}
+                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                  aria-label="대화방 옵션"
+                >
+                  <Ellipsis size={24} />
+                </button>
+                {headerMenuOpen ? (
+                  <div className="absolute right-0 top-full z-20 mt-3 w-52 rounded-[24px] border border-zinc-100 bg-white p-2 shadow-2xl">
+                    <button
+                      type="button"
+                      onClick={() => void handleLeaveActiveConversation()}
+                      disabled={messageActionLoading}
+                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Trash2 size={16} />
+                      대화방 나가기
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-8">
@@ -830,44 +1165,27 @@ export default function MessagesPage() {
                 </div>
               ) : activeMessages.length > 0 ? (
                 <div className="space-y-6">
-                  {activeMessages.map((chatMessage) => {
-                    const mine = chatMessage.senderId === 'me';
-
-                    return (
-                      <div
-                        key={chatMessage.id}
-                        className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}
-                      >
-                        {!mine ? (
-                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-[10px] font-black text-black">
-                            {getInitials(activeConversation.recipient.name)}
-                          </div>
-                        ) : null}
-
-                        <div className={`max-w-[72%] ${mine ? 'items-end' : 'items-start'}`}>
-                          <div
-                            className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
-                              mine
-                                ? 'rounded-br-none bg-black text-white'
-                                : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
-                            }`}
-                          >
-                            {chatMessage.text ? <p>{chatMessage.text}</p> : null}
-                            <AttachmentGrid attachments={chatMessage.attachments} />
-                            <SharedPostCard message={chatMessage} onOpenPost={handleOpenPost} />
-                          </div>
-                          <div
-                            className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
-                              mine ? 'justify-end' : 'justify-start'
-                            }`}
-                          >
-                            {mine ? <CheckCheck size={13} /> : null}
-                            <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                  {activeMessages.map((chatMessage) => (
+                    <MessageBubble
+                      key={chatMessage.id}
+                      chatMessage={chatMessage}
+                      mine={chatMessage.senderId === 'me'}
+                      recipientName={activeConversation.recipient.name}
+                      isActionOpen={messageActionId === chatMessage.id}
+                      isEditing={editingMessageId === chatMessage.id}
+                      editingText={editingMessageId === chatMessage.id ? editingText : chatMessage.text}
+                      actionLoading={messageActionLoading}
+                      onToggleAction={() =>
+                        setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
+                      }
+                      onStartEdit={() => handleStartEditMessage(chatMessage)}
+                      onCancelEdit={handleCancelEditMessage}
+                      onChangeEditText={setEditingText}
+                      onSaveEdit={() => void handleUpdateMessage(chatMessage.id)}
+                      onDelete={() => void handleDeleteMessage(chatMessage.id)}
+                      onOpenPost={handleOpenPost}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="flex h-full items-center justify-center">
@@ -886,8 +1204,8 @@ export default function MessagesPage() {
               {isAuthError ? (
                 <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
                   <span className="flex min-w-0 items-center gap-2">
-                    <AlertCircle size={16} className="shrink-0" />
-                    <span className="truncate">세션이 만료되었거나 인증이 필요합니다.</span>
+                    <CircleAlert size={16} className="shrink-0" />
+                    <span className="truncate">인증이 만료되었거나 다시 로그인이 필요합니다.</span>
                   </span>
                   <button
                     type="button"
@@ -901,7 +1219,7 @@ export default function MessagesPage() {
 
               {composerError ? (
                 <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
-                  <AlertCircle size={16} className="shrink-0" />
+                  <CircleAlert size={16} className="shrink-0" />
                   <span>{composerError}</span>
                 </div>
               ) : null}
@@ -936,10 +1254,10 @@ export default function MessagesPage() {
                             return current.filter((item) => item.id !== attachment.id);
                           })
                         }
-                        className="absolute -right-2 -top-2 flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800 text-white shadow transition hover:bg-black"
+                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900/92 text-white shadow-lg ring-2 ring-white/90 transition hover:bg-black"
                         aria-label="첨부 제거"
                       >
-                        <X size={14} />
+                        <Trash2 size={14} className="-translate-x-[1px] shrink-0" />
                       </button>
                     </div>
                   ))}
@@ -1004,7 +1322,7 @@ export default function MessagesPage() {
                 <input
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
-                  placeholder={`${activeConversation.recipient.name}에게 메시지 보내기`}
+                  placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
                   className="flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
                 />

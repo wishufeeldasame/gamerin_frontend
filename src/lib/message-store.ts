@@ -28,6 +28,7 @@ export type ChatMessage = {
   senderId: 'me' | string;
   text: string;
   createdAt: string;
+  editedAt: string | null;
   read: boolean;
   deliveryStatus: 'sent';
   attachments: ChatAttachment[];
