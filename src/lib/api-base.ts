@@ -5,7 +5,9 @@ export function getApiBaseUrl() {
 
   if (typeof window !== 'undefined') {
     const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8080`;
+    const normalizedHostname =
+      hostname === '127.0.0.1' || hostname === '::1' ? 'localhost' : hostname;
+    return `${protocol}//${normalizedHostname}:8080`;
   }
 
   return 'http://localhost:8080';

@@ -184,12 +184,26 @@ function isMileageShortageError(error: unknown) {
   );
 }
 
+function isAuthRequiredError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    message.includes('authentication is required') ||
+    message.includes('sign in again') ||
+    message.includes('token has expired')
+  );
+}
+
 function isApplicationBlockingReapply(status: ApplicationStatus) {
   return status === 'APPLIED' || status === 'ACCEPTED' || status === 'ONGOING' || status === 'FINISHED';
 }
 
 export default function MentoringPage() {
-  const { user, logout } = useAuth();
+  const { user, logout, isAuthReady } = useAuth();
   const currentUserId = user?.id ?? '';
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
@@ -261,7 +275,7 @@ export default function MentoringPage() {
       return;
     }
 
-    if (isMentoringAuthError(error)) {
+    if (isMentoringAuthError(error) || isAuthRequiredError(error)) {
       setBannerType('auth');
       setAuthMessage('세션이 만료되었거나 백엔드가 현재 토큰을 거부했습니다. 다시 로그인 후 멘토링을 이용해주세요.');
       setErrorMessage('');
@@ -349,6 +363,12 @@ export default function MentoringPage() {
   }, [currentUserId]);
 
   const loadApplications = useCallback(async () => {
+    if (!currentUserId) {
+      setMenteeApplications([]);
+      setMentorApplications([]);
+      return;
+    }
+
     const [menteeResult, mentorResult] = await Promise.allSettled([
       fetchMenteeApplications(0, 20),
       fetchMentorApplications(0, 20),
@@ -367,9 +387,16 @@ export default function MentoringPage() {
 
     setMenteeApplications(menteeResult.status === 'fulfilled' ? menteeResult.value.content : []);
     setMentorApplications(mentorResult.status === 'fulfilled' ? mentorResult.value.content : []);
-  }, [showError]);
+  }, [currentUserId, showError]);
 
   const loadMileageData = useCallback(async () => {
+    if (!currentUserId) {
+      setMileageBalance(0);
+      setMileageTransactions([]);
+      setMileagePage(null);
+      return;
+    }
+
     setMileageLoading(true);
 
     try {
@@ -389,7 +416,7 @@ export default function MentoringPage() {
     } finally {
       setMileageLoading(false);
     }
-  }, [showError]);
+  }, [currentUserId, showError]);
 
   const refreshMentoringData = useCallback(async () => {
     if (activeTab === 'find') {
@@ -412,10 +439,10 @@ export default function MentoringPage() {
   }, [activeTab, loadPrograms]);
 
   useEffect(() => {
-    if (activeTab === 'mine') {
+    if (activeTab === 'mine' && isAuthReady && currentUserId) {
       void Promise.all([loadApplications(), loadMileageData()]);
     }
-  }, [activeTab, loadApplications, loadMileageData]);
+  }, [activeTab, currentUserId, isAuthReady, loadApplications, loadMileageData]);
 
   useEffect(() => {
     if (!currentUserId) {
@@ -428,10 +455,10 @@ export default function MentoringPage() {
   }, [currentUserId, loadApplications]);
 
   useEffect(() => {
-    if (activeTab === 'become') {
+    if (activeTab === 'become' && isAuthReady && currentUserId) {
       void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms()]);
     }
-  }, [activeTab, loadCurrentMentorProfile, loadOwnedPrograms]);
+  }, [activeTab, currentUserId, isAuthReady, loadCurrentMentorProfile, loadOwnedPrograms]);
 
   const changeTab = (tab: MentoringTab) => {
     setActiveTab(tab);

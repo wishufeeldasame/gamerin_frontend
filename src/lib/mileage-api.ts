@@ -1,4 +1,4 @@
-import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 
 const API_BASE = getApiBaseUrl();
@@ -40,6 +40,10 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
 
+function createAuthRequiredError() {
+  return new Error('Authentication is required. Please sign in again.');
+}
+
 async function mileageRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const send = async (accessToken?: string | null) => {
     const headers = new Headers(options.headers);
@@ -65,7 +69,8 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
   let accessToken = await ensureAccessToken({ clearOnFailure: false });
 
   if (!accessToken) {
-    throw new Error('로그인이 필요합니다.');
+    clearStoredAuth();
+    throw createAuthRequiredError();
   }
 
   let result = await send(accessToken);
@@ -74,7 +79,8 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
     const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
 
     if (!refreshedToken) {
-      throw new Error('로그인이 필요합니다.');
+      clearStoredAuth();
+      throw createAuthRequiredError();
     }
 
     accessToken = refreshedToken;
@@ -82,12 +88,17 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!result.response.ok) {
+    if (result.response.status === 401) {
+      clearStoredAuth();
+      throw createAuthRequiredError();
+    }
+
     const message =
       result.payload && typeof result.payload === 'object' && 'message' in result.payload
         ? result.payload.message
         : null;
 
-    throw new Error(message || '마일리지 요청을 처리하지 못했습니다.');
+    throw new Error(message || 'Failed to process mileage request.');
   }
 
   if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
