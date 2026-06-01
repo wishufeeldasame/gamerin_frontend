@@ -1,4 +1,4 @@
-import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 
 const API_BASE = getApiBaseUrl();
@@ -69,7 +69,6 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
   let accessToken = await ensureAccessToken({ clearOnFailure: false });
 
   if (!accessToken) {
-    clearStoredAuth();
     throw createAuthRequiredError();
   }
 
@@ -79,7 +78,6 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
     const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
 
     if (!refreshedToken) {
-      clearStoredAuth();
       throw createAuthRequiredError();
     }
 
@@ -89,7 +87,6 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
 
   if (!result.response.ok) {
     if (result.response.status === 401) {
-      clearStoredAuth();
       throw createAuthRequiredError();
     }
 

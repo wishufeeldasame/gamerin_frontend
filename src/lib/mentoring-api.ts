@@ -1,4 +1,4 @@
-import { clearStoredAuth, ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 
 const API_BASE = getApiBaseUrl();
@@ -164,7 +164,6 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
     : getAccessToken();
 
   if (!accessToken && authRequired) {
-    clearStoredAuth();
     throw new MentoringAuthError();
   }
 
@@ -174,7 +173,6 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
     const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
 
     if (!refreshedToken && authRequired) {
-      clearStoredAuth();
       throw new MentoringAuthError();
     }
 
@@ -195,7 +193,6 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
         throw new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
       }
 
-      clearStoredAuth();
       throw new MentoringAuthError();
     }
 
