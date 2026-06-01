@@ -55,6 +55,11 @@ type DraftAttachment = {
   previewUrl: string;
 };
 
+type ExpandedImage = {
+  url: string;
+  name: string;
+};
+
 function createAttachmentId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -290,7 +295,51 @@ function SharedPostCard({
   );
 }
 
-function AttachmentGrid({ attachments }: { attachments: ChatAttachment[] }) {
+function ImageLightbox({
+  image,
+  onClose,
+}: {
+  image: ExpandedImage | null;
+  onClose: () => void;
+}) {
+  if (!image) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={image.name}
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+        aria-label="이미지 닫기"
+      >
+        <X size={20} />
+      </button>
+      <div className="max-h-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={image.url}
+          alt={image.name}
+          className="max-h-[88vh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
+        />
+        <p className="mt-3 text-center text-sm font-bold text-white/80">{image.name}</p>
+      </div>
+    </div>
+  );
+}
+
+function AttachmentGrid({
+  attachments,
+  onOpenImage,
+}: {
+  attachments: ChatAttachment[];
+  onOpenImage: (attachment: ChatAttachment) => void;
+}) {
   if (attachments.length === 0) return null;
 
   return (
@@ -300,8 +349,15 @@ function AttachmentGrid({ attachments }: { attachments: ChatAttachment[] }) {
           {attachment.type === 'video' ? (
             <video controls src={attachment.url} className="max-h-80 w-full bg-black object-cover" />
           ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
+            <button
+              type="button"
+              onClick={() => onOpenImage(attachment)}
+              className="block w-full cursor-zoom-in"
+              aria-label={`${attachment.name} 확대 보기`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
+            </button>
           )}
           <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
         </div>
@@ -325,6 +381,7 @@ function MessageBubble({
   onSaveEdit,
   onDelete,
   onOpenPost,
+  onOpenImage,
 }: {
   chatMessage: ChatMessage;
   mine: boolean;
@@ -340,6 +397,7 @@ function MessageBubble({
   onSaveEdit: () => void;
   onDelete: () => void;
   onOpenPost: (postId: string) => void;
+  onOpenImage: (attachment: ChatAttachment) => void;
 }) {
   const canEdit = mine && chatMessage.attachments.length === 0 && !chatMessage.sharedPost;
 
@@ -418,7 +476,7 @@ function MessageBubble({
             ) : (
               <>
                 {chatMessage.text ? <p>{chatMessage.text}</p> : null}
-                <AttachmentGrid attachments={chatMessage.attachments} />
+                <AttachmentGrid attachments={chatMessage.attachments} onOpenImage={onOpenImage} />
                 <SharedPostCard message={chatMessage} onOpenPost={onOpenPost} />
               </>
             )}
@@ -474,6 +532,7 @@ export default function MessagesPage() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
   const [isAuthError, setIsAuthError] = useState(false);
@@ -990,6 +1049,26 @@ export default function MessagesPage() {
     router.push(`/home?postId=${encodeURIComponent(postId)}`);
   };
 
+  const handleOpenImage = useCallback((attachment: { url: string; name: string }) => {
+    setExpandedImage({
+      url: attachment.url,
+      name: attachment.name,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!expandedImage) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setExpandedImage(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [expandedImage]);
+
   if (!isAuthReady) {
     return (
       <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-white">
@@ -1184,6 +1263,7 @@ export default function MessagesPage() {
                       onSaveEdit={() => void handleUpdateMessage(chatMessage.id)}
                       onDelete={() => void handleDeleteMessage(chatMessage.id)}
                       onOpenPost={handleOpenPost}
+                      onOpenImage={handleOpenImage}
                     />
                   ))}
                 </div>
@@ -1230,12 +1310,19 @@ export default function MessagesPage() {
                     <div key={attachment.id} className="relative">
                       <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm">
                         {attachment.type === 'image' ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={attachment.previewUrl}
-                            alt={attachment.name}
-                            className="h-20 w-20 object-cover"
-                          />
+                          <button
+                            type="button"
+                            onClick={() => handleOpenImage({ url: attachment.previewUrl, name: attachment.name })}
+                            className="block h-20 w-20 cursor-zoom-in"
+                            aria-label={`${attachment.name} 확대 보기`}
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={attachment.previewUrl}
+                              alt={attachment.name}
+                              className="h-20 w-20 object-cover"
+                            />
+                          </button>
                         ) : (
                           <div className="flex h-20 w-20 items-center justify-center bg-zinc-900 text-white">
                             <Video size={22} />
@@ -1350,6 +1437,7 @@ export default function MessagesPage() {
           </div>
         )}
       </section>
+      <ImageLightbox image={expandedImage} onClose={() => setExpandedImage(null)} />
     </div>
   );
 }
