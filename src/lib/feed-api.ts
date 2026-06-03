@@ -21,7 +21,7 @@ export interface PostMedia {
   mediaUrl: string;
   thumbnailUrl: string | null;
   sortOrder: number;
-  durationSeconds: number | null;
+  durationSeconds?: number | null;
 }
 
 export interface ExternalLinkCard {
@@ -38,14 +38,15 @@ export interface PostRecord {
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
-  game: string | null;
+  game?: string | null;
   content: string | null;
   media: PostMedia[];
-  externalLink: ExternalLinkCard | null;
+  externalLink?: ExternalLinkCard | null;
   likes: number;
   comments: number;
   shares: number;
   likedByMe: boolean;
+  bookmarkedByMe: boolean;
   mine: boolean;
   createdAt: string;
 }
@@ -58,11 +59,7 @@ export interface CommentRecord {
   authorVerifiedBadge: boolean;
   content: string;
   createdAt: string;
-}
-
-export interface TrendingGame {
-  gameName: string;
-  postCount: number;
+  mine: boolean;
 }
 
 export interface UserProfile {
@@ -90,9 +87,55 @@ export interface ProfileMediaItem {
   createdAt: string;
 }
 
+export type ShareTarget = 'COPY_LINK' | 'WEB_SHARE' | 'KAKAO' | 'X' | 'FACEBOOK' | 'OTHER';
+
+export interface ShareResponse {
+  postId: string;
+  shares: number;
+}
+
+function toNumber(value: unknown) {
+  const numericValue = Number(value);
+  return Number.isFinite(numericValue) ? numericValue : 0;
+}
+
+function normalizePostMedia(media: PostMedia): PostMedia {
+  return {
+    ...media,
+    thumbnailUrl: media.thumbnailUrl ?? null,
+    sortOrder: toNumber(media.sortOrder),
+  };
+}
+
+function normalizePostRecord(post: PostRecord): PostRecord {
+  return {
+    ...post,
+    content: post.content ?? null,
+    media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
+    likes: toNumber(post.likes),
+    comments: toNumber(post.comments),
+    shares: toNumber(post.shares),
+    likedByMe: Boolean(post.likedByMe),
+    bookmarkedByMe: Boolean(post.bookmarkedByMe),
+    mine: Boolean(post.mine),
+  };
+}
+
+function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
+  return {
+    items: Array.isArray(page.items) ? page.items.map(normalizeItem) : [],
+    nextCursor: page.nextCursor ?? null,
+    hasNext: Boolean(page.hasNext),
+  };
+}
+
 type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
+
+interface FeedRequestOptions {
+  signal?: AbortSignal;
+}
 
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const send = async (accessToken: string) => {
@@ -162,7 +205,27 @@ export function getInitials(name: string, fallback = 'G') {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
 }
 
-export async function fetchFeed(tab: 'all' | 'following', cursor?: string | null, size = 20) {
+export function updatePostLikeState(post: PostRecord, likedByMe = !post.likedByMe): PostRecord {
+  return {
+    ...post,
+    likedByMe,
+    likes: Math.max(0, post.likes + (likedByMe === post.likedByMe ? 0 : likedByMe ? 1 : -1)),
+  };
+}
+
+export function updatePostBookmarkState(post: PostRecord, bookmarkedByMe = !post.bookmarkedByMe): PostRecord {
+  return {
+    ...post,
+    bookmarkedByMe,
+  };
+}
+
+export async function fetchFeed(
+  tab: 'all' | 'following',
+  cursor?: string | null,
+  size = 20,
+  options: FeedRequestOptions = {}
+) {
   const search = new URLSearchParams({
     tab,
     size: String(size),
@@ -172,42 +235,47 @@ export async function fetchFeed(tab: 'all' | 'following', cursor?: string | null
     search.set('cursor', cursor);
   }
 
-  return apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`);
-}
-
-export async function fetchTrendingGames() {
-  return apiRequest<TrendingGame[]>('/api/v1/feed/trending/games');
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`, {
+    signal: options.signal,
+  });
+  return normalizeCursorPage(page, normalizePostRecord);
 }
 
 export async function createJsonPost(payload: {
   content?: string;
-  gameName?: string;
   externalLinkUrl?: string;
 }) {
-  return apiRequest<PostRecord>('/api/v1/posts', {
+  const post = await apiRequest<PostRecord>('/api/v1/posts', {
     method: 'POST',
     body: JSON.stringify({
       content: payload.content || null,
-      gameName: payload.gameName || null,
-      media: [],
-      externalLink: payload.externalLinkUrl
-        ? {
-            url: payload.externalLinkUrl,
-          }
-        : null,
+      externalLinkUrl: payload.externalLinkUrl || null,
     }),
   });
+
+  return normalizePostRecord(post);
 }
 
 export async function createMultipartPost(formData: FormData) {
-  return apiRequest<PostRecord>('/api/v1/posts', {
+  const post = await apiRequest<PostRecord>('/api/v1/posts', {
     method: 'POST',
     body: formData,
   });
+
+  return normalizePostRecord(post);
 }
 
-export async function fetchPostDetail(postId: string) {
-  return apiRequest<PostRecord>(`/api/v1/posts/${postId}`);
+export async function fetchPostDetail(postId: string, options: FeedRequestOptions = {}) {
+  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
+    signal: options.signal,
+  });
+  return normalizePostRecord(post);
+}
+
+export async function deletePost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}`, {
+    method: 'DELETE',
+  });
 }
 
 export async function likePost(postId: string) {
@@ -222,10 +290,41 @@ export async function unlikePost(postId: string) {
   });
 }
 
+export async function bookmarkPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/bookmarks`, {
+    method: 'POST',
+  });
+}
+
+export async function unbookmarkPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/bookmarks`, {
+    method: 'DELETE',
+  });
+}
+
+export async function sharePost(postId: string, target: ShareTarget = 'COPY_LINK') {
+  return apiRequest<ShareResponse>(`/api/v1/posts/${postId}/shares`, {
+    method: 'POST',
+    body: JSON.stringify({ target }),
+  });
+}
+
 export async function createComment(postId: string, content: string) {
   return apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
     method: 'POST',
     body: JSON.stringify({ content }),
+  });
+}
+
+export async function fetchPostComments(postId: string, options: FeedRequestOptions = {}) {
+  return apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
+    signal: options.signal,
+  });
+}
+
+export async function deleteComment(postId: string, commentId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/comments/${commentId}`, {
+    method: 'DELETE',
   });
 }
 
@@ -246,7 +345,8 @@ export async function fetchUserPosts(handle: string, cursor?: string | null, siz
     search.set('cursor', cursor);
   }
 
-  return apiRequest<CursorPage<PostRecord>>(`/api/v1/users/${handle}/posts?${search.toString()}`);
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/${handle}/posts?${search.toString()}`);
+  return normalizeCursorPage(page, normalizePostRecord);
 }
 
 export async function fetchUserMedia(handle: string, cursor?: string | null, size = 24) {
@@ -259,4 +359,19 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   }
 
   return apiRequest<CursorPage<ProfileMediaItem>>(`/api/v1/users/${handle}/media?${search.toString()}`);
+}
+
+export async function fetchMyBookmarks(cursor?: string | null, size = 20, options: FeedRequestOptions = {}) {
+  const search = new URLSearchParams({
+    size: String(size),
+  });
+
+  if (cursor) {
+    search.set('cursor', cursor);
+  }
+
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
+    signal: options.signal,
+  });
+  return normalizeCursorPage(page, normalizePostRecord);
 }

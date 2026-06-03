@@ -2,24 +2,31 @@
 
 import Image from 'next/image';
 import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import { ExternalLinkCard, PostMedia, PostRecord, formatRelativeTime, getInitials } from '@/lib/feed-api';
 import {
-  BOOKMARKS_CHANGED_EVENT,
-  getBookmarkCount,
-  isPostBookmarked,
-  toggleBookmarkedPost,
-} from '@/lib/bookmark-store';
+  PostMedia,
+  PostRecord,
+  bookmarkPost,
+  deletePost,
+  formatRelativeTime,
+  getInitials,
+  unbookmarkPost,
+  updatePostBookmarkState,
+} from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 
 interface PostProps {
   post: PostRecord;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
+  onOpenComments?: (post: PostRecord) => void;
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
+  onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
+  onDelete?: (post: PostRecord) => void;
 }
 
 function MediaBlock({ media }: { media: PostMedia[] }) {
@@ -31,7 +38,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     const item = media[0];
     if (item.mediaType === 'VIDEO') {
       return (
-        <div className="px-5 pb-4">
+        <div className="px-5 pb-4" data-card-open-ignore="true">
           <div className="overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
             <video
               controls
@@ -66,12 +73,14 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
       {media.slice(0, 4).map((item) => (
         <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
           {item.mediaType === 'VIDEO' ? (
-            <video
-              controls
-              poster={item.thumbnailUrl ?? undefined}
-              className="h-52 w-full bg-black object-cover"
-              src={item.mediaUrl}
-            />
+            <div data-card-open-ignore="true">
+              <video
+                controls
+                poster={item.thumbnailUrl ?? undefined}
+                className="h-52 w-full bg-black object-cover"
+                src={item.mediaUrl}
+              />
+            </div>
           ) : (
             <Image
               src={item.mediaUrl}
@@ -88,78 +97,133 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
   );
 }
 
-function LinkCard({ card }: { card: ExternalLinkCard }) {
-  return (
-    <div className="px-5 pb-4">
-      <a
-        href={card.url}
-        target="_blank"
-        rel="noreferrer"
-        className="block overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50 transition-all hover:border-black hover:bg-white"
-      >
-        {card.thumbnailUrl ? (
-          <div className="relative h-52 w-full">
-            <Image
-              src={card.thumbnailUrl}
-              alt={card.title || card.host}
-              fill
-              unoptimized
-              sizes="(max-width: 768px) 100vw, 700px"
-              className="object-cover"
-            />
-          </div>
-        ) : null}
-        <div className="space-y-1 p-5">
-          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{card.host}</p>
-          <h3 className="text-base font-black text-black">{card.title}</h3>
-          <p className="line-clamp-2 text-sm font-medium text-zinc-600">{card.description}</p>
-        </div>
-      </a>
-    </div>
-  );
-}
-
-export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChange }: PostProps) {
+export function Post({
+  post,
+  onToggleLike,
+  onOpenDetail,
+  onOpenComments,
+  onShare,
+  onBookmarkChange,
+  onBookmarkSuccess,
+  onDelete,
+}: PostProps) {
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(0);
-  const bookmarkUserKey = user?.id ?? user?.handle ?? null;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
+  const [bookmarking, setBookmarking] = useState(false);
+  const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
+
+  const shouldIgnoreCardOpen = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(target.closest('a, button, input, select, textarea, video, [data-card-open-ignore="true"]'));
+  };
 
   useEffect(() => {
-    const syncBookmarkState = () => {
-      setBookmarked(isPostBookmarked(post.postId, bookmarkUserKey));
-      setBookmarkCount(getBookmarkCount(post.postId));
-    };
+    setBookmarked(post.bookmarkedByMe);
+  }, [post.bookmarkedByMe]);
 
-    syncBookmarkState();
-    window.addEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-    window.addEventListener('storage', syncBookmarkState);
+  const handleOpenDetailFromCard = (event: MouseEvent<HTMLElement>) => {
+    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
+      return;
+    }
 
-    return () => {
-      window.removeEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-      window.removeEventListener('storage', syncBookmarkState);
-    };
-  }, [bookmarkUserKey, post.postId]);
+    onOpenDetail(post);
+  };
 
-  const handleToggleBookmark = () => {
-    const nextBookmarked = toggleBookmarkedPost(post, bookmarkUserKey);
+  const handleOpenDetailFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
+      return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    onOpenDetail(post);
+  };
+
+  const handleOpenComments = () => {
+    if (onOpenComments) {
+      onOpenComments(post);
+      return;
+    }
+
+    onOpenDetail?.(post);
+  };
+
+  const handleToggleBookmark = async () => {
+    if (bookmarking) {
+      return;
+    }
+
+    const nextBookmarked = !bookmarked;
+    const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
-    setBookmarkCount(getBookmarkCount(post.postId));
-    onBookmarkChange?.(post, nextBookmarked);
+    onBookmarkChange?.(nextPost, nextBookmarked);
+
+    try {
+      setBookmarking(true);
+      if (nextBookmarked) {
+        await bookmarkPost(post.postId);
+      } else {
+        await unbookmarkPost(post.postId);
+      }
+      onBookmarkSuccess?.(nextPost, nextBookmarked);
+    } catch (error) {
+      setBookmarked(bookmarked);
+      onBookmarkChange?.(post, bookmarked);
+      alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleting) {
+      return;
+    }
+
+    const confirmed = window.confirm('게시물을 삭제할까요?');
+    if (!confirmed) {
+      setMenuOpen(false);
+      return;
+    }
+
+    try {
+      setDeleting(true);
+      await deletePost(post.postId);
+      setMenuOpen(false);
+      onDelete?.(post);
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
     <>
       <motion.article
         whileHover={{ y: -4 }}
-        className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+        onClick={handleOpenDetailFromCard}
+        onKeyDown={handleOpenDetailFromKeyboard}
+        role={onOpenDetail ? 'button' : undefined}
+        tabIndex={onOpenDetail ? 0 : undefined}
+        className={`overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl ${
+          onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
+        }`}
       >
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" data-card-open-ignore="true">
             {post.authorProfileImageUrl ? (
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl shadow-inner">
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
@@ -173,11 +237,6 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
                 <h2 className="text-[16px] font-black tracking-tight text-black">{post.author}</h2>
-                {post.game ? (
-                  <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider text-zinc-500">
-                    {post.game}
-                  </span>
-                ) : null}
               </div>
               <span className="text-[11px] font-bold text-zinc-400">
                 @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
@@ -185,24 +244,45 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
             </div>
           </div>
 
-          <button className="text-zinc-300 transition-colors hover:text-black">
-            <MoreHorizontal size={20} />
-          </button>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                if (canDeletePost) {
+                  setMenuOpen((current) => !current);
+                }
+              }}
+              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+              aria-label="게시물 메뉴"
+              aria-expanded={menuOpen}
+              disabled={!canDeletePost}
+            >
+              <MoreHorizontal size={20} />
+            </button>
+
+            {menuOpen && canDeletePost ? (
+              <div className="absolute right-0 top-10 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                >
+                  {deleting ? '삭제 중...' : '삭제'}
+                </button>
+              </div>
+            ) : null}
+          </div>
         </div>
 
         {post.content ? (
-          <button
-            type="button"
-            onClick={() => onOpenDetail?.(post)}
-            className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800"
-          >
+          <p className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
             {post.content}
-          </button>
+          </p>
         ) : null}
         </div>
 
         {hasMedia ? <MediaBlock media={post.media} /> : null}
-        {!hasMedia && post.externalLink ? <LinkCard card={post.externalLink} /> : null}
 
         <div className="flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400">
           <div className="flex items-center gap-6">
@@ -219,8 +299,9 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
 
           <button
             type="button"
-            onClick={() => onOpenDetail?.(post)}
+            onClick={handleOpenComments}
             className="flex items-center gap-2 transition-colors hover:text-black"
+            aria-label="댓글 보기"
           >
             <MessageCircle size={20} />
             <span className="text-sm font-black text-zinc-800">{post.comments}</span>
@@ -229,13 +310,13 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
           <button
             type="button"
             onClick={handleToggleBookmark}
+            disabled={bookmarking}
             className={`group flex items-center gap-2 transition-colors ${
               bookmarked ? 'text-black' : 'hover:text-black'
             }`}
             aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
           >
             <Bookmark size={20} className={bookmarked ? 'fill-black' : 'transition-all group-hover:fill-black'} />
-            <span className="text-sm font-black text-zinc-800">{bookmarkCount}</span>
           </button>
           </div>
 
