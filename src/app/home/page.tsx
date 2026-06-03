@@ -1,25 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
 import { PostDetail } from './components/PostDetail';
-import { PostRecord, TrendingGame, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
+import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
   const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [trendingGames, setTrendingGames] = useState<TrendingGame[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const syncPostFromUrl = () => {
@@ -37,14 +37,15 @@ export default function HomePage() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        setLoadingMore(false);
         setError(null);
-        const feedPage = await fetchFeed(activeTab);
-        // TODO: 백엔드에 /api/v1/feed/trending/games 구현 후 다시 활성화.
-        // const trending = await fetchTrendingGames();
+
+        const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
 
         if (cancelled) {
           return;
@@ -53,9 +54,11 @@ export default function HomePage() {
         setPosts(feedPage.items);
         setNextCursor(feedPage.nextCursor);
         setHasNext(feedPage.hasNext);
-        // setTrendingGames(trending);
-        setTrendingGames([]);
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');
         }
@@ -67,8 +70,12 @@ export default function HomePage() {
     };
 
     loadInitialData();
+
     return () => {
       cancelled = true;
+      controller.abort();
+      loadMoreControllerRef.current?.abort();
+      loadMoreControllerRef.current = null;
     };
   }, [activeTab]);
 
@@ -77,11 +84,7 @@ export default function HomePage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
-    const optimistic = {
-      ...post,
-      likedByMe: !post.likedByMe,
-      likes: post.likes + (post.likedByMe ? -1 : 1),
-    };
+    const optimistic = updatePostLikeState(post);
 
     setPosts((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -126,16 +129,27 @@ export default function HomePage() {
       return;
     }
 
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
+
     try {
       setLoadingMore(true);
-      const page = await fetchFeed(activeTab, nextCursor);
+      const page = await fetchFeed(activeTab, nextCursor, 20, { signal: controller.signal });
       setPosts((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
     } catch (loadMoreError) {
+      if (loadMoreError instanceof DOMException && loadMoreError.name === 'AbortError') {
+        return;
+      }
+
       alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
     } finally {
-      setLoadingMore(false);
+      if (loadMoreControllerRef.current === controller) {
+        loadMoreControllerRef.current = null;
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -155,8 +169,8 @@ export default function HomePage() {
           <>
             <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
               {[
-                { label: 'For You', value: 'all' as const },
-                { label: 'Following', value: 'following' as const },
+                { label: '추천', value: 'all' as const },
+                { label: '팔로잉', value: 'following' as const },
               ].map((tab) => (
                 <button
                   key={tab.value}
@@ -181,7 +195,7 @@ export default function HomePage() {
 
               {loading ? (
                 <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  Loading feed...
+                  피드를 불러오는 중...
                 </div>
               ) : error ? (
                 <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
@@ -189,7 +203,7 @@ export default function HomePage() {
                 </div>
               ) : posts.length === 0 ? (
                 <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  No posts in this feed yet.
+                  아직 게시글이 없습니다.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -217,7 +231,7 @@ export default function HomePage() {
                       disabled={loadingMore}
                       className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                     >
-                      {loadingMore ? 'Loading...' : 'Load More'}
+                      {loadingMore ? '불러오는 중...' : '더 보기'}
                     </button>
                   ) : null}
                 </div>
@@ -228,7 +242,7 @@ export default function HomePage() {
       </main>
 
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 p-6 xl:block">
-        <RightSidebar trendingGames={trendingGames} />
+        <RightSidebar />
       </aside>
     </div>
   );
