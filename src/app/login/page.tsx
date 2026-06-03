@@ -8,10 +8,11 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = getApiBaseUrl();
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
 
 type LoginUserPayload = {
   userId?: string | number;

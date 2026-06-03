@@ -1,7 +1,6 @@
 import { ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = getApiBaseUrl();
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const MENTORING_BASE = '/api/v1/mentoring';
 
 export type MentorStatus = 'ACTIVE' | 'INACTIVE' | string;
