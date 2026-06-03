@@ -11,6 +11,7 @@ import {
   formatRelativeTime,
   getInitials,
   unbookmarkPost,
+  updatePostBookmarkState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 
@@ -105,8 +106,9 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
     }
 
     const nextBookmarked = !bookmarked;
+    const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
-    onBookmarkChange?.({ ...post, bookmarkedByMe: nextBookmarked }, nextBookmarked);
+    onBookmarkChange?.(nextPost, nextBookmarked);
 
     try {
       setBookmarking(true);

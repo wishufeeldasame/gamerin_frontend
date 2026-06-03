@@ -131,6 +131,10 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
 
+interface FeedRequestOptions {
+  signal?: AbortSignal;
+}
+
 async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const send = async (accessToken: string) => {
     const headers = new Headers(options.headers);
@@ -199,7 +203,27 @@ export function getInitials(name: string, fallback = 'G') {
   return parts.slice(0, 2).map((part) => part[0]?.toUpperCase() ?? '').join('');
 }
 
-export async function fetchFeed(tab: 'all' | 'following', cursor?: string | null, size = 20) {
+export function updatePostLikeState(post: PostRecord, likedByMe = !post.likedByMe): PostRecord {
+  return {
+    ...post,
+    likedByMe,
+    likes: Math.max(0, post.likes + (likedByMe === post.likedByMe ? 0 : likedByMe ? 1 : -1)),
+  };
+}
+
+export function updatePostBookmarkState(post: PostRecord, bookmarkedByMe = !post.bookmarkedByMe): PostRecord {
+  return {
+    ...post,
+    bookmarkedByMe,
+  };
+}
+
+export async function fetchFeed(
+  tab: 'all' | 'following',
+  cursor?: string | null,
+  size = 20,
+  options: FeedRequestOptions = {}
+) {
   const search = new URLSearchParams({
     tab,
     size: String(size),
@@ -209,7 +233,9 @@ export async function fetchFeed(tab: 'all' | 'following', cursor?: string | null
     search.set('cursor', cursor);
   }
 
-  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`);
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`, {
+    signal: options.signal,
+  });
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
@@ -233,8 +259,10 @@ export async function createMultipartPost(formData: FormData) {
   return normalizePostRecord(post);
 }
 
-export async function fetchPostDetail(postId: string) {
-  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`);
+export async function fetchPostDetail(postId: string, options: FeedRequestOptions = {}) {
+  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
+    signal: options.signal,
+  });
   return normalizePostRecord(post);
 }
 

@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
 import { PostDetail } from './components/PostDetail';
-import { PostRecord, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
+import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
 
@@ -19,15 +19,18 @@ export default function HomePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadInitialData = async () => {
       try {
         setLoading(true);
+        setLoadingMore(false);
         setError(null);
-        const feedPage = await fetchFeed(activeTab);
+        const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
 
         if (cancelled) {
           return;
@@ -37,6 +40,10 @@ export default function HomePage() {
         setNextCursor(feedPage.nextCursor);
         setHasNext(feedPage.hasNext);
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');
         }
@@ -50,6 +57,9 @@ export default function HomePage() {
     loadInitialData();
     return () => {
       cancelled = true;
+      controller.abort();
+      loadMoreControllerRef.current?.abort();
+      loadMoreControllerRef.current = null;
     };
   }, [activeTab]);
 
@@ -58,11 +68,7 @@ export default function HomePage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
-    const optimistic = {
-      ...post,
-      likedByMe: !post.likedByMe,
-      likes: post.likes + (post.likedByMe ? -1 : 1),
-    };
+    const optimistic = updatePostLikeState(post);
 
     setPosts((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -93,16 +99,27 @@ export default function HomePage() {
       return;
     }
 
+    loadMoreControllerRef.current?.abort();
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
+
     try {
       setLoadingMore(true);
-      const page = await fetchFeed(activeTab, nextCursor);
+      const page = await fetchFeed(activeTab, nextCursor, 20, { signal: controller.signal });
       setPosts((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
     } catch (loadMoreError) {
+      if (loadMoreError instanceof DOMException && loadMoreError.name === 'AbortError') {
+        return;
+      }
+
       alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
     } finally {
-      setLoadingMore(false);
+      if (loadMoreControllerRef.current === controller) {
+        loadMoreControllerRef.current = null;
+        setLoadingMore(false);
+      }
     }
   };
 

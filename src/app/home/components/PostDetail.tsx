@@ -15,6 +15,8 @@ import {
   likePost,
   unbookmarkPost,
   unlikePost,
+  updatePostBookmarkState,
+  updatePostLikeState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 
@@ -37,17 +39,22 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadPost = async () => {
       try {
         setLoading(true);
         setError(null);
-        const detail = await fetchPostDetail(postId);
+        const detail = await fetchPostDetail(postId, { signal: controller.signal });
         if (!cancelled) {
           setPost(detail);
           setBookmarked(detail.bookmarkedByMe);
         }
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load post.');
         }
@@ -61,6 +68,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     loadPost();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [postId]);
 
@@ -69,11 +77,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       return;
     }
 
-    const nextPost = {
-      ...post,
-      likedByMe: !post.likedByMe,
-      likes: post.likes + (post.likedByMe ? -1 : 1),
-    };
+    const nextPost = updatePostLikeState(post);
 
     setPost(nextPost);
     onPostUpdated?.(nextPost);
@@ -121,10 +125,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     }
 
     const nextBookmarked = !bookmarked;
-    const nextPost = {
-      ...post,
-      bookmarkedByMe: nextBookmarked,
-    };
+    const nextPost = updatePostBookmarkState(post, nextBookmarked);
 
     setBookmarked(nextBookmarked);
     setPost(nextPost);
@@ -290,7 +291,8 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             <div className="space-y-4">
               {submittedComments.length === 0 ? (
                 <p className="text-sm font-bold text-zinc-400">
-                  Existing comment listing is not provided by this API yet. New comments you add will appear here.
+                  This API currently provides the comment count, but not the existing comment list. New comments you add
+                  in this session will appear here.
                 </p>
               ) : (
                 submittedComments.map((comment) => (

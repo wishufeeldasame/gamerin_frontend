@@ -24,6 +24,8 @@ const MAX_VIDEO_THUMBNAILS: number = 4;
 const MAX_VIDEO_COUNT = 1;
 const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 120;
+const MAX_THUMBNAIL_CANVAS_WIDTH = 1280;
+const MAX_THUMBNAIL_CANVAS_HEIGHT = 720;
 
 function isImageFile(file: File) {
   return file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(file.name);
@@ -54,6 +56,17 @@ function buildThumbnailOption(file: File, label: string, kind: ThumbnailOption['
     previewUrl: makeObjectUrl(file),
     label,
     kind,
+  };
+}
+
+function getThumbnailCanvasSize(video: HTMLVideoElement) {
+  const sourceWidth = video.videoWidth || MAX_THUMBNAIL_CANVAS_WIDTH;
+  const sourceHeight = video.videoHeight || MAX_THUMBNAIL_CANVAS_HEIGHT;
+  const scale = Math.min(MAX_THUMBNAIL_CANVAS_WIDTH / sourceWidth, MAX_THUMBNAIL_CANVAS_HEIGHT / sourceHeight, 1);
+
+  return {
+    width: Math.max(1, Math.round(sourceWidth * scale)),
+    height: Math.max(1, Math.round(sourceHeight * scale)),
   };
 }
 
@@ -120,8 +133,9 @@ async function generateThumbnailOptions(file: File) {
     await waitForVideoEvent(video, 'loadedmetadata');
 
     const canvas = document.createElement('canvas');
-    canvas.width = Math.max(video.videoWidth || 1280, 320);
-    canvas.height = Math.max(video.videoHeight || 720, 180);
+    const canvasSize = getThumbnailCanvasSize(video);
+    canvas.width = canvasSize.width;
+    canvas.height = canvasSize.height;
 
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
     if (duration > MAX_VIDEO_DURATION_SECONDS) {
