@@ -4,23 +4,20 @@ import Image from 'next/image';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
   PostRecord,
+  bookmarkPost,
   createComment,
   fetchPostDetail,
   formatRelativeTime,
   getInitials,
   likePost,
+  unbookmarkPost,
   unlikePost,
+  updatePostBookmarkState,
+  updatePostLikeState,
 } from '@/lib/feed-api';
-import {
-  BOOKMARKS_CHANGED_EVENT,
-  getBookmarkCount,
-  isPostBookmarked,
-  toggleBookmarkedPost,
-} from '@/lib/bookmark-store';
 import { SharePostModal } from './SharePostModal';
 
 interface PostDetailProps {
@@ -30,7 +27,6 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
-  const { user } = useAuth();
   const [post, setPost] = useState<PostRecord | null>(null);
   const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
   const [commentText, setCommentText] = useState('');
@@ -38,22 +34,27 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bookmarkUserKey = user?.id ?? user?.handle ?? null;
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadPost = async () => {
       try {
         setLoading(true);
         setError(null);
-        const detail = await fetchPostDetail(postId);
+        const detail = await fetchPostDetail(postId, { signal: controller.signal });
         if (!cancelled) {
           setPost(detail);
+          setBookmarked(detail.bookmarkedByMe);
         }
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load post.');
         }
@@ -67,35 +68,16 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     loadPost();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [postId]);
-
-  useEffect(() => {
-    const syncBookmarkState = () => {
-      setBookmarked(isPostBookmarked(postId, bookmarkUserKey));
-      setBookmarkCount(getBookmarkCount(postId));
-    };
-
-    syncBookmarkState();
-    window.addEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-    window.addEventListener('storage', syncBookmarkState);
-
-    return () => {
-      window.removeEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-      window.removeEventListener('storage', syncBookmarkState);
-    };
-  }, [bookmarkUserKey, postId]);
 
   const handleToggleLike = async () => {
     if (!post) {
       return;
     }
 
-    const nextPost = {
-      ...post,
-      likedByMe: !post.likedByMe,
-      likes: post.likes + (post.likedByMe ? -1 : 1),
-    };
+    const nextPost = updatePostLikeState(post);
 
     setPost(nextPost);
     onPostUpdated?.(nextPost);
@@ -137,13 +119,33 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     }
   };
 
-  const handleToggleBookmark = () => {
-    if (!post) {
+  const handleToggleBookmark = async () => {
+    if (!post || bookmarking) {
       return;
     }
 
-    setBookmarked(toggleBookmarkedPost(post, bookmarkUserKey));
-    setBookmarkCount(getBookmarkCount(post.postId));
+    const nextBookmarked = !bookmarked;
+    const nextPost = updatePostBookmarkState(post, nextBookmarked);
+
+    setBookmarked(nextBookmarked);
+    setPost(nextPost);
+    onPostUpdated?.(nextPost);
+
+    try {
+      setBookmarking(true);
+      if (nextBookmarked) {
+        await bookmarkPost(post.postId);
+      } else {
+        await unbookmarkPost(post.postId);
+      }
+    } catch (bookmarkError) {
+      setBookmarked(bookmarked);
+      setPost(post);
+      onPostUpdated?.(post);
+      alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
+    } finally {
+      setBookmarking(false);
+    }
   };
 
   if (loading) {
@@ -187,11 +189,6 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
-                  {post.game ? (
-                    <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-black uppercase text-zinc-500">
-                      {post.game}
-                    </span>
-                  ) : null}
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
                   @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
@@ -232,32 +229,6 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </div>
           ) : null}
 
-          {post.externalLink ? (
-            <a
-              href={post.externalLink.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mb-8 block overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50"
-            >
-              {post.externalLink.thumbnailUrl ? (
-                <div className="relative h-64 w-full">
-                  <Image
-                    src={post.externalLink.thumbnailUrl}
-                    alt={post.externalLink.title}
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
-                </div>
-              ) : null}
-              <div className="space-y-1 p-5">
-                <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{post.externalLink.host}</p>
-                <h3 className="text-lg font-black text-black">{post.externalLink.title}</h3>
-                <p className="text-sm font-medium text-zinc-600">{post.externalLink.description}</p>
-              </div>
-            </a>
-          ) : null}
-
           <div className="flex items-center justify-between border-y border-zinc-50 py-6">
             <div className="flex items-center gap-8">
               <button
@@ -276,12 +247,12 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
               <button
                 type="button"
                 onClick={handleToggleBookmark}
+                disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
                 }`}
               >
                 <Bookmark size={22} className={bookmarked ? 'fill-black' : ''} />
-                <span>{bookmarkCount}</span>
               </button>
             </div>
             <button
@@ -320,7 +291,8 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             <div className="space-y-4">
               {submittedComments.length === 0 ? (
                 <p className="text-sm font-bold text-zinc-400">
-                  Existing comment listing is not provided by this API yet. New comments you add will appear here.
+                  This API currently provides the comment count, but not the existing comment list. New comments you add
+                  in this session will appear here.
                 </p>
               ) : (
                 submittedComments.map((comment) => (

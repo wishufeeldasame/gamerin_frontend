@@ -32,7 +32,7 @@ export function Header() {
             <Search size={18} className="text-zinc-500" strokeWidth={2.1} />
             <input
               type="text"
-              placeholder="Search games, players, posts..."
+              placeholder="게임, 플레이어, 게시글 검색..."
               className="w-full bg-transparent text-sm text-black outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -97,7 +97,7 @@ export function Header() {
             /* B. 비로그인 상태: 로그인 버튼 노출 */
             <Link href="/login">
               <button className="px-5 py-2 bg-black text-white text-xs font-black rounded-xl hover:bg-zinc-800 transition-all uppercase tracking-widest shadow-lg">
-                Login
+                로그인
               </button>
             </Link>
           )}
