@@ -77,7 +77,9 @@ export interface MentoringApplicationResponse {
   id: string;
   programId: string;
   programTitle: string;
+  mentorId: string;
   mentorNickname: string;
+  menteeId: string;
   menteeNickname: string;
   appliedMileage: number;
   status: ApplicationStatus;
@@ -202,7 +204,7 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
       result.payload && typeof result.payload === 'object' && 'message' in result.payload
         ? result.payload.message
         : null;
-    throw new Error(message || '멘토링 요청에 실패했습니다.');
+    throw new Error(message || '멘토링 요청 처리에 실패했습니다.');
   }
 
   if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
