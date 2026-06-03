@@ -3,9 +3,9 @@
 import { UserPlus } from 'lucide-react';
 
 const suggestedFriends = [
-  { name: 'Jin Park', tag: '@jinplays', badge: 'FPS coach' },
-  { name: 'Luna Choi', tag: '@lunaraid', badge: 'MMO guild lead' },
-  { name: 'Theo Han', tag: '@theostream', badge: 'Creator' },
+  { name: 'Jin Park', tag: '@jinplays', badge: 'FPS 코치' },
+  { name: 'Luna Choi', tag: '@lunaraid', badge: '길드장' },
+  { name: 'Theo Han', tag: '@theostream', badge: '크리에이터' },
 ];
 
 export function RightSidebar() {
@@ -14,7 +14,7 @@ export function RightSidebar() {
       <section className="rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-2">
           <UserPlus size={20} className="text-black" />
-          <h2 className="text-[17px] font-black uppercase tracking-tight text-black">Suggested Friends</h2>
+          <h2 className="text-[17px] font-black uppercase tracking-tight text-black">추천 친구</h2>
         </div>
 
         <div className="space-y-5">
@@ -41,16 +41,16 @@ export function RightSidebar() {
         </div>
 
         <button className="mt-6 w-full py-3 text-sm font-black text-zinc-400 transition-colors hover:text-black">
-          See all
+          모두 보기
         </button>
       </section>
 
       <footer className="space-x-3 px-6 text-[11px] font-bold text-zinc-400">
         <a href="#" className="hover:underline">
-          Terms
+          이용약관
         </a>
         <a href="#" className="hover:underline">
-          Privacy
+          개인정보처리방침
         </a>
         <span>© 2026 GamerIN</span>
       </footer>

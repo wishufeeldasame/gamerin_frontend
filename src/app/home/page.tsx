@@ -22,6 +22,20 @@ export default function HomePage() {
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
+    const syncPostFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      setSelectedPostId(params.get('postId'));
+    };
+
+    syncPostFromUrl();
+    window.addEventListener('popstate', syncPostFromUrl);
+
+    return () => {
+      window.removeEventListener('popstate', syncPostFromUrl);
+    };
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
@@ -30,6 +44,7 @@ export default function HomePage() {
         setLoading(true);
         setLoadingMore(false);
         setError(null);
+
         const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
 
         if (cancelled) {
@@ -55,6 +70,7 @@ export default function HomePage() {
     };
 
     loadInitialData();
+
     return () => {
       cancelled = true;
       controller.abort();
@@ -94,6 +110,16 @@ export default function HomePage() {
     );
   };
 
+  const handleOpenPost = (postId: string) => {
+    setSelectedPostId(postId);
+    window.history.pushState(null, '', `/home?postId=${encodeURIComponent(postId)}`);
+  };
+
+  const handleClosePost = () => {
+    setSelectedPostId(null);
+    window.history.pushState(null, '', '/home');
+  };
+
   const handleLoadMore = async () => {
     if (!hasNext || !nextCursor || loadingMore) {
       return;
@@ -130,7 +156,7 @@ export default function HomePage() {
           <div className="p-4">
             <PostDetail
               postId={selectedPostId}
-              onBack={() => setSelectedPostId(null)}
+              onBack={handleClosePost}
               onPostUpdated={handlePostUpdated}
             />
           </div>
@@ -138,8 +164,8 @@ export default function HomePage() {
           <>
             <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
               {[
-                { label: 'For You', value: 'all' as const },
-                { label: 'Following', value: 'following' as const },
+                { label: '추천', value: 'all' as const },
+                { label: '팔로잉', value: 'following' as const },
               ].map((tab) => (
                 <button
                   key={tab.value}
@@ -164,7 +190,7 @@ export default function HomePage() {
 
               {loading ? (
                 <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  Loading feed...
+                  피드를 불러오는 중...
                 </div>
               ) : error ? (
                 <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
@@ -172,7 +198,7 @@ export default function HomePage() {
                 </div>
               ) : posts.length === 0 ? (
                 <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  No posts in this feed yet.
+                  아직 게시글이 없습니다.
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -186,7 +212,7 @@ export default function HomePage() {
                       <Post
                         post={post}
                         onToggleLike={handleToggleLike}
-                        onOpenDetail={(selected) => setSelectedPostId(selected.postId)}
+                        onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                         onShare={handlePostUpdated}
                       />
                     </motion.div>
@@ -199,7 +225,7 @@ export default function HomePage() {
                       disabled={loadingMore}
                       className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                     >
-                      {loadingMore ? 'Loading...' : 'Load More'}
+                      {loadingMore ? '불러오는 중...' : '더 보기'}
                     </button>
                   ) : null}
                 </div>

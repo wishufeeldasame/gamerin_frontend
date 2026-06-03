@@ -241,10 +241,14 @@ export async function fetchFeed(
 
 export async function createJsonPost(payload: {
   content?: string;
+  externalLinkUrl?: string;
 }) {
   const post = await apiRequest<PostRecord>('/api/v1/posts', {
     method: 'POST',
-    body: JSON.stringify({ content: payload.content || null }),
+    body: JSON.stringify({
+      content: payload.content || null,
+      externalLinkUrl: payload.externalLinkUrl || null,
+    }),
   });
 
   return normalizePostRecord(post);

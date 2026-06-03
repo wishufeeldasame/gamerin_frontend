@@ -3,10 +3,14 @@
 import { Bell, MessageSquare, Search, LogOut } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Link from "next/link";
+import { useState } from "react";
+import { NotificationPanel } from "./NotificationPanel";
 
 export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
   const { user, logout } = useAuth();
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(2);
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-[#d69a1f] bg-[#f5b93d]">
@@ -28,7 +32,7 @@ export function Header() {
             <Search size={18} className="text-zinc-500" strokeWidth={2.1} />
             <input
               type="text"
-              placeholder="Search games, players, posts..."
+              placeholder="게임, 플레이어, 게시글 검색..."
               className="w-full bg-transparent text-sm text-black outline-none placeholder:text-zinc-500"
             />
           </label>
@@ -39,13 +43,33 @@ export function Header() {
           {user ? (
             /* A. 로그인 상태: 알림, 메시지, 유저 아바타, 로그아웃 */
             <>
-              <button className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 relative">
+              <button
+                type="button"
+                onClick={() => setNotificationOpen((current) => !current)}
+                className="relative flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5"
+                aria-label="알림"
+                aria-expanded={notificationOpen}
+              >
                 <Bell size={18} strokeWidth={2.1} />
-                <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-red-600 rounded-full border border-[#f5b93d]" />
+                {notificationUnreadCount > 0 ? (
+                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#f5b93d] bg-red-600 px-1 text-[9px] font-black leading-none text-white">
+                    {notificationUnreadCount}
+                  </span>
+                ) : null}
               </button>
-              <button className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5">
+              {notificationOpen ? (
+                <NotificationPanel
+                  onClose={() => setNotificationOpen(false)}
+                  onUnreadCountChange={setNotificationUnreadCount}
+                />
+              ) : null}
+              <Link
+                href="/home/messages"
+                className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5"
+                aria-label="메시지"
+              >
                 <MessageSquare size={18} strokeWidth={2.1} />
-              </button>
+              </Link>
               
               <div className="flex items-center gap-3 ml-2 pl-3 border-l border-black/10">
                 <div className="hidden lg:block text-right">
@@ -73,7 +97,7 @@ export function Header() {
             /* B. 비로그인 상태: 로그인 버튼 노출 */
             <Link href="/login">
               <button className="px-5 py-2 bg-black text-white text-xs font-black rounded-xl hover:bg-zinc-800 transition-all uppercase tracking-widest shadow-lg">
-                Login
+                로그인
               </button>
             </Link>
           )}

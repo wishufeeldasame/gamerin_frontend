@@ -4,6 +4,8 @@ let accessTokenMemory: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
 const ACCESS_TOKEN_KEY = 'gamerin_access_token';
+export const AUTH_USER_KEY = 'gamerin_user';
+export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export function setAccessToken(token: string) {
@@ -36,6 +38,22 @@ export function removeAccessToken() {
   }
 }
 
+type ClearStoredAuthOptions = {
+  notify?: boolean;
+};
+
+export function clearStoredAuth({ notify = true }: ClearStoredAuthOptions = {}) {
+  removeAccessToken();
+
+  if (typeof window !== 'undefined') {
+    window.localStorage.removeItem(AUTH_USER_KEY);
+
+    if (notify) {
+      window.dispatchEvent(new Event(AUTH_CLEARED_EVENT));
+    }
+  }
+}
+
 type RefreshPayload = {
   success?: boolean;
   data?: {
@@ -64,14 +82,14 @@ export async function refreshAccessToken() {
       const nextToken = payload?.data?.accessToken ?? null;
 
       if (!response.ok || !nextToken) {
-        removeAccessToken();
+        clearStoredAuth();
         return null;
       }
 
       setAccessToken(nextToken);
       return nextToken;
     } catch {
-      removeAccessToken();
+      clearStoredAuth();
       return null;
     } finally {
       refreshPromise = null;

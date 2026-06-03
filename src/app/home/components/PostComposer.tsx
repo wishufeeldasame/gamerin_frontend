@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import { ImagePlus, Smile, Upload, Video, X } from 'lucide-react';
+import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
 
@@ -79,7 +79,7 @@ async function waitForVideoEvent(video: HTMLVideoElement, eventName: 'loadedmeta
 
     const onError = () => {
       cleanup();
-      reject(new Error(`Video ${eventName} failed.`));
+      reject(new Error(`동영상 ${eventName} 이벤트 처리에 실패했습니다.`));
     };
 
     const cleanup = () => {
@@ -139,7 +139,7 @@ async function generateThumbnailOptions(file: File) {
 
     const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 1;
     if (duration > MAX_VIDEO_DURATION_SECONDS) {
-      throw new Error('Video duration must be 2 minutes or shorter.');
+      throw new Error('동영상 길이는 2분 이하여야 합니다.');
     }
 
     const sampleTimes = Array.from({ length: MAX_VIDEO_THUMBNAILS }, (_, index) => {
@@ -156,7 +156,7 @@ async function generateThumbnailOptions(file: File) {
 
     for (let index = 0; index < uniqueTimes.length; index += 1) {
       const thumbnailFile = await createThumbnailFile(video, canvas, uniqueTimes[index], index, baseName);
-      options.push(buildThumbnailOption(thumbnailFile, index === 0 ? 'Default' : `Option ${index + 1}`, 'generated'));
+      options.push(buildThumbnailOption(thumbnailFile, index === 0 ? '기본' : `옵션 ${index + 1}`, 'generated'));
     }
 
     return options;
@@ -172,6 +172,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
 
   const [content, setContent] = useState('');
+  const [externalLinkUrl, setExternalLinkUrl] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -227,21 +228,26 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
   };
 
-  const resetComposer = () => {
-    setContent('');
+  const clearAttachments = () => {
     clearImageSelection();
     clearVideoSelection();
+  };
+
+  const resetComposer = () => {
+    setContent('');
+    setExternalLinkUrl('');
+    clearAttachments();
   };
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length > MAX_IMAGE_COUNT) {
-      alert(`You can upload up to ${MAX_IMAGE_COUNT} images.`);
+      alert(`이미지는 최대 ${MAX_IMAGE_COUNT}개까지 업로드할 수 있습니다.`);
     }
 
     const files = selectedFiles.slice(0, MAX_IMAGE_COUNT);
     if (files.some((file) => !isImageFile(file))) {
-      alert('Only image files can be uploaded as photos.');
+      alert('사진에는 이미지 파일만 업로드할 수 있습니다.');
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
       }
@@ -256,7 +262,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length > MAX_VIDEO_COUNT) {
-      alert('You can upload only one video.');
+      alert('동영상은 하나만 업로드할 수 있습니다.');
     }
 
     const selected = selectedFiles[0] ?? null;
@@ -268,12 +274,12 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
 
     if (!isVideoFile(selected)) {
-      alert('Only video files can be uploaded as videos.');
+      alert('동영상 파일만 업로드할 수 있습니다.');
       return;
     }
 
     if (selected.size > MAX_VIDEO_FILE_SIZE_BYTES) {
-      alert('Video file must be 500MB or smaller.');
+      alert('동영상 파일은 500MB 이하여야 합니다.');
       return;
     }
 
@@ -287,7 +293,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       setSelectedThumbnailId(null);
     } catch (error) {
       clearVideoSelection();
-      alert(error instanceof Error ? error.message : 'Failed to prepare video preview.');
+      alert(error instanceof Error ? error.message : '동영상 미리보기를 준비하지 못했습니다.');
     } finally {
       setGeneratingThumbnails(false);
     }
@@ -300,14 +306,14 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
 
     if (!isImageFile(file)) {
-      alert('Video thumbnail must be an image file.');
+      alert('동영상 썸네일은 이미지 파일이어야 합니다.');
       if (thumbnailInputRef.current) {
         thumbnailInputRef.current.value = '';
       }
       return;
     }
 
-    const uploadedOption = buildThumbnailOption(file, 'Uploaded', 'uploaded');
+    const uploadedOption = buildThumbnailOption(file, '직접 업로드', 'uploaded');
     setThumbnailOptions((current) => [...current.filter((option) => option.kind !== 'uploaded'), uploadedOption]);
     setSelectedThumbnailId(uploadedOption.id);
   };
@@ -316,15 +322,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     Boolean(user) &&
     !submitting &&
     !generatingThumbnails &&
-    Boolean(content.trim() || imageFiles.length > 0 || videoFile);
+    Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = async () => {
     if (!user || !canSubmit) {
       return;
     }
 
-    if (videoFile && imageFiles.length > 0) {
-      alert('Images and videos cannot be uploaded together.');
+    if (hasFiles && externalLinkUrl.trim()) {
+      alert('미디어 업로드와 외부 링크 카드는 함께 사용할 수 없습니다.');
       return;
     }
 
@@ -351,13 +357,14 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       } else {
         createdPost = await createJsonPost({
           content: content.trim(),
+          externalLinkUrl: externalLinkUrl.trim(),
         });
       }
 
       onCreated?.(createdPost);
       resetComposer();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to create post.');
+      alert(error instanceof Error ? error.message : '게시글 작성에 실패했습니다.');
     } finally {
       setSubmitting(false);
     }
@@ -374,8 +381,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            placeholder={user ? "What's on your mind?" : 'Log in to create a post.'}
+            placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
             className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
+          />
+
+          <input
+            value={externalLinkUrl}
+            onChange={(event) => setExternalLinkUrl(event.target.value)}
+            placeholder="외부 링크 URL"
+            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
           />
 
           {videoPreviewUrl ? (
@@ -390,34 +404,36 @@ export function PostComposer({ onCreated }: PostComposerProps) {
               </div>
 
               <div className="rounded-[18px] border border-zinc-200 bg-white p-4">
-                <div className="mb-3 flex items-start justify-between gap-3">
+                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <p className="text-[18px] font-black text-black">썸네일 선택 (선택사항)</p>
+                    <p className="text-[18px] font-black text-black">썸네일 선택</p>
                     <p className="text-sm font-medium text-zinc-500">
-                      선택하지 않으면 자동으로 생성된 첫 번째 썸네일이 사용됩니다.
+                      생성된 썸네일을 선택하거나 직접 업로드할 수 있습니다.
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setSelectedThumbnailId(null)}
-                    className={`h-10 rounded-full border px-4 text-sm font-bold transition ${
-                      selectedThumbnailId === null
-                        ? 'border-zinc-900 bg-zinc-900 text-white'
-                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
-                    }`}
-                  >
-                    No thumbnail
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedThumbnailId(null)}
+                      className={`h-10 rounded-full border px-4 text-sm font-bold transition ${
+                        selectedThumbnailId === null
+                          ? 'border-zinc-900 bg-zinc-900 text-white'
+                          : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
+                      }`}
+                    >
+                      썸네일 없음
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => thumbnailInputRef.current?.click()}
-                    className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 text-sm font-bold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
-                  >
-                    <Upload size={16} />
-                    직접 업로드
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => thumbnailInputRef.current?.click()}
+                      className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 text-sm font-bold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
+                    >
+                      <Upload size={16} />
+                      업로드
+                    </button>
+                  </div>
                 </div>
 
                 <input
@@ -430,7 +446,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
                 {generatingThumbnails ? (
                   <div className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
-                    Preparing thumbnail options...
+                    썸네일 후보를 준비하고 있습니다...
                   </div>
                 ) : (
                   <div className="flex gap-3 overflow-x-auto pb-1">
@@ -453,7 +469,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                             <span className="text-sm font-bold text-zinc-800">{option.label}</span>
                             {option.kind === 'uploaded' ? (
                               <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-black text-zinc-500">
-                                Custom
+                                직접 선택
                               </span>
                             ) : null}
                           </div>
@@ -500,7 +516,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
               >
                 <ImagePlus size={18} />
-                Photo
+                사진
               </button>
 
               <button
@@ -509,25 +525,30 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
               >
                 <Video size={18} />
-                Video
+                동영상
               </button>
 
               <div className="inline-flex items-center gap-2 text-[17px] font-medium text-zinc-400">
                 <Smile size={18} />
-                Feeling
+                기분
               </div>
 
-              {hasFiles ? (
+              <div className="hidden items-center gap-2 rounded-2xl bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:flex">
+                <Link2 size={14} />
+                {externalLinkUrl.trim() ? '링크 카드' : '링크 없음'}
+              </div>
+
+              {hasFiles || externalLinkUrl.trim() ? (
                 <button
                   type="button"
                   onClick={() => {
-                    clearImageSelection();
-                    clearVideoSelection();
+                    clearAttachments();
+                    setExternalLinkUrl('');
                   }}
                   className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-black"
                 >
                   <X size={16} />
-                  Clear attachments
+                  지우기
                 </button>
               ) : null}
             </div>
@@ -540,7 +561,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
               }`}
             >
-              {submitting ? 'Posting...' : 'Post'}
+              {submitting ? '게시 중...' : '게시'}
             </button>
           </div>
         </div>
