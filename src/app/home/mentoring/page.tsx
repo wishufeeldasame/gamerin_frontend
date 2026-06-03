@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import {
   AlertCircle,
@@ -16,8 +16,10 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { fetchConversations, startConversation } from '@/lib/message-api';
 import {
   acceptMentoringApplication,
   applyToMentoringProgram,
@@ -47,6 +49,7 @@ import {
   type PageResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
+import { type MessageRecipient } from '@/lib/message-store';
 import {
   chargeMileage,
   fetchMyMileageBalance,
@@ -134,7 +137,7 @@ function parseTags(value: string) {
 }
 
 function buildProgramContent(method: string, content: string) {
-  return `[진행 방식]\n${method.trim() || '협의 후 진행'}\n\n[상세 설명]\n${content.trim()}`;
+  return `[진행 방식]\n${method.trim() || '추후 협의'}\n\n[상세 설명]\n${content.trim()}`;
 }
 
 function splitProgramContent(rawContent: string) {
@@ -201,7 +204,7 @@ function isMileageShortageError(error: unknown) {
   const message = error.message.toLowerCase();
 
   return (
-    message.includes('마일리지') ||
+    message.includes('留덉씪由ъ?') ||
     message.includes('부족') ||
     message.includes('insufficient') ||
     message.includes('balance')
@@ -226,12 +229,17 @@ function isApplicationBlockingReapply(status: ApplicationStatus) {
   return status === 'APPLIED' || status === 'ACCEPTED' || status === 'ONGOING' || status === 'FINISHED';
 }
 
+function canOpenMentoringChat(status: ApplicationStatus) {
+  return status === 'ACCEPTED' || status === 'ONGOING' || status === 'FINISHED' || status === 'COMPLETED';
+}
+
 export default function MentoringPage() {
+  const router = useRouter();
   const { user, logout, isAuthReady } = useAuth();
   const currentUserId = user?.id ?? '';
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
-  const [gameFilter, setGameFilter] = useState('전체');
+  const [gameFilter, setGameFilter] = useState('?꾩껜');
   const [programPage, setProgramPage] = useState<PageResponse<MentoringProgramResponse>>(emptyPage());
   const [programPageNumber, setProgramPageNumber] = useState(0);
   const [programsLoading, setProgramsLoading] = useState(false);
@@ -506,7 +514,7 @@ export default function MentoringPage() {
       const profile = await registerMentor({ about: mentorAbout.trim() });
       setMentorProfile(profile);
       setShowMentorForm(false);
-      showNotice('멘토 등록이 완료되었습니다. 이제 프로그램을 만들 수 있습니다.');
+      showNotice('硫섑넗 ?깅줉???꾨즺?섏뿀?듬땲?? ?댁젣 ?꾨줈洹몃옩??留뚮뱾 ???덉뒿?덈떎.');
       await loadOwnedPrograms();
     } catch (error) {
       showError(error);
@@ -535,7 +543,7 @@ export default function MentoringPage() {
     try {
       const price = Number(programForm.price);
       if (price < 0 || Number.isNaN(price)) {
-        throw new Error('가격을 올바르게 입력해주세요.');
+        throw new Error('媛寃⑹쓣 ?щ컮瑜닿쾶 ?낅젰?댁＜?몄슂.');
       }
 
       await createMentoringProgram({
@@ -548,7 +556,7 @@ export default function MentoringPage() {
       });
 
       resetProgramForm();
-      showNotice('프로그램을 등록했습니다.');
+      showNotice('?꾨줈洹몃옩???깅줉?덉뒿?덈떎.');
       await Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms()]);
     } catch (error) {
       showError(error);
@@ -558,7 +566,7 @@ export default function MentoringPage() {
   };
 
   const handleDeleteProgram = async (programId: string) => {
-    const ok = window.confirm('이 프로그램을 삭제할까요?');
+    const ok = window.confirm('???꾨줈洹몃옩????젣?좉퉴??');
     if (!ok) return;
 
     setPendingAction(`delete-program:${programId}`);
@@ -566,7 +574,7 @@ export default function MentoringPage() {
 
     try {
       await deleteMentoringProgram(programId);
-      showNotice('프로그램을 삭제했습니다.');
+      showNotice('?꾨줈洹몃옩????젣?덉뒿?덈떎.');
       await Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms()]);
     } catch (error) {
       showError(error);
@@ -588,7 +596,7 @@ export default function MentoringPage() {
         message: applicationMessage.trim(),
       });
       setApplicationMessage('');
-      showNotice('멘토링 신청이 접수되었습니다.');
+      showNotice('硫섑넗留??좎껌???묒닔?섏뿀?듬땲??');
       await Promise.all([loadApplications(), loadMileageData()]);
       setActiveTab('mine');
     } catch (error) {
@@ -655,7 +663,7 @@ export default function MentoringPage() {
 
     const amount = Number(chargeAmount);
     if (Number.isNaN(amount) || amount <= 0) {
-      setErrorMessage('충전 금액을 올바르게 입력해주세요.');
+      setErrorMessage('異⑹쟾 湲덉븸???щ컮瑜닿쾶 ?낅젰?댁＜?몄슂.');
       return;
     }
 
@@ -665,7 +673,7 @@ export default function MentoringPage() {
     try {
       const result = await chargeMileage(amount);
       setMileageBalance(result.currentBalance ?? 0);
-      showNotice('마일리지를 충전했습니다.');
+      showNotice('留덉씪由ъ?瑜?異⑹쟾?덉뒿?덈떎.');
       await loadMileageData();
     } catch (error) {
       showError(error);
@@ -675,7 +683,7 @@ export default function MentoringPage() {
   };
 
   const handleDeleteApplication = async (applicationId: string) => {
-    const ok = window.confirm('취소된 멘토링 요청 내역을 삭제할까요?');
+    const ok = window.confirm('痍⑥냼??硫섑넗留??붿껌 ?댁뿭????젣?좉퉴??');
     if (!ok) return;
 
     setPendingAction(`delete-application:${applicationId}`);
@@ -683,7 +691,7 @@ export default function MentoringPage() {
 
     try {
       await deleteMentoringApplication(applicationId);
-      showNotice('취소된 멘토링 요청 내역을 삭제했습니다.');
+      showNotice('痍⑥냼??硫섑넗留??붿껌 ?댁뿭????젣?덉뒿?덈떎.');
       await Promise.all([loadApplications(), loadMileageData()]);
     } catch (error) {
       showError(error);
@@ -718,7 +726,7 @@ export default function MentoringPage() {
 
     const content = reviewContent.trim();
     if (!content) {
-      setErrorMessage('후기를 입력해주세요.');
+      setErrorMessage('?꾧린瑜??낅젰?댁＜?몄슂.');
       return;
     }
 
@@ -739,6 +747,41 @@ export default function MentoringPage() {
       }));
       showNotice('리뷰를 등록했습니다.');
       closeReviewModal();
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPendingAction('');
+    }
+  };
+
+  const handleOpenChat = async (application: MentoringApplicationResponse, role: 'mentor' | 'mentee') => {
+    if (!canOpenMentoringChat(application.status)) {
+      setErrorMessage('硫섑넗媛 ?좎껌???섎씫???ㅼ뿉留?梨꾪똿???쒖옉?????덉뒿?덈떎.');
+      return;
+    }
+
+    const recipientId = role === 'mentor' ? application.menteeId : application.mentorId;
+    const recipientName = role === 'mentor' ? application.menteeNickname : application.mentorNickname;
+    if (!recipientId || !recipientName) {
+      setErrorMessage('梨꾪똿 ?곷? ?뺣낫瑜?李얠쓣 ???놁뒿?덈떎.');
+      return;
+    }
+
+    const recipient: MessageRecipient = {
+      id: recipientId,
+      name: recipientName,
+      handle: `@mentoring_${recipientId.slice(0, 8)}`,
+      role: role === 'mentor' ? '硫섑떚' : '硫섑넗',
+      online: false,
+    };
+
+    setPendingAction(`chat:${application.id}`);
+    clearMessages();
+
+    try {
+      const conversations = await fetchConversations(user?.id);
+      await startConversation(user?.id, conversations, recipient);
+      router.push(`/home/messages?conversationId=${encodeURIComponent(recipient.id)}`);
     } catch (error) {
       showError(error);
     } finally {
@@ -784,7 +827,7 @@ export default function MentoringPage() {
                 <AlertCircle className="mt-0.5 shrink-0 text-yellow-700" size={20} />
                 <div>
                   <p className="font-black text-yellow-900">
-                    {bannerType === 'mileage' ? '마일리지가 부족합니다' : '세션 확인이 필요합니다'}
+                    {bannerType === 'mileage' ? '마일리지가 부족합니다' : '인증 확인이 필요합니다'}
                   </p>
                   <p className="mt-1 text-sm font-bold leading-6 text-yellow-800">{authMessage}</p>
                 </div>
@@ -932,12 +975,12 @@ export default function MentoringPage() {
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">{selectedProgram.gameName}</p>
                   <h2 className="mt-2 text-2xl font-black text-black">{selectedProgram.title}</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
-                    {programMentorName(selectedProgram)} · {formatMileage(selectedProgram.price)}
+                    {programMentorName(selectedProgram)} 쨌 {formatMileage(selectedProgram.price)}
                   </p>
 
                   <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-bold leading-6 text-zinc-600">
                     <p className="font-black text-black">진행 방식</p>
-                    <p>{splitProgramContent(selectedProgram.content).method || '협의 후 진행'}</p>
+                    <p>{splitProgramContent(selectedProgram.content).method || '추후 협의'}</p>
                     <p className="mt-4 font-black text-black">상세 설명</p>
                     <p>{splitProgramContent(selectedProgram.content).content}</p>
                   </div>
@@ -1047,6 +1090,7 @@ export default function MentoringPage() {
                 applications={menteeApplications}
                 reviewedApplicationIds={reviewedApplicationIds}
                 pendingAction={pendingAction}
+                onChat={(application) => handleOpenChat(application, 'mentee')}
                 onCancel={(id) => runApplicationAction(id, 'cancel')}
                 onDelete={(id) => handleDeleteApplication(id)}
                 onComplete={(id) => runApplicationAction(id, 'complete')}
@@ -1058,6 +1102,7 @@ export default function MentoringPage() {
                 applications={mentorApplications}
                 reviewedApplicationIds={reviewedApplicationIds}
                 pendingAction={pendingAction}
+                onChat={(application) => handleOpenChat(application, 'mentor')}
                 onAccept={(id) => runApplicationAction(id, 'accept')}
                 onReject={(id) => runApplicationAction(id, 'reject')}
                 onStart={(id) => runApplicationAction(id, 'start')}
@@ -1278,7 +1323,7 @@ export default function MentoringPage() {
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Review</p>
                   <h2 className="mt-1 text-2xl font-black text-black">리뷰 작성</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
-                    {reviewTarget.programTitle}에 대한 별점과 후기를 남겨주세요.
+                    {reviewTarget.programTitle}에 대한 평점과 후기를 남겨주세요.
                   </p>
                 </div>
                 <button
@@ -1293,7 +1338,7 @@ export default function MentoringPage() {
 
               <form onSubmit={handleSubmitReview} className="mt-6">
                 <div>
-                  <p className="text-sm font-black text-zinc-700">별점</p>
+                  <p className="text-sm font-black text-zinc-700">평점</p>
                   <div className="mt-3 flex items-center gap-2">
                     {[1, 2, 3, 4, 5].map((value) => {
                       const active = value <= reviewRating;
@@ -1363,6 +1408,7 @@ function ApplicationList({
   applications,
   reviewedApplicationIds,
   pendingAction,
+  onChat,
   onAccept,
   onReject,
   onCancel,
@@ -1377,6 +1423,7 @@ function ApplicationList({
   applications: MentoringApplicationResponse[];
   reviewedApplicationIds: Record<string, boolean>;
   pendingAction: string;
+  onChat?: (application: MentoringApplicationResponse) => void;
   onAccept?: (id: string) => void;
   onReject?: (id: string) => void;
   onCancel?: (id: string) => void;
@@ -1398,6 +1445,7 @@ function ApplicationList({
               role={role}
               reviewed={Boolean(reviewedApplicationIds[application.id])}
               pendingAction={pendingAction}
+              onChat={() => onChat?.(application)}
               onAccept={() => onAccept?.(application.id)}
               onReject={() => onReject?.(application.id)}
               onCancel={() => onCancel?.(application.id)}
@@ -1423,6 +1471,7 @@ function ApplicationCard({
   role,
   reviewed,
   pendingAction,
+  onChat,
   onAccept,
   onReject,
   onCancel,
@@ -1436,6 +1485,7 @@ function ApplicationCard({
   role: 'mentor' | 'mentee';
   reviewed: boolean;
   pendingAction: string;
+  onChat?: () => void;
   onAccept?: () => void;
   onReject?: () => void;
   onCancel?: () => void;
@@ -1447,6 +1497,7 @@ function ApplicationCard({
 }) {
   const actionPending = pendingAction.endsWith(`:${application.id}`);
   const guide = applicationGuide(role, application.status, application.paymentStatus);
+  const chatEnabled = canOpenMentoringChat(application.status);
 
   return (
     <article className="rounded-xl border border-zinc-100 p-4">
@@ -1476,11 +1527,13 @@ function ApplicationCard({
       <div className="mt-4 flex flex-wrap gap-2">
         <button
           type="button"
-          disabled
-          className="inline-flex cursor-not-allowed items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-400"
+          onClick={onChat}
+          disabled={actionPending || !chatEnabled}
+          title={chatEnabled ? '채팅 시작' : '멘토가 신청을 수락한 뒤에만 채팅할 수 있습니다.'}
+          className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <MessageCircle size={14} />
-          채팅 준비중
+          채팅 시작
         </button>
 
         {role === 'mentor' && application.status === 'APPLIED' ? (
@@ -1656,3 +1709,4 @@ function MileageTransactionPanel({
     </section>
   );
 }
+
