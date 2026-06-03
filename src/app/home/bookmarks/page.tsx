@@ -3,7 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bookmark, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { PostRecord, fetchMyBookmarks } from '@/lib/feed-api';
+import {
+  PostRecord,
+  fetchMyBookmarks,
+  likePost,
+  unlikePost,
+  updatePostLikeState,
+} from '@/lib/feed-api';
 import { Post } from '../components/Post';
 import { PostDetail } from '../components/PostDetail';
 
@@ -158,6 +164,27 @@ export default function BookmarksPage() {
     removeBookmark(updatedPost.postId);
   };
 
+  const handleToggleLike = async (post: PostRecord) => {
+    const optimistic = updatePostLikeState(post);
+
+    setBookmarks((current) =>
+      current.map((item) => (item.postId === post.postId ? optimistic : item))
+    );
+
+    try {
+      if (post.likedByMe) {
+        await unlikePost(post.postId);
+      } else {
+        await likePost(post.postId);
+      }
+    } catch (likeError) {
+      setBookmarks((current) =>
+        current.map((item) => (item.postId === post.postId ? post : item))
+      );
+      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    }
+  };
+
   const handlePostDeleted = (postId: string) => {
     removeBookmark(postId);
     if (selectedPostId === postId) {
@@ -289,6 +316,7 @@ export default function BookmarksPage() {
               ) : null}
               <Post
                 post={post}
+                onToggleLike={handleToggleLike}
                 onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                 onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                 onShare={handlePostUpdated}
