@@ -4,12 +4,16 @@ import Image from 'next/image';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
   PostRecord,
   bookmarkPost,
   createComment,
+  deleteComment,
+  deletePost,
   fetchPostDetail,
+  fetchPostComments,
   formatRelativeTime,
   getInitials,
   likePost,
@@ -24,15 +28,21 @@ interface PostDetailProps {
   postId: string;
   onBack: () => void;
   onPostUpdated?: (post: PostRecord) => void;
+  onPostDeleted?: (postId: string) => void;
 }
 
-export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
+export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: PostDetailProps) {
+  const { user } = useAuth();
   const [post, setPost] = useState<PostRecord | null>(null);
-  const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
+  const [comments, setComments] = useState<CommentRecord[]>([]);
+  const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -45,9 +55,14 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       try {
         setLoading(true);
         setError(null);
-        const detail = await fetchPostDetail(postId, { signal: controller.signal });
+        setComments([]);
+        const [detail, commentList] = await Promise.all([
+          fetchPostDetail(postId, { signal: controller.signal }),
+          fetchPostComments(postId, { signal: controller.signal }),
+        ]);
         if (!cancelled) {
           setPost(detail);
+          setComments(commentList);
           setBookmarked(detail.bookmarkedByMe);
         }
       } catch (loadError) {
@@ -109,13 +124,42 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       };
 
       setPost(nextPost);
-      setSubmittedComments((current) => [createdComment, ...current]);
+      setComments((current) => [createdComment, ...current]);
       setCommentText('');
       onPostUpdated?.(nextPost);
     } catch (commentError) {
       alert(commentError instanceof Error ? commentError.message : 'Failed to create comment.');
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (comment: CommentRecord) => {
+    if (!post || deletingCommentId) {
+      return;
+    }
+
+    const confirmed = window.confirm('댓글을 삭제할까요?');
+    if (!confirmed) {
+      setCommentMenuOpenId(null);
+      return;
+    }
+
+    try {
+      setDeletingCommentId(comment.commentId);
+      await deleteComment(post.postId, comment.commentId);
+      setComments((current) => current.filter((item) => item.commentId !== comment.commentId));
+      const nextPost = {
+        ...post,
+        comments: Math.max(0, post.comments - 1),
+      };
+      setPost(nextPost);
+      onPostUpdated?.(nextPost);
+      setCommentMenuOpenId(null);
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
+    } finally {
+      setDeletingCommentId(null);
     }
   };
 
@@ -148,6 +192,30 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     }
   };
 
+  const handleDeletePost = async () => {
+    if (!post || deletingPost) {
+      return;
+    }
+
+    const confirmed = window.confirm('게시물을 삭제할까요?');
+    if (!confirmed) {
+      setMenuOpen(false);
+      return;
+    }
+
+    try {
+      setDeletingPost(true);
+      await deletePost(post.postId);
+      setMenuOpen(false);
+      onPostDeleted?.(post.postId);
+      onBack();
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+    } finally {
+      setDeletingPost(false);
+    }
+  };
+
   if (loading) {
     return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">Loading post...</div>;
   }
@@ -162,6 +230,8 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       </div>
     );
   }
+
+  const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
@@ -195,9 +265,35 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
                 </p>
               </div>
             </div>
-            <button className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black">
-              <MoreHorizontal size={24} />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (canDeletePost) {
+                    setMenuOpen((current) => !current);
+                  }
+                }}
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+                aria-label="게시물 메뉴"
+                aria-expanded={menuOpen}
+                disabled={!canDeletePost}
+              >
+                <MoreHorizontal size={24} />
+              </button>
+
+              {menuOpen && canDeletePost ? (
+                <div className="absolute right-0 top-12 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                  <button
+                    type="button"
+                    onClick={handleDeletePost}
+                    disabled={deletingPost}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  >
+                    {deletingPost ? '삭제 중...' : '삭제'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {post.content ? <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">{post.content}</p> : null}
@@ -289,19 +385,47 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </div>
 
             <div className="space-y-4">
-              {submittedComments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">
-                  This API currently provides the comment count, but not the existing comment list. New comments you add
-                  in this session will appear here.
-                </p>
+              {comments.length === 0 ? (
+                <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
               ) : (
-                submittedComments.map((comment) => (
+                comments.map((comment) => (
                   <div key={comment.commentId} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-sm font-black text-black">{comment.author}</span>
-                      <span className="text-xs font-bold text-zinc-400">
-                        @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
-                      </span>
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-black">{comment.author}</span>
+                        <span className="text-xs font-bold text-zinc-400">
+                          @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
+                        </span>
+                      </div>
+                      {comment.mine ? (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCommentMenuOpenId((current) =>
+                                current === comment.commentId ? null : comment.commentId
+                              )
+                            }
+                            className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
+                            aria-label="댓글 메뉴"
+                            aria-expanded={commentMenuOpenId === comment.commentId}
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                          {commentMenuOpenId === comment.commentId ? (
+                            <div className="absolute right-0 top-8 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(comment)}
+                                disabled={deletingCommentId === comment.commentId}
+                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                              >
+                                {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     <p className="text-sm font-medium text-zinc-700">{comment.content}</p>
                   </div>

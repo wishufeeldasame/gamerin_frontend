@@ -58,6 +58,7 @@ export interface CommentRecord {
   authorVerifiedBadge: boolean;
   content: string;
   createdAt: string;
+  mine: boolean;
 }
 
 export interface UserProfile {
@@ -270,6 +271,12 @@ export async function fetchPostDetail(postId: string, options: FeedRequestOption
   return normalizePostRecord(post);
 }
 
+export async function deletePost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function likePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}/likes`, {
     method: 'POST',
@@ -305,6 +312,18 @@ export async function createComment(postId: string, content: string) {
   return apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
     method: 'POST',
     body: JSON.stringify({ content }),
+  });
+}
+
+export async function fetchPostComments(postId: string, options: FeedRequestOptions = {}) {
+  return apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
+    signal: options.signal,
+  });
+}
+
+export async function deleteComment(postId: string, commentId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/comments/${commentId}`, {
+    method: 'DELETE',
   });
 }
 
