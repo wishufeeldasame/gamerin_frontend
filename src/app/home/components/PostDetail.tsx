@@ -276,8 +276,7 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
                 className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
-                aria-disabled={!canDeletePost}
-              >
+                disabled={!canDeletePost}
                 <MoreHorizontal size={24} />
               </button>
 
