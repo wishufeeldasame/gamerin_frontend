@@ -193,10 +193,11 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
                   setMenuOpen((current) => !current);
                 }
               }}
-              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
+              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}
               disabled={!canDeletePost}
+            >
               <MoreHorizontal size={20} />
             </button>
 

@@ -273,10 +273,11 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
                     setMenuOpen((current) => !current);
                   }
                 }}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
                 disabled={!canDeletePost}
+              >
                 <MoreHorizontal size={24} />
               </button>
 
