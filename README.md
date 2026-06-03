@@ -44,6 +44,10 @@ npm run dev
 **backend/src/main/resources/application-local.example.yaml** 을 참고하여 같은 디렉토리에 application-local.yaml 생성.
 그 후 본인이 설정한 패스워드 입력
 
+### 4. .env.local 생성 
+프론트엔드 프로젝트 폴더에 .env.local 파일 생성 후 NEXT_PUBLIC_API_BASE_URL=http://localhost:8080 적어두고 저장.![alt text](image.png)
+
+- docker 세팅으로 인해서 로컬 개발 서버 실행시 해당 부분이 꼭 필요함. 
 
 ### 4. 수정 일지
 
