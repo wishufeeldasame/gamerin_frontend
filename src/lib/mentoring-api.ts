@@ -89,6 +89,8 @@ export interface MentoringApplicationResponse {
 export interface MentoringReviewResponse {
   id: string;
   applicationId: string;
+  programId: string;
+  programTitle: string;
   menteeNickname: string;
   rating: number;
   content: string;
