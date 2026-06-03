@@ -634,6 +634,7 @@ export default function ProfilePage() {
                   post={post}
                   onShare={handlePostUpdated}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                  onBookmarkChange={handlePostUpdated}
                 />
               ))
             )}

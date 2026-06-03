@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
+import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
@@ -21,8 +22,10 @@ interface PostProps {
   post: PostRecord;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
+  onOpenComments?: (post: PostRecord) => void;
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
+  onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
   onDelete?: (post: PostRecord) => void;
 }
 
@@ -35,7 +38,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     const item = media[0];
     if (item.mediaType === 'VIDEO') {
       return (
-        <div className="px-5 pb-4">
+        <div className="px-5 pb-4" data-card-open-ignore="true">
           <div className="overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
             <video
               controls
@@ -70,12 +73,14 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
       {media.slice(0, 4).map((item) => (
         <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
           {item.mediaType === 'VIDEO' ? (
-            <video
-              controls
-              poster={item.thumbnailUrl ?? undefined}
-              className="h-52 w-full bg-black object-cover"
-              src={item.mediaUrl}
-            />
+            <div data-card-open-ignore="true">
+              <video
+                controls
+                poster={item.thumbnailUrl ?? undefined}
+                className="h-52 w-full bg-black object-cover"
+                src={item.mediaUrl}
+              />
+            </div>
           ) : (
             <Image
               src={item.mediaUrl}
@@ -92,7 +97,16 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
   );
 }
 
-export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChange, onDelete }: PostProps) {
+export function Post({
+  post,
+  onToggleLike,
+  onOpenDetail,
+  onOpenComments,
+  onShare,
+  onBookmarkChange,
+  onBookmarkSuccess,
+  onDelete,
+}: PostProps) {
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
@@ -103,9 +117,47 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
   const [bookmarking, setBookmarking] = useState(false);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
 
+  const shouldIgnoreCardOpen = (target: EventTarget | null) => {
+    if (!(target instanceof Element)) {
+      return false;
+    }
+
+    return Boolean(target.closest('a, button, input, select, textarea, video, [data-card-open-ignore="true"]'));
+  };
+
   useEffect(() => {
     setBookmarked(post.bookmarkedByMe);
   }, [post.bookmarkedByMe]);
+
+  const handleOpenDetailFromCard = (event: MouseEvent<HTMLElement>) => {
+    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
+      return;
+    }
+
+    onOpenDetail(post);
+  };
+
+  const handleOpenDetailFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
+    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
+      return;
+    }
+
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+
+    event.preventDefault();
+    onOpenDetail(post);
+  };
+
+  const handleOpenComments = () => {
+    if (onOpenComments) {
+      onOpenComments(post);
+      return;
+    }
+
+    onOpenDetail?.(post);
+  };
 
   const handleToggleBookmark = async () => {
     if (bookmarking) {
@@ -124,6 +176,7 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
       } else {
         await unbookmarkPost(post.postId);
       }
+      onBookmarkSuccess?.(nextPost, nextBookmarked);
     } catch (error) {
       setBookmarked(bookmarked);
       onBookmarkChange?.(post, bookmarked);
@@ -160,11 +213,17 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
     <>
       <motion.article
         whileHover={{ y: -4 }}
-        className="overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+        onClick={handleOpenDetailFromCard}
+        onKeyDown={handleOpenDetailFromKeyboard}
+        role={onOpenDetail ? 'button' : undefined}
+        tabIndex={onOpenDetail ? 0 : undefined}
+        className={`overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl ${
+          onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
+        }`}
       >
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-4" data-card-open-ignore="true">
             {post.authorProfileImageUrl ? (
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl shadow-inner">
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
@@ -217,13 +276,9 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
         </div>
 
         {post.content ? (
-          <button
-            type="button"
-            onClick={() => onOpenDetail?.(post)}
-            className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800"
-          >
+          <p className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
             {post.content}
-          </button>
+          </p>
         ) : null}
         </div>
 
@@ -244,8 +299,9 @@ export function Post({ post, onToggleLike, onOpenDetail, onShare, onBookmarkChan
 
           <button
             type="button"
-            onClick={() => onOpenDetail?.(post)}
+            onClick={handleOpenComments}
             className="flex items-center gap-2 transition-colors hover:text-black"
+            aria-label="댓글 보기"
           >
             <MessageCircle size={20} />
             <span className="text-sm font-black text-zinc-800">{post.comments}</span>

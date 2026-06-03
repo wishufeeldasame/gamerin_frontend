@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -27,12 +27,15 @@ import { SharePostModal } from './SharePostModal';
 interface PostDetailProps {
   postId: string;
   onBack: () => void;
+  initialScrollTarget?: 'comments';
   onPostUpdated?: (post: PostRecord) => void;
   onPostDeleted?: (postId: string) => void;
 }
 
-export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: PostDetailProps) {
+export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated, onPostDeleted }: PostDetailProps) {
   const { user } = useAuth();
+  const commentsSectionRef = useRef<HTMLDivElement | null>(null);
+  const scrolledToCommentsRef = useRef(false);
   const [post, setPost] = useState<PostRecord | null>(null);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
@@ -46,6 +49,21 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    scrolledToCommentsRef.current = false;
+  }, [postId, initialScrollTarget]);
+
+  useEffect(() => {
+    if (loading || !post || initialScrollTarget !== 'comments' || scrolledToCommentsRef.current) {
+      return;
+    }
+
+    scrolledToCommentsRef.current = true;
+    window.requestAnimationFrame(() => {
+      commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [initialScrollTarget, loading, post]);
 
   useEffect(() => {
     let cancelled = false;
@@ -361,7 +379,7 @@ export function PostDetail({ postId, onBack, onPostUpdated, onPostDeleted }: Pos
             </button>
           </div>
 
-          <div className="mt-10 space-y-8">
+          <div ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
             <div className="flex gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
                 ME

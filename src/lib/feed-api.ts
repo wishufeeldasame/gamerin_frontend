@@ -360,7 +360,7 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   return apiRequest<CursorPage<ProfileMediaItem>>(`/api/v1/users/${handle}/media?${search.toString()}`);
 }
 
-export async function fetchMyBookmarks(cursor?: string | null, size = 20) {
+export async function fetchMyBookmarks(cursor?: string | null, size = 20, options: FeedRequestOptions = {}) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -369,6 +369,8 @@ export async function fetchMyBookmarks(cursor?: string | null, size = 20) {
     search.set('cursor', cursor);
   }
 
-  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`);
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
+    signal: options.signal,
+  });
   return normalizeCursorPage(page, normalizePostRecord);
 }

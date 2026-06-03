@@ -9,6 +9,7 @@ import { PostDetail } from './components/PostDetail';
 import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
+type PostDetailTarget = 'post' | 'comments';
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
@@ -18,13 +19,16 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const [selectedPostTarget, setSelectedPostTarget] = useState<PostDetailTarget>('post');
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     const syncPostFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
+      const target = params.get('target') === 'comments' ? 'comments' : 'post';
       setSelectedPostId(params.get('postId'));
+      setSelectedPostTarget(target);
     };
 
     syncPostFromUrl();
@@ -110,17 +114,28 @@ export default function HomePage() {
     );
   };
 
+  const handleBookmarkChanged = (updatedPost: PostRecord) => {
+    handlePostUpdated(updatedPost);
+  };
+
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleOpenPost = (postId: string) => {
+  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
     setSelectedPostId(postId);
-    window.history.pushState(null, '', `/home?postId=${encodeURIComponent(postId)}`);
+    setSelectedPostTarget(target);
+
+    const search = new URLSearchParams({ postId });
+    if (target === 'comments') {
+      search.set('target', 'comments');
+    }
+    window.history.pushState(null, '', `/home?${search.toString()}`);
   };
 
   const handleClosePost = () => {
     setSelectedPostId(null);
+    setSelectedPostTarget('post');
     window.history.pushState(null, '', '/home');
   };
 
@@ -161,6 +176,7 @@ export default function HomePage() {
             <PostDetail
               postId={selectedPostId}
               onBack={handleClosePost}
+              initialScrollTarget={selectedPostTarget === 'comments' ? 'comments' : undefined}
               onPostUpdated={handlePostUpdated}
               onPostDeleted={handlePostDeleted}
             />
@@ -218,8 +234,10 @@ export default function HomePage() {
                         post={post}
                         onToggleLike={handleToggleLike}
                         onOpenDetail={(selected) => handleOpenPost(selected.postId)}
+                        onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                         onShare={handlePostUpdated}
                         onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                        onBookmarkChange={handleBookmarkChanged}
                       />
                     </motion.div>
                   ))}
