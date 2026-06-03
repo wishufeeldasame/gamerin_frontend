@@ -48,6 +48,7 @@ const userPosts: PostRecord[] = [
     comments: 23,
     shares: 8,
     likedByMe: false,
+    bookmarkedByMe: false,
     mine: true,
     createdAt: new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString(),
   },

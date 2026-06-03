@@ -4,7 +4,6 @@ import Image from 'next/image';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
   PostRecord,
@@ -26,7 +25,6 @@ interface PostDetailProps {
 }
 
 export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
-  const { user } = useAuth();
   const [post, setPost] = useState<PostRecord | null>(null);
   const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
   const [commentText, setCommentText] = useState('');

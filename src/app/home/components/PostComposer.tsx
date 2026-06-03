@@ -1,5 +1,7 @@
 'use client';
 
+/* eslint-disable @next/next/no-img-element */
+
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import { ImagePlus, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -18,7 +20,7 @@ interface ThumbnailOption {
 }
 
 const MAX_IMAGE_COUNT = 4;
-const MAX_VIDEO_THUMBNAILS = 4;
+const MAX_VIDEO_THUMBNAILS: number = 4;
 const MAX_VIDEO_COUNT = 1;
 const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 120;

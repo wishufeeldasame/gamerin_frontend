@@ -20,6 +20,15 @@ export interface PostMedia {
   mediaUrl: string;
   thumbnailUrl: string | null;
   sortOrder: number;
+  durationSeconds?: number | null;
+}
+
+export interface ExternalLinkCard {
+  url: string;
+  host: string;
+  title: string;
+  description: string;
+  thumbnailUrl: string | null;
 }
 
 export interface PostRecord {
@@ -28,8 +37,10 @@ export interface PostRecord {
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
+  game?: string | null;
   content: string | null;
   media: PostMedia[];
+  externalLink?: ExternalLinkCard | null;
   likes: number;
   comments: number;
   shares: number;
