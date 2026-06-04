@@ -128,6 +128,16 @@ export class MentoringAuthError extends Error {
   }
 }
 
+export class MentoringApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = 'MentoringApiError';
+  }
+}
+
 export function isMentoringAuthError(error: unknown): error is MentoringAuthError {
   return (
     error instanceof MentoringAuthError ||
@@ -136,6 +146,10 @@ export function isMentoringAuthError(error: unknown): error is MentoringAuthErro
         error.message.includes('Authentication is required') ||
         error.message.includes('token has expired')))
   );
+}
+
+export function isMentoringNotFoundError(error: unknown): error is MentoringApiError {
+  return error instanceof MentoringApiError && error.status === 404;
 }
 
 async function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -191,6 +205,14 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   }
 
   if (!result.response.ok) {
+    if (result.response.status === 404) {
+      const message =
+        result.payload && typeof result.payload === 'object' && 'message' in result.payload
+          ? result.payload.message
+          : 'Mentoring resource was not found.';
+      throw new MentoringApiError(message, result.response.status);
+    }
+
     if (result.response.status === 401) {
       if (!authRequired) {
         throw new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');

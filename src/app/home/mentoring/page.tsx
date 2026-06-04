@@ -27,7 +27,6 @@ import {
   completeMentoringApplication,
   createMentoringProgram,
   createMentoringReview,
-  deleteMentoringApplication,
   deleteMentoringProgram,
   emptyPage,
   fetchMenteeApplications,
@@ -38,6 +37,7 @@ import {
   fetchMentorProfile,
   finishMentoringApplication,
   isMentoringAuthError,
+  isMentoringNotFoundError,
   registerMentor,
   rejectMentoringApplication,
   startMentoringApplication,
@@ -73,6 +73,7 @@ type ProgramForm = {
 };
 
 const mentoringGames = ['전체', 'PUBG', 'League of Legends', 'Valorant', 'Overwatch', 'CS2', 'Other'];
+const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
 
 const defaultProgramForm: ProgramForm = {
   gameName: 'PUBG',
@@ -234,6 +235,19 @@ function canOpenMentoringChat(status: ApplicationStatus) {
   return status === 'ACCEPTED' || status === 'ONGOING' || status === 'FINISHED' || status === 'COMPLETED';
 }
 
+function isDuplicateReviewError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message.toLowerCase();
+
+  return (
+    (message.includes('이미') && message.includes('리뷰') && message.includes('작성')) ||
+    (message.includes('already') && message.includes('review'))
+  );
+}
+
 export default function MentoringPage() {
   const router = useRouter();
   const { user, logout, isAuthReady } = useAuth();
@@ -335,6 +349,13 @@ export default function MentoringPage() {
     setErrorMessage('');
   }, []);
 
+  const markApplicationReviewed = useCallback((applicationId: string) => {
+    setReviewedApplicationIds((current) => ({
+      ...current,
+      [applicationId]: true,
+    }));
+  }, []);
+
   const showError = useCallback((error: unknown) => {
     if (isMileageShortageError(error)) {
       setBannerType('mileage');
@@ -413,13 +434,17 @@ export default function MentoringPage() {
       const profile = await fetchMentorProfile(currentUserId);
       setMentorProfile(profile);
       setMentorAbout(profile.about ?? '');
-    } catch {
+    } catch (error) {
       setMentorProfile(null);
       setMentorAbout('');
+
+      if (!isMentoringNotFoundError(error)) {
+        showError(error);
+      }
     } finally {
       setMentorProfileLoading(false);
     }
-  }, [currentUserId]);
+  }, [currentUserId, showError]);
 
   const loadMentorReviews = useCallback(async () => {
     if (!currentUserId) {
@@ -465,11 +490,34 @@ export default function MentoringPage() {
     setMenteeApplications(nextMenteeApplications);
     setMentorApplications(mentorResult.status === 'fulfilled' ? mentorResult.value.content : []);
 
+    const completedApplications = nextMenteeApplications.filter((application) => application.status === 'COMPLETED');
+    const completedApplicationIds = new Set(completedApplications.map((application) => application.id));
+    const reviewedIdsFromMentorReviews = new Set<string>();
+
+    if (completedApplications.length > 0) {
+      const mentorIds = Array.from(new Set(completedApplications.map((application) => application.mentorId).filter(Boolean)));
+      const reviewResults = await Promise.allSettled(mentorIds.map((mentorId) => fetchMentorReviews(mentorId, 0, 100)));
+
+      reviewResults.forEach((result) => {
+        if (result.status !== 'fulfilled') {
+          return;
+        }
+
+        result.value.content.forEach((review) => {
+          if (completedApplicationIds.has(review.applicationId)) {
+            reviewedIdsFromMentorReviews.add(review.applicationId);
+          }
+        });
+      });
+    }
+
     setReviewedApplicationIds((current) => {
       const next = { ...current };
       nextMenteeApplications.forEach((application) => {
         if (!next[application.id]) {
-          next[application.id] = reviewHistory.some((review) => review.applicationId === application.id);
+          next[application.id] =
+            reviewedIdsFromMentorReviews.has(application.id) ||
+            reviewHistory.some((review) => review.applicationId === application.id);
         }
       });
       return next;
@@ -765,24 +813,6 @@ export default function MentoringPage() {
     }
   };
 
-  const handleDeleteApplication = async (applicationId: string) => {
-    const ok = window.confirm('취소한 멘토링 요청 내역을 삭제할까요?');
-    if (!ok) return;
-
-    setPendingAction(`delete-application:${applicationId}`);
-    clearMessages();
-
-    try {
-      await deleteMentoringApplication(applicationId);
-      showNotice('취소한 멘토링 요청 내역을 삭제했습니다.');
-      await Promise.all([loadApplications(), loadMileageData()]);
-    } catch (error) {
-      showError(error);
-    } finally {
-      setPendingAction('');
-    }
-  };
-
   const openReviewModal = (application: MentoringApplicationResponse) => {
     clearMessages();
     setReviewTarget(application);
@@ -824,13 +854,17 @@ export default function MentoringPage() {
       });
 
       setReviewHistory((current) => [review, ...current]);
-      setReviewedApplicationIds((current) => ({
-        ...current,
-        [reviewTarget.id]: true,
-      }));
+      markApplicationReviewed(reviewTarget.id);
       showNotice('리뷰를 등록했습니다.');
       closeReviewModal();
     } catch (error) {
+      if (isDuplicateReviewError(error)) {
+        markApplicationReviewed(reviewTarget.id);
+        showNotice(REVIEW_ALREADY_COMPLETED_MESSAGE);
+        closeReviewModal();
+        return;
+      }
+
       showError(error);
     } finally {
       setPendingAction('');
@@ -1105,9 +1139,9 @@ export default function MentoringPage() {
                 pendingAction={pendingAction}
                 onChat={(application) => handleOpenChat(application, 'mentee')}
                 onCancel={(id) => runApplicationAction(id, 'cancel')}
-                onDelete={(id) => handleDeleteApplication(id)}
                 onComplete={(id) => runApplicationAction(id, 'complete')}
                 onReview={(application) => openReviewModal(application)}
+                onReviewedClick={() => showNotice(REVIEW_ALREADY_COMPLETED_MESSAGE)}
               />
               <ApplicationList
                 title="받은 멘토링 요청"
@@ -1744,11 +1778,11 @@ function ApplicationList({
   onAccept,
   onReject,
   onCancel,
-  onDelete,
   onStart,
   onFinish,
   onComplete,
   onReview,
+  onReviewedClick,
 }: {
   title: string;
   role: 'mentor' | 'mentee';
@@ -1759,11 +1793,11 @@ function ApplicationList({
   onAccept?: (id: string) => void;
   onReject?: (id: string) => void;
   onCancel?: (id: string) => void;
-  onDelete?: (id: string) => void;
   onStart?: (id: string) => void;
   onFinish?: (id: string) => void;
   onComplete?: (id: string) => void;
   onReview?: (application: MentoringApplicationResponse) => void;
+  onReviewedClick?: (application: MentoringApplicationResponse) => void;
 }) {
   return (
     <div className="rounded-2xl border border-zinc-100 p-5">
@@ -1781,11 +1815,11 @@ function ApplicationList({
               onAccept={() => onAccept?.(application.id)}
               onReject={() => onReject?.(application.id)}
               onCancel={() => onCancel?.(application.id)}
-              onDelete={() => onDelete?.(application.id)}
               onStart={() => onStart?.(application.id)}
               onFinish={() => onFinish?.(application.id)}
               onComplete={() => onComplete?.(application.id)}
               onReview={() => onReview?.(application)}
+              onReviewedClick={() => onReviewedClick?.(application)}
             />
           ))
         ) : (
@@ -1807,11 +1841,11 @@ function ApplicationCard({
   onAccept,
   onReject,
   onCancel,
-  onDelete,
   onStart,
   onFinish,
   onComplete,
   onReview,
+  onReviewedClick,
 }: {
   application: MentoringApplicationResponse;
   role: 'mentor' | 'mentee';
@@ -1821,11 +1855,11 @@ function ApplicationCard({
   onAccept?: () => void;
   onReject?: () => void;
   onCancel?: () => void;
-  onDelete?: () => void;
   onStart?: () => void;
   onFinish?: () => void;
   onComplete?: () => void;
   onReview?: () => void;
+  onReviewedClick?: () => void;
 }) {
   const actionPending = pendingAction.endsWith(`:${application.id}`);
   const guide = applicationGuide(role, application.status, application.paymentStatus);
@@ -1840,9 +1874,11 @@ function ApplicationCard({
             멘토 {application.mentorNickname} · 멘티 {application.menteeNickname}
           </p>
         </div>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
-          {statusLabel[application.status] ?? application.status}
-        </span>
+        {application.status !== 'CANCELLED' ? (
+          <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
+            {statusLabel[application.status] ?? application.status}
+          </span>
+        ) : null}
       </div>
 
       <p className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm font-medium leading-6 text-zinc-600">
@@ -1903,18 +1939,6 @@ function ApplicationCard({
           </button>
         ) : null}
 
-        {role === 'mentee' && application.status === 'CANCELLED' ? (
-          <button
-            type="button"
-            onClick={onDelete}
-            disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-800 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
-          >
-            <Trash2 size={14} />
-            삭제
-          </button>
-        ) : null}
-
         {role === 'mentor' && application.status === 'ACCEPTED' ? (
           <button
             type="button"
@@ -1964,10 +1988,15 @@ function ApplicationCard({
         ) : null}
 
         {role === 'mentee' && application.status === 'COMPLETED' && reviewed ? (
-          <span className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-500">
+          <button
+            type="button"
+            onClick={onReviewedClick}
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-500"
+            title={REVIEW_ALREADY_COMPLETED_MESSAGE}
+          >
             <Check size={14} />
             리뷰 작성 완료
-          </span>
+          </button>
         ) : null}
       </div>
     </article>
