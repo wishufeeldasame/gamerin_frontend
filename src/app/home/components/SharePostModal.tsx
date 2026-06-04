@@ -1,8 +1,8 @@
 'use client';
 
-import { Check, Loader2, Search, Send, X } from 'lucide-react';
+import { Check, Copy, Loader2, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { PostRecord, getInitials } from '@/lib/feed-api';
+import { PostRecord, getInitials, sharePost } from '@/lib/feed-api';
 import { searchMessageRecipients, sharePostMessage } from '@/lib/message-api';
 import { MessageRecipient } from '@/lib/message-store';
 
@@ -10,6 +10,14 @@ interface SharePostModalProps {
   post: PostRecord;
   onClose: () => void;
   onShared?: (post: PostRecord) => void;
+}
+
+function buildPostUrl(postId: string) {
+  if (typeof window === 'undefined') {
+    return `/home?postId=${postId}`;
+  }
+
+  return `${window.location.origin}/home?postId=${postId}`;
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
@@ -20,6 +28,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
@@ -56,6 +65,35 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   );
   const canSend = selectedIds.length > 0 && !sending && !sent;
 
+  const updateShareCount = (shares: number) => {
+    onShared?.({
+      ...post,
+      shares,
+    });
+  };
+
+  const handleCopyLink = async () => {
+    if (sending) return;
+
+    try {
+      setSending(true);
+      setErrorMessage('');
+      const response = await sharePost(post.postId, 'COPY_LINK');
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(buildPostUrl(post.postId)).catch(() => undefined);
+      }
+
+      setCopied(true);
+      updateShareCount(response.shares);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : '게시글 링크 복사에 실패했습니다.');
+    } finally {
+      setSending(false);
+    }
+  };
+
   const toggleRecipient = (recipientId: string) => {
     setSelectedIds((current) =>
       current.includes(recipientId)
@@ -76,13 +114,10 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
         recipientIds: selectedIds,
         content: message,
       });
+      const response = await sharePost(post.postId, 'OTHER');
 
       setSent(true);
-      onShared?.({
-        ...post,
-        shares: post.shares + 1,
-      });
-
+      updateShareCount(response.shares);
       window.setTimeout(onClose, 900);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : '게시글 공유에 실패했습니다.');
@@ -97,7 +132,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
             <h2 className="text-xl font-black text-black">게시글 공유</h2>
-            <p className="text-sm font-bold text-zinc-400">메시지로 보낼 사람을 선택하세요</p>
+            <p className="text-sm font-bold text-zinc-400">링크를 복사하거나 메시지로 보낼 사람을 선택하세요</p>
           </div>
           <button
             type="button"
@@ -121,9 +156,19 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
               </div>
             </div>
             <p className="line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
-              {post.content || '미디어 게시물'}
+              {post.content || '미디어 게시글'}
             </p>
           </div>
+
+          <button
+            type="button"
+            onClick={() => void handleCopyLink()}
+            disabled={sending}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-zinc-200 bg-white text-sm font-black text-black transition hover:border-black disabled:cursor-not-allowed disabled:text-zinc-300"
+          >
+            {copied ? <Check size={18} /> : <Copy size={18} />}
+            {copied ? '복사됨' : '링크 복사'}
+          </button>
 
           <div className="relative">
             <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" />

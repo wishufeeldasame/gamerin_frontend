@@ -8,9 +8,8 @@ import {
   clearStoredAuth,
   refreshAccessToken,
 } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = getApiBaseUrl();
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {

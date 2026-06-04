@@ -5,9 +5,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { ChevronLeft, AlertCircle, CheckCircle2, User } from 'lucide-react';
-import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = getApiBaseUrl();
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const SUCCESS_MESSAGE =
   '입력한 정보가 유효하면 비밀번호 재설정 메일을 발송했습니다.';
 const SUBMIT_ERROR_MESSAGE =

@@ -4,11 +4,12 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 
-const API_BASE = getApiBaseUrl();
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
 
 type JwtPayload = {
   sub?: string;

@@ -1,14 +1,12 @@
 'use client';
 
-import { getApiBaseUrl } from '@/lib/api-base';
-
 let accessTokenMemory: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
 const ACCESS_TOKEN_KEY = 'gamerin_access_token';
 export const AUTH_USER_KEY = 'gamerin_user';
 export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
-const API_BASE = getApiBaseUrl();
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export function setAccessToken(token: string) {
   accessTokenMemory = token;

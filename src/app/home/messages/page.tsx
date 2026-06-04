@@ -18,7 +18,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -510,6 +510,7 @@ function MessageBubble({
 
 export default function MessagesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, logout, isAuthReady } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -540,6 +541,7 @@ export default function MessagesPage() {
   const [editingText, setEditingText] = useState('');
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
+  const requestedConversationId = searchParams.get('conversationId') ?? '';
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -786,6 +788,7 @@ export default function MessagesPage() {
   }, [conversations, query]);
 
   const handleSelectConversation = (conversationId: string) => {
+    router.replace(`/home/messages?conversationId=${encodeURIComponent(conversationId)}`);
     setActiveConversationId(conversationId);
     setMobileView('chat');
     setComposerError('');
@@ -814,6 +817,7 @@ export default function MessagesPage() {
         [conversation.id]: false,
       }));
       setActiveConversationId(conversation.id);
+      router.replace(`/home/messages?conversationId=${encodeURIComponent(conversation.id)}`);
       setShowNewChat(false);
       setMobileView('chat');
       setPageError('');
@@ -822,6 +826,14 @@ export default function MessagesPage() {
       setIsAuthError(isMessageAuthError(error));
     }
   };
+
+  useEffect(() => {
+    if (!requestedConversationId) return;
+    if (!conversations.some((conversation) => conversation.id === requestedConversationId)) return;
+
+    setActiveConversationId(requestedConversationId);
+    setMobileView('chat');
+  }, [conversations, requestedConversationId]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

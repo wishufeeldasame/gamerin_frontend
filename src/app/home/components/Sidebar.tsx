@@ -7,7 +7,7 @@ import { useAuth } from '@/app/context/AuthContext';
 
 const menuItems = [
   { icon: Home, label: '홈', href: '/home' },
-  { icon: Bookmark, label: '북마크', href: '/home/friends' },
+  { icon: Bookmark, label: '북마크', href: '/home/bookmarks' },
   { icon: MessageSquare, label: '메시지', href: '/home/messages' },
   { icon: BookOpen, label: '멘토링', href: '/home/mentoring' },
   { icon: User, label: '프로필', href: '/home/profile' },
