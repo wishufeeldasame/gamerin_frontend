@@ -85,6 +85,7 @@ export interface MentoringApplicationResponse {
   paymentStatus: PaymentStatus;
   message: string;
   createdAt: string;
+  reviewed: boolean;
 }
 
 export interface MentoringReviewResponse {
@@ -207,7 +208,10 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   if (!result.response.ok) {
     if (result.response.status === 404) {
       const message =
-        result.payload && typeof result.payload === 'object' && 'message' in result.payload
+        result.payload &&
+        typeof result.payload === 'object' &&
+        'message' in result.payload &&
+        typeof result.payload.message === 'string'
           ? result.payload.message
           : 'Mentoring resource was not found.';
       throw new MentoringApiError(message, result.response.status);
@@ -260,6 +264,10 @@ export function fetchMentorProfile(mentorId: string) {
   return mentoringRequest<MentorProfileResponse>(`${MENTORING_BASE}/mentors/${mentorId}`, {
     authRequired: false,
   });
+}
+
+export function fetchMyMentorProfile() {
+  return mentoringRequest<MentorProfileResponse | null>(`${MENTORING_BASE}/mentors/me`);
 }
 
 export function createMentoringProgram(payload: MentoringProgramRequest) {
@@ -346,12 +354,6 @@ export function cancelMentoringApplication(applicationId: string) {
     `${MENTORING_BASE}/applications/${applicationId}/cancel`,
     { method: 'PATCH' }
   );
-}
-
-export async function deleteMentoringApplication(applicationId: string) {
-  await mentoringRequest<null>(`${MENTORING_BASE}/applications/${applicationId}`, {
-    method: 'DELETE',
-  });
 }
 
 export function startMentoringApplication(applicationId: string) {

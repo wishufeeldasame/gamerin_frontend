@@ -34,10 +34,10 @@ import {
   fetchMentorApplications,
   fetchMentoringProgramDetail,
   fetchMentoringPrograms,
+  fetchMyMentorProfile,
   fetchMentorProfile,
   finishMentoringApplication,
   isMentoringAuthError,
-  isMentoringNotFoundError,
   registerMentor,
   rejectMentoringApplication,
   startMentoringApplication,
@@ -276,7 +276,6 @@ export default function MentoringPage() {
 
   const [menteeApplications, setMenteeApplications] = useState<MentoringApplicationResponse[]>([]);
   const [mentorApplications, setMentorApplications] = useState<MentoringApplicationResponse[]>([]);
-  const [reviewedApplicationIds, setReviewedApplicationIds] = useState<Record<string, boolean>>({});
   const [mileageBalance, setMileageBalance] = useState(0);
   const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
   const [mileagePage, setMileagePage] = useState<MileagePageResponse<MileageTransactionResponse> | null>(null);
@@ -286,7 +285,6 @@ export default function MentoringPage() {
   const [reviewTarget, setReviewTarget] = useState<MentoringApplicationResponse | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewContent, setReviewContent] = useState('');
-  const [reviewHistory, setReviewHistory] = useState<MentoringReviewResponse[]>([]);
   const [mentorReviews, setMentorReviews] = useState<MentoringReviewResponse[]>([]);
   const [mentorReviewsLoading, setMentorReviewsLoading] = useState(false);
 
@@ -294,6 +292,7 @@ export default function MentoringPage() {
   const [bannerType, setBannerType] = useState<MentoringBannerType>(null);
   const [authMessage, setAuthMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [showMileageShortageModal, setShowMileageShortageModal] = useState(false);
   const [pendingAction, setPendingAction] = useState('');
 
   const totalPages = Math.max(programPage.totalPages || 1, 1);
@@ -347,13 +346,15 @@ export default function MentoringPage() {
     setBannerType(null);
     setAuthMessage('');
     setErrorMessage('');
+    setShowMileageShortageModal(false);
   }, []);
 
   const markApplicationReviewed = useCallback((applicationId: string) => {
-    setReviewedApplicationIds((current) => ({
-      ...current,
-      [applicationId]: true,
-    }));
+    setMenteeApplications((current) =>
+      current.map((application) =>
+        application.id === applicationId ? { ...application, reviewed: true } : application
+      )
+    );
   }, []);
 
   const showError = useCallback((error: unknown) => {
@@ -361,6 +362,7 @@ export default function MentoringPage() {
       setBannerType('mileage');
       setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해주세요.');
       setErrorMessage('');
+      setShowMileageShortageModal(true);
       return;
     }
 
@@ -431,16 +433,13 @@ export default function MentoringPage() {
 
     setMentorProfileLoading(true);
     try {
-      const profile = await fetchMentorProfile(currentUserId);
+      const profile = await fetchMyMentorProfile();
       setMentorProfile(profile);
-      setMentorAbout(profile.about ?? '');
+      setMentorAbout(profile?.about ?? '');
     } catch (error) {
       setMentorProfile(null);
       setMentorAbout('');
-
-      if (!isMentoringNotFoundError(error)) {
-        showError(error);
-      }
+      showError(error);
     } finally {
       setMentorProfileLoading(false);
     }
@@ -489,40 +488,7 @@ export default function MentoringPage() {
     const nextMenteeApplications = menteeResult.status === 'fulfilled' ? menteeResult.value.content : [];
     setMenteeApplications(nextMenteeApplications);
     setMentorApplications(mentorResult.status === 'fulfilled' ? mentorResult.value.content : []);
-
-    const completedApplications = nextMenteeApplications.filter((application) => application.status === 'COMPLETED');
-    const completedApplicationIds = new Set(completedApplications.map((application) => application.id));
-    const reviewedIdsFromMentorReviews = new Set<string>();
-
-    if (completedApplications.length > 0) {
-      const mentorIds = Array.from(new Set(completedApplications.map((application) => application.mentorId).filter(Boolean)));
-      const reviewResults = await Promise.allSettled(mentorIds.map((mentorId) => fetchMentorReviews(mentorId, 0, 100)));
-
-      reviewResults.forEach((result) => {
-        if (result.status !== 'fulfilled') {
-          return;
-        }
-
-        result.value.content.forEach((review) => {
-          if (completedApplicationIds.has(review.applicationId)) {
-            reviewedIdsFromMentorReviews.add(review.applicationId);
-          }
-        });
-      });
-    }
-
-    setReviewedApplicationIds((current) => {
-      const next = { ...current };
-      nextMenteeApplications.forEach((application) => {
-        if (!next[application.id]) {
-          next[application.id] =
-            reviewedIdsFromMentorReviews.has(application.id) ||
-            reviewHistory.some((review) => review.applicationId === application.id);
-        }
-      });
-      return next;
-    });
-  }, [currentUserId, reviewHistory, showError]);
+  }, [currentUserId, showError]);
 
   const loadMileageData = useCallback(async () => {
     if (!currentUserId) {
@@ -722,6 +688,18 @@ export default function MentoringPage() {
     clearMessages();
 
     try {
+      const balance = await fetchMyMileageBalance();
+      const currentBalance = balance.currentBalance ?? 0;
+      setMileageBalance(currentBalance);
+
+      if (currentBalance < selectedProgram.price) {
+        setBannerType('mileage');
+        setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해주세요.');
+        setErrorMessage('');
+        setShowMileageShortageModal(true);
+        return;
+      }
+
       await applyToMentoringProgram({
         programId: selectedProgram.id,
         message: applicationMessage.trim(),
@@ -813,6 +791,13 @@ export default function MentoringPage() {
     }
   };
 
+  const goToMileageCharge = () => {
+    setShowMileageShortageModal(false);
+    setSelectedProgram(null);
+    setSelectedProgramReviews([]);
+    changeTab('mine');
+  };
+
   const openReviewModal = (application: MentoringApplicationResponse) => {
     clearMessages();
     setReviewTarget(application);
@@ -847,13 +832,12 @@ export default function MentoringPage() {
     clearMessages();
 
     try {
-      const review = await createMentoringReview({
+      await createMentoringReview({
         applicationId: reviewTarget.id,
         rating: reviewRating,
         content,
       });
 
-      setReviewHistory((current) => [review, ...current]);
       markApplicationReviewed(reviewTarget.id);
       showNotice('리뷰를 등록했습니다.');
       closeReviewModal();
@@ -1135,7 +1119,6 @@ export default function MentoringPage() {
                 title="내가 신청한 멘토링"
                 role="mentee"
                 applications={menteeApplications}
-                reviewedApplicationIds={reviewedApplicationIds}
                 pendingAction={pendingAction}
                 onChat={(application) => handleOpenChat(application, 'mentee')}
                 onCancel={(id) => runApplicationAction(id, 'cancel')}
@@ -1147,7 +1130,6 @@ export default function MentoringPage() {
                 title="받은 멘토링 요청"
                 role="mentor"
                 applications={mentorApplications}
-                reviewedApplicationIds={reviewedApplicationIds}
                 pendingAction={pendingAction}
                 onChat={(application) => handleOpenChat(application, 'mentor')}
                 onAccept={(id) => runApplicationAction(id, 'accept')}
@@ -1574,6 +1556,70 @@ export default function MentoringPage() {
           </div>
         ) : null}
 
+        {showMileageShortageModal ? (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-8"
+            onClick={() => setShowMileageShortageModal(false)}
+          >
+            <div
+              className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="mileage-shortage-title"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-yellow-100 text-yellow-700">
+                    <AlertCircle size={22} />
+                  </div>
+                  <div>
+                    <p id="mileage-shortage-title" className="text-xl font-black text-black">
+                      마일리지가 부족합니다
+                    </p>
+                    <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">
+                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 충전 후 다시 신청해주세요.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowMileageShortageModal(false)}
+                  className="rounded-full bg-zinc-100 p-2 text-zinc-500"
+                  aria-label="닫기"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {selectedProgram ? (
+                <div className="mt-5 rounded-2xl bg-zinc-50 p-4">
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">신청 금액</p>
+                  <p className="mt-1 text-2xl font-black text-black">{formatMileage(selectedProgram.price)}</p>
+                </div>
+              ) : null}
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+                <button
+                  type="button"
+                  onClick={() => setShowMileageShortageModal(false)}
+                  className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-700"
+                >
+                  계속 보기
+                </button>
+                <button
+                  type="button"
+                  onClick={goToMileageCharge}
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white"
+                >
+                  <Wallet size={16} />
+                  충전하기
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {selectedOwnedProgram ? (
           <div
             className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 px-4 py-8"
@@ -1772,7 +1818,6 @@ function ApplicationList({
   title,
   role,
   applications,
-  reviewedApplicationIds,
   pendingAction,
   onChat,
   onAccept,
@@ -1787,7 +1832,6 @@ function ApplicationList({
   title: string;
   role: 'mentor' | 'mentee';
   applications: MentoringApplicationResponse[];
-  reviewedApplicationIds: Record<string, boolean>;
   pendingAction: string;
   onChat?: (application: MentoringApplicationResponse) => void;
   onAccept?: (id: string) => void;
@@ -1809,7 +1853,6 @@ function ApplicationList({
               key={application.id}
               application={application}
               role={role}
-              reviewed={Boolean(reviewedApplicationIds[application.id])}
               pendingAction={pendingAction}
               onChat={() => onChat?.(application)}
               onAccept={() => onAccept?.(application.id)}
@@ -1835,7 +1878,6 @@ function ApplicationList({
 function ApplicationCard({
   application,
   role,
-  reviewed,
   pendingAction,
   onChat,
   onAccept,
@@ -1849,7 +1891,6 @@ function ApplicationCard({
 }: {
   application: MentoringApplicationResponse;
   role: 'mentor' | 'mentee';
-  reviewed: boolean;
   pendingAction: string;
   onChat?: () => void;
   onAccept?: () => void;
@@ -1874,11 +1915,9 @@ function ApplicationCard({
             멘토 {application.mentorNickname} · 멘티 {application.menteeNickname}
           </p>
         </div>
-        {application.status !== 'CANCELLED' ? (
-          <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
-            {statusLabel[application.status] ?? application.status}
-          </span>
-        ) : null}
+        <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
+          {statusLabel[application.status] ?? application.status}
+        </span>
       </div>
 
       <p className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm font-medium leading-6 text-zinc-600">
@@ -1975,7 +2014,7 @@ function ApplicationCard({
           </button>
         ) : null}
 
-        {role === 'mentee' && application.status === 'COMPLETED' && !reviewed ? (
+        {role === 'mentee' && application.status === 'COMPLETED' && !application.reviewed ? (
           <button
             type="button"
             onClick={onReview}
@@ -1987,7 +2026,7 @@ function ApplicationCard({
           </button>
         ) : null}
 
-        {role === 'mentee' && application.status === 'COMPLETED' && reviewed ? (
+        {role === 'mentee' && application.status === 'COMPLETED' && application.reviewed ? (
           <button
             type="button"
             onClick={onReviewedClick}
