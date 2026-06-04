@@ -29,6 +29,8 @@ import {
   isMessageAuthError,
   leaveConversation,
   markConversationRead,
+  openMessageEventSource,
+  parseMessageRealtimeEvent,
   searchMessageRecipients,
   sendConversationMessage,
   updateConversationMessage,
@@ -44,7 +46,6 @@ import {
   mergeMessages,
 } from '@/lib/message-store';
 
-const MESSAGE_POLL_INTERVAL_MS = 7000;
 const MESSAGE_PAGE_SIZE = 30;
 
 type DraftAttachment = {
@@ -516,6 +517,7 @@ export default function MessagesPage() {
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const activeConversationIdRef = useRef('');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
@@ -546,6 +548,10 @@ export default function MessagesPage() {
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
 
   const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
     for (const target of targets) {
@@ -763,15 +769,71 @@ export default function MessagesPage() {
   }, [activeConversation]);
 
   useEffect(() => {
-    if (!activeConversationId) return;
+    if (!isAuthReady || !user) return;
 
-    const intervalId = window.setInterval(() => {
-      void loadConversations({ silent: true });
-      void loadMessages(activeConversationId, { silent: true });
-    }, MESSAGE_POLL_INTERVAL_MS);
+    let eventSource: EventSource | null = null;
+    let cancelled = false;
 
-    return () => window.clearInterval(intervalId);
-  }, [activeConversationId, loadConversations, loadMessages]);
+    const connect = async () => {
+      try {
+        eventSource = await openMessageEventSource();
+
+        eventSource.addEventListener('message-created', (event) => {
+          const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
+          const realtimeMessage = realtimeEvent.message;
+          if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
+            setMessagesByConversation((current) => ({
+              ...current,
+              [realtimeEvent.conversationId]: mergeMessages(
+                current[realtimeEvent.conversationId] ?? [],
+                [realtimeMessage]
+              ),
+            }));
+          }
+          void loadConversations({ silent: true });
+        });
+
+        eventSource.addEventListener('message-updated', (event) => {
+          const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
+          const realtimeMessage = realtimeEvent.message;
+          if (realtimeMessage) {
+            replaceMessageInConversation(realtimeEvent.conversationId, realtimeMessage);
+          }
+          void loadConversations({ silent: true });
+        });
+
+        eventSource.addEventListener('message-deleted', (event) => {
+          const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
+          removeMessageFromConversation(realtimeEvent.conversationId, realtimeEvent.messageId);
+          void loadConversations({ silent: true });
+        });
+
+        eventSource.onerror = () => {
+          if (!cancelled) {
+            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          }
+        };
+      } catch (error) {
+        if (!cancelled) {
+          setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
+          setIsAuthError(isMessageAuthError(error));
+        }
+      }
+    };
+
+    void connect();
+
+    return () => {
+      cancelled = true;
+      eventSource?.close();
+    };
+  }, [
+    isAuthReady,
+    loadConversations,
+    removeMessageFromConversation,
+    replaceMessageInConversation,
+    user,
+  ]);
 
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();

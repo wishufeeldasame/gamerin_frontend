@@ -65,6 +65,13 @@ type MessageCursorPayload = {
   hasNext: boolean;
 };
 
+export type MessageRealtimeEvent = {
+  type: 'message-created' | 'message-updated' | 'message-deleted';
+  conversationId: string;
+  message: ChatMessage | null;
+  messageId: string;
+};
+
 function normalizeUrl(url: string) {
   if (/^https?:\/\//i.test(url)) {
     return url;
@@ -168,6 +175,33 @@ export function isMessageAuthError(error: unknown) {
 export async function fetchConversationList() {
   const data = await messageRequest<ConversationPayload[]>('/conversations');
   return sortConversationsByUpdatedAt(data.map(toConversation));
+}
+
+export async function openMessageEventSource() {
+  const accessToken = await ensureAccessToken();
+  if (!accessToken) {
+    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+  }
+
+  const url = new URL(`${MESSAGE_BASE}/stream`);
+  url.searchParams.set('accessToken', accessToken);
+  return new EventSource(url.toString(), { withCredentials: true });
+}
+
+export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {
+  const payload = JSON.parse(rawData) as {
+    type: MessageRealtimeEvent['type'];
+    conversationId: string;
+    message: MessagePayload | null;
+    messageId: string;
+  };
+
+  return {
+    type: payload.type,
+    conversationId: payload.conversationId,
+    message: payload.message ? toMessage(payload.message) : null,
+    messageId: payload.messageId,
+  };
 }
 
 export async function searchMessageRecipients(keyword?: string, size = 10) {
