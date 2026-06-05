@@ -204,13 +204,15 @@ function isMileageShortageError(error: unknown) {
   }
 
   const message = error.message.toLowerCase();
-
-  return (
-    message.includes('마일리지') ||
+  const hasMileageTerm =
+    message.includes('마일리지') || message.includes('mileage') || message.includes('balance');
+  const hasShortageTerm =
     message.includes('부족') ||
     message.includes('insufficient') ||
-    message.includes('balance')
-  );
+    message.includes('shortage') ||
+    message.includes('not enough');
+
+  return hasMileageTerm && hasShortageTerm;
 }
 
 function isAuthRequiredError(error: unknown) {
@@ -416,13 +418,37 @@ export default function MentoringPage() {
   }, [clearMessages, gameFilter, programPageNumber, showError]);
 
   const loadOwnedPrograms = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setOwnedPrograms([]);
+      return;
+    }
 
     try {
-      const page = await fetchMentoringPrograms({ page: 0, size: 100 });
-      setOwnedPrograms(
-        page.content.filter((program) => normalizeId(program.mentorId) === normalizeId(currentUserId))
-      );
+      const size = 100;
+      const owned: MentoringProgramResponse[] = [];
+      const normalizedCurrentUserId = normalizeId(currentUserId);
+      let pageIndex = 0;
+
+      while (true) {
+        const page = await fetchMentoringPrograms({ page: pageIndex, size });
+
+        owned.push(
+          ...page.content.filter((program) => normalizeId(program.mentorId) === normalizedCurrentUserId)
+        );
+
+        const isLast =
+          page.last === true ||
+          (typeof page.totalPages === 'number' && pageIndex >= page.totalPages - 1) ||
+          page.content.length < size;
+
+        if (isLast) {
+          break;
+        }
+
+        pageIndex += 1;
+      }
+
+      setOwnedPrograms(owned);
     } catch {
       setOwnedPrograms([]);
     }
@@ -526,20 +552,33 @@ export default function MentoringPage() {
   }, [activeTab, loadPrograms]);
 
   useEffect(() => {
-    if (activeTab === 'mine' && isAuthReady && currentUserId) {
-      void Promise.all([loadApplications(), loadMileageData()]);
+    if (!isAuthReady) {
+      return;
     }
-  }, [activeTab, currentUserId, isAuthReady, loadApplications, loadMileageData]);
+
+    if (!currentUserId) {
+      setMenteeApplications([]);
+      setMentorApplications([]);
+      return;
+    }
+
+    void loadApplications();
+  }, [currentUserId, isAuthReady, loadApplications]);
+
+  useEffect(() => {
+    if (activeTab === 'mine' && isAuthReady && currentUserId) {
+      void loadMileageData();
+    }
+  }, [activeTab, currentUserId, isAuthReady, loadMileageData]);
 
   useEffect(() => {
     if (activeTab === 'programs' && isAuthReady && currentUserId) {
-      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews(), loadApplications()]);
+      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews()]);
     }
   }, [
     activeTab,
     currentUserId,
     isAuthReady,
-    loadApplications,
     loadCurrentMentorProfile,
     loadMentorReviews,
     loadOwnedPrograms,
