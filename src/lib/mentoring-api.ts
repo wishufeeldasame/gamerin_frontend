@@ -50,7 +50,7 @@ export interface MentoringProgramResponse {
   mentorNickname?: string;
   gameName: string;
   title: string;
-  content: string;
+  content: string | null;
   availableTimeDesc: string | null;
   status: ProgramStatus;
   price: number;
@@ -65,8 +65,9 @@ export interface MentoringProgramDetailResponse {
   mentorAbout: string;
   gameName: string;
   title: string;
-  content: string;
+  content: string | null;
   availableTimeDesc: string | null;
+  status: ProgramStatus;
   price: number;
   tags: string[] | null;
   createdAt: string;
