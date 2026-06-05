@@ -65,7 +65,7 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
     return { response, payload };
   };
 
-  let accessToken = await ensureAccessToken({ clearOnFailure: false });
+  let accessToken = await ensureAccessToken();
 
   if (!accessToken) {
     throw createAuthRequiredError();
@@ -74,7 +74,7 @@ async function mileageRequest<T>(path: string, options: RequestOptions = {}): Pr
   let result = await send(accessToken);
 
   if (result.response.status === 401) {
-    const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
+    const refreshedToken = await refreshAccessToken();
 
     if (!refreshedToken) {
       throw createAuthRequiredError();

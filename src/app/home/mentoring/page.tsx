@@ -11,7 +11,6 @@ import {
   MessageCircle,
   Plus,
   Star,
-  Trash2,
   UserPlus,
   Wallet,
   X,
@@ -27,7 +26,6 @@ import {
   completeMentoringApplication,
   createMentoringProgram,
   createMentoringReview,
-  deleteMentoringProgram,
   emptyPage,
   fetchMenteeApplications,
   fetchMentorReviews,
@@ -41,6 +39,7 @@ import {
   registerMentor,
   rejectMentoringApplication,
   startMentoringApplication,
+  updateMentoringProgram,
   type ApplicationStatus,
   type MentoringApplicationResponse,
   type MentoringProgramDetailResponse,
@@ -141,13 +140,14 @@ function buildProgramContent(method: string, content: string) {
   return `[진행 방식]\n${method.trim() || '추후 협의'}\n\n[상세 설명]\n${content.trim()}`;
 }
 
-function splitProgramContent(rawContent: string) {
-  const methodMatch = rawContent.match(/\[진행 방식\]\s*([\s\S]*?)(?:\n\s*\[상세 설명\]|$)/);
-  const contentMatch = rawContent.match(/\[상세 설명\]\s*([\s\S]*)$/);
+function splitProgramContent(rawContent?: string | null) {
+  const safeContent = rawContent ?? '';
+  const methodMatch = safeContent.match(/\[진행 방식\]\s*([\s\S]*?)(?:\n\s*\[상세 설명\]|$)/);
+  const contentMatch = safeContent.match(/\[상세 설명\]\s*([\s\S]*)$/);
 
   return {
     method: methodMatch?.[1]?.trim() ?? '',
-    content: contentMatch?.[1]?.trim() ?? rawContent,
+    content: contentMatch?.[1]?.trim() ?? safeContent,
   };
 }
 
@@ -203,13 +203,15 @@ function isMileageShortageError(error: unknown) {
   }
 
   const message = error.message.toLowerCase();
-
-  return (
-    message.includes('마일리지') ||
+  const hasMileageTerm =
+    message.includes('마일리지') || message.includes('mileage') || message.includes('balance');
+  const hasShortageTerm =
     message.includes('부족') ||
     message.includes('insufficient') ||
-    message.includes('balance')
-  );
+    message.includes('shortage') ||
+    message.includes('not enough');
+
+  return hasMileageTerm && hasShortageTerm;
 }
 
 function isAuthRequiredError(error: unknown) {
@@ -415,13 +417,37 @@ export default function MentoringPage() {
   }, [clearMessages, gameFilter, programPageNumber, showError]);
 
   const loadOwnedPrograms = useCallback(async () => {
-    if (!currentUserId) return;
+    if (!currentUserId) {
+      setOwnedPrograms([]);
+      return;
+    }
 
     try {
-      const page = await fetchMentoringPrograms({ page: 0, size: 100 });
-      setOwnedPrograms(
-        page.content.filter((program) => normalizeId(program.mentorId) === normalizeId(currentUserId))
-      );
+      const size = 100;
+      const owned: MentoringProgramResponse[] = [];
+      const normalizedCurrentUserId = normalizeId(currentUserId);
+      let pageIndex = 0;
+
+      while (true) {
+        const page = await fetchMentoringPrograms({ page: pageIndex, size });
+
+        owned.push(
+          ...page.content.filter((program) => normalizeId(program.mentorId) === normalizedCurrentUserId)
+        );
+
+        const isLast =
+          page.last === true ||
+          (typeof page.totalPages === 'number' && pageIndex >= page.totalPages - 1) ||
+          page.content.length < size;
+
+        if (isLast) {
+          break;
+        }
+
+        pageIndex += 1;
+      }
+
+      setOwnedPrograms(owned);
     } catch {
       setOwnedPrograms([]);
     }
@@ -525,20 +551,33 @@ export default function MentoringPage() {
   }, [activeTab, loadPrograms]);
 
   useEffect(() => {
-    if (activeTab === 'mine' && isAuthReady && currentUserId) {
-      void Promise.all([loadApplications(), loadMileageData()]);
+    if (!isAuthReady) {
+      return;
     }
-  }, [activeTab, currentUserId, isAuthReady, loadApplications, loadMileageData]);
+
+    if (!currentUserId) {
+      setMenteeApplications([]);
+      setMentorApplications([]);
+      return;
+    }
+
+    void loadApplications();
+  }, [currentUserId, isAuthReady, loadApplications]);
+
+  useEffect(() => {
+    if (activeTab === 'mine' && isAuthReady && currentUserId) {
+      void loadMileageData();
+    }
+  }, [activeTab, currentUserId, isAuthReady, loadMileageData]);
 
   useEffect(() => {
     if (activeTab === 'programs' && isAuthReady && currentUserId) {
-      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews(), loadApplications()]);
+      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews()]);
     }
   }, [
     activeTab,
     currentUserId,
     isAuthReady,
-    loadApplications,
     loadCurrentMentorProfile,
     loadMentorReviews,
     loadOwnedPrograms,
@@ -567,15 +606,25 @@ export default function MentoringPage() {
     setShowMentorForm(false);
   };
 
-  const openProgramDetail = async (programId: string) => {
-    setDetailLoading(true);
+  const closeProgramDetail = useCallback(() => {
     setSelectedProgram(null);
     setSelectedProgramReviews([]);
+    setSelectedProgramReviewsLoading(false);
+    setApplicationMessage('');
+  }, []);
+
+  const openProgramDetail = async (programId: string) => {
+    setDetailLoading(true);
+    closeProgramDetail();
     setErrorMessage('');
 
     try {
       const detail = await fetchMentoringProgramDetail(programId);
-      setSelectedProgram(detail);
+      const sourceProgram = [...programPage.content, ...ownedPrograms].find((program) => program.id === programId);
+      setSelectedProgram({
+        ...detail,
+        status: detail.status ?? sourceProgram?.status ?? 'CLOSED',
+      });
       setSelectedProgramReviewsLoading(true);
 
       try {
@@ -660,17 +709,33 @@ export default function MentoringPage() {
     }
   };
 
-  const handleDeleteProgram = async (programId: string) => {
-    const ok = window.confirm('이 프로그램을 삭제할까요?');
+  const handleCloseProgram = async (program: MentoringProgramResponse) => {
+    if (program.status !== 'ACTIVE') {
+      showNotice('이미 마감된 프로그램입니다.');
+      return;
+    }
+
+    const ok = window.confirm('이 프로그램을 마감할까요? 마감 후 새 신청을 받을 수 없습니다.');
     if (!ok) return;
 
-    setPendingAction(`delete-program:${programId}`);
+    setPendingAction(`close-program:${program.id}`);
     clearMessages();
 
     try {
-      await deleteMentoringProgram(programId);
-      setSelectedOwnedProgramId((current) => (current === programId ? null : current));
-      showNotice('프로그램을 삭제했습니다.');
+      const { method, content } = splitProgramContent(program.content);
+      const closedProgram = await updateMentoringProgram(program.id, {
+        title: program.title,
+        content: buildProgramContent(method, content),
+        availableTimeDesc: program.availableTimeDesc ?? '',
+        price: program.price,
+        status: 'CLOSED',
+        tags: program.tags ?? [],
+      });
+
+      setOwnedPrograms((current) =>
+        current.map((ownedProgram) => (ownedProgram.id === program.id ? closedProgram : ownedProgram))
+      );
+      showNotice('프로그램을 마감했습니다.');
       await Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms()]);
     } catch (error) {
       showError(error);
@@ -703,7 +768,7 @@ export default function MentoringPage() {
         programId: selectedProgram.id,
         message: applicationMessage.trim(),
       });
-      setApplicationMessage('');
+      closeProgramDetail();
       showNotice('멘토링 요청이 접수되었습니다.');
       await Promise.all([loadApplications(), loadMileageData()]);
       setActiveTab('mine');
@@ -792,8 +857,7 @@ export default function MentoringPage() {
 
   const goToMileageCharge = () => {
     setShowMileageShortageModal(false);
-    setSelectedProgram(null);
-    setSelectedProgramReviews([]);
+    closeProgramDetail();
     changeTab('mine');
   };
 
@@ -1170,7 +1234,7 @@ export default function MentoringPage() {
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Programs</p>
                       <h2 className="mt-1 text-2xl font-black text-black">내 프로그램</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
-                        프로그램 이름을 선택하면 리뷰와 별점, 삭제 항목을 자세히 볼 수 있습니다.
+                        프로그램 이름을 선택하면 리뷰와 별점, 마감 항목을 자세히 볼 수 있습니다.
                       </p>
                     </div>
 
@@ -1395,8 +1459,7 @@ export default function MentoringPage() {
             className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 px-4 py-8"
             onClick={() => {
               if (!detailLoading) {
-                setSelectedProgram(null);
-                setSelectedProgramReviews([]);
+                closeProgramDetail();
               }
             }}
           >
@@ -1422,10 +1485,7 @@ export default function MentoringPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedProgram(null);
-                        setSelectedProgramReviews([]);
-                      }}
+                      onClick={closeProgramDetail}
                       className="rounded-full bg-zinc-100 p-2 text-zinc-500"
                     >
                       <X size={16} />
@@ -1511,6 +1571,13 @@ export default function MentoringPage() {
                         <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
                         <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
                       </div>
+                    </div>
+                  ) : selectedProgram.status !== 'ACTIVE' ? (
+                    <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                      <p className="text-sm font-black text-zinc-700">마감된 프로그램</p>
+                      <p className="mt-2 text-xs font-bold leading-5 text-zinc-500">
+                        이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집중 프로그램을 선택해주세요.
+                      </p>
                     </div>
                   ) : (
                     <form onSubmit={handleApplyProgram} className="mt-5">
@@ -1659,18 +1726,22 @@ export default function MentoringPage() {
 
               <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-zinc-100 p-4">
                 <div>
-                  <p className="text-sm font-black text-black">프로그램 삭제</p>
+                  <p className="text-sm font-black text-black">프로그램 마감</p>
                   <p className="mt-1 text-xs font-bold text-zinc-400">
-                    더 이상 운영하지 않을 프로그램은 여기서 정리할 수 있습니다.
+                    더 이상 운영하지 않을 프로그램은 새 신청을 받지 않도록 마감할 수 있습니다.
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => handleDeleteProgram(selectedOwnedProgram.id)}
-                  disabled={pendingAction === `delete-program:${selectedOwnedProgram.id}`}
-                  className="rounded-lg bg-red-50 p-3 text-red-600 disabled:opacity-40"
+                  onClick={() => handleCloseProgram(selectedOwnedProgram)}
+                  disabled={
+                    selectedOwnedProgram.status !== 'ACTIVE' ||
+                    pendingAction === `close-program:${selectedOwnedProgram.id}`
+                  }
+                  className="rounded-lg bg-zinc-100 p-3 text-zinc-600 disabled:opacity-40"
+                  aria-label={selectedOwnedProgram.status === 'ACTIVE' ? '프로그램 마감' : '이미 마감된 프로그램'}
                 >
-                  <Trash2 size={16} />
+                  <Clock3 size={16} />
                 </button>
               </div>
 

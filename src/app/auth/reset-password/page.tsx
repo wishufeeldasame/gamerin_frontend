@@ -17,7 +17,6 @@ import { useAuth } from '@/app/context/AuthContext';
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
-
 const PASSWORD_RULE =
   /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
 

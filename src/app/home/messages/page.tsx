@@ -759,7 +759,6 @@ export default function MessagesPage() {
   }, [conversations, query]);
 
   const handleSelectConversation = (conversationId: string) => {
-    router.replace(`/home/messages?conversationId=${encodeURIComponent(conversationId)}`);
     setActiveConversationId(conversationId);
     setMobileView('chat');
     setComposerError('');

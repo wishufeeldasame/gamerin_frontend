@@ -50,7 +50,7 @@ export interface MentoringProgramResponse {
   mentorNickname?: string;
   gameName: string;
   title: string;
-  content: string;
+  content: string | null;
   availableTimeDesc: string | null;
   status: ProgramStatus;
   price: number;
@@ -65,8 +65,9 @@ export interface MentoringProgramDetailResponse {
   mentorAbout: string;
   gameName: string;
   title: string;
-  content: string;
+  content: string | null;
   availableTimeDesc: string | null;
+  status: ProgramStatus;
   price: number;
   tags: string[] | null;
   createdAt: string;
@@ -145,6 +146,7 @@ export function isMentoringAuthError(error: unknown): error is MentoringAuthErro
     (error instanceof Error &&
       (error.message.includes('로그인이 필요') ||
         error.message.includes('Authentication is required') ||
+        error.message.includes('sign in again') ||
         error.message.includes('token has expired')))
   );
 }
@@ -178,7 +180,7 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   };
 
   let accessToken = authRequired
-    ? await ensureAccessToken({ clearOnFailure: false })
+    ? await ensureAccessToken()
     : getAccessToken();
 
   if (!accessToken && authRequired) {
@@ -188,20 +190,19 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   let result = await send(accessToken);
 
   if (result.response.status === 401) {
-    const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
+    const refreshedToken = await refreshAccessToken();
 
-    if (!refreshedToken && authRequired) {
-      throw new MentoringAuthError();
-    }
-
-    if (refreshedToken) {
+    if (!refreshedToken) {
+      if (authRequired) {
+        throw new MentoringAuthError();
+      }
+    } else {
       accessToken = refreshedToken;
       result = await send(accessToken);
-    }
 
-    if (!authRequired && result.response.status === 401) {
-      accessToken = null;
-      result = await send(null);
+      if (!authRequired && result.response.status === 401) {
+        result = await send(null);
+      }
     }
   }
 

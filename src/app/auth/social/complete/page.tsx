@@ -7,9 +7,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
-
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const handleRegex = /^[a-z0-9_]{3,20}$/;
 
 export default function SocialCompletePage() {
