@@ -1,12 +1,13 @@
 export function getApiBaseUrl() {
-  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
-    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  const configuredApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+
+  if (configuredApiBaseUrl) {
+    return configuredApiBaseUrl.replace(/\/$/, '');
   }
 
   if (typeof window !== 'undefined') {
-    const { protocol, hostname } = window.location;
-    return `${protocol}//${hostname}:8080`;
+    return window.location.origin;
   }
 
-  return 'http://localhost:8080';
+  return '';
 }

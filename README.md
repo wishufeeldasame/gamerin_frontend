@@ -156,3 +156,16 @@ npm run dev
   > `MentoringApplicationResponse` 타입에 `reviewed`를 추가하고, 백엔드 응답 계약에 맞춰 `mentorId`, `menteeId`, `programTitle` 사용 흐름을 정리  
   > 실제 백엔드에 없는 신청 삭제 API 호출 함수 `deleteMentoringApplication()`을 제거하고, 취소된 신청은 `CANCELLED` 상태 배지만 표시하도록 UI 정리  
   > 404 응답 메시지 처리에서 `message`가 없을 수 있는 타입 오류를 방지하도록 `MentoringApiError` 생성 로직 보완  
+
+- **26/06/06** 서장호
+
+  > Docker/nginx 배포 환경에서 메시지 API가 `localhost:8080`으로 직접 호출되어 `ERR_CONNECTION_REFUSED`가 발생하던 문제 수정  
+  > `src/lib/api-base.ts`에서 `NEXT_PUBLIC_API_BASE_URL`이 비어 있을 때 브라우저의 `window.location.origin`을 API base로 사용하도록 변경  
+  > 운영 배포에서는 `/api/...` 요청이 현재 접속 origin의 nginx를 거쳐 backend로 프록시되도록 정리  
+  > 설정값에 trailing slash가 포함되어도 중복 slash가 생기지 않도록 `NEXT_PUBLIC_API_BASE_URL` 끝의 `/`를 제거하는 처리 추가  
+  > 메시지 페이지와 멘토링 페이지의 채팅 시작 기능이 같은 메시지 API base URL을 사용하도록 흐름 정리  
+  > 메시지 SSE 연결은 nginx에서 `/api/v1/messages/stream` 전용 설정을 추가해 buffering을 끄고 timeout을 늘리는 방식으로 보완  
+  > 배포 후 backend/frontend 컨테이너 IP 변경으로 nginx upstream이 stale 상태가 되는 문제를 줄이기 위해 deploy 스크립트에 nginx reload 추가  
+  > 검증: `npm run lint`, `npm run build` 통과, 배포 후 `/home/messages` 200 응답 및 메시지 API 401 인증 응답 확인  
+
+  > 요약 : 메시지 API가 `localhost:8080`으로 직접 호출되던 문제를 수정하고, nginx reverse proxy 기준으로 메시지/SSE 연결이 동작하도록 정리  
