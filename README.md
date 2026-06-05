@@ -51,6 +51,35 @@ npm run dev
 
 ### 4. 수정 일지
 
+- **26/06/04** 멘토링 프론트엔드 수정
+
+  > **원인**
+  >
+  > 아직 멘토 프로필이 없는 사용자가 멘토링 화면에 진입하면 `GET /api/v1/mentoring/mentors/{userId}` 요청이 실패하면서 브라우저 콘솔에 400/404 계열 에러처럼 표시되는 문제가 있었다.  
+  > 취소된 멘토링 신청 카드에는 `삭제` 버튼이 남아 있었지만, 실제 삭제 API는 권한 또는 백엔드 정책과 맞지 않아 401/400 에러가 발생했다.  
+  > 이미 리뷰를 작성한 멘토링에서 프론트가 리뷰 완료 여부를 안정적으로 알지 못해 `POST /api/v1/mentoring/reviews`를 다시 호출했고, 백엔드의 중복 리뷰 방지 로직에 의해 400 Bad Request가 발생했다.  
+
+  > **과정**
+  >
+  > `src/lib/mentoring-api.ts`에서 `MentoringApiError`를 추가하고, `mentoringRequest()`가 404 응답을 상태 코드가 있는 에러로 분리하도록 수정했다.  
+  > `src/app/home/mentoring/page.tsx`의 `loadCurrentMentorProfile()`에서는 멘토 프로필 없음 상태를 일반 에러 배너로 띄우지 않고, 멘토 미등록 상태로 조용히 처리하도록 변경했다.  
+  > 취소된 신청 내역에서 실제로 사용할 수 없는 `삭제` 버튼과 취소 상태 배지를 제거하여 사용자가 실패하는 API를 누르지 않도록 UI를 정리했다.  
+  > 리뷰 작성 완료 상태를 `reviewedApplicationIds`로 관리하고, 완료된 신청 목록 로딩 시 `fetchMentorReviews()` 결과의 `applicationId`를 참고해 이미 작성된 리뷰 여부를 복원하도록 보강했다.  
+  > 중복 리뷰 에러는 `isDuplicateReviewError()`로 감지하여 빨간 에러 대신 `이미 리뷰 작성이 완료된 멘토링입니다.` 안내로 통일했다.  
+
+  > **결과**
+  >
+  > 멘토가 아닌 사용자의 프로필 조회 실패는 기능 오류처럼 노출되지 않고, 멘토 등록 폼을 보여주는 정상 상태로 처리된다.  
+  > 취소된 멘토링 신청 카드에서는 삭제 버튼이 사라져 불필요한 401/400 에러가 발생하지 않는다.  
+  > 리뷰 작성 성공 후 버튼은 `리뷰 작성 완료`로 바뀌며, 해당 버튼을 다시 눌러도 API 호출 없이 `이미 리뷰 작성이 완료된 멘토링입니다.` 안내만 표시된다.  
+  > 새로고침 또는 목록 재조회 후에도 이미 작성한 리뷰 상태를 복원해 중복 리뷰 POST 요청을 줄였다.  
+
+  > **코드 수정 위치**
+  >
+  > `src/lib/mentoring-api.ts`: `MentoringApiError`, `isMentoringNotFoundError()` 추가 및 404 응답 분리 처리.  
+  > `src/app/home/mentoring/page.tsx`: 멘토 프로필 없음 처리, 취소/삭제 UI 제거, 리뷰 완료 상태 관리, 중복 리뷰 에러 안내 처리, `리뷰 작성 완료` 클릭 안내 버튼 적용.  
+  > 검증: `npm run lint` 통과.  
+
 - **26/04/22** 서장호  
   
   > AuthContext에 `isAuthReady`와 옵션형 `logout()`을 추가하여 인증 초기화 및 로그아웃 흐름 정리  
@@ -117,3 +146,13 @@ npm run dev
   > 북마크 페이지 좋아요 처리 시 optimistic update를 적용하고 API 실패 시 기존 상태로 롤백되도록 처리   
 
   > 요약 : 북마크 화면을 백엔드 API 기반으로 전환하고 게시글 카드의 상세 이동, 댓글, 좋아요 버튼 동작을 수정  
+
+- **26/06/04** 서장호  
+
+  > 멘토 미등록 사용자의 상태 확인을 `GET /api/v1/mentoring/mentors/{userId}` 실패 응답이 아닌 `GET /api/v1/mentoring/mentors/me` 정상 응답 기준으로 변경  
+  > `fetchMyMentorProfile()`을 추가하고 `loadCurrentMentorProfile()`에서 사용하여, 멘토 등록 전 사용자는 `data: null` 상태로 멘토 등록 UI를 표시하도록 정리  
+  > 신청 목록의 리뷰 완료 여부를 프론트 임시 상태나 `fetchMentorReviews()` 재조회 결과로 추론하지 않고, 백엔드가 내려주는 `application.reviewed` 필드 기준으로 표시하도록 변경  
+  > 리뷰 작성 성공 또는 중복 리뷰 방어 처리 시 해당 신청 항목의 `reviewed` 값을 로컬 상태에서도 즉시 `true`로 갱신하도록 보강  
+  > `MentoringApplicationResponse` 타입에 `reviewed`를 추가하고, 백엔드 응답 계약에 맞춰 `mentorId`, `menteeId`, `programTitle` 사용 흐름을 정리  
+  > 실제 백엔드에 없는 신청 삭제 API 호출 함수 `deleteMentoringApplication()`을 제거하고, 취소된 신청은 `CANCELLED` 상태 배지만 표시하도록 UI 정리  
+  > 404 응답 메시지 처리에서 `message`가 없을 수 있는 타입 오류를 방지하도록 `MentoringApiError` 생성 로직 보완  

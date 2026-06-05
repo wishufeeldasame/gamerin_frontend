@@ -10,7 +10,77 @@ import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
+
+type LoginUserPayload = {
+  userId?: string | number;
+  id?: string | number;
+  sub?: string | number;
+  handle?: string;
+  nickname?: string;
+  name?: string;
+  gameTier?: string;
+  bio?: string;
+};
+
+type LoginPayload = LoginUserPayload & {
+  accessToken?: string;
+  token?: string;
+  user?: LoginUserPayload;
+  member?: LoginUserPayload;
+  account?: LoginUserPayload;
+};
+
+function decodeJwtPayload(token: string): LoginUserPayload | null {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return null;
+
+    const base64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const paddedBase64 = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+    const json = decodeURIComponent(
+      atob(paddedBase64)
+        .split('')
+        .map((char) => `%${char.charCodeAt(0).toString(16).padStart(2, '0')}`)
+        .join('')
+    );
+
+    return JSON.parse(json) as LoginUserPayload;
+  } catch {
+    return null;
+  }
+}
+
+function unwrapLoginPayload(body: unknown): LoginPayload {
+  if (!body || typeof body !== 'object') return {};
+
+  const envelope = body as { data?: LoginPayload };
+  return envelope.data && typeof envelope.data === 'object' ? envelope.data : (body as LoginPayload);
+}
+
+async function fetchCurrentUser(accessToken?: string | null): Promise<LoginUserPayload | null> {
+  try {
+    const headers = new Headers();
+    if (accessToken) {
+      headers.set('Authorization', `Bearer ${accessToken}`);
+    }
+
+    const response = await fetch(`${API_BASE}/api/v1/auth/me`, {
+      headers,
+      credentials: 'include',
+    });
+
+    if (!response.ok) return null;
+
+    const body = await response.json().catch(() => null);
+    const payload = unwrapLoginPayload(body);
+    return payload.user ?? payload.member ?? payload.account ?? payload;
+  } catch {
+    return null;
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -125,24 +195,38 @@ export default function LoginPage() {
         throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
 
-      const accessToken = data?.data?.accessToken || data?.accessToken;
+      const payload = unwrapLoginPayload(data);
+      const accessToken = payload.accessToken ?? payload.token ?? null;
       if (accessToken) {
         setAccessToken(accessToken);
       }
 
-      const payload = data?.data ?? data;
+      const responseUser = payload.user ?? payload.member ?? payload.account ?? payload;
+      const tokenUser = accessToken ? decodeJwtPayload(accessToken) : null;
+      const me = await fetchCurrentUser(accessToken);
+      const userPayload = me ?? responseUser ?? tokenUser ?? {};
+      const handle = userPayload.handle ?? tokenUser?.handle ?? loginHandle.trim();
+      const nickname = userPayload.nickname ?? userPayload.name ?? tokenUser?.nickname ?? handle;
+      const userId =
+        userPayload.userId ??
+        userPayload.id ??
+        userPayload.sub ??
+        tokenUser?.userId ??
+        tokenUser?.id ??
+        tokenUser?.sub ??
+        handle;
 
-      if (!payload?.userId) {
-        throw new Error('서버로부터 사용자 고유 ID를 받지 못했습니다.');
+      if (!userId) {
+        throw new Error('서버로부터 유저 고유 ID를 받아오지 못했습니다.');
       }
 
       login({
-        id: String(payload.userId),
-        name: payload?.nickname ?? loginHandle.trim(),
-        nickname: payload?.nickname ?? loginHandle.trim(),
-        handle: payload?.handle ?? loginHandle.trim(),
-        gameTier: payload?.gameTier ?? 'Unranked',
-        bio: payload?.bio ?? '',
+        id: String(userId),
+        name: nickname,
+        nickname,
+        handle,
+        gameTier: userPayload.gameTier ?? tokenUser?.gameTier ?? 'Unranked',
+        bio: userPayload.bio ?? tokenUser?.bio ?? '',
       });
 
       router.push('/home');

@@ -62,7 +62,11 @@ type RefreshPayload = {
   message?: string;
 };
 
-export async function refreshAccessToken() {
+type RefreshAccessTokenOptions = {
+  clearOnFailure?: boolean;
+};
+
+export async function refreshAccessToken({ clearOnFailure = true }: RefreshAccessTokenOptions = {}) {
   if (typeof window === 'undefined') {
     return null;
   }
@@ -82,14 +86,18 @@ export async function refreshAccessToken() {
       const nextToken = payload?.data?.accessToken ?? null;
 
       if (!response.ok || !nextToken) {
-        clearStoredAuth();
+        if (clearOnFailure) {
+          clearStoredAuth();
+        }
         return null;
       }
 
       setAccessToken(nextToken);
       return nextToken;
     } catch {
-      clearStoredAuth();
+      if (clearOnFailure) {
+        clearStoredAuth();
+      }
       return null;
     } finally {
       refreshPromise = null;
@@ -99,11 +107,13 @@ export async function refreshAccessToken() {
   return refreshPromise;
 }
 
-export async function ensureAccessToken() {
+type EnsureAccessTokenOptions = RefreshAccessTokenOptions;
+
+export async function ensureAccessToken(options: EnsureAccessTokenOptions = {}) {
   const token = getAccessToken();
   if (token) {
     return token;
   }
 
-  return refreshAccessToken();
+  return refreshAccessToken(options);
 }
