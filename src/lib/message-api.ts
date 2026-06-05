@@ -37,7 +37,6 @@ type MessagePayload = {
   senderId: 'me' | string;
   text: string;
   createdAt: string;
-  editedAt: string | null;
   read: boolean;
   deliveryStatus: 'sent';
   attachments: AttachmentPayload[];
@@ -66,7 +65,7 @@ type MessageCursorPayload = {
 };
 
 export type MessageRealtimeEvent = {
-  type: 'message-created' | 'message-updated' | 'message-deleted';
+  type: 'message-created' | 'message-deleted';
   conversationId: string;
   message: ChatMessage | null;
   messageId: string;
@@ -107,7 +106,6 @@ function toMessage(payload: MessagePayload): ChatMessage {
     senderId: payload.senderId,
     text: payload.text,
     createdAt: payload.createdAt,
-    editedAt: payload.editedAt ?? null,
     read: payload.read,
     deliveryStatus: payload.deliveryStatus,
     attachments: (payload.attachments ?? []).map(toAttachment),
@@ -312,24 +310,6 @@ export async function sharePostMessage(payload: {
   });
 
   return sortConversationsByUpdatedAt(data.map(toConversation));
-}
-
-export async function updateConversationMessage(payload: {
-  conversationId: string;
-  messageId: string;
-  content: string;
-}) {
-  const data = await messageRequest<MessagePayload>(
-    `/conversations/${payload.conversationId}/messages/${payload.messageId}`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({
-        content: payload.content.trim(),
-      }),
-    }
-  );
-
-  return toMessage(data);
 }
 
 export async function deleteConversationMessage(payload: {

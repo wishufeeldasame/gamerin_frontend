@@ -9,7 +9,6 @@ import {
   Inbox,
   Loader2,
   MessageSquare,
-  Pencil,
   Plus,
   Search,
   Send,
@@ -33,7 +32,6 @@ import {
   parseMessageRealtimeEvent,
   searchMessageRecipients,
   sendConversationMessage,
-  updateConversationMessage,
 } from '@/lib/message-api';
 import {
   ChatAttachment,
@@ -372,14 +370,8 @@ function MessageBubble({
   mine,
   recipientName,
   isActionOpen,
-  isEditing,
-  editingText,
   actionLoading,
   onToggleAction,
-  onStartEdit,
-  onCancelEdit,
-  onChangeEditText,
-  onSaveEdit,
   onDelete,
   onOpenPost,
   onOpenImage,
@@ -388,20 +380,12 @@ function MessageBubble({
   mine: boolean;
   recipientName: string;
   isActionOpen: boolean;
-  isEditing: boolean;
-  editingText: string;
   actionLoading: boolean;
   onToggleAction: () => void;
-  onStartEdit: () => void;
-  onCancelEdit: () => void;
-  onChangeEditText: (value: string) => void;
-  onSaveEdit: () => void;
   onDelete: () => void;
   onOpenPost: (postId: string) => void;
   onOpenImage: (attachment: ChatAttachment) => void;
 }) {
-  const canEdit = mine && chatMessage.attachments.length === 0 && !chatMessage.sharedPost;
-
   return (
     <div className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}>
       {!mine ? (
@@ -417,16 +401,6 @@ function MessageBubble({
         >
           {mine && isActionOpen ? (
             <div className="absolute bottom-1 right-full mr-3 flex h-10 items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
-              {canEdit ? (
-                <button
-                  type="button"
-                  onClick={onStartEdit}
-                  className="flex h-full items-center justify-center px-4 text-zinc-500 transition hover:bg-zinc-50 hover:text-black"
-                  aria-label="메시지 수정"
-                >
-                  <Pencil size={16} />
-                </button>
-              ) : null}
               <button
                 type="button"
                 onClick={onDelete}
@@ -446,44 +420,12 @@ function MessageBubble({
                 : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
             }`}
           >
-            {isEditing ? (
-              <div className="space-y-3">
-                <textarea
-                  value={editingText}
-                  onChange={(event) => onChangeEditText(event.target.value)}
-                  rows={3}
-                  maxLength={2000}
-                  className="w-full resize-none bg-transparent text-[15px] font-medium leading-relaxed text-white outline-none placeholder:text-white/45"
-                  placeholder="메시지를 수정해보세요"
-                />
-                <div className="flex items-center justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={onCancelEdit}
-                    className="rounded-xl bg-white/12 px-3 py-2 text-xs font-black text-white transition hover:bg-white/20"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="button"
-                    onClick={onSaveEdit}
-                    disabled={actionLoading}
-                    className="rounded-xl bg-white px-3 py-2 text-xs font-black text-black transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    저장
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                {chatMessage.text ? <p>{chatMessage.text}</p> : null}
-                <AttachmentGrid attachments={chatMessage.attachments} onOpenImage={onOpenImage} />
-                <SharedPostCard message={chatMessage} onOpenPost={onOpenPost} />
-              </>
-            )}
+            {chatMessage.text ? <p>{chatMessage.text}</p> : null}
+            <AttachmentGrid attachments={chatMessage.attachments} onOpenImage={onOpenImage} />
+            <SharedPostCard message={chatMessage} onOpenPost={onOpenPost} />
           </div>
 
-          {mine && !isEditing ? (
+          {mine ? (
             <button
               type="button"
               onClick={onToggleAction}
@@ -502,7 +444,6 @@ function MessageBubble({
         >
           {mine ? <CheckCheck size={13} /> : null}
           <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
-          {chatMessage.editedAt ? <span className="text-zinc-400">edited</span> : null}
         </div>
       </div>
     </div>
@@ -539,8 +480,6 @@ export default function MessagesPage() {
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
   const [isAuthError, setIsAuthError] = useState(false);
-  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
-  const [editingText, setEditingText] = useState('');
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
@@ -699,26 +638,6 @@ export default function MessagesPage() {
     );
   }, []);
 
-  const replaceMessageInConversation = useCallback((conversationId: string, nextMessage: ChatMessage) => {
-    setMessagesByConversation((current) => ({
-      ...current,
-      [conversationId]: (current[conversationId] ?? []).map((item) =>
-        item.id === nextMessage.id ? nextMessage : item
-      ),
-    }));
-
-    setConversations((current) =>
-      current.map((conversation) =>
-        conversation.id === conversationId
-          ? {
-              ...conversation,
-              messages: conversation.messages.map((item) => (item.id === nextMessage.id ? nextMessage : item)),
-            }
-          : conversation
-      )
-    );
-  }, []);
-
   const removeMessageFromConversation = useCallback((conversationId: string, messageId: string) => {
     setMessagesByConversation((current) => ({
       ...current,
@@ -793,15 +712,6 @@ export default function MessagesPage() {
           void loadConversations({ silent: true });
         });
 
-        eventSource.addEventListener('message-updated', (event) => {
-          const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
-          const realtimeMessage = realtimeEvent.message;
-          if (realtimeMessage) {
-            replaceMessageInConversation(realtimeEvent.conversationId, realtimeMessage);
-          }
-          void loadConversations({ silent: true });
-        });
-
         eventSource.addEventListener('message-deleted', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           removeMessageFromConversation(realtimeEvent.conversationId, realtimeEvent.messageId);
@@ -831,7 +741,6 @@ export default function MessagesPage() {
     isAuthReady,
     loadConversations,
     removeMessageFromConversation,
-    replaceMessageInConversation,
     user,
   ]);
 
@@ -856,8 +765,6 @@ export default function MessagesPage() {
     setComposerError('');
     setHeaderMenuOpen(false);
     setMessageActionId(null);
-    setEditingMessageId(null);
-    setEditingText('');
     clearAttachments();
     setAttachmentMenuOpen(false);
   };
@@ -940,48 +847,6 @@ export default function MessagesPage() {
     });
   };
 
-  const handleStartEditMessage = (chatMessage: ChatMessage) => {
-    setEditingMessageId(chatMessage.id);
-    setEditingText(chatMessage.text);
-    setMessageActionId(chatMessage.id);
-    setComposerError('');
-  };
-
-  const handleCancelEditMessage = useCallback(() => {
-    setEditingMessageId(null);
-    setEditingText('');
-    setMessageActionLoading(false);
-  }, []);
-
-  const handleUpdateMessage = async (messageId: string) => {
-    if (!activeConversation) return;
-
-    const trimmedContent = editingText.trim();
-    if (!trimmedContent) {
-      setComposerError('메시지 내용은 비워둘 수 없습니다.');
-      return;
-    }
-
-    try {
-      setMessageActionLoading(true);
-      setComposerError('');
-
-      const updatedMessage = await updateConversationMessage({
-        conversationId: activeConversation.id,
-        messageId,
-        content: trimmedContent,
-      });
-
-      replaceMessageInConversation(activeConversation.id, updatedMessage);
-      handleCancelEditMessage();
-      void loadConversations({ silent: true });
-    } catch (error) {
-      setComposerError(error instanceof Error ? error.message : '메시지 수정에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
-      setMessageActionLoading(false);
-    }
-  };
-
   const handleDeleteMessage = async (messageId: string) => {
     if (!activeConversation || messageActionLoading) return;
 
@@ -996,11 +861,7 @@ export default function MessagesPage() {
 
       removeMessageFromConversation(activeConversation.id, messageId);
       setMessageActionId(null);
-      if (editingMessageId === messageId) {
-        handleCancelEditMessage();
-      } else {
-        setMessageActionLoading(false);
-      }
+      setMessageActionLoading(false);
 
       void loadConversations({ silent: true });
       void loadMessages(activeConversation.id, { silent: true });
@@ -1042,7 +903,7 @@ export default function MessagesPage() {
       setMobileView('list');
       setHeaderMenuOpen(false);
       setMessageActionId(null);
-      handleCancelEditMessage();
+      setMessageActionLoading(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화방 나가기에 실패했습니다.');
       setIsAuthError(isMessageAuthError(error));
@@ -1325,16 +1186,10 @@ export default function MessagesPage() {
                       mine={chatMessage.senderId === 'me'}
                       recipientName={activeConversation.recipient.name}
                       isActionOpen={messageActionId === chatMessage.id}
-                      isEditing={editingMessageId === chatMessage.id}
-                      editingText={editingMessageId === chatMessage.id ? editingText : chatMessage.text}
                       actionLoading={messageActionLoading}
                       onToggleAction={() =>
                         setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
                       }
-                      onStartEdit={() => handleStartEditMessage(chatMessage)}
-                      onCancelEdit={handleCancelEditMessage}
-                      onChangeEditText={setEditingText}
-                      onSaveEdit={() => void handleUpdateMessage(chatMessage.id)}
                       onDelete={() => void handleDeleteMessage(chatMessage.id)}
                       onOpenPost={handleOpenPost}
                       onOpenImage={handleOpenImage}

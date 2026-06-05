@@ -169,3 +169,13 @@ npm run dev
   > 검증: `npm run lint`, `npm run build` 통과, 배포 후 `/home/messages` 200 응답 및 메시지 API 401 인증 응답 확인  
 
   > 요약 : 메시지 API가 `localhost:8080`으로 직접 호출되던 문제를 수정하고, nginx reverse proxy 기준으로 메시지/SSE 연결이 동작하도록 정리  
+
+- **26/06/06** 서장호
+
+  > 백엔드에서 메시지 수정 API를 지원하지 않도록 정리한 계약에 맞춰 메시지 수정 버튼과 편집 입력 UI 제거
+  > `src/lib/message-api.ts`에서 `updateConversationMessage()`와 `message-updated` 실시간 이벤트 타입 제거
+  > `src/lib/message-store.ts`와 메시지 응답 변환 흐름에서 `editedAt` 필드 제거
+  > 메시지 말풍선 액션 메뉴는 삭제만 제공하도록 단순화하고, 삭제/대화방 나가기 상태 처리에서 편집 상태 의존성 제거
+  > 검증: `npm run lint`, `npm run build` 통과
+
+  > 요약 : 메시지 수정 기능 제거에 맞춰 프론트 메시지 API 계약과 UI를 삭제 전용 흐름으로 정리
