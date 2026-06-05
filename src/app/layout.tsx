@@ -32,17 +32,6 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                const isLocalAlias =
-                  window.location.hostname === '127.0.0.1' ||
-                  window.location.hostname === '::1';
-                if (isLocalAlias) {
-                  const nextUrl =
-                    'http://localhost:3000' +
-                    window.location.pathname +
-                    window.location.search +
-                    window.location.hash;
-                  window.location.replace(nextUrl);
-                }
                 if (localStorage.getItem('gamerin_theme') === 'dark') {
                   document.documentElement.classList.add('dark');
                 }
