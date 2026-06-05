@@ -1,96 +1,328 @@
+import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
+import { PostRecord } from '@/lib/feed-api';
 import {
   ChatAttachment,
+  ChatMessage,
   Conversation,
+  MessageCursorPage,
   MessageRecipient,
-  appendTextMessage,
-  loadConversations,
-  markConversationRead,
-  saveConversations,
-  sharePostToRecipients,
-  upsertConversation,
+  SharedPostPreview,
+  sortConversationsByUpdatedAt,
 } from '@/lib/message-store';
-import { PostRecord } from '@/lib/feed-api';
 
-const MESSAGE_SEND_DELAY_MS = 450;
+const API_BASE = getApiBaseUrl();
+const MESSAGE_BASE = `${API_BASE}/api/v1/messages`;
 
-function wait(ms: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
+type ApiEnvelope<T> = {
+  success: boolean;
+  data: T;
+  message?: string;
+};
 
-export async function fetchConversations(userId?: string | null) {
-  return loadConversations(userId);
-}
+type RequestOptions = Omit<RequestInit, 'headers'> & {
+  headers?: Record<string, string>;
+};
 
-export async function startConversation(
-  userId: string | null | undefined,
-  conversations: Conversation[],
-  recipient: MessageRecipient
-) {
-  const next = upsertConversation(conversations, recipient);
-  saveConversations(userId, next);
-  return next;
-}
+type ConversationPayload = {
+  id: string;
+  recipient: MessageRecipient;
+  messages: MessagePayload[];
+  unreadCount: number;
+  updatedAt: string;
+};
 
-export async function readConversation(
-  userId: string | null | undefined,
-  conversations: Conversation[],
-  conversationId: string
-) {
-  const next = markConversationRead(conversations, conversationId);
-  saveConversations(userId, next);
-  return next;
-}
+type MessagePayload = {
+  id: string;
+  senderId: 'me' | string;
+  text: string;
+  createdAt: string;
+  read: boolean;
+  deliveryStatus: 'sent';
+  attachments: AttachmentPayload[];
+  sharedPost: SharedPostPayload | null;
+};
 
-export async function sendMessage(
-  userId: string | null | undefined,
-  conversations: Conversation[],
-  conversationId: string,
-  text: string,
-  attachments: ChatAttachment[] = []
-) {
-  await wait(MESSAGE_SEND_DELAY_MS);
+type AttachmentPayload = {
+  id: string;
+  type: 'image' | 'video';
+  name: string;
+  url: string;
+};
 
-  if (text.trim().toLowerCase() === '/fail') {
-    throw new Error('메시지 전송에 실패했습니다.');
+type SharedPostPayload = {
+  postId: string;
+  author: string;
+  authorHandle: string;
+  content: string;
+  createdAt: string;
+};
+
+type MessageCursorPayload = {
+  items: MessagePayload[];
+  nextCursor: string | null;
+  hasNext: boolean;
+};
+
+export type MessageRealtimeEvent = {
+  type: 'message-created' | 'message-deleted';
+  conversationId: string;
+  message: ChatMessage | null;
+  messageId: string;
+};
+
+function normalizeUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) {
+    return url;
   }
 
-  const next = appendTextMessage(conversations, conversationId, text, attachments);
-  saveConversations(userId, next);
-  return next;
+  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
 }
 
-export async function retryMessage(
-  userId: string | null | undefined,
-  conversations: Conversation[],
-  conversationId: string,
-  messageId: string
-) {
-  const failedMessage = conversations
-    .find((conversation) => conversation.id === conversationId)
-    ?.messages.find((message) => message.id === messageId);
+function toAttachment(payload: AttachmentPayload): ChatAttachment {
+  return {
+    id: payload.id,
+    type: payload.type,
+    name: payload.name,
+    url: normalizeUrl(payload.url),
+  };
+}
 
-  if (!failedMessage) {
-    throw new Error('다시 보낼 메시지를 찾을 수 없습니다.');
+function toSharedPost(payload: SharedPostPayload | null): SharedPostPreview | null {
+  if (!payload) return null;
+
+  return {
+    postId: payload.postId,
+    author: payload.author,
+    authorHandle: payload.authorHandle,
+    content: payload.content,
+    createdAt: payload.createdAt,
+  };
+}
+
+function toMessage(payload: MessagePayload): ChatMessage {
+  return {
+    id: payload.id,
+    senderId: payload.senderId,
+    text: payload.text,
+    createdAt: payload.createdAt,
+    read: payload.read,
+    deliveryStatus: payload.deliveryStatus,
+    attachments: (payload.attachments ?? []).map(toAttachment),
+    sharedPost: toSharedPost(payload.sharedPost),
+  };
+}
+
+function toConversation(payload: ConversationPayload): Conversation {
+  return {
+    id: payload.id,
+    recipient: payload.recipient,
+    messages: (payload.messages ?? []).map(toMessage),
+    unreadCount: payload.unreadCount ?? 0,
+    updatedAt: payload.updatedAt,
+  };
+}
+
+async function messageRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const send = async (accessToken: string) => {
+    const headers = new Headers(options.headers);
+    headers.set('Authorization', `Bearer ${accessToken}`);
+
+    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
+      headers.set('Content-Type', 'application/json');
+    }
+
+    const response = await fetch(`${MESSAGE_BASE}${path}`, {
+      ...options,
+      headers,
+      credentials: 'include',
+    });
+
+    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
+    return { response, payload };
+  };
+
+  let accessToken = await ensureAccessToken();
+  if (!accessToken) {
+    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
   }
 
-  const cleaned = conversations.map((conversation) => {
-    if (conversation.id !== conversationId) return conversation;
+  let result = await send(accessToken);
 
-    return {
-      ...conversation,
-      messages: conversation.messages.filter((message) => message.id !== messageId),
-    };
+  if (result.response.status === 401) {
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+    }
+
+    result = await send(accessToken);
+  }
+
+  if (!result.response.ok) {
+    throw new Error(result.payload?.message ?? '메시지 요청에 실패했습니다.');
+  }
+
+  return (result.payload as ApiEnvelope<T>).data;
+}
+
+export function isMessageAuthError(error: unknown) {
+  if (!(error instanceof Error)) return false;
+  return error.message.includes('로그인이 필요') || error.message.includes('인증이 만료');
+}
+
+export async function fetchConversationList() {
+  const data = await messageRequest<ConversationPayload[]>('/conversations');
+  return sortConversationsByUpdatedAt(data.map(toConversation));
+}
+
+export async function openMessageEventSource() {
+  const accessToken = await ensureAccessToken();
+  if (!accessToken) {
+    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+  }
+
+  const url = new URL(`${MESSAGE_BASE}/stream`);
+  url.searchParams.set('accessToken', accessToken);
+  return new EventSource(url.toString(), { withCredentials: true });
+}
+
+export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {
+  const payload = JSON.parse(rawData) as {
+    type: MessageRealtimeEvent['type'];
+    conversationId: string;
+    message: MessagePayload | null;
+    messageId: string;
+  };
+
+  return {
+    type: payload.type,
+    conversationId: payload.conversationId,
+    message: payload.message ? toMessage(payload.message) : null,
+    messageId: payload.messageId,
+  };
+}
+
+export async function searchMessageRecipients(keyword?: string, size = 10) {
+  const params = new URLSearchParams();
+
+  if (keyword?.trim()) {
+    params.set('keyword', keyword.trim());
+  }
+
+  params.set('size', String(size));
+
+  const data = await messageRequest<MessageRecipient[]>(`/recipients?${params.toString()}`);
+  return data;
+}
+
+export async function createConversation(payload: { recipientId?: string; recipientHandle?: string }) {
+  const data = await messageRequest<ConversationPayload>('/conversations', {
+    method: 'POST',
+    body: JSON.stringify({
+      recipientId: payload.recipientId ?? null,
+      recipientHandle: payload.recipientHandle ?? null,
+    }),
   });
 
-  return sendMessage(userId, cleaned, conversationId, failedMessage.text);
+  return toConversation(data);
 }
 
-export async function sharePostMessage(
-  userId: string | null | undefined,
-  post: PostRecord,
-  recipients: MessageRecipient[],
-  note: string
-) {
-  sharePostToRecipients(userId, post, recipients, note);
-  return fetchConversations(userId);
+export async function fetchConversationMessages(conversationId: string, cursor?: string | null, size = 30) {
+  const params = new URLSearchParams({
+    size: String(size),
+  });
+
+  if (cursor) {
+    params.set('cursor', cursor);
+  }
+
+  const data = await messageRequest<MessageCursorPayload>(
+    `/conversations/${conversationId}/messages?${params.toString()}`
+  );
+
+  const page: MessageCursorPage = {
+    items: data.items.map(toMessage),
+    nextCursor: data.nextCursor,
+    hasNext: data.hasNext,
+  };
+
+  return page;
+}
+
+export async function markConversationRead(conversationId: string) {
+  await messageRequest<null>(`/conversations/${conversationId}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export async function sendConversationMessage(payload: {
+  conversationId: string;
+  content?: string;
+  sharedPostId?: string | null;
+  attachments?: File[];
+}) {
+  const { conversationId, attachments = [], content = '', sharedPostId = null } = payload;
+
+  if (attachments.length > 0) {
+    const formData = new FormData();
+
+    if (content.trim()) {
+      formData.append('content', content.trim());
+    }
+
+    for (const attachment of attachments) {
+      formData.append('attachments', attachment);
+    }
+
+    const data = await messageRequest<MessagePayload>(`/conversations/${conversationId}/messages`, {
+      method: 'POST',
+      body: formData,
+    });
+
+    return toMessage(data);
+  }
+
+  const data = await messageRequest<MessagePayload>(`/conversations/${conversationId}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({
+      content: content.trim(),
+      sharedPostId,
+    }),
+  });
+
+  return toMessage(data);
+}
+
+export async function sharePostMessage(payload: {
+  post: PostRecord;
+  recipientIds?: string[];
+  recipientHandles?: string[];
+  content?: string;
+}) {
+  const data = await messageRequest<ConversationPayload[]>('/share-post', {
+    method: 'POST',
+    body: JSON.stringify({
+      postId: payload.post.postId,
+      recipientIds: payload.recipientIds?.length ? payload.recipientIds : undefined,
+      recipientHandles: payload.recipientHandles?.length ? payload.recipientHandles : undefined,
+      content: payload.content?.trim() || '',
+    }),
+  });
+
+  return sortConversationsByUpdatedAt(data.map(toConversation));
+}
+
+export async function deleteConversationMessage(payload: {
+  conversationId: string;
+  messageId: string;
+}) {
+  await messageRequest<null>(`/conversations/${payload.conversationId}/messages/${payload.messageId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function leaveConversation(conversationId: string) {
+  await messageRequest<null>(`/conversations/${conversationId}`, {
+    method: 'DELETE',
+  });
 }

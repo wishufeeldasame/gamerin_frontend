@@ -18,7 +18,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { fetchConversations, startConversation } from '@/lib/message-api';
+import { createConversation } from '@/lib/message-api';
 import {
   acceptMentoringApplication,
   applyToMentoringProgram,
@@ -49,7 +49,6 @@ import {
   type PageResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
-import { type MessageRecipient } from '@/lib/message-store';
 import {
   chargeMileage,
   fetchMyMileageBalance,
@@ -932,21 +931,12 @@ export default function MentoringPage() {
       return;
     }
 
-    const recipient: MessageRecipient = {
-      id: recipientId,
-      name: recipientName,
-      handle: `@mentoring_${recipientId.slice(0, 8)}`,
-      role: role === 'mentor' ? '멘티' : '멘토',
-      online: false,
-    };
-
     setPendingAction(`chat:${application.id}`);
     clearMessages();
 
     try {
-      const conversations = await fetchConversations(user?.id);
-      await startConversation(user?.id, conversations, recipient);
-      router.push(`/home/messages?conversationId=${encodeURIComponent(recipient.id)}`);
+      const conversation = await createConversation({ recipientId });
+      router.push(`/home/messages?conversationId=${encodeURIComponent(conversation.id)}`);
     } catch (error) {
       showError(error);
     } finally {
