@@ -16,7 +16,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -250,7 +250,6 @@ function AttachmentGrid({ attachments }: { attachments: ChatAttachment[] }) {
 
 export default function MessagesPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { user } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -265,23 +264,16 @@ export default function MessagesPage() {
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
-  const requestedConversationId = searchParams.get('conversationId') ?? '';
 
   useEffect(() => {
     const load = async () => {
       const loaded = await fetchConversations(user?.id);
       setConversations(loaded);
-      setActiveConversationId((current) => {
-        if (requestedConversationId && loaded.some((conversation) => conversation.id === requestedConversationId)) {
-          return requestedConversationId;
-        }
-
-        return current || loaded[0]?.id || '';
-      });
+      setActiveConversationId((current) => current || loaded[0]?.id || '');
     };
 
     void load();
-  }, [requestedConversationId, user?.id]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (!activeConversationId || conversations.length === 0) return;
@@ -314,7 +306,6 @@ export default function MessagesPage() {
   }, [conversations, query]);
 
   const handleSelectConversation = (conversationId: string) => {
-    router.replace(`/home/messages?conversationId=${encodeURIComponent(conversationId)}`);
     setActiveConversationId(conversationId);
     setMobileView('chat');
     setLastFailedMessage('');
@@ -329,16 +320,7 @@ export default function MessagesPage() {
     setActiveConversationId(recipient.id);
     setShowNewChat(false);
     setMobileView('chat');
-    router.push(`/home/messages?conversationId=${encodeURIComponent(recipient.id)}`);
   };
-
-  useEffect(() => {
-    if (!requestedConversationId) return;
-    if (!conversations.some((conversation) => conversation.id === requestedConversationId)) return;
-
-    setActiveConversationId(requestedConversationId);
-    setMobileView('chat');
-  }, [conversations, requestedConversationId]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

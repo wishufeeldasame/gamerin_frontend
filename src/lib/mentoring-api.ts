@@ -179,7 +179,7 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   };
 
   let accessToken = authRequired
-    ? await ensureAccessToken({ clearOnFailure: false })
+    ? await ensureAccessToken()
     : getAccessToken();
 
   if (!accessToken && authRequired) {
@@ -189,7 +189,7 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   let result = await send(accessToken);
 
   if (result.response.status === 401) {
-    const refreshedToken = await refreshAccessToken({ clearOnFailure: false });
+    const refreshedToken = await refreshAccessToken();
 
     if (!refreshedToken) {
       if (authRequired) {
