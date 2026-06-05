@@ -1,17 +1,18 @@
 'use client';
 
-import { Eye, EyeOff, ChevronDown } from 'lucide-react';
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { ChevronDown, Eye, EyeOff, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
-// --- [인증 관련 임포트 추가] ---
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
 
 type LoginUserPayload = {
   userId?: string | number;
@@ -87,7 +88,6 @@ export default function LoginPage() {
 
   const [showIdLogin, setShowIdLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-
   const [showSignupModal, setShowSignupModal] = useState(false);
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
 
@@ -108,10 +108,10 @@ export default function LoginPage() {
   const isPasswordLongEnough = signupPassword.length >= 8;
   const isStep1Valid = Boolean(
     signupName.trim() &&
-    emailRegex.test(signupEmail) &&
-    birthMonth &&
-    birthDay &&
-    birthYear
+      emailRegex.test(signupEmail) &&
+      birthMonth &&
+      birthDay &&
+      birthYear
   );
   const isStep2Valid =
     signupId.length >= 4 &&
@@ -132,12 +132,14 @@ export default function LoginPage() {
   };
 
   const handleNextStep = () => {
-    if (isStep1Valid) setSignupStep(2);
+    if (isStep1Valid) {
+      setSignupStep(2);
+    }
   };
 
-  // 회원가입 로직
   const handleCompleteSignup = async () => {
     if (!isStep2Valid) return;
+
     try {
       const response = await fetch(`${API_BASE}/api/v1/auth/signup`, {
         method: 'POST',
@@ -167,7 +169,6 @@ export default function LoginPage() {
     }
   };
 
-  // --- [수정된 로그인 로직] ---
   const handleLocalLogin = async () => {
     if (!loginHandle.trim() || !loginPassword.trim()) {
       setLoginError('아이디와 비밀번호를 입력해주세요.');
@@ -189,19 +190,17 @@ export default function LoginPage() {
       });
 
       const data = await response.json().catch(() => null);
-      
+
       if (!response.ok) {
         throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
       }
 
-      // 1. 토큰 저장
       const payload = unwrapLoginPayload(data);
       const accessToken = payload.accessToken ?? payload.token ?? null;
       if (accessToken) {
         setAccessToken(accessToken);
       }
 
-      // 2. 전역 상태 업데이트
       const responseUser = payload.user ?? payload.member ?? payload.account ?? payload;
       const tokenUser = accessToken ? decodeJwtPayload(accessToken) : null;
       const me = await fetchCurrentUser(accessToken);
@@ -216,8 +215,7 @@ export default function LoginPage() {
         tokenUser?.id ??
         tokenUser?.sub ??
         handle;
-      
-      // 👉 [수정된 부분] ID가 없으면 강제로 에러를 발생시켜 안전하게 차단합니다.
+
       if (!userId) {
         throw new Error('서버로부터 유저 고유 ID를 받아오지 못했습니다.');
       }
@@ -231,7 +229,6 @@ export default function LoginPage() {
         bio: userPayload.bio ?? tokenUser?.bio ?? '',
       });
 
-      // 3. 홈으로 이동
       router.push('/home');
     } catch (error) {
       setLoginError(error instanceof Error ? error.message : '로그인에 실패했습니다.');
@@ -254,10 +251,10 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white p-6 font-sans text-black">
-      <div className="flex w-full max-w-5xl flex-col items-center justify-around gap-16 lg:flex-row">
-        <div className="flex flex-col items-center">
-          <div className="relative flex h-64 w-64 items-center justify-center lg:h-80 lg:w-80">
+    <main className="flex min-h-screen items-center justify-center bg-white px-5 py-8 font-sans text-black sm:px-8">
+      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1fr_380px] lg:gap-16">
+        <section className="flex justify-center lg:justify-start">
+          <div className="relative flex h-44 w-44 items-center justify-center sm:h-64 sm:w-64 lg:h-80 lg:w-80">
             <Image
               src="/logo.png"
               alt="GamerIN Logo"
@@ -267,12 +264,13 @@ export default function LoginPage() {
               priority
             />
           </div>
-        </div>
+        </section>
 
-        <div className="w-full max-w-sm space-y-8">
-          <h1 className="text-xl font-black tracking-tight text-black">
-            지금 가입하세요.
-          </h1>
+        <section className="w-full space-y-7">
+          <div className="space-y-2 text-center lg:text-left">
+            <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
+            <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
+          </div>
 
           <div className="flex flex-col gap-4">
             <button
@@ -286,7 +284,7 @@ export default function LoginPage() {
 
             <button
               type="button"
-              onClick={() => setShowIdLogin(!showIdLogin)}
+              onClick={() => setShowIdLogin((current) => !current)}
               className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white transition-all hover:border-zinc-800"
             >
               <span className="text-[15px] font-bold text-zinc-900">
@@ -298,16 +296,16 @@ export default function LoginPage() {
               />
             </button>
 
-            {showIdLogin && (
+            {showIdLogin ? (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="mt-2 space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-6 shadow-sm"
+                className="mt-2 space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 shadow-sm sm:p-6"
               >
                 <input
                   type="text"
                   value={loginHandle}
-                  onChange={(e) => setLoginHandle(e.target.value)}
+                  onChange={(event) => setLoginHandle(event.target.value)}
                   placeholder="아이디"
                   className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-black outline-none transition-colors focus:border-black"
                 />
@@ -315,76 +313,81 @@ export default function LoginPage() {
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={loginPassword}
-                    onChange={(e) => setLoginPassword(e.target.value)}
+                    onChange={(event) => setLoginPassword(event.target.value)}
                     placeholder="비밀번호"
                     className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 pr-12 text-black outline-none transition-colors focus:border-black"
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
+                    onClick={() => setShowPassword((current) => !current)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
+                    aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
                   >
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {loginError && <p className="text-sm text-red-500">{loginError}</p>}
+                {loginError ? <p className="text-sm font-semibold text-red-500">{loginError}</p> : null}
                 <button
                   type="button"
                   onClick={handleLocalLogin}
                   disabled={loginLoading}
                   className="h-12 w-full rounded-full bg-black text-[15px] font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  로그인
+                  {loginLoading ? '로그인 중...' : '로그인'}
                 </button>
               </motion.div>
-            )}
+            ) : null}
           </div>
 
-          <div className="flex justify-center gap-6">
+          <div className="flex justify-center gap-6 lg:justify-start">
             <Link href="/find-id" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
               아이디 찾기
             </Link>
-            <div className="h-4 w-[1px] self-center bg-zinc-200" />
-            <Link href="/auth/forgot-password" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
+            <div className="h-4 w-px self-center bg-zinc-200" />
+            <Link
+              href="/auth/forgot-password"
+              className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
+            >
               비밀번호 찾기
             </Link>
           </div>
 
-          <div className="border-t border-zinc-100 pt-8 text-center">
+          <div className="border-t border-zinc-100 pt-7 text-center lg:text-left">
             <p className="text-[15px] font-medium text-zinc-600">
-              아직 계정이 없으신가요?{' '}
+              아직 계정이 없으신가요?
               <button
                 type="button"
                 onClick={() => setShowSignupModal(true)}
-                className="ml-1 font-extrabold text-black underline-offset-4 hover:underline"
+                className="ml-2 font-extrabold text-black underline-offset-4 hover:underline"
               >
                 회원가입
               </button>
             </p>
           </div>
-        </div>
+        </section>
       </div>
 
-      {showSignupModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+      {showSignupModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
           <div className="max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <button
               type="button"
-              onClick={() => setShowSignupModal(false)}
-              className="mb-6 text-2xl text-gray-700 hover:text-black"
+              onClick={resetSignup}
+              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black"
+              aria-label="회원가입 닫기"
             >
-              ×
+              <X size={22} />
             </button>
 
-            {signupStep === 1 && (
+            {signupStep === 1 ? (
               <>
-                <h1 className="mb-8 text-3xl font-extrabold text-black">계정을 생성하세요</h1>
+                <h2 className="mb-8 text-3xl font-extrabold text-black">계정을 생성하세요.</h2>
                 <div className="mb-5">
                   <div className="relative">
                     <input
                       type="text"
                       value={signupName}
-                      onChange={(e) => setSignupName(e.target.value)}
+                      onChange={(event) => setSignupName(event.target.value)}
                       placeholder="이름"
                       maxLength={50}
                       className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
@@ -398,46 +401,54 @@ export default function LoginPage() {
                   <input
                     type="email"
                     value={signupEmail}
-                    onChange={(e) => setSignupEmail(e.target.value)}
+                    onChange={(event) => setSignupEmail(event.target.value)}
                     placeholder="이메일"
                     className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
                   />
                 </div>
                 <div className="mb-3">
-                  <h2 className="mb-2 text-lg font-bold text-black">생년월일</h2>
+                  <h3 className="mb-2 text-lg font-bold text-black">생년월일</h3>
                   <p className="mb-5 text-sm leading-6 text-gray-500">
-                    본인 확인 및 계정 보호를 위해 사용됩니다.
+                    본인 확인 및 계정 보호를 위해 사용합니다.
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     <select
                       value={birthMonth}
-                      onChange={(e) => setBirthMonth(e.target.value)}
-                      className="rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
+                      onChange={(event) => setBirthMonth(event.target.value)}
+                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
                     >
                       <option value="">월</option>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <option key={i + 1} value={String(i + 1)}>{i + 1}월</option>
+                      {Array.from({ length: 12 }, (_, index) => (
+                        <option key={index + 1} value={String(index + 1)}>
+                          {index + 1}월
+                        </option>
                       ))}
                     </select>
                     <select
                       value={birthDay}
-                      onChange={(e) => setBirthDay(e.target.value)}
-                      className="rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
+                      onChange={(event) => setBirthDay(event.target.value)}
+                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
                     >
                       <option value="">일</option>
-                      {Array.from({ length: 31 }, (_, i) => (
-                        <option key={i + 1} value={String(i + 1)}>{i + 1}</option>
+                      {Array.from({ length: 31 }, (_, index) => (
+                        <option key={index + 1} value={String(index + 1)}>
+                          {index + 1}
+                        </option>
                       ))}
                     </select>
                     <select
                       value={birthYear}
-                      onChange={(e) => setBirthYear(e.target.value)}
-                      className="rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
+                      onChange={(event) => setBirthYear(event.target.value)}
+                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
                     >
                       <option value="">연도</option>
-                      {Array.from({ length: 100 }, (_, i) => {
-                        const year = new Date().getFullYear() - i;
-                        return <option key={year} value={String(year)}>{year}</option>;
+                      {Array.from({ length: 100 }, (_, index) => {
+                        const year = new Date().getFullYear() - index;
+                        return (
+                          <option key={year} value={String(year)}>
+                            {year}
+                          </option>
+                        );
                       })}
                     </select>
                   </div>
@@ -453,13 +464,13 @@ export default function LoginPage() {
                   다음
                 </button>
               </>
-            )}
+            ) : null}
 
-            {signupStep === 2 && (
+            {signupStep === 2 ? (
               <>
-                <h1 className="mb-4 text-3xl font-extrabold text-black md:text-2xl">
-                  아이디와 비밀번호를 설정하세요
-                </h1>
+                <h2 className="mb-4 text-2xl font-extrabold text-black sm:text-3xl">
+                  아이디와 비밀번호를 설정하세요.
+                </h2>
                 <p className="mb-10 text-base text-gray-600">
                   로그인에 사용할 아이디와 비밀번호를 입력해주세요.
                 </p>
@@ -468,8 +479,8 @@ export default function LoginPage() {
                     <input
                       type="text"
                       value={signupId}
-                      onChange={(e) => {
-                        const value = e.target.value.replace(/[^a-zA-Z0-9_]/g, '');
+                      onChange={(event) => {
+                        const value = event.target.value.replace(/[^a-zA-Z0-9_]/g, '');
                         if (value.length <= 20) setSignupId(value);
                       }}
                       placeholder="아이디 (영문, 숫자, _ 사용 가능)"
@@ -485,34 +496,44 @@ export default function LoginPage() {
                   <input
                     type="password"
                     value={signupPassword}
-                    onChange={(e) => setSignupPassword(e.target.value)}
+                    onChange={(event) => setSignupPassword(event.target.value)}
                     placeholder="비밀번호 (최소 8자)"
                     className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
-                      signupPassword.length > 0 && !isPasswordLongEnough ? 'border-red-500' : 'border-gray-300 focus:border-black'
-                    }`}
-                  />
-                </div>
-                {signupPassword.length > 0 && !isPasswordLongEnough && (
-                  <p className="mb-5 ml-2 text-sm text-red-500">비밀번호는 최소 8자 이상이어야 합니다.</p>
-                )}
-                <div className="mb-2">
-                  <input
-                    type="password"
-                    value={signupPasswordConfirm}
-                    onChange={(e) => setSignupPasswordConfirm(e.target.value)}
-                    placeholder="비밀번호 확인"
-                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
-                      signupPasswordConfirm.length > 0
-                        ? signupPassword === signupPasswordConfirm ? 'border-gray-300 focus:border-black' : 'border-red-500'
+                      signupPassword.length > 0 && !isPasswordLongEnough
+                        ? 'border-red-500'
                         : 'border-gray-300 focus:border-black'
                     }`}
                   />
                 </div>
-                {signupPasswordConfirm.length > 0 && (
-                  <p className={`mb-8 ml-2 text-sm ${signupPassword === signupPasswordConfirm ? 'text-green-600' : 'text-red-500'}`}>
-                    {signupPassword === signupPasswordConfirm ? '비밀번호가 일치합니다.' : '비밀번호가 일치하지 않습니다.'}
+                {signupPassword.length > 0 && !isPasswordLongEnough ? (
+                  <p className="mb-5 ml-2 text-sm text-red-500">비밀번호는 최소 8자 이상이어야 합니다.</p>
+                ) : null}
+                <div className="mb-2">
+                  <input
+                    type="password"
+                    value={signupPasswordConfirm}
+                    onChange={(event) => setSignupPasswordConfirm(event.target.value)}
+                    placeholder="비밀번호 확인"
+                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
+                      signupPasswordConfirm.length > 0
+                        ? signupPassword === signupPasswordConfirm
+                          ? 'border-gray-300 focus:border-black'
+                          : 'border-red-500'
+                        : 'border-gray-300 focus:border-black'
+                    }`}
+                  />
+                </div>
+                {signupPasswordConfirm.length > 0 ? (
+                  <p
+                    className={`mb-8 ml-2 text-sm ${
+                      signupPassword === signupPasswordConfirm ? 'text-green-600' : 'text-red-500'
+                    }`}
+                  >
+                    {signupPassword === signupPasswordConfirm
+                      ? '비밀번호가 일치합니다.'
+                      : '비밀번호가 일치하지 않습니다.'}
                   </p>
-                )}
+                ) : null}
                 <button
                   type="button"
                   onClick={handleCompleteSignup}
@@ -524,10 +545,10 @@ export default function LoginPage() {
                   가입 완료
                 </button>
               </>
-            )}
+            ) : null}
           </div>
         </div>
-      )}
-    </div>
+      ) : null}
+    </main>
   );
 }

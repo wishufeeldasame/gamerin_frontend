@@ -76,18 +76,23 @@ export interface MentoringApplicationResponse {
   id: string;
   programId: string;
   programTitle: string;
+  mentorId: string;
   mentorNickname: string;
+  menteeId: string;
   menteeNickname: string;
   appliedMileage: number;
   status: ApplicationStatus;
   paymentStatus: PaymentStatus;
   message: string;
   createdAt: string;
+  reviewed: boolean;
 }
 
 export interface MentoringReviewResponse {
   id: string;
   applicationId: string;
+  programId: string;
+  programTitle: string;
   menteeNickname: string;
   rating: number;
   content: string;
@@ -124,6 +129,16 @@ export class MentoringAuthError extends Error {
   }
 }
 
+export class MentoringApiError extends Error {
+  constructor(
+    message: string,
+    public readonly status: number
+  ) {
+    super(message);
+    this.name = 'MentoringApiError';
+  }
+}
+
 export function isMentoringAuthError(error: unknown): error is MentoringAuthError {
   return (
     error instanceof MentoringAuthError ||
@@ -132,6 +147,10 @@ export function isMentoringAuthError(error: unknown): error is MentoringAuthErro
         error.message.includes('Authentication is required') ||
         error.message.includes('token has expired')))
   );
+}
+
+export function isMentoringNotFoundError(error: unknown): error is MentoringApiError {
+  return error instanceof MentoringApiError && error.status === 404;
 }
 
 async function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -187,6 +206,17 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
   }
 
   if (!result.response.ok) {
+    if (result.response.status === 404) {
+      const message =
+        result.payload &&
+        typeof result.payload === 'object' &&
+        'message' in result.payload &&
+        typeof result.payload.message === 'string'
+          ? result.payload.message
+          : 'Mentoring resource was not found.';
+      throw new MentoringApiError(message, result.response.status);
+    }
+
     if (result.response.status === 401) {
       if (!authRequired) {
         throw new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
@@ -199,7 +229,7 @@ async function mentoringRequest<T>(path: string, options: RequestOptions = {}): 
       result.payload && typeof result.payload === 'object' && 'message' in result.payload
         ? result.payload.message
         : null;
-    throw new Error(message || '멘토링 요청에 실패했습니다.');
+    throw new Error(message || '멘토링 요청 처리에 실패했습니다.');
   }
 
   if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
@@ -272,6 +302,10 @@ export function fetchMentorProfile(mentorId: string) {
   return mentoringRequest<MentorProfileResponse>(`${MENTORING_BASE}/mentors/${mentorId}`, {
     authRequired: false,
   }).then(normalizeMentorProfile);
+}
+
+export function fetchMyMentorProfile() {
+  return mentoringRequest<MentorProfileResponse | null>(`${MENTORING_BASE}/mentors/me`);
 }
 
 export function createMentoringProgram(payload: MentoringProgramRequest) {
@@ -349,6 +383,13 @@ export function acceptMentoringApplication(applicationId: string) {
 export function rejectMentoringApplication(applicationId: string) {
   return mentoringRequest<MentoringApplicationResponse>(
     `${MENTORING_BASE}/applications/${applicationId}/reject`,
+    { method: 'PATCH' }
+  );
+}
+
+export function cancelMentoringApplication(applicationId: string) {
+  return mentoringRequest<MentoringApplicationResponse>(
+    `${MENTORING_BASE}/applications/${applicationId}/cancel`,
     { method: 'PATCH' }
   );
 }

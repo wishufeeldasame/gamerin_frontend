@@ -2,58 +2,92 @@
 
 import Image from 'next/image';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
   PostRecord,
+  bookmarkPost,
   createComment,
+  deleteComment,
+  deletePost,
   fetchPostDetail,
+  fetchPostComments,
   formatRelativeTime,
   getInitials,
   likePost,
+  unbookmarkPost,
   unlikePost,
+  updatePostBookmarkState,
+  updatePostLikeState,
 } from '@/lib/feed-api';
-import {
-  BOOKMARKS_CHANGED_EVENT,
-  getBookmarkCount,
-  isPostBookmarked,
-  toggleBookmarkedPost,
-} from '@/lib/bookmark-store';
 import { SharePostModal } from './SharePostModal';
 
 interface PostDetailProps {
   postId: string;
   onBack: () => void;
+  initialScrollTarget?: 'comments';
   onPostUpdated?: (post: PostRecord) => void;
+  onPostDeleted?: (postId: string) => void;
 }
 
-export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
+export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated, onPostDeleted }: PostDetailProps) {
   const { user } = useAuth();
+  const commentsSectionRef = useRef<HTMLDivElement | null>(null);
+  const scrolledToCommentsRef = useRef(false);
   const [post, setPost] = useState<PostRecord | null>(null);
-  const [submittedComments, setSubmittedComments] = useState<CommentRecord[]>([]);
+  const [comments, setComments] = useState<CommentRecord[]>([]);
+  const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deletingPost, setDeletingPost] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
-  const [bookmarkCount, setBookmarkCount] = useState(0);
+  const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const bookmarkUserKey = user?.id ?? user?.handle ?? null;
+
+  useEffect(() => {
+    scrolledToCommentsRef.current = false;
+  }, [postId, initialScrollTarget]);
+
+  useEffect(() => {
+    if (loading || !post || initialScrollTarget !== 'comments' || scrolledToCommentsRef.current) {
+      return;
+    }
+
+    scrolledToCommentsRef.current = true;
+    window.requestAnimationFrame(() => {
+      commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, [initialScrollTarget, loading, post]);
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadPost = async () => {
       try {
         setLoading(true);
         setError(null);
-        const detail = await fetchPostDetail(postId);
+        setComments([]);
+        const [detail, commentList] = await Promise.all([
+          fetchPostDetail(postId, { signal: controller.signal }),
+          fetchPostComments(postId, { signal: controller.signal }),
+        ]);
         if (!cancelled) {
           setPost(detail);
+          setComments(commentList);
+          setBookmarked(detail.bookmarkedByMe);
         }
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load post.');
         }
@@ -67,35 +101,16 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     loadPost();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [postId]);
-
-  useEffect(() => {
-    const syncBookmarkState = () => {
-      setBookmarked(isPostBookmarked(postId, bookmarkUserKey));
-      setBookmarkCount(getBookmarkCount(postId));
-    };
-
-    syncBookmarkState();
-    window.addEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-    window.addEventListener('storage', syncBookmarkState);
-
-    return () => {
-      window.removeEventListener(BOOKMARKS_CHANGED_EVENT, syncBookmarkState);
-      window.removeEventListener('storage', syncBookmarkState);
-    };
-  }, [bookmarkUserKey, postId]);
 
   const handleToggleLike = async () => {
     if (!post) {
       return;
     }
 
-    const nextPost = {
-      ...post,
-      likedByMe: !post.likedByMe,
-      likes: post.likes + (post.likedByMe ? -1 : 1),
-    };
+    const nextPost = updatePostLikeState(post);
 
     setPost(nextPost);
     onPostUpdated?.(nextPost);
@@ -127,7 +142,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       };
 
       setPost(nextPost);
-      setSubmittedComments((current) => [createdComment, ...current]);
+      setComments((current) => [createdComment, ...current]);
       setCommentText('');
       onPostUpdated?.(nextPost);
     } catch (commentError) {
@@ -137,13 +152,86 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
     }
   };
 
-  const handleToggleBookmark = () => {
-    if (!post) {
+  const handleDeleteComment = async (comment: CommentRecord) => {
+    if (!post || deletingCommentId) {
       return;
     }
 
-    setBookmarked(toggleBookmarkedPost(post, bookmarkUserKey));
-    setBookmarkCount(getBookmarkCount(post.postId));
+    const confirmed = window.confirm('댓글을 삭제할까요?');
+    if (!confirmed) {
+      setCommentMenuOpenId(null);
+      return;
+    }
+
+    try {
+      setDeletingCommentId(comment.commentId);
+      await deleteComment(post.postId, comment.commentId);
+      setComments((current) => current.filter((item) => item.commentId !== comment.commentId));
+      const nextPost = {
+        ...post,
+        comments: Math.max(0, post.comments - 1),
+      };
+      setPost(nextPost);
+      onPostUpdated?.(nextPost);
+      setCommentMenuOpenId(null);
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
+    } finally {
+      setDeletingCommentId(null);
+    }
+  };
+
+  const handleToggleBookmark = async () => {
+    if (!post || bookmarking) {
+      return;
+    }
+
+    const nextBookmarked = !bookmarked;
+    const nextPost = updatePostBookmarkState(post, nextBookmarked);
+
+    setBookmarked(nextBookmarked);
+    setPost(nextPost);
+    onPostUpdated?.(nextPost);
+
+    try {
+      setBookmarking(true);
+      if (nextBookmarked) {
+        await bookmarkPost(post.postId);
+      } else {
+        await unbookmarkPost(post.postId);
+      }
+    } catch (bookmarkError) {
+      setBookmarked(bookmarked);
+      setPost(post);
+      onPostUpdated?.(post);
+      alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
+    } finally {
+      setBookmarking(false);
+    }
+  };
+
+  const handleDeletePost = async () => {
+    if (!post || deletingPost) {
+      return;
+    }
+
+    const confirmed = window.confirm('게시물을 삭제할까요?');
+    if (!confirmed) {
+      setMenuOpen(false);
+      return;
+    }
+
+    try {
+      setDeletingPost(true);
+      await deletePost(post.postId);
+      setMenuOpen(false);
+      onPostDeleted?.(post.postId);
+      onBack();
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+    } finally {
+      setDeletingPost(false);
+    }
   };
 
   if (loading) {
@@ -160,6 +248,8 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
       </div>
     );
   }
+
+  const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
@@ -187,20 +277,41 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
-                  {post.game ? (
-                    <span className="rounded-lg bg-zinc-100 px-2 py-0.5 text-[10px] font-black uppercase text-zinc-500">
-                      {post.game}
-                    </span>
-                  ) : null}
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
                   @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
                 </p>
               </div>
             </div>
-            <button className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black">
-              <MoreHorizontal size={24} />
-            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (canDeletePost) {
+                    setMenuOpen((current) => !current);
+                  }
+                }}
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+                aria-label="게시물 메뉴"
+                aria-expanded={menuOpen}
+                disabled={!canDeletePost}
+              >
+                <MoreHorizontal size={24} />
+              </button>
+
+              {menuOpen && canDeletePost ? (
+                <div className="absolute right-0 top-12 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                  <button
+                    type="button"
+                    onClick={handleDeletePost}
+                    disabled={deletingPost}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  >
+                    {deletingPost ? '삭제 중...' : '삭제'}
+                  </button>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {post.content ? <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">{post.content}</p> : null}
@@ -232,32 +343,6 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </div>
           ) : null}
 
-          {post.externalLink ? (
-            <a
-              href={post.externalLink.url}
-              target="_blank"
-              rel="noreferrer"
-              className="mb-8 block overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50"
-            >
-              {post.externalLink.thumbnailUrl ? (
-                <div className="relative h-64 w-full">
-                  <Image
-                    src={post.externalLink.thumbnailUrl}
-                    alt={post.externalLink.title}
-                    fill
-                    unoptimized
-                    className="object-cover"
-                  />
-                </div>
-              ) : null}
-              <div className="space-y-1 p-5">
-                <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">{post.externalLink.host}</p>
-                <h3 className="text-lg font-black text-black">{post.externalLink.title}</h3>
-                <p className="text-sm font-medium text-zinc-600">{post.externalLink.description}</p>
-              </div>
-            </a>
-          ) : null}
-
           <div className="flex items-center justify-between border-y border-zinc-50 py-6">
             <div className="flex items-center gap-8">
               <button
@@ -276,12 +361,12 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
               <button
                 type="button"
                 onClick={handleToggleBookmark}
+                disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
                 }`}
               >
                 <Bookmark size={22} className={bookmarked ? 'fill-black' : ''} />
-                <span>{bookmarkCount}</span>
               </button>
             </div>
             <button
@@ -294,7 +379,7 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </button>
           </div>
 
-          <div className="mt-10 space-y-8">
+          <div ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
             <div className="flex gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
                 ME
@@ -318,18 +403,47 @@ export function PostDetail({ postId, onBack, onPostUpdated }: PostDetailProps) {
             </div>
 
             <div className="space-y-4">
-              {submittedComments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">
-                  Existing comment listing is not provided by this API yet. New comments you add will appear here.
-                </p>
+              {comments.length === 0 ? (
+                <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
               ) : (
-                submittedComments.map((comment) => (
+                comments.map((comment) => (
                   <div key={comment.commentId} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="text-sm font-black text-black">{comment.author}</span>
-                      <span className="text-xs font-bold text-zinc-400">
-                        @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
-                      </span>
+                    <div className="mb-2 flex items-start justify-between gap-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-black text-black">{comment.author}</span>
+                        <span className="text-xs font-bold text-zinc-400">
+                          @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
+                        </span>
+                      </div>
+                      {comment.mine ? (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setCommentMenuOpenId((current) =>
+                                current === comment.commentId ? null : comment.commentId
+                              )
+                            }
+                            className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
+                            aria-label="댓글 메뉴"
+                            aria-expanded={commentMenuOpenId === comment.commentId}
+                          >
+                            <MoreHorizontal size={18} />
+                          </button>
+                          {commentMenuOpenId === comment.commentId ? (
+                            <div className="absolute right-0 top-8 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteComment(comment)}
+                                disabled={deletingCommentId === comment.commentId}
+                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                              >
+                                {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
+                              </button>
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </div>
                     <p className="text-sm font-medium text-zinc-700">{comment.content}</p>
                   </div>
