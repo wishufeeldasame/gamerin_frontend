@@ -13,9 +13,11 @@ import {
   ExternalLink,
   Trash2,
   Tv,
+  MessageCircle,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '../components/FetchGameStatsModal';
 import { EditProfileModal } from '../components/EditProfileModal';
@@ -24,11 +26,16 @@ import {
   PostRecord,
   ProfileMediaItem,
   UserProfile,
+  fetchUserProfile,
   fetchMyProfile,
   fetchUserMedia,
   fetchUserPosts,
+  followUser,
   getInitials,
+  unfollowUser,
+  updateMyProfile,
 } from '@/lib/feed-api';
+import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
@@ -119,9 +126,14 @@ function formatGameStatsSummary(stats: unknown) {
 }
 
 export default function ProfilePage() {
+  const params = useParams<{ userId?: string }>();
+  const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
+  const routeUserId = typeof params.userId === 'string' ? decodeURIComponent(params.userId) : '';
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [profileCover, setProfileCover] = useState<string | null>(null);
@@ -153,7 +165,7 @@ export default function ProfilePage() {
     const savedCover = localStorage.getItem('gamerin_profile_cover');
     const savedAvatar = localStorage.getItem('gamerin_profile_avatar');
 
-    setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
+    setProfileCover(savedCover || DEFAULT_PROFILE_COVER);
     setProfileAvatar(savedAvatar);
 
     try {
@@ -188,8 +200,10 @@ export default function ProfilePage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (profileCover) {
+    if (profileCover && profileCover !== DEFAULT_PROFILE_COVER) {
       localStorage.setItem('gamerin_profile_cover', profileCover);
+    } else {
+      localStorage.removeItem('gamerin_profile_cover');
     }
   }, [profileCover]);
 
@@ -208,28 +222,35 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         setError(null);
-        const myProfile = await fetchMyProfile();
+        const targetHandle = routeUserId || currentUser?.handle || currentUser?.id || '';
+        const shouldLoadMyProfile =
+          !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
+        const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
         const [postPage, mediaPage] = await Promise.all([
-          fetchUserPosts(myProfile.handle),
-          fetchUserMedia(myProfile.handle),
+          fetchUserPosts(loadedProfile.handle),
+          fetchUserMedia(loadedProfile.handle),
         ]);
 
         if (cancelled) {
           return;
         }
 
-        setProfile(myProfile);
+        setProfile(loadedProfile);
         setPosts(postPage.items);
         setPostsNextCursor(postPage.nextCursor);
         setPostsHasNext(postPage.hasNext);
         setMediaItems(mediaPage.items);
         setMediaNextCursor(mediaPage.nextCursor);
         setMediaHasNext(mediaPage.hasNext);
-        updateUser({
-          handle: myProfile.handle,
-          nickname: myProfile.nickname,
-          bio: myProfile.bio ?? '',
-        });
+        setIsFollowing(Boolean(loadedProfile.followedByMe));
+
+        if (shouldLoadMyProfile) {
+          updateUser({
+            handle: loadedProfile.handle,
+            nickname: loadedProfile.nickname,
+            bio: loadedProfile.bio ?? '',
+          });
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load profile.');
@@ -245,7 +266,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [updateUser]);
+  }, [currentUser?.handle, currentUser?.id, routeUserId, updateUser]);
 
   const gameStatEntries = useMemo(() => {
     if (!profile?.gameStats) {
@@ -259,7 +280,7 @@ export default function ProfilePage() {
   }, [profile?.gameStats]);
 
   const handleRefreshStats = async () => {
-    if (!profile) {
+    if (!profile || (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)) {
       return;
     }
 
@@ -318,6 +339,57 @@ export default function ProfilePage() {
 
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
+  };
+
+  const handleSaveUserInfo = async (userInfo: { name: string; bio: string; location: string; website: string }) => {
+    if (!profile) return;
+
+    const updatedProfile = await updateMyProfile({
+      nickname: userInfo.name.trim() || profile.nickname,
+      bio: userInfo.bio.trim(),
+    });
+
+    setProfile(updatedProfile);
+    updateUser({
+      handle: updatedProfile.handle,
+      nickname: updatedProfile.nickname,
+      name: updatedProfile.nickname,
+      bio: updatedProfile.bio ?? '',
+    });
+  };
+
+  const handleToggleFollow = async () => {
+    if (!profile || followLoading) {
+      return;
+    }
+
+    const previousFollowing = isFollowing;
+    const previousFollowersCount = profile.followersCount;
+    const nextFollowing = !previousFollowing;
+
+    setIsFollowing(nextFollowing);
+    setProfile({
+      ...profile,
+      followedByMe: nextFollowing,
+      followersCount: Math.max(0, previousFollowersCount + (nextFollowing ? 1 : -1)),
+    });
+
+    try {
+      setFollowLoading(true);
+      const nextProfile = nextFollowing ? await followUser(profile.handle) : await unfollowUser(profile.handle);
+      setProfile(nextProfile);
+      setIsFollowing(Boolean(nextProfile.followedByMe ?? nextFollowing));
+    } catch (followError) {
+      setIsFollowing(previousFollowing);
+      setProfile({
+        ...profile,
+        followedByMe: previousFollowing,
+        followersCount: previousFollowersCount,
+      });
+      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+    } finally {
+      setFollowLoading(false);
+    }
   };
 
   const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
@@ -458,6 +530,9 @@ export default function ProfilePage() {
     );
   }
 
+  const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
+  const displayedCover = isOwnProfile ? profileCover || DEFAULT_PROFILE_COVER : DEFAULT_PROFILE_COVER;
+  const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
     { name: 'posts' as const, icon: <Grid size={16} /> },
     ...(privacySettings.showStats ? [{ name: 'stats' as const, icon: <BarChart3 size={16} /> }] : []),
@@ -469,7 +544,7 @@ export default function ProfilePage() {
       <div
         className="relative h-56 overflow-hidden bg-zinc-950"
         style={{
-          backgroundImage: `url(${profileCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'})`,
+          backgroundImage: `url(${displayedCover})`,
           backgroundPosition: 'center',
           backgroundSize: 'cover',
         }}
@@ -481,9 +556,9 @@ export default function ProfilePage() {
         <div className="relative mb-8 flex items-end justify-between -mt-16">
           <div className="relative">
             <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
-              {profileAvatar || profile.profileImageUrl ? (
+              {displayedAvatar ? (
                 <Image
-                  src={profileAvatar || profile.profileImageUrl || ''}
+                  src={displayedAvatar}
                   alt="Profile"
                   fill
                   unoptimized
@@ -498,8 +573,10 @@ export default function ProfilePage() {
           </div>
 
           <div className="mb-2 flex gap-3">
+            {isOwnProfile ? (
+              <>
             <Link
-              href="/home/settings"
+              href="/settings"
               className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
               aria-label="설정"
             >
@@ -512,6 +589,29 @@ export default function ProfilePage() {
               <Edit3 size={18} />
               Edit Profile
             </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
+                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+                  aria-label="Message"
+                >
+                  <MessageCircle size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  disabled={followLoading}
+                  className={`flex items-center gap-2 rounded-2xl px-8 py-3 text-sm font-black shadow-lg shadow-zinc-200 transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isFollowing ? 'bg-zinc-100 text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -576,19 +676,21 @@ export default function ProfilePage() {
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-3xl font-black text-black">Verified Stats</h2>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowFetchStatsModal(true)}
-                  className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
-                >
-                  <Plus size={16} />
-                  stat+
-                </button>
+              {isOwnProfile ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowFetchStatsModal(true)}
+                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
+                  >
+                    <Plus size={16} />
+                    stat+
+                  </button>
 
-                <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
-                  <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-                </button>
-              </div>
+                  <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
+                    <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-4">
@@ -654,7 +756,7 @@ export default function ProfilePage() {
 
         {activeTab === 'media' ? (
           <div className="space-y-6">
-            {renderConnectedAccounts()}
+            {isOwnProfile ? renderConnectedAccounts() : null}
 
             {mediaItems.length === 0 ? (
               <div className="py-24 text-center">
@@ -696,14 +798,21 @@ export default function ProfilePage() {
         ) : null}
       </div>
 
-      {showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
-      {showEditProfileModal ? (
+      {isOwnProfile && showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}
           coverImage={profileCover}
           onSaveCover={(newCover) => setProfileCover(newCover)}
           avatarImage={profileAvatar}
           onSaveAvatar={(newAvatar) => setProfileAvatar(newAvatar)}
+          userInfo={{
+            name: profile.nickname,
+            bio: profile.bio ?? '',
+            location: '',
+            website: '',
+          }}
+          onSaveUserInfo={handleSaveUserInfo}
         />
       ) : null}
     </div>

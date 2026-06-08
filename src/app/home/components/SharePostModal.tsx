@@ -14,10 +14,10 @@ interface SharePostModalProps {
 
 function buildPostUrl(postId: string) {
   if (typeof window === 'undefined') {
-    return `/home?postId=${postId}`;
+    return `/posts/${postId}`;
   }
 
-  return `${window.location.origin}/home?postId=${postId}`;
+  return `${window.location.origin}/posts/${postId}`;
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {

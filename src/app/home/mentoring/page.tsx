@@ -936,7 +936,7 @@ export default function MentoringPage() {
 
     try {
       const conversation = await createConversation({ recipientId });
-      router.push(`/home/messages?conversationId=${encodeURIComponent(conversation.id)}`);
+      router.push(`/messages?conversationId=${encodeURIComponent(conversation.id)}`);
     } catch (error) {
       showError(error);
     } finally {

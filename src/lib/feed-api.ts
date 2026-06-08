@@ -74,6 +74,7 @@ export interface UserProfile {
   postCount: number;
   mediaPostCount: number;
   mediaItemCount: number;
+  followedByMe?: boolean;
 }
 
 export interface ProfileMediaItem {
@@ -333,6 +334,25 @@ export async function fetchMyProfile() {
 
 export async function fetchUserProfile(handle: string) {
   return apiRequest<UserProfile>(`/api/v1/users/${handle}`);
+}
+
+export async function updateMyProfile(payload: { nickname: string; bio: string }) {
+  return apiRequest<UserProfile>('/api/v1/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function followUser(handle: string) {
+  return apiRequest<UserProfile>(`/api/v1/users/${handle}/follow`, {
+    method: 'POST',
+  });
+}
+
+export async function unfollowUser(handle: string) {
+  return apiRequest<UserProfile>(`/api/v1/users/${handle}/follow`, {
+    method: 'DELETE',
+  });
 }
 
 export async function fetchUserPosts(handle: string, cursor?: string | null, size = 20) {

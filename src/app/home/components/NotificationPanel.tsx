@@ -48,7 +48,7 @@ const initialNotifications: Notification[] = [
     action: '님이 팔로우하기 시작했습니다',
     time: '2시간 전',
     read: true,
-    targetHref: '/home/profile',
+    targetHref: '/profile',
   },
   {
     id: 'message-jin',
@@ -57,7 +57,7 @@ const initialNotifications: Notification[] = [
     action: '님이 메시지를 보냈습니다',
     time: '3시간 전',
     read: true,
-    targetHref: '/home/messages',
+    targetHref: '/messages',
   },
 ];
 

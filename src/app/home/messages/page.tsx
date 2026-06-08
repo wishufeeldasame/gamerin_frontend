@@ -443,7 +443,11 @@ function MessageBubble({
           }`}
         >
           {mine ? <CheckCheck size={13} /> : null}
-          <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
+          <span>
+            {mine
+              ? `${chatMessage.read ? '읽음' : '보냄'} ${formatChatTime(chatMessage.createdAt)}`
+              : formatChatTime(chatMessage.createdAt)}
+          </span>
         </div>
       </div>
     </div>
@@ -483,6 +487,8 @@ export default function MessagesPage() {
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
+  const requestedRecipientHandle = searchParams.get('recipient') ?? '';
+  const requestedRecipientRef = useRef('');
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
@@ -667,6 +673,16 @@ export default function MessagesPage() {
   }, [activeConversationId, loadMessages]);
 
   useEffect(() => {
+    if (!activeConversationId) return;
+
+    const timer = window.setInterval(() => {
+      void loadMessages(activeConversationId, { silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [activeConversationId, loadMessages]);
+
+  useEffect(() => {
     if (!activeConversation || activeConversation.unreadCount === 0) return;
 
     const markRead = async () => {
@@ -785,7 +801,7 @@ export default function MessagesPage() {
         [conversation.id]: false,
       }));
       setActiveConversationId(conversation.id);
-      router.replace(`/home/messages?conversationId=${encodeURIComponent(conversation.id)}`);
+      router.replace(`/messages?conversationId=${encodeURIComponent(conversation.id)}`);
       setShowNewChat(false);
       setMobileView('chat');
       setPageError('');
@@ -802,6 +818,61 @@ export default function MessagesPage() {
     setActiveConversationId(requestedConversationId);
     setMobileView('chat');
   }, [conversations, requestedConversationId]);
+
+  useEffect(() => {
+    if (!isAuthReady || !user || loadingConversations || !requestedRecipientHandle) return;
+    if (requestedRecipientRef.current === requestedRecipientHandle) return;
+
+    requestedRecipientRef.current = requestedRecipientHandle;
+
+    const existingConversation = conversations.find(
+      (conversation) => conversation.recipient.handle === requestedRecipientHandle
+    );
+
+    if (existingConversation) {
+      setActiveConversationId(existingConversation.id);
+      setMobileView('chat');
+      router.replace(`/messages?conversationId=${encodeURIComponent(existingConversation.id)}`);
+      return;
+    }
+
+    const startConversationFromHandle = async () => {
+      try {
+        const conversation = await createConversation({ recipientHandle: requestedRecipientHandle });
+        replaceConversation(conversation);
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversation.id]: conversation.messages,
+        }));
+        setNextCursorByConversation((current) => ({
+          ...current,
+          [conversation.id]: null,
+        }));
+        setHasNextByConversation((current) => ({
+          ...current,
+          [conversation.id]: false,
+        }));
+        setActiveConversationId(conversation.id);
+        setMobileView('chat');
+        setPageError('');
+        router.replace(`/messages?conversationId=${encodeURIComponent(conversation.id)}`);
+      } catch (error) {
+        requestedRecipientRef.current = '';
+        setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
+        setIsAuthError(isMessageAuthError(error));
+      }
+    };
+
+    void startConversationFromHandle();
+  }, [
+    conversations,
+    isAuthReady,
+    loadingConversations,
+    replaceConversation,
+    requestedRecipientHandle,
+    router,
+    user,
+  ]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -980,7 +1051,7 @@ export default function MessagesPage() {
   };
 
   const handleOpenPost = (postId: string) => {
-    router.push(`/home?postId=${encodeURIComponent(postId)}`);
+    router.push(`/posts/${encodeURIComponent(postId)}`);
   };
 
   const handleOpenImage = useCallback((attachment: { url: string; name: string }) => {

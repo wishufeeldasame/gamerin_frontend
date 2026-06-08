@@ -7,25 +7,27 @@ import { useAuth } from '@/app/context/AuthContext';
 
 const menuItems = [
   { icon: Home, label: '홈', href: '/home' },
-  { icon: Bookmark, label: '북마크', href: '/home/bookmarks' },
-  { icon: MessageSquare, label: '메시지', href: '/home/messages' },
-  { icon: BookOpen, label: '멘토링', href: '/home/mentoring' },
-  { icon: User, label: '프로필', href: '/home/profile' },
+  { icon: Bookmark, label: '북마크', href: '/bookmarks' },
+  { icon: MessageSquare, label: '메시지', href: '/messages' },
+  { icon: BookOpen, label: '멘토링', href: '/mentoring' },
+  { icon: User, label: '프로필', href: '/profile' },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user, logout } = useAuth();
+  const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">
       <nav className="space-y-2">
         {menuItems.map((item) => {
-          const isActive = pathname === item.href;
+          const href = item.href === '/profile' ? profileHref : item.href;
+          const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
           return (
             <Link
               key={item.href}
-              href={item.href}
+              href={href}
               className={`group flex items-center gap-4 rounded-2xl px-4 py-3 font-black transition-all ${
                 isActive
                   ? 'scale-[1.02] bg-black text-white shadow-lg'

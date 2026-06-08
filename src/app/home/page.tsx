@@ -2,42 +2,34 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
-import { PostDetail } from './components/PostDetail';
 import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
 export default function HomePage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
   const [posts, setPosts] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const [selectedPostTarget, setSelectedPostTarget] = useState<PostDetailTarget>('post');
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const syncPostFromUrl = () => {
-      const params = new URLSearchParams(window.location.search);
-      const target = params.get('target') === 'comments' ? 'comments' : 'post';
-      setSelectedPostId(params.get('postId'));
-      setSelectedPostTarget(target);
-    };
+    const postId = searchParams.get('postId');
+    if (!postId) return;
 
-    syncPostFromUrl();
-    window.addEventListener('popstate', syncPostFromUrl);
-
-    return () => {
-      window.removeEventListener('popstate', syncPostFromUrl);
-    };
-  }, []);
+    const target = searchParams.get('target') === 'comments' ? '?target=comments' : '';
+    router.replace(`/posts/${encodeURIComponent(postId)}${target}`);
+  }, [router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,20 +115,8 @@ export default function HomePage() {
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
-    setSelectedPostId(postId);
-    setSelectedPostTarget(target);
-
-    const search = new URLSearchParams({ postId });
-    if (target === 'comments') {
-      search.set('target', 'comments');
-    }
-    window.history.pushState(null, '', `/home?${search.toString()}`);
-  };
-
-  const handleClosePost = () => {
-    setSelectedPostId(null);
-    setSelectedPostTarget('post');
-    window.history.pushState(null, '', '/home');
+    const search = target === 'comments' ? '?target=comments' : '';
+    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
 
   const handleLoadMore = async () => {
@@ -171,18 +151,7 @@ export default function HomePage() {
   return (
     <div className="flex justify-center overflow-visible">
       <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50">
-        {selectedPostId ? (
-          <div className="p-4">
-            <PostDetail
-              postId={selectedPostId}
-              onBack={handleClosePost}
-              initialScrollTarget={selectedPostTarget === 'comments' ? 'comments' : undefined}
-              onPostUpdated={handlePostUpdated}
-              onPostDeleted={handlePostDeleted}
-            />
-          </div>
-        ) : (
-          <>
+        <>
             <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
               {[
                 { label: '추천', value: 'all' as const },
@@ -255,8 +224,7 @@ export default function HomePage() {
                 </div>
               )}
             </div>
-          </>
-        )}
+        </>
       </main>
 
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 p-6 xl:block">

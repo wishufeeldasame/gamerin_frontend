@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Bookmark, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useRouter } from 'next/navigation';
 import {
   PostRecord,
   fetchMyBookmarks,
@@ -11,7 +12,6 @@ import {
   updatePostLikeState,
 } from '@/lib/feed-api';
 import { Post } from '../components/Post';
-import { PostDetail } from '../components/PostDetail';
 
 type BookmarkFilter = 'all' | 'media';
 type PostDetailTarget = 'post' | 'comments';
@@ -46,6 +46,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 }
 
 export default function BookmarksPage() {
+  const router = useRouter();
   const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -54,8 +55,6 @@ export default function BookmarksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<BookmarkFilter>('all');
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
-  const [selectedPostTarget, setSelectedPostTarget] = useState<PostDetailTarget>('post');
 
   const upsertBookmark = useCallback((post: PostRecord) => {
     setBookmarks((current) => {
@@ -187,33 +186,12 @@ export default function BookmarksPage() {
 
   const handlePostDeleted = (postId: string) => {
     removeBookmark(postId);
-    if (selectedPostId === postId) {
-      setSelectedPostId(null);
-      setSelectedPostTarget('post');
-    }
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
-    setSelectedPostId(postId);
-    setSelectedPostTarget(target);
+    const search = target === 'comments' ? '?target=comments' : '';
+    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
-
-  if (selectedPostId) {
-    return (
-      <div className="mx-auto max-w-4xl px-6 py-10">
-        <PostDetail
-          postId={selectedPostId}
-          onBack={() => {
-            setSelectedPostId(null);
-            setSelectedPostTarget('post');
-          }}
-          initialScrollTarget={selectedPostTarget === 'comments' ? 'comments' : undefined}
-          onPostUpdated={handlePostUpdated}
-          onPostDeleted={handlePostDeleted}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-10">
