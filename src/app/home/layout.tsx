@@ -102,39 +102,40 @@ export default function HomeLayout({
   useEffect(() => {
     if (!isAuthReady) return;
 
+    const token = getRedirectAccessToken();
+    if (!token) return;
+
     let cancelled = false;
 
-    const syncSocialLogin = async () => {
-      const token = getRedirectAccessToken();
+    const sync = async () => {
+      setAccessToken(token);
+      const fallback = decodeJwtPayload(token);
+      const me = await fetchMe(token);
 
-      if (token) {
-        setAccessToken(token);
+      if (cancelled) return;
 
-        const fallback = decodeJwtPayload(token);
-        const me = await fetchMe(token);
+      login(buildUser(me, fallback));
 
-        if (cancelled) return;
+      router.replace('/home');
 
-        login(buildUser(me, fallback));
-        router.replace('/home');
-        return;
-      }
-
-      if (!user) {
-        router.replace('/login');
-      }
     };
 
-    syncSocialLogin();
+    sync();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthReady, login, router, user]);
+  }, [isAuthReady, login, router]);
 
-  if (!isAuthReady || !user) {
-    return null;
-  }
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    if (getRedirectAccessToken()) return;
+
+    if (!user) {
+      router.replace('/login');
+    }
+  },[isAuthReady, user, router]);
 
   return (
     <div className="min-h-screen bg-white">
