@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { PostComposer } from './components/PostComposer';
 import { Post } from './components/Post';
 import { RightSidebar } from './components/RightSidebar';
@@ -12,6 +13,8 @@ type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
 export default function HomePage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
   const [posts, setPosts] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -24,20 +27,12 @@ export default function HomePage() {
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const syncPostFromUrl = () => {
-      const params = new URLSearchParams(window.location.search);
-      const target = params.get('target') === 'comments' ? 'comments' : 'post';
-      setSelectedPostId(params.get('postId'));
-      setSelectedPostTarget(target);
-    };
-
-    syncPostFromUrl();
-    window.addEventListener('popstate', syncPostFromUrl);
-
-    return () => {
-      window.removeEventListener('popstate', syncPostFromUrl);
-    };
-  }, []);
+  const postId = searchParams.get('postId');
+  const target = searchParams.get('target') === 'comments' ? 'comments' : 'post';
+  
+  setSelectedPostId(postId);
+  setSelectedPostTarget(target);
+}, [searchParams]);
 
   useEffect(() => {
     let cancelled = false;
@@ -123,20 +118,18 @@ export default function HomePage() {
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
-    setSelectedPostId(postId);
-    setSelectedPostTarget(target);
-
-    const search = new URLSearchParams({ postId });
+    const params = new URLSearchParams();
+    params.set('postId', postId);
     if (target === 'comments') {
-      search.set('target', 'comments');
+      params.set('target', 'comments');
     }
-    window.history.pushState(null, '', `/home?${search.toString()}`);
+    
+    router.push(`/home?${params.toString()}`);
   };
 
   const handleClosePost = () => {
-    setSelectedPostId(null);
-    setSelectedPostTarget('post');
-    window.history.pushState(null, '', '/home');
+    
+    router.push('/home');
   };
 
   const handleLoadMore = async () => {
