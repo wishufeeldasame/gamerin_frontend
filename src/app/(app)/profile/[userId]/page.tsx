@@ -21,9 +21,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
-import { FetchGameStatsModal } from '../components/FetchGameStatsModal';
-import { EditProfileModal } from '../components/EditProfileModal';
-import { Post } from '../components/Post';
+import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
+import { EditProfileModal } from '@/app/home/components/EditProfileModal';
+import { Post } from '@/app/home/components/Post';
 import {
   PostRecord,
   FollowUserRecord,

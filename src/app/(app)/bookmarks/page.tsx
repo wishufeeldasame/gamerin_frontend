@@ -11,7 +11,7 @@ import {
   unlikePost,
   updatePostLikeState,
 } from '@/lib/feed-api';
-import { Post } from '../components/Post';
+import { Post } from '@/app/home/components/Post';
 
 type BookmarkFilter = 'all' | 'media';
 type PostDetailTarget = 'post' | 'comments';

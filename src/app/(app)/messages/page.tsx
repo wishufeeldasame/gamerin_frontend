@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
@@ -475,6 +475,7 @@ export default function MessagesPage() {
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
   const activeConversationIdRef = useRef('');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -507,11 +508,18 @@ export default function MessagesPage() {
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
+  const latestMessageId = activeMessages.at(-1)?.id ?? '';
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  useLayoutEffect(() => {
+    if (!activeConversationId || !latestMessageId) return;
+
+    messageEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [activeConversationId, latestMessageId]);
 
   const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
     for (const target of targets) {
@@ -592,7 +600,7 @@ export default function MessagesPage() {
           return current;
         }
 
-        return data[0]?.id ?? '';
+        return '';
       });
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
@@ -1050,7 +1058,7 @@ export default function MessagesPage() {
         delete next[removedConversationId];
         return next;
       });
-      setActiveConversationId(remainingConversations[0]?.id ?? '');
+      setActiveConversationId('');
       setMobileView('list');
       setHeaderMenuOpen(false);
       setMessageActionId(null);
@@ -1363,6 +1371,7 @@ export default function MessagesPage() {
                   </div>
                 </div>
               )}
+              <div ref={messageEndRef} />
             </div>
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">

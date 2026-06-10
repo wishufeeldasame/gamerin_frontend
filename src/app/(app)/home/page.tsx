@@ -3,9 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { PostComposer } from './components/PostComposer';
-import { Post } from './components/Post';
-import { RightSidebar } from './components/RightSidebar';
+import { PostComposer } from '@/app/home/components/PostComposer';
+import { Post } from '@/app/home/components/Post';
+import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
 
 type FeedTab = 'all' | 'following';

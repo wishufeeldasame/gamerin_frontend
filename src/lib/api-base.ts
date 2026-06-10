@@ -5,5 +5,9 @@ export function getApiBaseUrl() {
     return configuredApiBaseUrl.replace(/\/$/, '');
   }
 
-  return 'http://localhost:8080';
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+
+  return '';
 }

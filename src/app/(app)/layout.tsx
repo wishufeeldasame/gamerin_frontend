@@ -91,7 +91,11 @@ function getRedirectAccessToken() {
   return hashParams.get('accessToken');
 }
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const router = useRouter();
   const { user, isAuthReady, login } = useAuth();
 
