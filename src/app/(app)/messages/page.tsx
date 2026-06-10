@@ -18,7 +18,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
@@ -443,7 +443,11 @@ function MessageBubble({
           }`}
         >
           {mine ? <CheckCheck size={13} /> : null}
-          <span>{mine ? `Sent ${formatChatTime(chatMessage.createdAt)}` : formatChatTime(chatMessage.createdAt)}</span>
+          <span>
+            {mine
+              ? `${chatMessage.read ? '읽음' : '보냄'} ${formatChatTime(chatMessage.createdAt)}`
+              : formatChatTime(chatMessage.createdAt)}
+          </span>
         </div>
       </div>
     </div>
@@ -453,11 +457,12 @@ function MessageBubble({
 export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, logout, isAuthReady } = useAuth();
+  const { user, isAuthReady } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
+  const messageEndRef = useRef<HTMLDivElement | null>(null);
   const activeConversationIdRef = useRef('');
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -479,18 +484,27 @@ export default function MessagesPage() {
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
-  const [isAuthError, setIsAuthError] = useState(false);
+  const [, setIsAuthError] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
+  const requestedRecipientHandle = searchParams.get('recipient') ?? '';
+  const requestedRecipientRef = useRef('');
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
   const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
+  const latestMessageId = activeMessages.at(-1)?.id ?? '';
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  useLayoutEffect(() => {
+    if (!activeConversationId || !latestMessageId) return;
+
+    messageEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [activeConversationId, latestMessageId]);
 
   const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
     for (const target of targets) {
@@ -571,7 +585,7 @@ export default function MessagesPage() {
           return current;
         }
 
-        return data[0]?.id ?? '';
+        return '';
       });
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
@@ -667,6 +681,16 @@ export default function MessagesPage() {
   }, [activeConversationId, loadMessages]);
 
   useEffect(() => {
+    if (!activeConversationId) return;
+
+    const timer = window.setInterval(() => {
+      void loadMessages(activeConversationId, { silent: true });
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [activeConversationId, loadMessages]);
+
+  useEffect(() => {
     if (!activeConversation || activeConversation.unreadCount === 0) return;
 
     const markRead = async () => {
@@ -719,6 +743,7 @@ export default function MessagesPage() {
         });
 
         eventSource.onerror = () => {
+          eventSource?.close();
           if (!cancelled) {
             setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
           }
@@ -785,7 +810,7 @@ export default function MessagesPage() {
         [conversation.id]: false,
       }));
       setActiveConversationId(conversation.id);
-      router.replace(`/home/messages?conversationId=${encodeURIComponent(conversation.id)}`);
+      router.replace(`/messages?conversationId=${encodeURIComponent(conversation.id)}`);
       setShowNewChat(false);
       setMobileView('chat');
       setPageError('');
@@ -802,6 +827,68 @@ export default function MessagesPage() {
     setActiveConversationId(requestedConversationId);
     setMobileView('chat');
   }, [conversations, requestedConversationId]);
+
+  useEffect(() => {
+    if (
+      !isAuthReady ||
+      !user ||
+      loadingConversations ||
+      !requestedRecipientHandle
+    ) {
+      return;
+    }
+    if (requestedRecipientRef.current === requestedRecipientHandle) return;
+
+    requestedRecipientRef.current = requestedRecipientHandle;
+
+    const existingConversation = conversations.find(
+      (conversation) => conversation.recipient.handle === requestedRecipientHandle
+    );
+
+    if (existingConversation) {
+      setActiveConversationId(existingConversation.id);
+      setMobileView('chat');
+      router.replace(`/messages?conversationId=${encodeURIComponent(existingConversation.id)}`);
+      return;
+    }
+
+    const startConversationFromHandle = async () => {
+      try {
+        const conversation = await createConversation({ recipientHandle: requestedRecipientHandle });
+        replaceConversation(conversation);
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversation.id]: conversation.messages,
+        }));
+        setNextCursorByConversation((current) => ({
+          ...current,
+          [conversation.id]: null,
+        }));
+        setHasNextByConversation((current) => ({
+          ...current,
+          [conversation.id]: false,
+        }));
+        setActiveConversationId(conversation.id);
+        setMobileView('chat');
+        setPageError('');
+        router.replace(`/messages?conversationId=${encodeURIComponent(conversation.id)}`);
+      } catch (error) {
+        requestedRecipientRef.current = '';
+        setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
+        setIsAuthError(isMessageAuthError(error));
+      }
+    };
+
+    void startConversationFromHandle();
+  }, [
+    conversations,
+    isAuthReady,
+    loadingConversations,
+    replaceConversation,
+    requestedRecipientHandle,
+    router,
+    user,
+  ]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -898,7 +985,7 @@ export default function MessagesPage() {
         delete next[removedConversationId];
         return next;
       });
-      setActiveConversationId(remainingConversations[0]?.id ?? '');
+      setActiveConversationId('');
       setMobileView('list');
       setHeaderMenuOpen(false);
       setMessageActionId(null);
@@ -980,7 +1067,7 @@ export default function MessagesPage() {
   };
 
   const handleOpenPost = (postId: string) => {
-    router.push(`/home?postId=${encodeURIComponent(postId)}`);
+    router.push(`/posts/${encodeURIComponent(postId)}`);
   };
 
   const handleOpenImage = useCallback((attachment: { url: string; name: string }) => {
@@ -1055,7 +1142,10 @@ export default function MessagesPage() {
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
           {showNewChat ? (
-            <NewChatPicker onStart={handleStartConversation} onClose={() => setShowNewChat(false)} />
+            <NewChatPicker
+              onStart={handleStartConversation}
+              onClose={() => setShowNewChat(false)}
+            />
           ) : null}
 
           {pageError ? (
@@ -1206,25 +1296,10 @@ export default function MessagesPage() {
                   </div>
                 </div>
               )}
+              <div ref={messageEndRef} />
             </div>
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">
-              {isAuthError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <CircleAlert size={16} className="shrink-0" />
-                    <span className="truncate">인증이 만료되었거나 다시 로그인이 필요합니다.</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void logout()}
-                    className="rounded-xl bg-black px-3 py-2 text-xs font-black text-white"
-                  >
-                    다시 로그인
-                  </button>
-                </div>
-              ) : null}
-
               {composerError ? (
                 <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                   <CircleAlert size={16} className="shrink-0" />

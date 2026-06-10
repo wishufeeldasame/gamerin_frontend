@@ -74,6 +74,23 @@ export interface UserProfile {
   postCount: number;
   mediaPostCount: number;
   mediaItemCount: number;
+  followedByMe?: boolean;
+}
+
+type UserProfilePayload = UserProfile & {
+  isFollowing?: boolean;
+  following?: boolean;
+};
+
+export interface FollowUserRecord {
+  userId: string;
+  handle: string;
+  nickname: string;
+  bio: string | null;
+  profileImageUrl: string | null;
+  verifiedBadge: boolean;
+  isFollowing: boolean;
+  followedAt: string;
 }
 
 export interface ProfileMediaItem {
@@ -125,6 +142,13 @@ function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) =>
     items: Array.isArray(page.items) ? page.items.map(normalizeItem) : [],
     nextCursor: page.nextCursor ?? null,
     hasNext: Boolean(page.hasNext),
+  };
+}
+
+function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
+  return {
+    ...profile,
+    followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
   };
 }
 
@@ -328,11 +352,61 @@ export async function deleteComment(postId: string, commentId: string) {
 }
 
 export async function fetchMyProfile() {
-  return apiRequest<UserProfile>('/api/v1/users/me');
+  const profile = await apiRequest<UserProfilePayload>('/api/v1/users/me');
+  return normalizeUserProfile(profile);
 }
 
 export async function fetchUserProfile(handle: string) {
-  return apiRequest<UserProfile>(`/api/v1/users/${handle}`);
+  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${handle}`);
+  return normalizeUserProfile(profile);
+}
+
+export async function updateMyProfile(payload: { nickname: string; bio: string }) {
+  const profile = await apiRequest<UserProfilePayload>('/api/v1/users/me', {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+  return normalizeUserProfile(profile);
+}
+
+export async function followUser(handle: string) {
+  await apiRequest<null>(`/api/v1/users/${handle}/follow`, {
+    method: 'POST',
+  });
+}
+
+export async function unfollowUser(handle: string) {
+  await apiRequest<null>(`/api/v1/users/${handle}/follow`, {
+    method: 'DELETE',
+  });
+}
+
+export async function fetchFollowers(handle: string, cursor?: string | null, size = 20) {
+  const search = new URLSearchParams({
+    size: String(size),
+  });
+
+  if (cursor) {
+    search.set('cursor', cursor);
+  }
+
+  return apiRequest<CursorPage<FollowUserRecord>>(
+    `/api/v1/users/${encodeURIComponent(handle)}/followers?${search.toString()}`
+  );
+}
+
+export async function fetchFollowing(handle: string, cursor?: string | null, size = 20) {
+  const search = new URLSearchParams({
+    size: String(size),
+  });
+
+  if (cursor) {
+    search.set('cursor', cursor);
+  }
+
+  return apiRequest<CursorPage<FollowUserRecord>>(
+    `/api/v1/users/${encodeURIComponent(handle)}/following?${search.toString()}`
+  );
 }
 
 export async function fetchUserPosts(handle: string, cursor?: string | null, size = 20) {

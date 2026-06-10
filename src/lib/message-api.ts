@@ -1,4 +1,4 @@
-import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { PostRecord } from '@/lib/feed-api';
 import {
@@ -23,6 +23,10 @@ type ApiEnvelope<T> = {
 type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
+
+function createMessageAuthError() {
+  return new Error('Authentication is required or the token has expired.');
+}
 
 type ConversationPayload = {
   id: string;
@@ -144,7 +148,7 @@ async function messageRequest<T>(path: string, options: RequestOptions = {}): Pr
 
   let accessToken = await ensureAccessToken();
   if (!accessToken) {
-    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+    throw createMessageAuthError();
   }
 
   let result = await send(accessToken);
@@ -152,14 +156,19 @@ async function messageRequest<T>(path: string, options: RequestOptions = {}): Pr
   if (result.response.status === 401) {
     accessToken = await refreshAccessToken();
     if (!accessToken) {
-      throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+      throw createMessageAuthError();
     }
 
     result = await send(accessToken);
   }
 
   if (!result.response.ok) {
-    throw new Error(result.payload?.message ?? '메시지 요청에 실패했습니다.');
+    if (result.response.status === 401) {
+      clearStoredAuth();
+      throw createMessageAuthError();
+    }
+
+    throw new Error(result.payload?.message ?? 'Message request failed.');
   }
 
   return (result.payload as ApiEnvelope<T>).data;
@@ -167,7 +176,14 @@ async function messageRequest<T>(path: string, options: RequestOptions = {}): Pr
 
 export function isMessageAuthError(error: unknown) {
   if (!(error instanceof Error)) return false;
-  return error.message.includes('로그인이 필요') || error.message.includes('인증이 만료');
+  const message = error.message.toLowerCase();
+  return (
+    message.includes('로그인이 필요') ||
+    message.includes('인증') ||
+    message.includes('토큰') ||
+    message.includes('authentication') ||
+    message.includes('token')
+  );
 }
 
 export async function fetchConversationList() {
@@ -178,7 +194,7 @@ export async function fetchConversationList() {
 export async function openMessageEventSource() {
   const accessToken = await ensureAccessToken();
   if (!accessToken) {
-    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
+    throw createMessageAuthError();
   }
 
   const url = new URL(`${MESSAGE_BASE}/stream`);

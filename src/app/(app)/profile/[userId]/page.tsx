@@ -13,25 +13,38 @@ import {
   ExternalLink,
   Trash2,
   Tv,
+  MessageCircle,
+  X,
+  Loader2,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
-import { FetchGameStatsModal } from '../components/FetchGameStatsModal';
-import { EditProfileModal } from '../components/EditProfileModal';
-import { Post } from '../components/Post';
+import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
+import { EditProfileModal } from '@/app/home/components/EditProfileModal';
+import { Post } from '@/app/home/components/Post';
 import {
   PostRecord,
+  FollowUserRecord,
   ProfileMediaItem,
   UserProfile,
+  fetchFollowers,
+  fetchFollowing,
+  fetchUserProfile,
   fetchMyProfile,
   fetchUserMedia,
   fetchUserPosts,
+  followUser,
   getInitials,
+  unfollowUser,
+  updateMyProfile,
 } from '@/lib/feed-api';
+import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
+type FollowListType = 'followers' | 'following';
 
 type ConnectedPlatformId = 'youtube' | 'twitch' | 'soop';
 
@@ -76,7 +89,7 @@ const connectedPlatformMeta: Record<
 };
 
 function normalizeHandle(value: string) {
-  return value.trim().replace(/\s+/g, '');
+  return value.trim().replace(/\s+/g, '').toLowerCase();
 }
 
 function formatGameStatsSummary(stats: unknown) {
@@ -118,10 +131,38 @@ function formatGameStatsSummary(stats: unknown) {
     .join(' · ');
 }
 
+async function fetchFollowingHandleSet(handle: string) {
+  const handles = new Set<string>();
+  let cursor: string | null = null;
+  let pageCount = 0;
+
+  do {
+    const page = await fetchFollowing(handle, cursor, 100);
+    page.items.forEach((item) => handles.add(normalizeHandle(item.handle)));
+    cursor = page.nextCursor;
+    pageCount += 1;
+  } while (cursor && pageCount < 10);
+
+  return handles;
+}
+
 export default function ProfilePage() {
+  const params = useParams<{ userId?: string }>();
+  const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
+  const routeUserId = typeof params.userId === 'string' ? decodeURIComponent(params.userId) : '';
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [followLoading, setFollowLoading] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followListType, setFollowListType] = useState<FollowListType | null>(null);
+  const [followUsers, setFollowUsers] = useState<FollowUserRecord[]>([]);
+  const [followNextCursor, setFollowNextCursor] = useState<string | null>(null);
+  const [followHasNext, setFollowHasNext] = useState(false);
+  const [followListLoading, setFollowListLoading] = useState(false);
+  const [followListLoadingMore, setFollowListLoadingMore] = useState(false);
+  const [followListError, setFollowListError] = useState<string | null>(null);
+  const [followActionHandle, setFollowActionHandle] = useState<string | null>(null);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [profileCover, setProfileCover] = useState<string | null>(null);
@@ -153,7 +194,7 @@ export default function ProfilePage() {
     const savedCover = localStorage.getItem('gamerin_profile_cover');
     const savedAvatar = localStorage.getItem('gamerin_profile_avatar');
 
-    setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
+    setProfileCover(savedCover || DEFAULT_PROFILE_COVER);
     setProfileAvatar(savedAvatar);
 
     try {
@@ -188,8 +229,10 @@ export default function ProfilePage() {
   }, [activeTab]);
 
   useEffect(() => {
-    if (profileCover) {
+    if (profileCover && profileCover !== DEFAULT_PROFILE_COVER) {
       localStorage.setItem('gamerin_profile_cover', profileCover);
+    } else {
+      localStorage.removeItem('gamerin_profile_cover');
     }
   }, [profileCover]);
 
@@ -208,28 +251,49 @@ export default function ProfilePage() {
       try {
         setLoading(true);
         setError(null);
-        const myProfile = await fetchMyProfile();
-        const [postPage, mediaPage] = await Promise.all([
-          fetchUserPosts(myProfile.handle),
-          fetchUserMedia(myProfile.handle),
+        const targetHandle = routeUserId || currentUser?.handle || currentUser?.id || '';
+        const shouldLoadMyProfile =
+          !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
+        const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
+        const followingHandlesPromise =
+          !shouldLoadMyProfile && currentUser?.handle
+            ? fetchFollowingHandleSet(currentUser.handle).catch(() => null)
+            : Promise.resolve(null);
+        const [postPage, mediaPage, followingHandles] = await Promise.all([
+          fetchUserPosts(loadedProfile.handle),
+          fetchUserMedia(loadedProfile.handle),
+          followingHandlesPromise,
         ]);
+        const followedByMe = shouldLoadMyProfile
+          ? false
+          : followingHandles
+            ? followingHandles.has(normalizeHandle(loadedProfile.handle))
+            : Boolean(loadedProfile.followedByMe);
+        const resolvedProfile = {
+          ...loadedProfile,
+          followedByMe,
+        };
 
         if (cancelled) {
           return;
         }
 
-        setProfile(myProfile);
+        setProfile(resolvedProfile);
         setPosts(postPage.items);
         setPostsNextCursor(postPage.nextCursor);
         setPostsHasNext(postPage.hasNext);
         setMediaItems(mediaPage.items);
         setMediaNextCursor(mediaPage.nextCursor);
         setMediaHasNext(mediaPage.hasNext);
-        updateUser({
-          handle: myProfile.handle,
-          nickname: myProfile.nickname,
-          bio: myProfile.bio ?? '',
-        });
+        setIsFollowing(followedByMe);
+
+        if (shouldLoadMyProfile) {
+          updateUser({
+            handle: loadedProfile.handle,
+            nickname: loadedProfile.nickname,
+            bio: loadedProfile.bio ?? '',
+          });
+        }
       } catch (loadError) {
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : 'Failed to load profile.');
@@ -245,7 +309,7 @@ export default function ProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [updateUser]);
+  }, [currentUser?.handle, currentUser?.id, routeUserId, updateUser]);
 
   const gameStatEntries = useMemo(() => {
     if (!profile?.gameStats) {
@@ -259,7 +323,7 @@ export default function ProfilePage() {
   }, [profile?.gameStats]);
 
   const handleRefreshStats = async () => {
-    if (!profile) {
+    if (!profile || (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)) {
       return;
     }
 
@@ -318,6 +382,131 @@ export default function ProfilePage() {
 
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
+  };
+
+  const handleSaveUserInfo = async (userInfo: { name: string; bio: string; location: string; website: string }) => {
+    if (!profile) return;
+
+    const updatedProfile = await updateMyProfile({
+      nickname: userInfo.name.trim() || profile.nickname,
+      bio: userInfo.bio.trim(),
+    });
+
+    setProfile(updatedProfile);
+    updateUser({
+      handle: updatedProfile.handle,
+      nickname: updatedProfile.nickname,
+      name: updatedProfile.nickname,
+      bio: updatedProfile.bio ?? '',
+    });
+  };
+
+  const handleToggleFollow = async () => {
+    if (!profile || followLoading) {
+      return;
+    }
+
+    const previousFollowing = isFollowing;
+    const previousFollowersCount = profile.followersCount;
+    const nextFollowing = !previousFollowing;
+
+    setIsFollowing(nextFollowing);
+    setProfile({
+      ...profile,
+      followedByMe: nextFollowing,
+      followersCount: Math.max(0, previousFollowersCount + (nextFollowing ? 1 : -1)),
+    });
+
+    try {
+      setFollowLoading(true);
+      if (nextFollowing) {
+        await followUser(profile.handle);
+      } else {
+        await unfollowUser(profile.handle);
+      }
+    } catch (followError) {
+      setIsFollowing(previousFollowing);
+      setProfile({
+        ...profile,
+        followedByMe: previousFollowing,
+        followersCount: previousFollowersCount,
+      });
+      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  const loadFollowList = async (type: FollowListType, cursor?: string | null) => {
+    if (!profile) return;
+
+    try {
+      if (cursor) {
+        setFollowListLoadingMore(true);
+      } else {
+        setFollowListLoading(true);
+        setFollowUsers([]);
+      }
+
+      setFollowListError(null);
+      const page =
+        type === 'followers'
+          ? await fetchFollowers(profile.handle, cursor)
+          : await fetchFollowing(profile.handle, cursor);
+
+      setFollowUsers((current) => (cursor ? [...current, ...page.items] : page.items));
+      setFollowNextCursor(page.nextCursor);
+      setFollowHasNext(page.hasNext);
+    } catch (loadError) {
+      setFollowListError(loadError instanceof Error ? loadError.message : 'Failed to load users.');
+    } finally {
+      setFollowListLoading(false);
+      setFollowListLoadingMore(false);
+    }
+  };
+
+  const openFollowList = (type: FollowListType) => {
+    setFollowListType(type);
+    void loadFollowList(type);
+  };
+
+  const closeFollowList = () => {
+    setFollowListType(null);
+    setFollowUsers([]);
+    setFollowNextCursor(null);
+    setFollowHasNext(false);
+    setFollowListError(null);
+  };
+
+  const handleToggleFollowUser = async (target: FollowUserRecord) => {
+    if (followActionHandle || target.handle === currentUser?.handle) {
+      return;
+    }
+
+    const nextFollowing = !target.isFollowing;
+    setFollowActionHandle(target.handle);
+    setFollowUsers((current) =>
+      current.map((user) =>
+        user.handle === target.handle ? { ...user, isFollowing: nextFollowing } : user
+      )
+    );
+
+    try {
+      if (nextFollowing) {
+        await followUser(target.handle);
+      } else {
+        await unfollowUser(target.handle);
+      }
+    } catch (followError) {
+      setFollowUsers((current) =>
+        current.map((user) =>
+          user.handle === target.handle ? { ...user, isFollowing: target.isFollowing } : user
+        )
+      );
+      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+    } finally {
+      setFollowActionHandle(null);
+    }
   };
 
   const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
@@ -458,6 +647,9 @@ export default function ProfilePage() {
     );
   }
 
+  const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
+  const displayedCover = isOwnProfile ? profileCover || DEFAULT_PROFILE_COVER : DEFAULT_PROFILE_COVER;
+  const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
     { name: 'posts' as const, icon: <Grid size={16} /> },
     ...(privacySettings.showStats ? [{ name: 'stats' as const, icon: <BarChart3 size={16} /> }] : []),
@@ -469,7 +661,7 @@ export default function ProfilePage() {
       <div
         className="relative h-56 overflow-hidden bg-zinc-950"
         style={{
-          backgroundImage: `url(${profileCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'})`,
+          backgroundImage: `url(${displayedCover})`,
           backgroundPosition: 'center',
           backgroundSize: 'cover',
         }}
@@ -481,9 +673,9 @@ export default function ProfilePage() {
         <div className="relative mb-8 flex items-end justify-between -mt-16">
           <div className="relative">
             <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
-              {profileAvatar || profile.profileImageUrl ? (
+              {displayedAvatar ? (
                 <Image
-                  src={profileAvatar || profile.profileImageUrl || ''}
+                  src={displayedAvatar}
                   alt="Profile"
                   fill
                   unoptimized
@@ -498,8 +690,10 @@ export default function ProfilePage() {
           </div>
 
           <div className="mb-2 flex gap-3">
+            {isOwnProfile ? (
+              <>
             <Link
-              href="/home/settings"
+              href="/settings"
               className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
               aria-label="설정"
             >
@@ -512,6 +706,30 @@ export default function ProfilePage() {
               <Edit3 size={18} />
               Edit Profile
             </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
+                  title="Message"
+                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+                  aria-label="Message"
+                >
+                  <MessageCircle size={20} />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleToggleFollow}
+                  disabled={followLoading}
+                  className={`flex items-center gap-2 rounded-2xl px-8 py-3 text-sm font-black shadow-lg shadow-zinc-200 transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                    isFollowing ? 'bg-zinc-100 text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  {isFollowing ? 'Following' : 'Follow'}
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -532,18 +750,26 @@ export default function ProfilePage() {
           ) : null}
 
           <div className="flex gap-8 pt-2">
-            <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openFollowList('followers')}
+              className="flex items-center gap-2 text-left transition hover:opacity-70"
+            >
               <span className="text-2xl font-black tracking-tighter text-black">
                 {profile.followersCount.toLocaleString()}
               </span>
               <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Followers</span>
-            </div>
-            <div className="flex items-center gap-2">
+            </button>
+            <button
+              type="button"
+              onClick={() => openFollowList('following')}
+              className="flex items-center gap-2 text-left transition hover:opacity-70"
+            >
               <span className="text-2xl font-black tracking-tighter text-black">
                 {profile.followingCount.toLocaleString()}
               </span>
               <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Following</span>
-            </div>
+            </button>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-black tracking-tighter text-black">{profile.postCount.toLocaleString()}</span>
               <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Posts</span>
@@ -576,19 +802,21 @@ export default function ProfilePage() {
             <div className="mb-6 flex items-center justify-between">
               <h2 className="text-3xl font-black text-black">Verified Stats</h2>
 
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={() => setShowFetchStatsModal(true)}
-                  className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
-                >
-                  <Plus size={16} />
-                  stat+
-                </button>
+              {isOwnProfile ? (
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setShowFetchStatsModal(true)}
+                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
+                  >
+                    <Plus size={16} />
+                    stat+
+                  </button>
 
-                <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
-                  <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-                </button>
-              </div>
+                  <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
+                    <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                  </button>
+                </div>
+              ) : null}
             </div>
 
             <div className="space-y-4">
@@ -654,7 +882,7 @@ export default function ProfilePage() {
 
         {activeTab === 'media' ? (
           <div className="space-y-6">
-            {renderConnectedAccounts()}
+            {isOwnProfile ? renderConnectedAccounts() : null}
 
             {mediaItems.length === 0 ? (
               <div className="py-24 text-center">
@@ -696,15 +924,140 @@ export default function ProfilePage() {
         ) : null}
       </div>
 
-      {showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
-      {showEditProfileModal ? (
+      {isOwnProfile && showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}
           coverImage={profileCover}
           onSaveCover={(newCover) => setProfileCover(newCover)}
           avatarImage={profileAvatar}
           onSaveAvatar={(newAvatar) => setProfileAvatar(newAvatar)}
+          userInfo={{
+            name: profile.nickname,
+            bio: profile.bio ?? '',
+            location: '',
+            website: '',
+          }}
+          onSaveUserInfo={handleSaveUserInfo}
         />
+      ) : null}
+      {followListType ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+          <div className="max-h-[82vh] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                  @{profile.handle}
+                </p>
+                <h2 className="text-2xl font-black text-black">
+                  {followListType === 'followers' ? 'Followers' : 'Following'}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeFollowList}
+                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                aria-label="Close"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="max-h-[58vh] overflow-y-auto p-4">
+              {followListLoading ? (
+                <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
+                  <Loader2 size={18} className="mr-2 animate-spin" />
+                  Loading users...
+                </div>
+              ) : followListError ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                  {followListError}
+                </div>
+              ) : followUsers.length === 0 ? (
+                <div className="py-16 text-center text-sm font-bold text-zinc-400">
+                  No users yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {followUsers.map((followUserRecord) => {
+                    const isMe =
+                      followUserRecord.handle === currentUser.handle ||
+                      followUserRecord.userId === currentUser.id;
+
+                    return (
+                      <div
+                        key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
+                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50"
+                      >
+                        <Link
+                          href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
+                          onClick={closeFollowList}
+                          className="flex min-w-0 flex-1 items-center gap-3"
+                        >
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white">
+                            {followUserRecord.profileImageUrl ? (
+                              <Image
+                                src={followUserRecord.profileImageUrl}
+                                alt={followUserRecord.nickname}
+                                fill
+                                unoptimized
+                                sizes="48px"
+                                className="object-cover"
+                              />
+                            ) : (
+                              getInitials(followUserRecord.nickname)
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-black text-black">
+                              {followUserRecord.nickname}
+                            </p>
+                            <p className="truncate text-xs font-bold text-zinc-400">
+                              @{followUserRecord.handle}
+                            </p>
+                            {followUserRecord.bio ? (
+                              <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500">
+                                {followUserRecord.bio}
+                              </p>
+                            ) : null}
+                          </div>
+                        </Link>
+
+                        {!isMe ? (
+                          <button
+                            type="button"
+                            onClick={() => handleToggleFollowUser(followUserRecord)}
+                            disabled={followActionHandle === followUserRecord.handle}
+                            className={`shrink-0 rounded-xl px-4 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                              followUserRecord.isFollowing
+                                ? 'bg-zinc-100 text-black hover:bg-zinc-200'
+                                : 'bg-black text-white hover:bg-zinc-800'
+                            }`}
+                          >
+                            {followUserRecord.isFollowing ? 'Following' : 'Follow'}
+                          </button>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {followHasNext ? (
+              <div className="border-t border-zinc-100 p-4">
+                <button
+                  type="button"
+                  onClick={() => void loadFollowList(followListType, followNextCursor)}
+                  disabled={followListLoadingMore}
+                  className="w-full rounded-2xl border border-zinc-100 bg-white px-5 py-3 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                >
+                  {followListLoadingMore ? 'Loading...' : 'Load More'}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
       ) : null}
     </div>
   );

@@ -64,7 +64,7 @@ export function Header() {
                 />
               ) : null}
               <Link
-                href="/home/messages"
+                href="/messages"
                 className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5"
                 aria-label="메시지"
               >

@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
@@ -223,7 +224,11 @@ export function Post({
       >
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-4" data-card-open-ignore="true">
+          <Link
+            href={`/profile/${encodeURIComponent(post.authorHandle)}`}
+            className="flex items-center gap-4"
+            data-card-open-ignore="true"
+          >
             {post.authorProfileImageUrl ? (
               <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl shadow-inner">
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
@@ -242,7 +247,7 @@ export function Post({
                 @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
               </span>
             </div>
-          </div>
+          </Link>
 
           <div className="relative">
             <button

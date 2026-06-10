@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import Link from 'next/link';
 import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -264,7 +265,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       <article className="overflow-hidden rounded-[40px] border border-zinc-100 bg-white shadow-sm">
         <div className="p-8">
           <div className="mb-8 flex items-center justify-between">
-            <div className="flex items-center gap-4">
+            <Link href={`/profile/${encodeURIComponent(post.authorHandle)}`} className="flex items-center gap-4">
               {post.authorProfileImageUrl ? (
                 <div className="relative h-14 w-14 overflow-hidden rounded-[20px]">
                   <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
@@ -282,7 +283,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                   @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
                 </p>
               </div>
-            </div>
+            </Link>
             <div className="relative">
               <button
                 type="button"

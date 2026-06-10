@@ -150,3 +150,38 @@ npm run dev
   > 검증: `npm run lint`, `npm run build` 통과
 
   > 요약 : 메시지 수정 기능 제거에 맞춰 프론트 메시지 API 계약과 UI를 삭제 전용 흐름으로 정리
+
+- **26/06/10** 서장호
+
+  > 인증 후 공통 레이아웃을 `src/app/(app)/layout.tsx` route group layout으로 분리하고 기존 `AppShell` 컴포넌트 제거
+  > `/messages`, `/bookmarks`, `/mentoring`, `/settings`, `/profile`, `/profile/[userId]`, `/posts/[postId]` 페이지를 최상위 라우트 구조로 이동
+  > `/home/messages`, `/home/bookmarks`, `/home/mentoring`, `/home/profile`, `/home/settings` 구 라우터와 호환 redirect 제거
+  > `/home` 피드 라우트는 현재 URL을 유지하면서 같은 `(app)` 레이아웃을 사용하도록 정리
+  > 메시지 페이지 직접 진입 시 최상위 대화방이 자동 선택되어 읽음 처리되던 동작 제거
+  > `/messages`는 대화 미선택 상태로 유지하고, 대화 카드 클릭 또는 `conversationId`/`recipient` 쿼리 기반 명시 진입만 대화방을 열도록 정리
+  > 대화 목록 갱신, SSE 갱신, 대화방 나가기 이후에도 첫 대화방으로 자동 이동하지 않도록 선택 상태 초기화
+  > 새 메시지 송수신 시 최신 메시지 기준으로 메시지 목록 최하단으로 자동 스크롤되도록 보완
+  > 검증: `git diff --check origin/main...HEAD`, `npm run lint`, `npm run build` 통과
+
+  > 요약 : 인증 후 화면 라우팅을 최상위 경로 기준으로 정리하고, 메시지 화면에서 원치 않는 자동 읽음 처리를 방지
+
+- **26/06/11** 서장호
+
+  > 메시지 페이지 진입 시 팔로잉 목록을 미리 불러오던 `fetchFollowing()` 호출을 제거하여 `/api/v1/users/{handle}/following` 401 오류가 메시지 화면 오류로 노출되던 문제 수정
+  > 새 대화 검색 컴포넌트에서 `allowedRecipientHandles` 기반 프론트 필터링과 로딩 상태 의존성을 제거
+  > 새 대화 시작 및 `/messages?recipient=...` 진입 시 프론트에서 팔로우 여부를 검사하던 차단 로직 제거
+  > 프로필 메시지 버튼의 `isFollowing` 기반 비활성화와 "팔로우한 사용자에게만 메시지를 보낼 수 있습니다." 안내 문구 제거
+  > 팔로우 여부는 프로필 팔로우 버튼과 팔로우 목록 상태에만 사용하고, 메시지 상대 검색 정책은 백엔드 `messages/recipients` API에서 적용할 수 있도록 역할 분리
+  > 검증: `git diff --check`, `npm run lint`, `npm run build` 통과
+
+  > 요약 : 메시지 화면 재진입 시 팔로잉 API 401 오류가 뜨던 원인을 제거하고, 프론트의 메시지 상대 팔로우 제한 정책을 정리
+
+- **26/06/11** 서장호
+
+  > main 브랜치 `feature/routing-profile-message-refactor` 브랜치에 병합
+  > `src/app/(app)/layout.tsx`에 main 브랜치의 소셜 로그인 후 무한 리다이렉트 방지 로직을 반영하고, 인증 준비 전/비로그인 상태에서 보호 화면이 렌더링되지 않도록 가드 유지
+  > `src/app/(app)/home/page.tsx`는 PR 브랜치의 `/posts/[postId]` 상세 라우팅 구조를 유지하도록 충돌 해결
+  > main 브랜치의 `/home?postId=...` 기반 홈 내부 `PostDetail` 렌더링 방식은 새 최상위 게시글 상세 라우팅 구조와 중복되어 제거
+  > 병합 과정에서 홈 피드 JSX의 불필요한 fragment와 들여쓰기 정리
+
+  > 요약 : PR #27 자동 병합을 막던 홈/레이아웃 충돌을 해소하고, 최상위 라우팅 구조와 소셜 로그인 안정화 로직을 함께 유지

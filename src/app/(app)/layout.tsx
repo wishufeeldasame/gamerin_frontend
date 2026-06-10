@@ -4,8 +4,8 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
-import { Header } from './components/Header';
-import { Sidebar } from './components/Sidebar';
+import { Header } from '@/app/home/components/Header';
+import { Sidebar } from '@/app/home/components/Sidebar';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -91,7 +91,7 @@ function getRedirectAccessToken() {
   return hashParams.get('accessToken');
 }
 
-export default function HomeLayout({
+export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
@@ -115,9 +115,7 @@ export default function HomeLayout({
       if (cancelled) return;
 
       login(buildUser(me, fallback));
-
       router.replace('/home');
-
     };
 
     sync();
@@ -135,7 +133,11 @@ export default function HomeLayout({
     if (!user) {
       router.replace('/login');
     }
-  },[isAuthReady, user, router]);
+  }, [isAuthReady, user, router]);
+
+  if (!isAuthReady || !user) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-white">
@@ -146,9 +148,7 @@ export default function HomeLayout({
           <Sidebar />
         </aside>
 
-        <main className="flex-1 min-h-screen">
-          {children}
-        </main>
+        <main className="flex-1 min-h-screen">{children}</main>
       </div>
     </div>
   );
