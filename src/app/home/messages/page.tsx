@@ -33,6 +33,7 @@ import {
   searchMessageRecipients,
   sendConversationMessage,
 } from '@/lib/message-api';
+import { fetchFollowing } from '@/lib/feed-api';
 import {
   ChatAttachment,
   ChatMessage,
@@ -45,6 +46,10 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+
+function normalizeHandle(handle: string) {
+  return handle.trim().toLowerCase();
+}
 
 type DraftAttachment = {
   id: string;
@@ -169,9 +174,13 @@ function ConversationCard({
 function NewChatPicker({
   onStart,
   onClose,
+  allowedRecipientHandles,
+  loadingAllowedRecipients,
 }: {
   onStart: (recipient: MessageRecipient) => void;
   onClose: () => void;
+  allowedRecipientHandles: Set<string> | null;
+  loadingAllowedRecipients: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
@@ -206,6 +215,10 @@ function NewChatPicker({
     };
   }, [query]);
 
+  const visibleRecipients = allowedRecipientHandles
+    ? recipients.filter((recipient) => allowedRecipientHandles.has(normalizeHandle(recipient.handle)))
+    : recipients;
+
   return (
     <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-3">
       <div className="mb-3 flex items-center justify-between px-2">
@@ -230,7 +243,7 @@ function NewChatPicker({
         />
       </label>
 
-      {loading ? (
+      {loading || loadingAllowedRecipients ? (
         <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
           <Loader2 size={16} className="mr-2 animate-spin" />
           검색 중...
@@ -239,9 +252,9 @@ function NewChatPicker({
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
           {errorMessage}
         </div>
-      ) : recipients.length > 0 ? (
+      ) : visibleRecipients.length > 0 ? (
         <div className="space-y-1">
-          {recipients.map((recipient) => (
+          {visibleRecipients.map((recipient) => (
             <button
               key={recipient.id}
               type="button"
@@ -457,7 +470,7 @@ function MessageBubble({
 export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, logout, isAuthReady } = useAuth();
+  const { user, isAuthReady } = useAuth();
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
@@ -483,7 +496,9 @@ export default function MessagesPage() {
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
-  const [isAuthError, setIsAuthError] = useState(false);
+  const [, setIsAuthError] = useState(false);
+  const [allowedRecipientHandles, setAllowedRecipientHandles] = useState<Set<string> | null>(null);
+  const [loadingAllowedRecipients, setLoadingAllowedRecipients] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
@@ -668,6 +683,49 @@ export default function MessagesPage() {
   }, [isAuthReady, loadConversations, user]);
 
   useEffect(() => {
+    if (!isAuthReady || !user?.handle) return;
+
+    let cancelled = false;
+    const currentUserHandle = user.handle;
+
+    const loadAllowedRecipients = async () => {
+      try {
+        setLoadingAllowedRecipients(true);
+        const handles = new Set<string>();
+        let cursor: string | null = null;
+        let pageCount = 0;
+
+        do {
+          const page = await fetchFollowing(currentUserHandle, cursor, 100);
+          page.items.forEach((item) => handles.add(normalizeHandle(item.handle)));
+          cursor = page.nextCursor;
+          pageCount += 1;
+        } while (cursor && pageCount < 10);
+
+        if (!cancelled) {
+          setAllowedRecipientHandles(handles);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setAllowedRecipientHandles(new Set());
+          setPageError(error instanceof Error ? error.message : '팔로잉 목록을 불러오지 못했습니다.');
+          setIsAuthError(isMessageAuthError(error));
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingAllowedRecipients(false);
+        }
+      }
+    };
+
+    void loadAllowedRecipients();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthReady, user?.handle]);
+
+  useEffect(() => {
     if (!activeConversationId) return;
     void loadMessages(activeConversationId);
   }, [activeConversationId, loadMessages]);
@@ -735,6 +793,7 @@ export default function MessagesPage() {
         });
 
         eventSource.onerror = () => {
+          eventSource?.close();
           if (!cancelled) {
             setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
           }
@@ -785,6 +844,11 @@ export default function MessagesPage() {
   };
 
   const handleStartConversation = async (recipient: MessageRecipient) => {
+    if (allowedRecipientHandles && !allowedRecipientHandles.has(normalizeHandle(recipient.handle))) {
+      setPageError('팔로우한 사용자에게만 메시지를 보낼 수 있습니다.');
+      return;
+    }
+
     try {
       const conversation = await createConversation({ recipientId: recipient.id });
       replaceConversation(conversation);
@@ -820,7 +884,15 @@ export default function MessagesPage() {
   }, [conversations, requestedConversationId]);
 
   useEffect(() => {
-    if (!isAuthReady || !user || loadingConversations || !requestedRecipientHandle) return;
+    if (
+      !isAuthReady ||
+      !user ||
+      loadingConversations ||
+      loadingAllowedRecipients ||
+      !requestedRecipientHandle
+    ) {
+      return;
+    }
     if (requestedRecipientRef.current === requestedRecipientHandle) return;
 
     requestedRecipientRef.current = requestedRecipientHandle;
@@ -833,6 +905,13 @@ export default function MessagesPage() {
       setActiveConversationId(existingConversation.id);
       setMobileView('chat');
       router.replace(`/messages?conversationId=${encodeURIComponent(existingConversation.id)}`);
+      return;
+    }
+
+    if (allowedRecipientHandles && !allowedRecipientHandles.has(normalizeHandle(requestedRecipientHandle))) {
+      requestedRecipientRef.current = '';
+      setPageError('팔로우한 사용자에게만 메시지를 보낼 수 있습니다.');
+      router.replace('/messages');
       return;
     }
 
@@ -866,7 +945,9 @@ export default function MessagesPage() {
     void startConversationFromHandle();
   }, [
     conversations,
+    allowedRecipientHandles,
     isAuthReady,
+    loadingAllowedRecipients,
     loadingConversations,
     replaceConversation,
     requestedRecipientHandle,
@@ -1126,7 +1207,12 @@ export default function MessagesPage() {
 
         <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
           {showNewChat ? (
-            <NewChatPicker onStart={handleStartConversation} onClose={() => setShowNewChat(false)} />
+            <NewChatPicker
+              onStart={handleStartConversation}
+              onClose={() => setShowNewChat(false)}
+              allowedRecipientHandles={allowedRecipientHandles}
+              loadingAllowedRecipients={loadingAllowedRecipients}
+            />
           ) : null}
 
           {pageError ? (
@@ -1280,22 +1366,6 @@ export default function MessagesPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">
-              {isAuthError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <CircleAlert size={16} className="shrink-0" />
-                    <span className="truncate">인증이 만료되었거나 다시 로그인이 필요합니다.</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => void logout()}
-                    className="rounded-xl bg-black px-3 py-2 text-xs font-black text-white"
-                  >
-                    다시 로그인
-                  </button>
-                </div>
-              ) : null}
-
               {composerError ? (
                 <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                   <CircleAlert size={16} className="shrink-0" />
