@@ -151,80 +151,78 @@ export default function HomePage() {
   return (
     <div className="flex justify-center overflow-visible">
       <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50">
-        <>
-            <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
-              {[
-                { label: '추천', value: 'all' as const },
-                { label: '팔로잉', value: 'following' as const },
-              ].map((tab) => (
-                <button
-                  key={tab.value}
-                  onClick={() => setActiveTab(tab.value)}
-                  className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                    activeTab === tab.value ? 'text-black' : 'text-zinc-400 hover:text-zinc-600'
-                  }`}
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
+          {[
+            { label: '추천', value: 'all' as const },
+            { label: '팔로잉', value: 'following' as const },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
+                activeTab === tab.value ? 'text-black' : 'text-zinc-400 hover:text-zinc-600'
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.value ? (
+                <motion.div
+                  layoutId="underline"
+                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black"
+                />
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-6 p-4">
+          <PostComposer onCreated={handleCreatedPost} />
+
+          {loading ? (
+            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+              피드를 불러오는 중...
+            </div>
+          ) : error ? (
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
+              {error}
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+              아직 게시글이 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {posts.map((post, index) => (
+                <motion.div
+                  key={post.postId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.04 }}
                 >
-                  {tab.label}
-                  {activeTab === tab.value ? (
-                    <motion.div
-                      layoutId="underline"
-                      className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black"
-                    />
-                  ) : null}
-                </button>
+                  <Post
+                    post={post}
+                    onToggleLike={handleToggleLike}
+                    onOpenDetail={(selected) => handleOpenPost(selected.postId)}
+                    onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                    onShare={handlePostUpdated}
+                    onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                    onBookmarkChange={handleBookmarkChanged}
+                  />
+                </motion.div>
               ))}
+
+              {hasNext ? (
+                <button
+                  type="button"
+                  onClick={handleLoadMore}
+                  disabled={loadingMore}
+                  className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                >
+                  {loadingMore ? '불러오는 중...' : '더 보기'}
+                </button>
+              ) : null}
             </div>
-
-            <div className="space-y-6 p-4">
-              <PostComposer onCreated={handleCreatedPost} />
-
-              {loading ? (
-                <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  피드를 불러오는 중...
-                </div>
-              ) : error ? (
-                <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
-                  {error}
-                </div>
-              ) : posts.length === 0 ? (
-                <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-                  아직 게시글이 없습니다.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {posts.map((post, index) => (
-                    <motion.div
-                      key={post.postId}
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.04 }}
-                    >
-                      <Post
-                        post={post}
-                        onToggleLike={handleToggleLike}
-                        onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                        onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
-                        onShare={handlePostUpdated}
-                        onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                        onBookmarkChange={handleBookmarkChanged}
-                      />
-                    </motion.div>
-                  ))}
-
-                  {hasNext ? (
-                    <button
-                      type="button"
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
-                    >
-                      {loadingMore ? '불러오는 중...' : '더 보기'}
-                    </button>
-                  ) : null}
-                </div>
-              )}
-            </div>
-        </>
+          )}
+        </div>
       </main>
 
       <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 p-6 xl:block">

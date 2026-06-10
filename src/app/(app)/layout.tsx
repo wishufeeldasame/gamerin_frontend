@@ -102,35 +102,38 @@ export default function AppLayout({
   useEffect(() => {
     if (!isAuthReady) return;
 
+    const token = getRedirectAccessToken();
+    if (!token) return;
+
     let cancelled = false;
 
-    const syncSocialLogin = async () => {
-      const token = getRedirectAccessToken();
+    const sync = async () => {
+      setAccessToken(token);
+      const fallback = decodeJwtPayload(token);
+      const me = await fetchMe(token);
 
-      if (token) {
-        setAccessToken(token);
+      if (cancelled) return;
 
-        const fallback = decodeJwtPayload(token);
-        const me = await fetchMe(token);
-
-        if (cancelled) return;
-
-        login(buildUser(me, fallback));
-        router.replace('/home');
-        return;
-      }
-
-      if (!user) {
-        router.replace('/login');
-      }
+      login(buildUser(me, fallback));
+      router.replace('/home');
     };
 
-    syncSocialLogin();
+    sync();
 
     return () => {
       cancelled = true;
     };
-  }, [isAuthReady, login, router, user]);
+  }, [isAuthReady, login, router]);
+
+  useEffect(() => {
+    if (!isAuthReady) return;
+
+    if (getRedirectAccessToken()) return;
+
+    if (!user) {
+      router.replace('/login');
+    }
+  }, [isAuthReady, user, router]);
 
   if (!isAuthReady || !user) {
     return null;
