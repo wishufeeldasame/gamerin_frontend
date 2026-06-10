@@ -33,7 +33,6 @@ import {
   searchMessageRecipients,
   sendConversationMessage,
 } from '@/lib/message-api';
-import { fetchFollowing } from '@/lib/feed-api';
 import {
   ChatAttachment,
   ChatMessage,
@@ -46,10 +45,6 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
-
-function normalizeHandle(handle: string) {
-  return handle.trim().toLowerCase();
-}
 
 type DraftAttachment = {
   id: string;
@@ -174,13 +169,9 @@ function ConversationCard({
 function NewChatPicker({
   onStart,
   onClose,
-  allowedRecipientHandles,
-  loadingAllowedRecipients,
 }: {
   onStart: (recipient: MessageRecipient) => void;
   onClose: () => void;
-  allowedRecipientHandles: Set<string> | null;
-  loadingAllowedRecipients: boolean;
 }) {
   const [query, setQuery] = useState('');
   const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
@@ -215,10 +206,6 @@ function NewChatPicker({
     };
   }, [query]);
 
-  const visibleRecipients = allowedRecipientHandles
-    ? recipients.filter((recipient) => allowedRecipientHandles.has(normalizeHandle(recipient.handle)))
-    : recipients;
-
   return (
     <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-3">
       <div className="mb-3 flex items-center justify-between px-2">
@@ -243,7 +230,7 @@ function NewChatPicker({
         />
       </label>
 
-      {loading || loadingAllowedRecipients ? (
+      {loading ? (
         <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
           <Loader2 size={16} className="mr-2 animate-spin" />
           검색 중...
@@ -252,9 +239,9 @@ function NewChatPicker({
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
           {errorMessage}
         </div>
-      ) : visibleRecipients.length > 0 ? (
+      ) : recipients.length > 0 ? (
         <div className="space-y-1">
-          {visibleRecipients.map((recipient) => (
+          {recipients.map((recipient) => (
             <button
               key={recipient.id}
               type="button"
@@ -498,8 +485,6 @@ export default function MessagesPage() {
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
   const [, setIsAuthError] = useState(false);
-  const [allowedRecipientHandles, setAllowedRecipientHandles] = useState<Set<string> | null>(null);
-  const [loadingAllowedRecipients, setLoadingAllowedRecipients] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
@@ -691,49 +676,6 @@ export default function MessagesPage() {
   }, [isAuthReady, loadConversations, user]);
 
   useEffect(() => {
-    if (!isAuthReady || !user?.handle) return;
-
-    let cancelled = false;
-    const currentUserHandle = user.handle;
-
-    const loadAllowedRecipients = async () => {
-      try {
-        setLoadingAllowedRecipients(true);
-        const handles = new Set<string>();
-        let cursor: string | null = null;
-        let pageCount = 0;
-
-        do {
-          const page = await fetchFollowing(currentUserHandle, cursor, 100);
-          page.items.forEach((item) => handles.add(normalizeHandle(item.handle)));
-          cursor = page.nextCursor;
-          pageCount += 1;
-        } while (cursor && pageCount < 10);
-
-        if (!cancelled) {
-          setAllowedRecipientHandles(handles);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setAllowedRecipientHandles(new Set());
-          setPageError(error instanceof Error ? error.message : '팔로잉 목록을 불러오지 못했습니다.');
-          setIsAuthError(isMessageAuthError(error));
-        }
-      } finally {
-        if (!cancelled) {
-          setLoadingAllowedRecipients(false);
-        }
-      }
-    };
-
-    void loadAllowedRecipients();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthReady, user?.handle]);
-
-  useEffect(() => {
     if (!activeConversationId) return;
     void loadMessages(activeConversationId);
   }, [activeConversationId, loadMessages]);
@@ -852,11 +794,6 @@ export default function MessagesPage() {
   };
 
   const handleStartConversation = async (recipient: MessageRecipient) => {
-    if (allowedRecipientHandles && !allowedRecipientHandles.has(normalizeHandle(recipient.handle))) {
-      setPageError('팔로우한 사용자에게만 메시지를 보낼 수 있습니다.');
-      return;
-    }
-
     try {
       const conversation = await createConversation({ recipientId: recipient.id });
       replaceConversation(conversation);
@@ -896,7 +833,6 @@ export default function MessagesPage() {
       !isAuthReady ||
       !user ||
       loadingConversations ||
-      loadingAllowedRecipients ||
       !requestedRecipientHandle
     ) {
       return;
@@ -913,13 +849,6 @@ export default function MessagesPage() {
       setActiveConversationId(existingConversation.id);
       setMobileView('chat');
       router.replace(`/messages?conversationId=${encodeURIComponent(existingConversation.id)}`);
-      return;
-    }
-
-    if (allowedRecipientHandles && !allowedRecipientHandles.has(normalizeHandle(requestedRecipientHandle))) {
-      requestedRecipientRef.current = '';
-      setPageError('팔로우한 사용자에게만 메시지를 보낼 수 있습니다.');
-      router.replace('/messages');
       return;
     }
 
@@ -953,9 +882,7 @@ export default function MessagesPage() {
     void startConversationFromHandle();
   }, [
     conversations,
-    allowedRecipientHandles,
     isAuthReady,
-    loadingAllowedRecipients,
     loadingConversations,
     replaceConversation,
     requestedRecipientHandle,
@@ -1218,8 +1145,6 @@ export default function MessagesPage() {
             <NewChatPicker
               onStart={handleStartConversation}
               onClose={() => setShowNewChat(false)}
-              allowedRecipientHandles={allowedRecipientHandles}
-              loadingAllowedRecipients={loadingAllowedRecipients}
             />
           ) : null}
 

@@ -712,9 +712,8 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
-                  disabled={!isFollowing}
-                  title={isFollowing ? 'Message' : '팔로우한 사용자에게만 메시지를 보낼 수 있습니다.'}
-                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Message"
+                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
                   aria-label="Message"
                 >
                   <MessageCircle size={20} />
