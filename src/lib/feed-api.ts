@@ -357,7 +357,7 @@ export async function fetchMyProfile() {
 }
 
 export async function fetchUserProfile(handle: string) {
-  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${handle}`);
+  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${encodeURIComponent(handle)}`);
   return normalizeUserProfile(profile);
 }
 
@@ -370,13 +370,13 @@ export async function updateMyProfile(payload: { nickname: string; bio: string }
 }
 
 export async function followUser(handle: string) {
-  await apiRequest<null>(`/api/v1/users/${handle}/follow`, {
+  await apiRequest<null>(`/api/v1/users/${encodeURIComponent(handle)}/follow`, {
     method: 'POST',
   });
 }
 
 export async function unfollowUser(handle: string) {
-  await apiRequest<null>(`/api/v1/users/${handle}/follow`, {
+  await apiRequest<null>(`/api/v1/users/${encodeURIComponent(handle)}/follow`, {
     method: 'DELETE',
   });
 }
@@ -418,7 +418,9 @@ export async function fetchUserPosts(handle: string, cursor?: string | null, siz
     search.set('cursor', cursor);
   }
 
-  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/${handle}/posts?${search.toString()}`);
+  const page = await apiRequest<CursorPage<PostRecord>>(
+    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`
+  );
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
@@ -431,7 +433,9 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
     search.set('cursor', cursor);
   }
 
-  return apiRequest<CursorPage<ProfileMediaItem>>(`/api/v1/users/${handle}/media?${search.toString()}`);
+  return apiRequest<CursorPage<ProfileMediaItem>>(
+    `/api/v1/users/${encodeURIComponent(handle)}/media?${search.toString()}`
+  );
 }
 
 export async function fetchMyBookmarks(cursor?: string | null, size = 20, options: FeedRequestOptions = {}) {
