@@ -131,21 +131,6 @@ function formatGameStatsSummary(stats: unknown) {
     .join(' · ');
 }
 
-async function fetchFollowingHandleSet(handle: string) {
-  const handles = new Set<string>();
-  let cursor: string | null = null;
-  let pageCount = 0;
-
-  do {
-    const page = await fetchFollowing(handle, cursor, 100);
-    page.items.forEach((item) => handles.add(normalizeHandle(item.handle)));
-    cursor = page.nextCursor;
-    pageCount += 1;
-  } while (cursor && pageCount < 10);
-
-  return handles;
-}
-
 export default function ProfilePage() {
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
@@ -255,20 +240,11 @@ export default function ProfilePage() {
         const shouldLoadMyProfile =
           !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
         const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
-        const followingHandlesPromise =
-          !shouldLoadMyProfile && currentUser?.handle
-            ? fetchFollowingHandleSet(currentUser.handle).catch(() => null)
-            : Promise.resolve(null);
-        const [postPage, mediaPage, followingHandles] = await Promise.all([
+        const [postPage, mediaPage] = await Promise.all([
           fetchUserPosts(loadedProfile.handle),
           fetchUserMedia(loadedProfile.handle),
-          followingHandlesPromise,
         ]);
-        const followedByMe = shouldLoadMyProfile
-          ? false
-          : followingHandles
-            ? followingHandles.has(normalizeHandle(loadedProfile.handle))
-            : Boolean(loadedProfile.followedByMe);
+        const followedByMe = shouldLoadMyProfile ? false : Boolean(loadedProfile.followedByMe);
         const resolvedProfile = {
           ...loadedProfile,
           followedByMe,
