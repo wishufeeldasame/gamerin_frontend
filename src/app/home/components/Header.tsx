@@ -2,6 +2,7 @@
 
 import { Bell, MessageSquare, Search, LogOut } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
+import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 import { NotificationPanel } from "./NotificationPanel";
@@ -80,9 +81,19 @@ export function Header() {
                      {user.gameTier}
                    </p>
                 </div>
-                {/* 닉네임 첫 글자로 아바타 생성 */}
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-black text-sm font-black text-white shadow-lg">
-                  {user.nickname.substring(0, 1).toUpperCase()}
+                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white shadow-lg">
+                  {user.profileImageUrl ? (
+                    <Image
+                      src={user.profileImageUrl}
+                      alt={user.nickname}
+                      fill
+                      unoptimized
+                      sizes="36px"
+                      className="object-cover"
+                    />
+                  ) : (
+                    user.nickname.substring(0, 1).toUpperCase()
+                  )}
                 </div>
                 <button 
                   onClick={() => logout()}

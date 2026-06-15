@@ -258,6 +258,7 @@ export default function ProfilePage() {
             bio: loadedProfile.bio ?? '',
             location: loadedProfile.location ?? '',
             website: loadedProfile.website ?? '',
+            profileImageUrl: loadedProfile.profileImageUrl,
           });
         }
       } catch (loadError) {
@@ -389,6 +390,7 @@ export default function ProfilePage() {
       bio: updatedProfile.bio ?? '',
       location: updatedProfile.location ?? '',
       website: updatedProfile.website ?? '',
+      profileImageUrl: updatedProfile.profileImageUrl,
     });
   };
 
