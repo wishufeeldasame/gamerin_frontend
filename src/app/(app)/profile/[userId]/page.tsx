@@ -30,6 +30,7 @@ import {
   PostRecord,
   FollowUserRecord,
   ProfileMediaItem,
+  UpdateMyProfilePayload,
   UserProfile,
   fetchFollowers,
   fetchFollowing,
@@ -41,6 +42,7 @@ import {
   getInitials,
   unfollowUser,
   updateMyProfile,
+  uploadProfileImage,
 } from '@/lib/feed-api';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
@@ -356,14 +358,23 @@ export default function ProfilePage() {
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
     if (!profile) return;
 
-    const updatedProfile = await updateMyProfile({
+    await Promise.all([
+      userInfo.profileImageFile ? uploadProfileImage('PROFILE', userInfo.profileImageFile) : Promise.resolve(null),
+      userInfo.coverImageFile ? uploadProfileImage('COVER', userInfo.coverImageFile) : Promise.resolve(null),
+    ]);
+
+    const updatePayload: UpdateMyProfilePayload = {
       nickname: userInfo.name,
       bio: userInfo.bio,
       location: userInfo.location,
       website: userInfo.website,
-      profileImageUrl: userInfo.profileImageUrl,
-      coverImageUrl: userInfo.coverImageUrl,
-    });
+    };
+
+    if (!userInfo.coverImageFile && profile.coverImageUrl && !userInfo.coverImageUrl) {
+      updatePayload.coverImageUrl = '';
+    }
+
+    const updatedProfile = await updateMyProfile(updatePayload);
 
     setProfile({
       ...updatedProfile,

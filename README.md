@@ -191,12 +191,14 @@ npm run dev
   > 백엔드 `PATCH /api/v1/users/me`가 성공 시 프로필 객체가 아닌 `data: null`을 반환하는 계약에 맞춰 `updateMyProfile()` 흐름 수정
   > 프로필 수정 성공 후 `GET /api/v1/users/me`를 다시 호출해 최신 프로필을 화면과 인증 사용자 상태에 반영하도록 변경
   > `UserProfile` 타입에 백엔드 응답 필드인 `location`, `website`, `coverImageUrl`을 추가
-  > 편집 모달의 `location`, `website` 초기값을 서버 프로필 값으로 채우고, 저장 시 `nickname`, `bio`, `location`, `website`, `profileImageUrl`, `coverImageUrl`을 함께 전송하도록 연결
+  > 편집 모달의 `location`, `website` 초기값을 서버 프로필 값으로 채우고, 저장 시 `nickname`, `bio`, `location`, `website`를 백엔드 프로필 수정 API로 전송하도록 연결
+  > 프로필 커버/아바타 파일은 브라우저 canvas에서 JPEG로 압축한 뒤 `POST /api/v1/users/me/profile-images` 업로드 API로 전송하고, 이미지 URL은 업로드 API가 서버 프로필에 직접 반영하도록 변경
   > API 성공 전에 커버/아바타 localStorage 상태를 먼저 바꾸던 흐름을 제거하고, 저장 성공 후 서버 응답 기준으로 커버/아바타 상태를 동기화
   > data URL 이미지로 인한 브라우저 storage quota 초과를 방지하기 위해 프로필 커버/아바타 legacy localStorage 저장을 제거하고, 인증 사용자 캐시에서도 이미지 필드를 제외
   > 프로필 화면에 위치와 웹사이트 표시를 추가하고, 다른 사용자 프로필에서도 서버 `coverImageUrl`을 사용하도록 수정
   > 백엔드 validation에 맞춰 닉네임 2~20자, 소개글 160자 이하, 위치 100자 이하, 웹사이트 2048자 이하 및 URL 형식 검증 추가
-  > 프로필 이미지 전용 업로드 API는 아직 없어 현재는 백엔드 문자열 필드 연동 기준으로 처리하며, 추후 업로드 API 추가 후 URL 저장 방식으로 개선 필요
+  > 이미지가 변경되지 않은 저장에서는 기존 이미지 URL을 다시 보내지 않아 legacy data URL 값이 PATCH payload로 흘러가지 않도록 처리
+  > 게시물 이미지/동영상 썸네일 선택을 백엔드 업로드 계약에 맞춰 JPEG/PNG, 장당 20MB 이하로 제한하고 영상 선택 MIME/확장자도 MP4/MOV/M4V로 정리
   > 검증: `git diff --check`, `npm run lint`, `npm run build` 통과
 
-  > 요약 : 프로필 수정 화면을 백엔드 프로필 수정 API 계약에 맞춰 연결하고, 위치/웹사이트/커버/아바타 상태가 서버 프로필 기준으로 반영되도록 정리
+  > 요약 : 프로필 수정 화면을 백엔드 프로필 수정/이미지 업로드 API 계약에 맞춰 연결하고, 위치/웹사이트/커버/아바타 상태가 서버 프로필 기준으로 반영되도록 정리

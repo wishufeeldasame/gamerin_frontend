@@ -1,4 +1,5 @@
 import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -93,6 +94,12 @@ export type UpdateMyProfilePayload = Partial<{
   location: string;
   website: string;
 }>;
+
+export interface ProfileImageUploadResponse {
+  target: ProfileImageUploadTarget;
+  imageUrl: string;
+  sizeBytes: number;
+}
 
 export interface FollowUserRecord {
   userId: string;
@@ -380,6 +387,17 @@ export async function updateMyProfile(payload: UpdateMyProfilePayload) {
   });
 
   return fetchMyProfile();
+}
+
+export async function uploadProfileImage(target: ProfileImageUploadTarget, file: File) {
+  const formData = new FormData();
+  formData.append('target', target);
+  formData.append('file', file);
+
+  return apiRequest<ProfileImageUploadResponse>('/api/v1/users/me/profile-images', {
+    method: 'POST',
+    body: formData,
+  });
 }
 
 export async function followUser(handle: string) {

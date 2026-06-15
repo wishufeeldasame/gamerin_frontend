@@ -2,8 +2,9 @@
 
 import Image from 'next/image';
 import { X, Camera, MapPin, Globe, AlignLeft, User } from 'lucide-react';
-import { useState, useRef, useEffect, type ChangeEvent } from 'react';
+import { useState, useRef, useEffect, type ChangeEvent, type MutableRefObject } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { compressProfileImage } from '@/lib/profile-image-compression';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 
 export interface EditProfileUserInfo {
@@ -13,6 +14,8 @@ export interface EditProfileUserInfo {
   website: string;
   coverImageUrl: string;
   profileImageUrl: string | null;
+  coverImageFile: File | null;
+  profileImageFile: File | null;
 }
 
 interface EditProfileModalProps {
@@ -97,56 +100,95 @@ export function EditProfileModal({
   const [coverPreview, setCoverPreview] = useState<string>(coverImage || DEFAULT_PROFILE_COVER);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(avatarImage);
   const [saving, setSaving] = useState(false);
+  const [processingImage, setProcessingImage] = useState(false);
+  const [coverImageFile, setCoverImageFile] = useState<File | null>(null);
+  const [avatarImageFile, setAvatarImageFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
+  const coverObjectUrlRef = useRef<string | null>(null);
+  const avatarObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
+    revokeObjectUrl(coverObjectUrlRef);
+    setCoverImageFile(null);
     setCoverPreview(coverImage || DEFAULT_PROFILE_COVER);
   }, [coverImage]);
 
   useEffect(() => {
+    revokeObjectUrl(avatarObjectUrlRef);
+    setAvatarImageFile(null);
     setAvatarPreview(avatarImage);
   }, [avatarImage]);
+
+  useEffect(() => {
+    return () => {
+      revokeObjectUrl(coverObjectUrlRef);
+      revokeObjectUrl(avatarObjectUrlRef);
+    };
+  }, []);
+
+  const revokeObjectUrl = (urlRef: MutableRefObject<string | null>) => {
+    if (urlRef.current) {
+      URL.revokeObjectURL(urlRef.current);
+      urlRef.current = null;
+    }
+  };
 
   const handleCoverClick = () => {
     fileInputRef.current?.click();
   };
 
-  const handleCoverSelect = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleCoverSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCoverPreview(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      setProcessingImage(true);
+      const compressedFile = await compressProfileImage(file, 'COVER');
+      const previewUrl = URL.createObjectURL(compressedFile);
+      revokeObjectUrl(coverObjectUrlRef);
+      coverObjectUrlRef.current = previewUrl;
+      setCoverImageFile(compressedFile);
+      setCoverPreview(previewUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to process cover image.');
+    } finally {
+      setProcessingImage(false);
+      event.target.value = '';
+    }
   };
 
   const handleAvatarClick = () => {
     avatarFileInputRef.current?.click();
   };
 
-  const handleAvatarSelect = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setAvatarPreview(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      setProcessingImage(true);
+      const compressedFile = await compressProfileImage(file, 'PROFILE');
+      const previewUrl = URL.createObjectURL(compressedFile);
+      revokeObjectUrl(avatarObjectUrlRef);
+      avatarObjectUrlRef.current = previewUrl;
+      setAvatarImageFile(compressedFile);
+      setAvatarPreview(previewUrl);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'Failed to process avatar image.');
+    } finally {
+      setProcessingImage(false);
+      event.target.value = '';
+    }
   };
 
   const handleResetCover = () => {
+    revokeObjectUrl(coverObjectUrlRef);
+    setCoverImageFile(null);
     setCoverPreview(DEFAULT_PROFILE_COVER);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -154,7 +196,7 @@ export function EditProfileModal({
   };
 
   const handleSave = async () => {
-    if (saving) return;
+    if (saving || processingImage) return;
 
     try {
       const nextUserInfo: EditProfileUserInfo = {
@@ -162,15 +204,17 @@ export function EditProfileModal({
         bio: formData.bio.trim(),
         location: formData.location.trim(),
         website: normalizeWebsiteInput(formData.website),
-        coverImageUrl: coverPreview === DEFAULT_PROFILE_COVER ? '' : coverPreview,
-        profileImageUrl: avatarPreview,
+        coverImageUrl: coverImageFile || coverPreview === DEFAULT_PROFILE_COVER ? '' : coverPreview,
+        profileImageUrl: avatarImageFile ? null : avatarPreview,
+        coverImageFile,
+        profileImageFile: avatarImageFile,
       };
 
       validateProfileInput(nextUserInfo);
       setSaving(true);
       await onSaveUserInfo?.(nextUserInfo);
-      onSaveCover?.(nextUserInfo.coverImageUrl || DEFAULT_PROFILE_COVER);
-      onSaveAvatar?.(nextUserInfo.profileImageUrl);
+      onSaveCover?.(coverPreview);
+      onSaveAvatar?.(avatarPreview);
       onClose();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to save profile.');
@@ -208,10 +252,10 @@ export function EditProfileModal({
             </div>
             <button
               onClick={handleSave}
-              disabled={saving}
+              disabled={saving || processingImage}
               className="px-8 py-2.5 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all text-sm shadow-lg shadow-zinc-200 disabled:bg-zinc-300"
             >
-              {saving ? 'SAVING...' : 'SAVE'}
+              {processingImage ? 'PROCESSING...' : saving ? 'SAVING...' : 'SAVE'}
             </button>
           </div>
 
@@ -244,7 +288,13 @@ export function EditProfileModal({
             >
               Reset Cover
             </button>
-            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverSelect} />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png"
+              className="hidden"
+              onChange={handleCoverSelect}
+            />
           </div>
 
           <div className="px-8 -mt-16 relative z-10">
@@ -263,7 +313,7 @@ export function EditProfileModal({
             <input
               ref={avatarFileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/jpeg,image/png"
               className="hidden"
               onChange={handleAvatarSelect}
             />
