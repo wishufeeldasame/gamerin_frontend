@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
@@ -20,6 +21,7 @@ interface ThumbnailOption {
 }
 
 const MAX_IMAGE_COUNT = 4;
+const MAX_IMAGE_FILE_SIZE_BYTES = 20 * 1024 * 1024;
 const MAX_VIDEO_THUMBNAILS: number = 4;
 const MAX_VIDEO_COUNT = 1;
 const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
@@ -28,7 +30,8 @@ const MAX_THUMBNAIL_CANVAS_WIDTH = 1280;
 const MAX_THUMBNAIL_CANVAS_HEIGHT = 720;
 
 function isImageFile(file: File) {
-  return file.type.startsWith('image/') || /\.(jpe?g|png|gif|webp)$/i.test(file.name);
+  const type = file.type.toLowerCase();
+  return type === 'image/jpeg' || type === 'image/png' || /\.(jpe?g|png)$/i.test(file.name);
 }
 
 function isVideoFile(file: File) {
@@ -247,7 +250,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
     const files = selectedFiles.slice(0, MAX_IMAGE_COUNT);
     if (files.some((file) => !isImageFile(file))) {
-      alert('사진에는 이미지 파일만 업로드할 수 있습니다.');
+      alert('사진에는 JPEG 또는 PNG 파일만 업로드할 수 있습니다.');
+      if (imageInputRef.current) {
+        imageInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (files.some((file) => file.size > MAX_IMAGE_FILE_SIZE_BYTES)) {
+      alert('사진 파일은 장당 20MB 이하여야 합니다.');
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
       }
@@ -306,7 +317,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
 
     if (!isImageFile(file)) {
-      alert('동영상 썸네일은 이미지 파일이어야 합니다.');
+      alert('동영상 썸네일은 JPEG 또는 PNG 파일이어야 합니다.');
+      if (thumbnailInputRef.current) {
+        thumbnailInputRef.current.value = '';
+      }
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
+      alert('동영상 썸네일은 20MB 이하여야 합니다.');
       if (thumbnailInputRef.current) {
         thumbnailInputRef.current.value = '';
       }
@@ -373,8 +392,19 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-black text-sm font-black text-white">
-          {user ? getInitials(user.nickname, 'JD') : 'JD'}
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white">
+          {user?.profileImageUrl ? (
+            <Image
+              src={user.profileImageUrl}
+              alt={user.nickname}
+              fill
+              unoptimized
+              sizes="48px"
+              className="object-cover"
+            />
+          ) : (
+            user ? getInitials(user.nickname, 'JD') : 'JD'
+          )}
         </div>
 
         <div className="min-w-0 flex-1 space-y-4">
@@ -439,7 +469,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 <input
                   ref={thumbnailInputRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                   className="hidden"
                   onChange={handleThumbnailUpload}
                 />
@@ -498,14 +528,14 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 ref={imageInputRef}
                 type="file"
                 multiple
-                accept="image/*"
+                accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                 className="hidden"
                 onChange={handleImageSelect}
               />
               <input
                 ref={videoInputRef}
                 type="file"
-                accept="video/*"
+                accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v"
                 className="hidden"
                 onChange={handleVideoSelect}
               />

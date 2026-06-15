@@ -52,7 +52,9 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [showAddAccountModal, setShowAddAccountModal] = useState(false);
-  const [profileCover, setProfileCover] = useState<string | null>(null);
+  const [profileCover, setProfileCover] = useState<string | null>(
+    'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440'
+  );
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [userInfo, setUserInfo] = useState({
     name: 'GamerIN User',
@@ -62,26 +64,9 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
   });
 
   useEffect(() => {
-    const savedCover = localStorage.getItem('gamerin_profile_cover');
-    const savedAvatar = localStorage.getItem('gamerin_profile_avatar');
-
-    setProfileCover(savedCover || 'https://images.unsplash.com/photo-1607796884038-3638822d5ee2?q=80&w=1440');
-    setProfileAvatar(savedAvatar);
+    localStorage.removeItem('gamerin_profile_cover');
+    localStorage.removeItem('gamerin_profile_avatar');
   }, []);
-
-  useEffect(() => {
-    if (profileCover) {
-      localStorage.setItem('gamerin_profile_cover', profileCover);
-    }
-  }, [profileCover]);
-
-  useEffect(() => {
-    if (profileAvatar) {
-      localStorage.setItem('gamerin_profile_avatar', profileAvatar);
-    } else {
-      localStorage.removeItem('gamerin_profile_avatar');
-    }
-  }, [profileAvatar]);
 
   const handleRefreshStats = () => {
     setIsRefreshing(true);
@@ -226,7 +211,14 @@ export function Profile({ isOwnProfile = true }: { isOwnProfile?: boolean }) {
           avatarImage={profileAvatar}
           onSaveAvatar={(newAvatar) => setProfileAvatar(newAvatar)}
           userInfo={userInfo}
-          onSaveUserInfo={(newUserInfo) => setUserInfo(newUserInfo)}
+          onSaveUserInfo={(newUserInfo) =>
+            setUserInfo({
+              name: newUserInfo.name,
+              bio: newUserInfo.bio,
+              location: newUserInfo.location,
+              website: newUserInfo.website,
+            })
+          }
         />
       ) : null}
       {showAddAccountModal ? (
