@@ -66,6 +66,9 @@ export interface UserProfile {
   handle: string;
   nickname: string;
   bio: string | null;
+  location: string | null;
+  website: string | null;
+  coverImageUrl: string | null;
   profileImageUrl: string | null;
   gameStats: Record<string, unknown>;
   verifiedBadge: boolean;
@@ -81,6 +84,15 @@ type UserProfilePayload = UserProfile & {
   isFollowing?: boolean;
   following?: boolean;
 };
+
+export type UpdateMyProfilePayload = Partial<{
+  nickname: string;
+  bio: string;
+  profileImageUrl: string | null;
+  coverImageUrl: string | null;
+  location: string;
+  website: string;
+}>;
 
 export interface FollowUserRecord {
   userId: string;
@@ -361,12 +373,13 @@ export async function fetchUserProfile(handle: string) {
   return normalizeUserProfile(profile);
 }
 
-export async function updateMyProfile(payload: { nickname: string; bio: string }) {
-  const profile = await apiRequest<UserProfilePayload>('/api/v1/users/me', {
+export async function updateMyProfile(payload: UpdateMyProfilePayload) {
+  await apiRequest<null>('/api/v1/users/me', {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });
-  return normalizeUserProfile(profile);
+
+  return fetchMyProfile();
 }
 
 export async function followUser(handle: string) {

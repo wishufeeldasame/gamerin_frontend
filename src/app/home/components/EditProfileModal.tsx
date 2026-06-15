@@ -6,19 +6,77 @@ import { useState, useRef, useEffect, type ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 
+export interface EditProfileUserInfo {
+  name: string;
+  bio: string;
+  location: string;
+  website: string;
+  coverImageUrl: string;
+  profileImageUrl: string | null;
+}
+
 interface EditProfileModalProps {
   onClose: () => void;
   coverImage: string | null;
-  onSaveCover: (coverUrl: string) => void;
+  onSaveCover?: (coverUrl: string) => void;
   avatarImage: string | null;
-  onSaveAvatar: (avatarUrl: string | null) => void;
+  onSaveAvatar?: (avatarUrl: string | null) => void;
   userInfo?: {
     name: string;
     bio: string;
     location: string;
     website: string;
   };
-  onSaveUserInfo?: (userInfo: { name: string; bio: string; location: string; website: string }) => void | Promise<void>;
+  onSaveUserInfo?: (userInfo: EditProfileUserInfo) => void | Promise<void>;
+}
+
+const PROFILE_FIELD_LIMITS = {
+  nameMin: 2,
+  nameMax: 20,
+  bioMax: 160,
+  locationMax: 100,
+  websiteMax: 2048,
+};
+
+function normalizeWebsiteInput(value: string) {
+  const trimmedValue = value.trim();
+  if (!trimmedValue) {
+    return '';
+  }
+
+  return /^https?:\/\//i.test(trimmedValue) ? trimmedValue : `https://${trimmedValue}`;
+}
+
+function validateProfileInput(userInfo: EditProfileUserInfo) {
+  if (
+    userInfo.name.length < PROFILE_FIELD_LIMITS.nameMin ||
+    userInfo.name.length > PROFILE_FIELD_LIMITS.nameMax
+  ) {
+    throw new Error('닉네임은 2~20자 사이여야 합니다.');
+  }
+
+  if (userInfo.bio.length > PROFILE_FIELD_LIMITS.bioMax) {
+    throw new Error('소개글은 160자를 초과할 수 없습니다.');
+  }
+
+  if (userInfo.location.length > PROFILE_FIELD_LIMITS.locationMax) {
+    throw new Error('위치는 100자를 초과할 수 없습니다.');
+  }
+
+  if (userInfo.website.length > PROFILE_FIELD_LIMITS.websiteMax) {
+    throw new Error('웹사이트 주소는 2048자를 초과할 수 없습니다.');
+  }
+
+  if (userInfo.website) {
+    try {
+      const websiteUrl = new URL(userInfo.website);
+      if (!['http:', 'https:'].includes(websiteUrl.protocol)) {
+        throw new Error();
+      }
+    } catch {
+      throw new Error('웹사이트 주소를 올바른 URL로 입력해주세요.');
+    }
+  }
 }
 
 export function EditProfileModal({
@@ -99,10 +157,20 @@ export function EditProfileModal({
     if (saving) return;
 
     try {
+      const nextUserInfo: EditProfileUserInfo = {
+        name: formData.name.trim(),
+        bio: formData.bio.trim(),
+        location: formData.location.trim(),
+        website: normalizeWebsiteInput(formData.website),
+        coverImageUrl: coverPreview === DEFAULT_PROFILE_COVER ? '' : coverPreview,
+        profileImageUrl: avatarPreview,
+      };
+
+      validateProfileInput(nextUserInfo);
       setSaving(true);
-      onSaveCover(coverPreview);
-      onSaveAvatar(avatarPreview);
-      await onSaveUserInfo?.(formData);
+      await onSaveUserInfo?.(nextUserInfo);
+      onSaveCover?.(nextUserInfo.coverImageUrl || DEFAULT_PROFILE_COVER);
+      onSaveAvatar?.(nextUserInfo.profileImageUrl);
       onClose();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'Failed to save profile.');
@@ -210,6 +278,7 @@ export function EditProfileModal({
                 type="text"
                 value={formData.name}
                 onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                maxLength={PROFILE_FIELD_LIMITS.nameMax}
                 className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all"
                 placeholder="Enter your name"
               />
@@ -222,6 +291,7 @@ export function EditProfileModal({
               <textarea
                 value={formData.bio}
                 onChange={(event) => setFormData({ ...formData, bio: event.target.value })}
+                maxLength={PROFILE_FIELD_LIMITS.bioMax}
                 className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none"
                 placeholder="Tell your gaming story"
               />
@@ -241,6 +311,7 @@ export function EditProfileModal({
                   type="text"
                   value={formData.location}
                   onChange={(event) => setFormData({ ...formData, location: event.target.value })}
+                  maxLength={PROFILE_FIELD_LIMITS.locationMax}
                   className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
                 />
               </div>
@@ -252,6 +323,7 @@ export function EditProfileModal({
                   type="text"
                   value={formData.website}
                   onChange={(event) => setFormData({ ...formData, website: event.target.value })}
+                  maxLength={PROFILE_FIELD_LIMITS.websiteMax}
                   className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
                 />
               </div>

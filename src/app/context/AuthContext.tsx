@@ -16,7 +16,9 @@ interface User {
   nickname: string;
   gameTier: string;
   bio?: string;
-  handle?: string; 
+  handle?: string;
+  location?: string;
+  website?: string;
 }
 
 interface AuthContextType {
@@ -28,6 +30,18 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+function normalizeStoredUser(userData: User) {
+  const safeUser = { ...userData } as User & {
+    profileImageUrl?: unknown;
+    coverImageUrl?: unknown;
+  };
+
+  delete safeUser.profileImageUrl;
+  delete safeUser.coverImageUrl;
+
+  return safeUser;
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -53,7 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const parsedUser = JSON.parse(savedUser);
+        const parsedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
         const refreshedToken = await refreshAccessToken();
 
         if (!refreshedToken) {
@@ -63,6 +77,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         setUser(parsedUser);
+        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsedUser));
       } catch {
         setUser(null);
         clearStoredAuth({ notify: false });
@@ -75,8 +90,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback((userData: User) => {
-    setUser(userData);
-    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(userData));
+    const nextUser = normalizeStoredUser(userData);
+    setUser(nextUser);
+    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
   }, []);
 
   const updateUser = useCallback((updates: Partial<User>) => {
@@ -85,7 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return currentUser;
       }
 
-      const nextUser = { ...currentUser, ...updates };
+      const nextUser = normalizeStoredUser({ ...currentUser, ...updates });
       window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
       return nextUser;
     });

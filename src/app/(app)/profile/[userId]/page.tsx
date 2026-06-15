@@ -11,18 +11,20 @@ import {
   Plus,
   RefreshCw,
   ExternalLink,
+  Globe,
   Trash2,
   Tv,
   MessageCircle,
   X,
   Loader2,
+  MapPin,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
-import { EditProfileModal } from '@/app/home/components/EditProfileModal';
+import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
 import {
   PostRecord,
@@ -176,11 +178,8 @@ export default function ProfilePage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const savedCover = localStorage.getItem('gamerin_profile_cover');
-    const savedAvatar = localStorage.getItem('gamerin_profile_avatar');
-
-    setProfileCover(savedCover || DEFAULT_PROFILE_COVER);
-    setProfileAvatar(savedAvatar);
+    localStorage.removeItem('gamerin_profile_cover');
+    localStorage.removeItem('gamerin_profile_avatar');
 
     try {
       const savedAccounts = localStorage.getItem('gamerin_connected_accounts');
@@ -212,22 +211,6 @@ export default function ProfilePage() {
       window.removeEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
     };
   }, [activeTab]);
-
-  useEffect(() => {
-    if (profileCover && profileCover !== DEFAULT_PROFILE_COVER) {
-      localStorage.setItem('gamerin_profile_cover', profileCover);
-    } else {
-      localStorage.removeItem('gamerin_profile_cover');
-    }
-  }, [profileCover]);
-
-  useEffect(() => {
-    if (profileAvatar) {
-      localStorage.setItem('gamerin_profile_avatar', profileAvatar);
-    } else {
-      localStorage.removeItem('gamerin_profile_avatar');
-    }
-  }, [profileAvatar]);
 
   useEffect(() => {
     let cancelled = false;
@@ -264,10 +247,15 @@ export default function ProfilePage() {
         setIsFollowing(followedByMe);
 
         if (shouldLoadMyProfile) {
+          setProfileCover(loadedProfile.coverImageUrl || null);
+          setProfileAvatar(loadedProfile.profileImageUrl);
           updateUser({
             handle: loadedProfile.handle,
             nickname: loadedProfile.nickname,
+            name: loadedProfile.nickname,
             bio: loadedProfile.bio ?? '',
+            location: loadedProfile.location ?? '',
+            website: loadedProfile.website ?? '',
           });
         }
       } catch (loadError) {
@@ -306,7 +294,12 @@ export default function ProfilePage() {
     try {
       setIsRefreshing(true);
       const refreshed = await fetchMyProfile();
-      setProfile(refreshed);
+      setProfile({
+        ...refreshed,
+        followedByMe: false,
+      });
+      setProfileCover(refreshed.coverImageUrl || null);
+      setProfileAvatar(refreshed.profileImageUrl);
     } catch (refreshError) {
       alert(refreshError instanceof Error ? refreshError.message : 'Failed to refresh profile.');
     } finally {
@@ -360,20 +353,31 @@ export default function ProfilePage() {
     setPosts((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleSaveUserInfo = async (userInfo: { name: string; bio: string; location: string; website: string }) => {
+  const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
     if (!profile) return;
 
     const updatedProfile = await updateMyProfile({
-      nickname: userInfo.name.trim() || profile.nickname,
-      bio: userInfo.bio.trim(),
+      nickname: userInfo.name,
+      bio: userInfo.bio,
+      location: userInfo.location,
+      website: userInfo.website,
+      profileImageUrl: userInfo.profileImageUrl,
+      coverImageUrl: userInfo.coverImageUrl,
     });
 
-    setProfile(updatedProfile);
+    setProfile({
+      ...updatedProfile,
+      followedByMe: false,
+    });
+    setProfileCover(updatedProfile.coverImageUrl || null);
+    setProfileAvatar(updatedProfile.profileImageUrl);
     updateUser({
       handle: updatedProfile.handle,
       nickname: updatedProfile.nickname,
       name: updatedProfile.nickname,
       bio: updatedProfile.bio ?? '',
+      location: updatedProfile.location ?? '',
+      website: updatedProfile.website ?? '',
     });
   };
 
@@ -624,7 +628,8 @@ export default function ProfilePage() {
   }
 
   const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
-  const displayedCover = isOwnProfile ? profileCover || DEFAULT_PROFILE_COVER : DEFAULT_PROFILE_COVER;
+  const displayedCover =
+    (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
     { name: 'posts' as const, icon: <Grid size={16} /> },
@@ -718,6 +723,28 @@ export default function ProfilePage() {
           <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
             {profile.bio || 'Tell your gaming story on GamerIN.'}
           </p>
+
+          {profile.location || profile.website ? (
+            <div className="flex max-w-xl flex-wrap gap-4 text-sm font-bold text-zinc-500">
+              {profile.location ? (
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <MapPin size={16} className="shrink-0" />
+                  <span className="truncate">{profile.location}</span>
+                </div>
+              ) : null}
+              {profile.website ? (
+                <a
+                  href={profile.website}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex min-w-0 max-w-full items-center gap-1.5 transition hover:text-black"
+                >
+                  <Globe size={16} className="shrink-0" />
+                  <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
+                </a>
+              ) : null}
+            </div>
+          ) : null}
 
           {!privacySettings.profilePublic ? (
             <div className="inline-flex rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-zinc-500">
@@ -904,15 +931,13 @@ export default function ProfilePage() {
       {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}
-          coverImage={profileCover}
-          onSaveCover={(newCover) => setProfileCover(newCover)}
-          avatarImage={profileAvatar}
-          onSaveAvatar={(newAvatar) => setProfileAvatar(newAvatar)}
+          coverImage={profileCover || profile.coverImageUrl}
+          avatarImage={profileAvatar || profile.profileImageUrl}
           userInfo={{
             name: profile.nickname,
             bio: profile.bio ?? '',
-            location: '',
-            website: '',
+            location: profile.location ?? '',
+            website: profile.website ?? '',
           }}
           onSaveUserInfo={handleSaveUserInfo}
         />
