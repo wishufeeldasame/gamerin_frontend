@@ -145,7 +145,7 @@ function ConversationCard({
       onClick={onSelect}
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
-          ? 'bg-black text-white shadow-xl'
+          ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
           : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
       }`}
     >
@@ -156,7 +156,7 @@ function ConversationCard({
             imageUrl={conversation.recipient.profileImageUrl}
             sizes="48px"
             className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white' : 'bg-black text-white'
+              active ? 'bg-zinc-800 text-white dark:bg-black dark:text-white' : 'bg-black text-white'
             }`}
           />
           <div className="min-w-0">
@@ -165,7 +165,7 @@ function ConversationCard({
             </p>
             <p
               className={`truncate text-[11px] font-bold uppercase tracking-widest ${
-                active ? 'text-white/55' : 'text-zinc-400'
+                active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
               <HighlightedText text={conversation.recipient.role} query={query} />
@@ -173,7 +173,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
             {formatConversationTime(conversation.updatedAt)}
           </span>
           {conversation.unreadCount > 0 ? (
@@ -183,7 +183,7 @@ function ConversationCard({
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70' : 'text-zinc-500'}`}>
+      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-black/70' : 'text-zinc-500'}`}>
         <HighlightedText text={getLastPreview(conversation)} query={query} />
       </p>
     </button>
