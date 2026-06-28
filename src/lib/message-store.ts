@@ -6,6 +6,7 @@ export type MessageRecipient = {
   handle: string;
   role: string;
   online: boolean;
+  profileImageUrl?: string | null;
 };
 
 export type SharedPostPreview = {

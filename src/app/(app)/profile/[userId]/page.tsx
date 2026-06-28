@@ -12,6 +12,7 @@ import {
   RefreshCw,
   ExternalLink,
   Globe,
+  Play,
   Trash2,
   Tv,
   MessageCircle,
@@ -40,8 +41,11 @@ import {
   fetchUserPosts,
   followUser,
   getInitials,
+  likePost,
   unfollowUser,
   updateMyProfile,
+  unlikePost,
+  updatePostLikeState,
   uploadProfileImage,
 } from '@/lib/feed-api';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
@@ -49,6 +53,7 @@ import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
+type PostDetailTarget = 'post' | 'comments';
 
 type ConnectedPlatformId = 'youtube' | 'twitch' | 'soop';
 
@@ -258,6 +263,7 @@ export default function ProfilePage() {
             bio: loadedProfile.bio ?? '',
             location: loadedProfile.location ?? '',
             website: loadedProfile.website ?? '',
+            profileImageUrl: loadedProfile.profileImageUrl,
           });
         }
       } catch (loadError) {
@@ -353,6 +359,33 @@ export default function ProfilePage() {
 
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
+    setMediaItems((current) => current.filter((item) => item.postId !== postId));
+  };
+
+  const handleToggleLike = async (post: PostRecord) => {
+    const optimistic = updatePostLikeState(post);
+
+    setPosts((current) =>
+      current.map((item) => (item.postId === post.postId ? optimistic : item))
+    );
+
+    try {
+      if (post.likedByMe) {
+        await unlikePost(post.postId);
+      } else {
+        await likePost(post.postId);
+      }
+    } catch (likeError) {
+      setPosts((current) =>
+        current.map((item) => (item.postId === post.postId ? post : item))
+      );
+      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    }
+  };
+
+  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+    const search = target === 'comments' ? '?target=comments' : '';
+    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
 
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
@@ -389,6 +422,7 @@ export default function ProfilePage() {
       bio: updatedProfile.bio ?? '',
       location: updatedProfile.location ?? '',
       website: updatedProfile.website ?? '',
+      profileImageUrl: updatedProfile.profileImageUrl,
     });
   };
 
@@ -863,7 +897,7 @@ export default function ProfilePage() {
         ) : null}
 
         {activeTab === 'posts' ? (
-          <div className="space-y-4">
+          <div className="mx-auto max-w-2xl space-y-4">
             {posts.length === 0 ? (
               <div className="py-24 text-center">
                 <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Posts Yet</h3>
@@ -874,6 +908,9 @@ export default function ProfilePage() {
                 <Post
                   key={post.postId}
                   post={post}
+                  onToggleLike={handleToggleLike}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                   onBookmarkChange={handlePostUpdated}
@@ -906,20 +943,35 @@ export default function ProfilePage() {
             ) : (
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                 {mediaItems.map((item) => (
-                  <div key={item.mediaId} className="overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50">
+                  <button
+                    key={item.mediaId}
+                    type="button"
+                    onClick={() => handleOpenPost(item.postId)}
+                    className="group relative aspect-square overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                    aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시물 상세 보기`}
+                  >
                     {item.mediaType === 'VIDEO' ? (
-                      <video
-                        controls
-                        poster={item.thumbnailUrl ?? undefined}
-                        src={item.mediaUrl}
-                        className="h-56 w-full bg-black object-cover"
-                      />
+                      <>
+                        <video
+                          muted
+                          playsInline
+                          preload="metadata"
+                          poster={item.thumbnailUrl ?? undefined}
+                          src={item.mediaUrl}
+                          className="h-full w-full bg-black object-cover transition duration-300 group-hover:scale-105"
+                        />
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white">
+                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+                            <Play size={22} className="ml-0.5 fill-white" />
+                          </span>
+                        </span>
+                      </>
                     ) : (
-                      <div className="relative h-56 w-full">
+                      <div className="relative h-full w-full">
                         <Image src={item.mediaUrl} alt="Profile media" fill unoptimized className="object-cover" />
                       </div>
                     )}
-                  </div>
+                  </button>
                 ))}
               </div>
             )}

@@ -19,6 +19,7 @@ interface User {
   handle?: string;
   location?: string;
   website?: string;
+  profileImageUrl?: string | null;
 }
 
 interface AuthContextType {
@@ -37,10 +38,13 @@ function normalizeStoredUser(userData: User) {
     coverImageUrl?: unknown;
   };
 
-  delete safeUser.profileImageUrl;
   delete safeUser.coverImageUrl;
+  safeUser.profileImageUrl =
+    typeof safeUser.profileImageUrl === 'string' && safeUser.profileImageUrl.trim()
+      ? safeUser.profileImageUrl
+      : null;
 
-  return safeUser;
+  return safeUser as User;
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {

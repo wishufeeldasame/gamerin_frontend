@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -45,8 +46,19 @@ export function Sidebar() {
         <div className="mt-8 border-t border-zinc-100 pt-6">
           <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-xs font-black text-white shadow-md">
-                {user.nickname ? user.nickname.substring(0, 1).toUpperCase() : 'U'}
+              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white shadow-md">
+                {user.profileImageUrl ? (
+                  <Image
+                    src={user.profileImageUrl}
+                    alt={user.nickname}
+                    fill
+                    unoptimized
+                    sizes="40px"
+                    className="object-cover"
+                  />
+                ) : (
+                  user.nickname ? user.nickname.substring(0, 1).toUpperCase() : 'U'
+                )}
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-black leading-tight text-black">{user.nickname}</p>

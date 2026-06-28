@@ -17,6 +17,7 @@ import {
   Video,
   X,
 } from 'lucide-react';
+import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -106,6 +107,28 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
   );
 }
 
+function UserAvatar({
+  name,
+  imageUrl,
+  className,
+  sizes,
+}: {
+  name: string;
+  imageUrl?: string | null;
+  className: string;
+  sizes: string;
+}) {
+  return (
+    <div className={`relative flex shrink-0 items-center justify-center overflow-hidden ${className}`}>
+      {imageUrl ? (
+        <Image src={imageUrl} alt={name} fill unoptimized sizes={sizes} className="object-cover" />
+      ) : (
+        getInitials(name)
+      )}
+    </div>
+  );
+}
+
 function ConversationCard({
   conversation,
   active,
@@ -129,13 +152,14 @@ function ConversationCard({
     >
       <div className="mb-2 flex items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
-          <div
-            className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-sm font-black ${
+          <UserAvatar
+            name={conversation.recipient.name}
+            imageUrl={conversation.recipient.profileImageUrl}
+            sizes="48px"
+            className={`h-12 w-12 rounded-2xl text-sm font-black ${
               active ? 'bg-zinc-800 text-white' : 'bg-black text-white'
             }`}
-          >
-            {getInitials(conversation.recipient.name)}
-          </div>
+          />
           <div className="min-w-0">
             <p className="truncate text-sm font-black">
               <HighlightedText text={conversation.recipient.name} query={query} />
@@ -249,9 +273,12 @@ function NewChatPicker({
               onClick={() => onStart(recipient)}
               className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left transition hover:bg-zinc-100"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-xs font-black text-white">
-                {getInitials(recipient.name)}
-              </span>
+              <UserAvatar
+                name={recipient.name}
+                imageUrl={recipient.profileImageUrl}
+                sizes="40px"
+                className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white"
+              />
               <span className="min-w-0">
                 <span className="block truncate text-sm font-black text-black">{recipient.name}</span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
@@ -370,6 +397,7 @@ function MessageBubble({
   chatMessage,
   mine,
   recipientName,
+  recipientImageUrl,
   isActionOpen,
   actionLoading,
   onToggleAction,
@@ -380,6 +408,7 @@ function MessageBubble({
   chatMessage: ChatMessage;
   mine: boolean;
   recipientName: string;
+  recipientImageUrl?: string | null;
   isActionOpen: boolean;
   actionLoading: boolean;
   onToggleAction: () => void;
@@ -390,9 +419,12 @@ function MessageBubble({
   return (
     <div className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}>
       {!mine ? (
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-zinc-200 text-[10px] font-black text-black">
-          {getInitials(recipientName)}
-        </div>
+        <UserAvatar
+          name={recipientName}
+          imageUrl={recipientImageUrl}
+          sizes="32px"
+          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black"
+        />
       ) : null}
 
       <div className={`max-w-[76%] ${mine ? 'items-end' : 'items-start'}`}>
@@ -1238,9 +1270,12 @@ export default function MessagesPage() {
                   <ArrowLeft size={22} />
                 </button>
                 <div className="relative">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-lg">
-                    {getInitials(activeConversation.recipient.name)}
-                  </div>
+                  <UserAvatar
+                    name={activeConversation.recipient.name}
+                    imageUrl={activeConversation.recipient.profileImageUrl}
+                    sizes="48px"
+                    className="h-12 w-12 rounded-2xl bg-black text-sm font-black text-white shadow-lg"
+                  />
                   {activeConversation.recipient.online ? (
                     <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-4 border-white bg-green-500" />
                   ) : null}
@@ -1316,6 +1351,7 @@ export default function MessagesPage() {
                       chatMessage={chatMessage}
                       mine={chatMessage.senderId === 'me'}
                       recipientName={activeConversation.recipient.name}
+                      recipientImageUrl={activeConversation.recipient.profileImageUrl}
                       isActionOpen={messageActionId === chatMessage.id}
                       actionLoading={messageActionLoading}
                       onToggleAction={() =>
