@@ -46,6 +46,7 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
 type DraftAttachment = {
   id: string;
@@ -747,13 +748,42 @@ export default function MessagesPage() {
     if (!isAuthReady || !user) return;
 
     let eventSource: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
     let cancelled = false;
+
+    function scheduleReconnect() {
+      if (cancelled || reconnectTimer) return false;
+      if (reconnectAttempt >= MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS) {
+        setPageError('실시간 메시지 연결에 반복해서 실패했습니다. 페이지를 새로고침하거나 다시 로그인해 주세요.');
+        return false;
+      }
+
+      reconnectAttempt += 1;
+      const retryDelay = Math.min(30000, reconnectAttempt * 2000);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, retryDelay);
+      return true;
+    }
 
     const connect = async () => {
       try {
-        eventSource = await openMessageEventSource();
+        const nextEventSource = await openMessageEventSource();
+        if (cancelled) {
+          nextEventSource.close();
+          return;
+        }
 
-        eventSource.addEventListener('message-created', (event) => {
+        eventSource = nextEventSource;
+
+        nextEventSource.onopen = () => {
+          reconnectAttempt = 0;
+          setPageError('');
+        };
+
+        nextEventSource.addEventListener('message-created', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           const realtimeMessage = realtimeEvent.message;
           if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
@@ -768,22 +798,31 @@ export default function MessagesPage() {
           void loadConversations({ silent: true });
         });
 
-        eventSource.addEventListener('message-deleted', (event) => {
+        nextEventSource.addEventListener('message-deleted', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           removeMessageFromConversation(realtimeEvent.conversationId, realtimeEvent.messageId);
           void loadConversations({ silent: true });
         });
 
-        eventSource.onerror = () => {
-          eventSource?.close();
-          if (!cancelled) {
+        nextEventSource.onerror = () => {
+          nextEventSource.close();
+          if (eventSource === nextEventSource) {
+            eventSource = null;
+          }
+
+          if (!cancelled && scheduleReconnect()) {
             setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
           }
         };
       } catch (error) {
         if (!cancelled) {
-          setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          setIsAuthError(isMessageAuthError(error));
+          const authError = isMessageAuthError(error);
+          setIsAuthError(authError);
+          if (authError) {
+            setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
+          } else if (scheduleReconnect()) {
+            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          }
         }
       }
     };
@@ -792,6 +831,9 @@ export default function MessagesPage() {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
       eventSource?.close();
     };
   }, [
