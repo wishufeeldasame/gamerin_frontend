@@ -46,6 +46,7 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+const MAX_MESSAGE_LENGTH = 2000;
 
 type DraftAttachment = {
   id: string;
@@ -929,6 +930,7 @@ export default function MessagesPage() {
 
     const trimmedMessage = message.trim();
     if (!trimmedMessage && attachments.length === 0) return;
+    if (message.length > MAX_MESSAGE_LENGTH) return;
 
     try {
       setSending(true);
@@ -1448,10 +1450,18 @@ export default function MessagesPage() {
                 <input
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
                   className="flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
                 />
+                <span
+                  className={`shrink-0 text-xs font-bold ${
+                    message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {message.length}/{MAX_MESSAGE_LENGTH}
+                </span>
                 <button
                   type="submit"
                   disabled={(!message.trim() && attachments.length === 0) || sending}

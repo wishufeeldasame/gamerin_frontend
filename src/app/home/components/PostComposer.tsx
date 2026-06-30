@@ -26,6 +26,7 @@ const MAX_VIDEO_THUMBNAILS: number = 4;
 const MAX_VIDEO_COUNT = 1;
 const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 120;
+const MAX_POST_CONTENT_LENGTH = 1000;
 const MAX_THUMBNAIL_CANVAS_WIDTH = 1280;
 const MAX_THUMBNAIL_CANVAS_HEIGHT = 720;
 
@@ -411,9 +412,17 @@ export function PostComposer({ onCreated }: PostComposerProps) {
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
+            maxLength={MAX_POST_CONTENT_LENGTH}
             placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
             className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
           />
+          <div
+            className={`text-right text-xs font-bold ${
+              content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
+            }`}
+          >
+            {content.length}/{MAX_POST_CONTENT_LENGTH}
+          </div>
 
           <input
             value={externalLinkUrl}

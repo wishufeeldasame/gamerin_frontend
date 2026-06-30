@@ -25,6 +25,8 @@ import {
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 
+const MAX_COMMENT_LENGTH = 300;
+
 interface PostDetailProps {
   postId: string;
   onBack: () => void;
@@ -131,6 +133,9 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
 
   const handleSubmitComment = async () => {
     if (!post || !commentText.trim() || submittingComment) {
+      return;
+    }
+    if (commentText.length > MAX_COMMENT_LENGTH) {
       return;
     }
 
@@ -389,10 +394,18 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                 <textarea
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
+                  maxLength={MAX_COMMENT_LENGTH}
                   placeholder="Share your thoughts..."
                   className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
                   rows={3}
                 />
+                <span
+                  className={`absolute bottom-4 right-14 text-xs font-bold ${
+                    commentText.length >= MAX_COMMENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {commentText.length}/{MAX_COMMENT_LENGTH}
+                </span>
                 <button
                   onClick={handleSubmitComment}
                   disabled={!commentText.trim() || submittingComment}
