@@ -150,8 +150,8 @@ export default function HomePage() {
 
   return (
     <div className="flex justify-center overflow-visible">
-      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
+      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-purple-500/30 dark:bg-purple-700">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -160,14 +160,14 @@ export default function HomePage() {
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                activeTab === tab.value ? 'text-black' : 'text-zinc-400 hover:text-zinc-600'
+                activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
               }`}
             >
               {tab.label}
               {activeTab === tab.value ? (
                 <motion.div
                   layoutId="underline"
-                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black"
+                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black dark:bg-[#f5b93d]"
                 />
               ) : null}
             </button>
