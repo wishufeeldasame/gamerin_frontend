@@ -55,6 +55,7 @@ export default function BookmarksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<BookmarkFilter>('all');
+  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
   const upsertBookmark = useCallback((post: PostRecord) => {
     setBookmarks((current) => {
@@ -164,7 +165,12 @@ export default function BookmarksPage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
     const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
 
     setBookmarks((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -181,6 +187,12 @@ export default function BookmarksPage() {
         current.map((item) => (item.postId === post.postId ? post : item))
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
     }
   };
 
@@ -294,6 +306,7 @@ export default function BookmarksPage() {
               ) : null}
               <Post
                 post={post}
+                likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                 onToggleLike={handleToggleLike}
                 onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                 onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}

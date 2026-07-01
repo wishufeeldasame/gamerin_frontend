@@ -49,6 +49,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [shareOpen, setShareOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -109,11 +110,12 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   }, [postId]);
 
   const handleToggleLike = async () => {
-    if (!post) {
+    if (!post || isLikeLoading) {
       return;
     }
 
     const nextPost = updatePostLikeState(post);
+    setIsLikeLoading(true);
 
     setPost(nextPost);
     onPostUpdated?.(nextPost);
@@ -128,6 +130,8 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       setPost(post);
       onPostUpdated?.(post);
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setIsLikeLoading(false);
     }
   };
 
@@ -353,9 +357,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             <div className="flex items-center gap-8">
               <button
                 onClick={handleToggleLike}
+                disabled={isLikeLoading}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 <Heart size={22} className={post.likedByMe ? 'fill-red-500' : ''} />
                 <span>{post.likes}</span>

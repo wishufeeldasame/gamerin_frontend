@@ -21,6 +21,7 @@ import { SharePostModal } from './SharePostModal';
 
 interface PostProps {
   post: PostRecord;
+  likeLoading?: boolean;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
   onOpenComments?: (post: PostRecord) => void;
@@ -100,6 +101,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 
 export function Post({
   post,
+  likeLoading = false,
   onToggleLike,
   onOpenDetail,
   onOpenComments,
@@ -294,9 +296,10 @@ export function Post({
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
+            disabled={likeLoading}
             className={`group flex items-center gap-2 transition-colors ${
               post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             <Heart size={20} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
             <span className="text-sm font-black text-zinc-800">{post.likes}</span>
