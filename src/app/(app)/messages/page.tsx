@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   CheckCheck,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Ellipsis,
   ImagePlus,
@@ -46,6 +48,7 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+const CONVERSATION_PREVIEW_COUNT = 5;
 const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
 type DraftAttachment = {
@@ -504,6 +507,7 @@ export default function MessagesPage() {
   const [hasNextByConversation, setHasNextByConversation] = useState<Record<string, boolean>>({});
   const [activeConversationId, setActiveConversationId] = useState('');
   const [query, setQuery] = useState('');
+  const [conversationListExpanded, setConversationListExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -856,6 +860,14 @@ export default function MessagesPage() {
       ].some((value) => value.toLowerCase().includes(normalized))
     );
   }, [conversations, query]);
+  const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
+  const visibleConversations = hasHiddenConversations && !conversationListExpanded
+    ? filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT)
+    : filteredConversations;
+
+  useEffect(() => {
+    setConversationListExpanded(false);
+  }, [query]);
 
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversationId(conversationId);
@@ -1186,9 +1198,16 @@ export default function MessagesPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
-              <p className="mt-1 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                {conversations.length} conversations
-              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  {conversations.length} conversations
+                </p>
+                {hasHiddenConversations ? (
+                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
+                    {visibleConversations.length}/{filteredConversations.length}
+                  </span>
+                ) : null}
+              </div>
             </div>
             <button
               type="button"
@@ -1234,15 +1253,30 @@ export default function MessagesPage() {
               대화 목록을 불러오는 중...
             </div>
           ) : filteredConversations.length > 0 ? (
-            filteredConversations.map((conversation) => (
-              <ConversationCard
-                key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
-                query={query}
-                onSelect={() => handleSelectConversation(conversation.id)}
-              />
-            ))
+            <>
+              {visibleConversations.map((conversation) => (
+                <ConversationCard
+                  key={conversation.id}
+                  conversation={conversation}
+                  active={conversation.id === activeConversationId}
+                  query={query}
+                  onSelect={() => handleSelectConversation(conversation.id)}
+                />
+              ))}
+
+              {hasHiddenConversations ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setConversationListExpanded((current) => !current)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-xs font-black text-black shadow-sm transition hover:border-black hover:shadow-md"
+                  >
+                    {conversationListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {conversationListExpanded ? '가리기' : '더보기'}
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />

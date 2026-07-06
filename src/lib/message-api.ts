@@ -192,11 +192,15 @@ export async function fetchConversationList() {
 }
 
 export async function openMessageEventSource() {
-  await messageRequest<{ expiresAt: string }>('/stream-token', {
-    method: 'POST',
-  });
+  const accessToken = await ensureAccessToken();
+  if (!accessToken) {
+    throw createMessageAuthError();
+  }
 
-  return new EventSource(`${MESSAGE_BASE}/stream`, { withCredentials: true });
+  const streamUrl = new URL(`${MESSAGE_BASE}/stream`, window.location.origin);
+  streamUrl.searchParams.set('accessToken', accessToken);
+
+  return new EventSource(streamUrl.toString(), { withCredentials: true });
 }
 
 export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {
