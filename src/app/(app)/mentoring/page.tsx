@@ -965,7 +965,7 @@ export default function MentoringPage() {
                 type="button"
                 onClick={() => changeTab(id as MentoringTab)}
                 className={`rounded-xl px-4 py-2 text-sm font-black ${
-                  activeTab === id ? 'bg-black text-white' : 'text-zinc-500'
+                  activeTab === id ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-500'
                 }`}
               >
                 {label}
@@ -1250,7 +1250,7 @@ export default function MentoringPage() {
                               onClick={() => setSelectedOwnedProgramId(program.id)}
                               className={`rounded-2xl border p-5 text-left transition ${
                                 isSelected
-                                  ? 'border-black bg-black text-white'
+                                  ? 'border-black bg-black text-white dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
                                   : 'border-zinc-100 bg-white hover:border-black'
                               }`}
                             >
@@ -1258,7 +1258,7 @@ export default function MentoringPage() {
                                 <div>
                                   <p
                                     className={`text-xs font-black uppercase tracking-[0.18em] ${
-                                      isSelected ? 'text-white/70' : 'text-zinc-400'
+                                      isSelected ? 'text-white/70 dark:text-black/60' : 'text-zinc-400'
                                     }`}
                                   >
                                     {program.gameName}

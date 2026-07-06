@@ -46,6 +46,7 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
 type DraftAttachment = {
   id: string;
@@ -145,7 +146,7 @@ function ConversationCard({
       onClick={onSelect}
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
-          ? 'bg-black text-white shadow-xl'
+          ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
           : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
       }`}
     >
@@ -156,7 +157,7 @@ function ConversationCard({
             imageUrl={conversation.recipient.profileImageUrl}
             sizes="48px"
             className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white' : 'bg-black text-white'
+              active ? 'bg-zinc-800 text-white dark:bg-black dark:text-white' : 'bg-black text-white'
             }`}
           />
           <div className="min-w-0">
@@ -165,7 +166,7 @@ function ConversationCard({
             </p>
             <p
               className={`truncate text-[11px] font-bold uppercase tracking-widest ${
-                active ? 'text-white/55' : 'text-zinc-400'
+                active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
               <HighlightedText text={conversation.recipient.role} query={query} />
@@ -173,7 +174,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
             {formatConversationTime(conversation.updatedAt)}
           </span>
           {conversation.unreadCount > 0 ? (
@@ -183,7 +184,7 @@ function ConversationCard({
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70' : 'text-zinc-500'}`}>
+      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-black/70' : 'text-zinc-500'}`}>
         <HighlightedText text={getLastPreview(conversation)} query={query} />
       </p>
     </button>
@@ -747,13 +748,42 @@ export default function MessagesPage() {
     if (!isAuthReady || !user) return;
 
     let eventSource: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
     let cancelled = false;
+
+    function scheduleReconnect() {
+      if (cancelled || reconnectTimer) return false;
+      if (reconnectAttempt >= MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS) {
+        setPageError('실시간 메시지 연결에 반복해서 실패했습니다. 페이지를 새로고침하거나 다시 로그인해 주세요.');
+        return false;
+      }
+
+      reconnectAttempt += 1;
+      const retryDelay = Math.min(30000, reconnectAttempt * 2000);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, retryDelay);
+      return true;
+    }
 
     const connect = async () => {
       try {
-        eventSource = await openMessageEventSource();
+        const nextEventSource = await openMessageEventSource();
+        if (cancelled) {
+          nextEventSource.close();
+          return;
+        }
 
-        eventSource.addEventListener('message-created', (event) => {
+        eventSource = nextEventSource;
+
+        nextEventSource.onopen = () => {
+          reconnectAttempt = 0;
+          setPageError('');
+        };
+
+        nextEventSource.addEventListener('message-created', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           const realtimeMessage = realtimeEvent.message;
           if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
@@ -768,22 +798,31 @@ export default function MessagesPage() {
           void loadConversations({ silent: true });
         });
 
-        eventSource.addEventListener('message-deleted', (event) => {
+        nextEventSource.addEventListener('message-deleted', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           removeMessageFromConversation(realtimeEvent.conversationId, realtimeEvent.messageId);
           void loadConversations({ silent: true });
         });
 
-        eventSource.onerror = () => {
-          eventSource?.close();
-          if (!cancelled) {
+        nextEventSource.onerror = () => {
+          nextEventSource.close();
+          if (eventSource === nextEventSource) {
+            eventSource = null;
+          }
+
+          if (!cancelled && scheduleReconnect()) {
             setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
           }
         };
       } catch (error) {
         if (!cancelled) {
-          setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          setIsAuthError(isMessageAuthError(error));
+          const authError = isMessageAuthError(error);
+          setIsAuthError(authError);
+          if (authError) {
+            setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
+          } else if (scheduleReconnect()) {
+            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          }
         }
       }
     };
@@ -792,6 +831,9 @@ export default function MessagesPage() {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
       eventSource?.close();
     };
   }, [

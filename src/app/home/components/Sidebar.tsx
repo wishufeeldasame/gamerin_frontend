@@ -31,8 +31,8 @@ export function Sidebar() {
               href={href}
               className={`group flex items-center gap-4 rounded-2xl px-4 py-3 font-black transition-all ${
                 isActive
-                  ? 'scale-[1.02] bg-black text-white shadow-lg'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black'
+                  ? 'scale-[1.02] bg-black text-white shadow-lg dark:bg-[#f5b93d] dark:text-black'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black dark:text-zinc-400 dark:hover:bg-neutral-800 dark:hover:text-zinc-100'
               }`}
             >
               <item.icon size={22} strokeWidth={isActive ? 3 : 2} className="shrink-0" />
@@ -43,10 +43,10 @@ export function Sidebar() {
       </nav>
 
       {user ? (
-        <div className="mt-8 border-t border-zinc-100 pt-6">
-          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm">
+        <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-neutral-800">
+          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-800">
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white shadow-md">
+              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white shadow-md dark:ring-1 dark:ring-white/10">
                 {user.profileImageUrl ? (
                   <Image
                     src={user.profileImageUrl}
@@ -61,8 +61,8 @@ export function Sidebar() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black leading-tight text-black">{user.nickname}</p>
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400">
+                <p className="truncate text-[13px] font-black leading-tight text-black dark:text-zinc-100">{user.nickname}</p>
+                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
                   {user.gameTier || 'Unranked'}
                 </p>
               </div>
@@ -70,7 +70,7 @@ export function Sidebar() {
 
             <button
               onClick={() => logout()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 dark:border-neutral-700 dark:bg-black dark:text-zinc-400 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={14} strokeWidth={3} />
               Sign Out

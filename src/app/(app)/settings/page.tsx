@@ -11,7 +11,7 @@ import {
   Trash2,
   User,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   AccountSettings,
@@ -20,6 +20,7 @@ import {
   PrivacySettings,
   ThemeMode,
   UserSettings,
+  applyThemeMode,
   loadUserSettings,
   saveUserSettings,
 } from '@/lib/user-settings';
@@ -41,7 +42,7 @@ function Toggle({
         onChange={(event) => onChange(event.target.checked)}
         className="peer sr-only"
       />
-      <span className="h-6 w-11 rounded-full bg-zinc-300 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-black peer-checked:after:translate-x-full" />
+      <span className="h-6 w-11 rounded-full bg-zinc-300 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-black peer-checked:after:translate-x-full dark:peer-checked:bg-[#f5b93d] dark:peer-checked:after:bg-black" />
     </label>
   );
 }
@@ -57,8 +58,8 @@ export default function SettingsPage() {
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(initialSettings.privacy);
   const [theme, setTheme] = useState<ThemeMode>(initialSettings.theme);
   const [language, setLanguage] = useState<LanguageCode>(initialSettings.language);
-  const [savedTheme, setSavedTheme] = useState<ThemeMode>(initialSettings.theme);
-  const [savedLanguage, setSavedLanguage] = useState<LanguageCode>(initialSettings.language);
+  const savedThemeRef = useRef<ThemeMode>(initialSettings.theme);
+  const savedLanguageRef = useRef<LanguageCode>(initialSettings.language);
   const [passwordFields, setPasswordFields] = useState({
     current: '',
     next: '',
@@ -77,16 +78,16 @@ export default function SettingsPage() {
   }, [user]);
 
   useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark');
+    applyThemeMode(theme);
     document.documentElement.lang = language;
   }, [theme, language]);
 
   useEffect(() => {
     return () => {
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-      document.documentElement.lang = savedLanguage;
+      applyThemeMode(savedThemeRef.current);
+      document.documentElement.lang = savedLanguageRef.current;
     };
-  }, [savedLanguage, savedTheme]);
+  }, []);
 
   const currentSettings: UserSettings = {
     account: accountSettings,
@@ -102,9 +103,9 @@ export default function SettingsPage() {
   };
 
   const handleSave = () => {
+    savedThemeRef.current = theme;
+    savedLanguageRef.current = language;
     saveUserSettings(currentSettings);
-    setSavedTheme(theme);
-    setSavedLanguage(language);
 
     const nextHandle = accountSettings.username.trim().replace(/^@/, '');
     const nextName = accountSettings.displayName.trim();
@@ -374,7 +375,7 @@ export default function SettingsPage() {
                     key={item.id}
                     onClick={() => setActiveSection(item.id)}
                     className={`flex w-full items-center justify-between rounded-lg px-4 py-3 transition-colors ${
-                      active ? 'bg-black text-white' : 'text-zinc-700 hover:bg-zinc-100'
+                      active ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-700 hover:bg-zinc-100'
                     }`}
                   >
                     <span className="flex items-center gap-3">
