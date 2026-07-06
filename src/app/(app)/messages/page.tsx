@@ -24,6 +24,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
   deleteConversationMessage,
+  fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
   isMessageAuthError,
@@ -373,23 +374,81 @@ function AttachmentGrid({
     <div className="mt-3 grid gap-2">
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
-          {attachment.type === 'video' ? (
-            <video controls src={attachment.url} className="max-h-80 w-full bg-black object-cover" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenImage(attachment)}
-              className="block w-full cursor-zoom-in"
-              aria-label={`${attachment.name} 확대 보기`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
-            </button>
-          )}
+          <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
           <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
         </div>
       ))}
     </div>
+  );
+}
+
+function MessageAttachmentMedia({
+  attachment,
+  onOpenImage,
+}: {
+  attachment: ChatAttachment;
+  onOpenImage: (attachment: ChatAttachment) => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let nextObjectUrl: string | null = null;
+
+    setObjectUrl(null);
+    setFailed(false);
+
+    fetchMessageAttachmentBlob(attachment.url)
+      .then((blob) => {
+        if (!active) return;
+        nextObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextObjectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl);
+      }
+    };
+  }, [attachment.url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-500">
+        첨부를 불러올 수 없습니다.
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 text-zinc-400">
+        <Loader2 size={22} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (attachment.type === 'video') {
+    return <video controls src={objectUrl} className="max-h-80 w-full bg-black object-cover" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenImage({ ...attachment, url: objectUrl })}
+      className="block w-full cursor-zoom-in"
+      aria-label={`${attachment.name} 확대 보기`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={objectUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+    </button>
   );
 }
 

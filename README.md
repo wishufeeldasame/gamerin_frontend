@@ -224,3 +224,12 @@ npm run dev
   > 검증: `git diff --check`, `npm run lint`, `npx tsc --noEmit`, `npm run build` 통과
 
   > 요약 : 프로필 페이지 게시물/미디어 탭의 좋아요, 댓글, 상세 이동, 삭제 후 상태 반영, 미디어 표시 비율을 홈 피드 UX와 맞춰 정리
+
+- **26/06/18** 서장호
+
+  > 메시지 첨부 이미지/동영상을 공개 `/uploads/message-attachments/**` URL 대신 인증된 백엔드 첨부 API에서 `Authorization` 헤더로 fetch하도록 변경
+  > 가져온 첨부 파일은 브라우저 object URL로 변환해 기존 메시지 말풍선 이미지, 동영상, 이미지 확대 보기 UI에서 표시
+  > 첨부 로딩/실패 상태를 메시지 말풍선 안에서 처리해 인증 만료나 삭제된 첨부 파일 접근 실패가 화면 깨짐으로 이어지지 않도록 보완
+  > 검증: 번들 Node로 `eslint`, `tsc --noEmit` 통과
+
+  > 요약 : DM 첨부 파일 비공개 API 전환에 맞춰 메시지 화면의 첨부 렌더링을 인증 fetch 기반으로 변경
