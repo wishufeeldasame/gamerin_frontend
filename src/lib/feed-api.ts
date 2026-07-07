@@ -79,6 +79,7 @@ export interface UserProfile {
   mediaPostCount: number;
   mediaItemCount: number;
   followedByMe?: boolean;
+  followsViewer?: boolean;
 }
 
 type UserProfilePayload = UserProfile & {
