@@ -233,6 +233,5 @@ npm run dev
   > 검색어 변경 시 대화 목록 펼침 상태가 초기화되도록 수정
   > 로컬 개발 환경에서 `NEXT_PUBLIC_API_BASE_URL` 미설정 시 `localhost:3000` 프론트가 `localhost:8080` 백엔드를 바라보도록 API 기본 주소 처리 개선
   > 메시지 실시간 스트림 연결 시 access token을 확보한 뒤 `EventSource` URL에 포함해 연결하도록 수정
-  > 검증: 미실행
-
+  > 검증: `git diff --check`, `npm run lint`, `npm run build` 통과
   > 요약 : 메시지 대화 목록에 더보기/가리기 UX를 추가하고, 로컬 API 주소 및 메시지 스트림 연결 방식을 보완
