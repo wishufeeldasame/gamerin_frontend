@@ -24,6 +24,7 @@ import {
   updatePostLikeState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
+import SaveToCollectionModal from './SaveToCollectionModal';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -47,6 +48,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
@@ -191,12 +193,11 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     }
   };
 
-  const handleToggleBookmark = async () => {
-    if (!post || bookmarking) {
+  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+    if (!post || bookmarking || nextBookmarked === bookmarked) {
       return;
     }
 
-    const nextBookmarked = !bookmarked;
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
 
     setBookmarked(nextBookmarked);
@@ -371,7 +372,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
               </div>
               <button
                 type="button"
-                onClick={handleToggleBookmark}
+                onClick={() => setCollectionModalOpen(true)}
                 disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
@@ -480,6 +481,18 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
           onShared={(sharedPost) => {
             setPost(sharedPost);
             onPostUpdated?.(sharedPost);
+          }}
+        />
+      ) : null}
+
+      {post ? (
+        <SaveToCollectionModal
+          isOpen={collectionModalOpen}
+          postId={post.postId}
+          isBookmarked={bookmarked}
+          onClose={() => setCollectionModalOpen(false)}
+          onBookmarkStateChange={(nextBookmarked) => {
+            void handleBookmarkStateChange(nextBookmarked);
           }}
         />
       ) : null}
