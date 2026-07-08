@@ -224,3 +224,89 @@ npm run dev
   > 검증: `git diff --check`, `npm run lint`, `npx tsc --noEmit`, `npm run build` 통과
 
   > 요약 : 프로필 페이지 게시물/미디어 탭의 좋아요, 댓글, 상세 이동, 삭제 후 상태 반영, 미디어 표시 비율을 홈 피드 UX와 맞춰 정리
+
+## 2026-07-09 북마크 컬렉션 프론트엔드 개발 노트
+
+작업 브랜치: `feature/bookmark-collections`
+
+### 구현 내용
+
+- `BookmarkCollection` 타입에 `id`, `title`, `coverImageUrl`, `createdAt`, `savedPostIds`를 정의했습니다.
+- 게시글 타입에 컬렉션 저장 상태를 위한 `isSaved`, `savedCollectionIds` 선택 필드를 추가했습니다.
+- `BookmarkCollectionProvider`에서 컬렉션 생성과 게시글 저장/취소 상태를 전역으로 관리합니다.
+- 컬렉션 데이터는 백엔드 API가 준비되기 전까지 `localStorage`의 `gamerin_bookmark_collections` 키에 저장됩니다.
+- 피드와 게시글 상세의 북마크 버튼을 누르면 `SaveToCollectionModal`이 열립니다.
+- 모달에서 기존 모음집을 복수 선택하거나 새 모음집을 만든 뒤 현재 게시글을 바로 저장할 수 있습니다.
+- 컬렉션이 하나 이상 선택되면 기존 게시글 북마크 API를 유지하고, 모든 컬렉션에서 해제하면 기존 북마크도 해제합니다.
+- `/bookmarks` 페이지에서 전체 북마크와 각 모음집을 선택하고 해당 모음집의 게시글만 볼 수 있습니다.
+- 새로 만든 컬렉션과 게시글 포함 상태는 새로고침 후에도 현재 브라우저에서 유지됩니다.
+
+### 현재 사용 중인 기존 북마크 API
+
+```text
+POST   /api/v1/posts/{postId}/bookmarks
+DELETE /api/v1/posts/{postId}/bookmarks
+GET    /api/v1/users/me/bookmarks
+```
+
+위 API는 게시글이 북마크되었는지만 관리하며 컬렉션 정보는 아직 프론트에만 존재합니다.
+
+### 백엔드 구현 및 협의 필요사항
+
+아래 경로는 프론트와 백엔드가 협의할 수 있는 권장 계약입니다. 실제 경로가 확정되면 Context의 로컬 상태 로직을 API 호출로 교체해야 합니다.
+
+```text
+GET    /api/v1/bookmark-collections
+POST   /api/v1/bookmark-collections
+PATCH  /api/v1/bookmark-collections/{collectionId}
+DELETE /api/v1/bookmark-collections/{collectionId}
+
+PUT    /api/v1/bookmark-collections/{collectionId}/posts/{postId}
+DELETE /api/v1/bookmark-collections/{collectionId}/posts/{postId}
+```
+
+컬렉션 생성 요청 예시:
+
+```json
+{
+  "title": "다시 볼 공략",
+  "coverImageUrl": null
+}
+```
+
+컬렉션 응답 예시:
+
+```json
+{
+  "id": "collection-id",
+  "title": "다시 볼 공략",
+  "coverImageUrl": null,
+  "createdAt": "2026-07-09T12:00:00Z",
+  "savedPostIds": ["post-id-1", "post-id-2"]
+}
+```
+
+1. 컬렉션은 로그인 사용자별로 분리되어야 하며 다른 사용자의 컬렉션을 조회하거나 수정할 수 없어야 합니다.
+2. 한 게시글은 여러 컬렉션에 동시에 포함될 수 있어야 합니다.
+3. 동일 컬렉션에 같은 게시글을 반복 추가하거나 제거해도 중복 데이터와 오류가 생기지 않도록 멱등성을 보장해야 합니다.
+4. 컬렉션 이름 길이와 중복 이름 허용 여부를 백엔드 validation 정책으로 확정해야 합니다. 현재 프론트는 공백 이름을 차단하고 최대 40자로 제한합니다.
+5. 기존 단일 북마크 사용자를 위해 기본 컬렉션을 서버에서 자동 생성하거나, 컬렉션에 속하지 않은 북마크를 `미분류`로 처리할지 결정해야 합니다.
+6. 게시글을 마지막 컬렉션에서 제거할 때 기존 북마크도 삭제할지, 미분류 북마크로 남길지 정책을 확정해야 합니다. 현재 프론트는 기존 북마크도 삭제합니다.
+7. 컬렉션을 삭제할 때 포함된 게시글의 기존 북마크 유지 여부를 정책으로 확정해야 합니다.
+8. 삭제되거나 접근 권한이 사라진 게시글 ID를 컬렉션 응답에서 정리하는 기준이 필요합니다.
+9. 컬렉션 목록 응답에 게시물 개수와 대표 이미지가 포함되면 `/bookmarks` 화면에서 전체 게시글을 내려받지 않고도 정확한 카드 정보를 표시할 수 있습니다.
+
+### 현재 부족한 부분
+
+- 컬렉션은 `localStorage`에 저장되므로 계정 간 분리, 다른 브라우저 및 다른 기기 동기화가 지원되지 않습니다.
+- 브라우저 저장소를 삭제하거나 다른 환경에서 로그인하면 컬렉션이 유지되지 않습니다.
+- 컬렉션별 게시글 화면은 기존 북마크 API로 현재 불러온 게시글 안에서만 필터링합니다.
+- 컬렉션 이름 변경, 삭제, 순서 변경 기능은 아직 없습니다.
+- 컬렉션 대표 이미지 직접 설정과 업로드 기능은 없습니다.
+- 서버에서 이미 저장된 기존 북마크는 모달을 처음 열 때 로컬 기본 `즐겨찾기` 컬렉션으로 연결됩니다.
+- API 실패 시 컬렉션 로컬 상태와 기존 서버 북마크 상태가 일시적으로 달라질 가능성이 있어 서버 API 연동 시 트랜잭션 또는 롤백 처리가 필요합니다.
+
+### 검증
+
+- `npm run lint` 통과
+- `tsc --noEmit` 통과
