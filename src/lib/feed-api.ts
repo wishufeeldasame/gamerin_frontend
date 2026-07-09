@@ -371,6 +371,38 @@ export async function fetchPostDetail(postId: string, options: FeedRequestOption
   return normalizePostRecord(post);
 }
 
+export async function disconnectGameStats(gameName: string) {
+  const normalizedGameName = gameName.trim().toLowerCase();
+
+  if (normalizedGameName === 'pubg') {
+    try {
+      await apiRequest<null>('/api/v1/pubg/disconnect', {
+        method: 'DELETE',
+      });
+      return;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      const canTryGenericEndpoint =
+        message.includes('404') ||
+        message.includes('405') ||
+        message.toLowerCase().includes('not found') ||
+        message === 'Request failed.';
+
+      if (!canTryGenericEndpoint) {
+        throw error;
+      }
+    }
+  }
+
+  await apiRequest<null>(
+    `/api/stats/disconnect?gameName=${encodeURIComponent(gameName)}`,
+    {
+      method: 'DELETE',
+      body: JSON.stringify({ gameName }),
+    },
+  );
+}
+
 export async function deletePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}`, {
     method: 'DELETE',

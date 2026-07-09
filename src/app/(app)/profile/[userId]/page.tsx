@@ -37,6 +37,7 @@ import {
   ProfileMediaItem,
   UpdateMyProfilePayload,
   UserProfile,
+  disconnectGameStats,
   fetchFollowers,
   fetchFollowing,
   fetchUserProfile,
@@ -251,6 +252,27 @@ function toRepresentativeStat(fallbackGameName: string, stats: unknown): Represe
   };
 }
 
+function removeGameStat(gameStats: UserProfile['gameStats'], gameNameToRemove: string): UserProfile['gameStats'] {
+  const normalizedGameNameToRemove = gameNameToRemove.trim().toLowerCase();
+
+  if (Array.isArray(gameStats)) {
+    return gameStats.filter((stats, index) => {
+      const stat = toRepresentativeStat(String(index), stats);
+      return stat?.gameName.trim().toLowerCase() !== normalizedGameNameToRemove;
+    }) as unknown as UserProfile['gameStats'];
+  }
+
+  return Object.fromEntries(
+    Object.entries(gameStats).filter(([gameName, stats]) => {
+      const stat = toRepresentativeStat(gameName, stats);
+      return (
+        gameName.trim().toLowerCase() !== normalizedGameNameToRemove &&
+        stat?.gameName.trim().toLowerCase() !== normalizedGameNameToRemove
+      );
+    }),
+  );
+}
+
 export default function ProfilePage() {
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
@@ -270,6 +292,8 @@ export default function ProfilePage() {
   const [followActionHandle, setFollowActionHandle] = useState<string | null>(null);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [statToDelete, setStatToDelete] = useState<string | null>(null);
+  const [deletingStat, setDeletingStat] = useState(false);
   const [profileCover, setProfileCover] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -447,6 +471,30 @@ export default function ProfilePage() {
       alert(refreshError instanceof Error ? refreshError.message : 'Failed to refresh profile.');
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleDeleteStat = async () => {
+    if (!statToDelete) {
+      return;
+    }
+
+    try {
+      setDeletingStat(true);
+      await disconnectGameStats(statToDelete);
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              gameStats: removeGameStat(current.gameStats, statToDelete),
+            }
+          : current,
+      );
+      setStatToDelete(null);
+    } catch (deleteError) {
+      alert(deleteError instanceof Error ? deleteError.message : 'Failed to disconnect game stats.');
+    } finally {
+      setDeletingStat(false);
     }
   };
 
@@ -1046,8 +1094,18 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="flex items-center gap-3 text-right">
                       <p className="text-sm font-black uppercase tracking-widest text-zinc-400">Live sync</p>
+                      {isOwnProfile ? (
+                        <button
+                          type="button"
+                          onClick={() => setStatToDelete(entry.gameName)}
+                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                          aria-label={`${entry.gameName} 스탯 연동 해제`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -1153,6 +1211,35 @@ export default function ProfilePage() {
       </div>
 
       {isOwnProfile && showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {statToDelete ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-8 shadow-2xl">
+            <h2 className="text-2xl font-black tracking-tight text-black">스탯 연동을 해제할까요?</h2>
+            <p className="mt-3 text-base font-bold text-zinc-500">
+              {statToDelete} 게임 스탯이 프로필에서 제거됩니다.
+            </p>
+
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStatToDelete(null)}
+                disabled={deletingStat}
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteStat()}
+                disabled={deletingStat}
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
+              >
+                {deletingStat ? 'Disconnecting...' : 'Confirm'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}

@@ -311,3 +311,17 @@ npm run dev
   > 검증: `npm run lint`, `tsc --noEmit` 통과
 
   > 요약 : 프로필 소개글 영역을 대표 게임 전적 요약으로 대체하고, 기존 게임 전적 데이터 구조를 상단 UI에 재사용하도록 개선
+
+- **26/07/10** 김신의
+
+  > 프로필 `Verified Stats` 카드의 `Live sync` 오른쪽에 게임 전적 연동 해제용 휴지통 버튼 추가
+  > 휴지통 버튼은 내 프로필에서만 노출되며 기본 연회색, hover 시 빨간색으로 표시되도록 Tailwind 스타일 적용
+  > 버튼 클릭 시 게임 스탯 연동 해제 확인 모달이 열리도록 `statToDelete` 상태와 모달 UI 추가
+  > Confirm 클릭 시 `disconnectGameStats` API 함수를 통해 PUBG 연동 해제 요청이 실행되도록 연결
+  > 우선 `DELETE /api/v1/pubg/disconnect`를 호출하고, 해당 경로가 준비되지 않은 경우 `DELETE /api/stats/disconnect?gameName={gameName}` 경로로 fallback 처리
+  > 해제 성공 후 `profile.gameStats`에서 해당 게임을 즉시 제거해 새로고침 없이 화면에서 스탯 카드가 사라지도록 상태 갱신
+  > 삭제 요청 중 Confirm/Cancel 버튼 비활성화와 `Disconnecting...` 상태 문구를 추가해 중복 요청을 방지
+  > 백엔드는 PUBG 해제 API 응답을 기존 envelope 형식 또는 null data 형식으로 내려주면 프론트에서 처리 가능
+  > 검증: `npm run lint`, `tsc --noEmit` 통과
+
+  > 요약 : 프로필 게임 전적 카드에 연동 해제 버튼과 확인 모달, 백엔드 DELETE API 연동 및 성공 후 즉시 UI 제거 흐름을 추가
