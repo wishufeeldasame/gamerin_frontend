@@ -110,6 +110,42 @@ function normalizeHandle(value: string) {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
 
+const PROFILE_FOLLOWS_VIEWER_PAGE_SIZE = 100;
+
+async function fetchProfileFollowsViewer(profileHandle: string, viewerHandle?: string | null) {
+  if (!viewerHandle) {
+    return false;
+  }
+
+  const normalizedProfileHandle = profileHandle.toLowerCase();
+  const normalizedViewerHandle = viewerHandle.toLowerCase();
+
+  if (normalizedProfileHandle === normalizedViewerHandle) {
+    return false;
+  }
+
+  try {
+    let cursor: string | null = null;
+
+    while (true) {
+      const page = await fetchFollowing(profileHandle, cursor, PROFILE_FOLLOWS_VIEWER_PAGE_SIZE);
+      const followsViewer = page.items.some((user) => user.handle.toLowerCase() === normalizedViewerHandle);
+
+      if (followsViewer) {
+        return true;
+      }
+
+      if (!page.hasNext || !page.nextCursor) {
+        return false;
+      }
+
+      cursor = page.nextCursor;
+    }
+  } catch {
+    return false;
+  }
+}
+
 function formatGameStatsSummary(stats: unknown) {
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
     return String(stats ?? '');
@@ -240,14 +276,18 @@ export default function ProfilePage() {
         const shouldLoadMyProfile =
           !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
         const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
-        const [postPage, mediaPage] = await Promise.all([
+        const [postPage, mediaPage, followsViewer] = await Promise.all([
           fetchUserPosts(loadedProfile.handle),
           fetchUserMedia(loadedProfile.handle),
+          shouldLoadMyProfile
+            ? Promise.resolve(false)
+            : fetchProfileFollowsViewer(loadedProfile.handle, currentUser?.handle),
         ]);
         const followedByMe = shouldLoadMyProfile ? false : Boolean(loadedProfile.followedByMe);
         const resolvedProfile = {
           ...loadedProfile,
           followedByMe,
+          followsViewer,
         };
 
         if (cancelled) {
@@ -791,7 +831,14 @@ export default function ProfilePage() {
         <div className="space-y-4">
           <div>
             <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">{profile.nickname}</h1>
-            <p className="font-bold tracking-tight text-zinc-400">@{profile.handle}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="font-bold tracking-tight text-zinc-400">@{profile.handle}</p>
+              {!isOwnProfile && profile.followsViewer ? (
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black leading-none tracking-tight text-zinc-500">
+                  나를 팔로우합니다
+                </span>
+              ) : null}
+            </div>
           </div>
 
           <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
@@ -942,6 +989,7 @@ export default function ProfilePage() {
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
+                  onRepostChange={handlePostUpdated}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                   onBookmarkChange={handlePostUpdated}
                 />

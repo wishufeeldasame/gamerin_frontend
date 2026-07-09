@@ -225,211 +225,76 @@ npm run dev
 
   > 요약 : 프로필 페이지 게시물/미디어 탭의 좋아요, 댓글, 상세 이동, 삭제 후 상태 반영, 미디어 표시 비율을 홈 피드 UX와 맞춰 정리
 
-## 2026-07-09 북마크 컬렉션 프론트엔드 개발 노트
+* **26/06/18** 서장호
 
-작업 브랜치: `feature/bookmark-collections`
+  > 메시지 첨부 이미지/동영상을 공개 `/uploads/message-attachments/**` URL 대신 인증된 백엔드 첨부 API에서 `Authorization` 헤더로 fetch하도록 변경
+  > 가져온 첨부 파일은 브라우저 object URL로 변환해 기존 메시지 말풍선 이미지, 동영상, 이미지 확대 보기 UI에서 표시
+  > 첨부 로딩/실패 상태를 메시지 말풍선 안에서 처리해 인증 만료나 삭제된 첨부 파일 접근 실패가 화면 깨짐으로 이어지지 않도록 보완
+  > 검증: 번들 Node로 `eslint`, `tsc --noEmit` 통과
 
-### 구현 내용
+  > 요약 : DM 첨부 파일 비공개 API 전환에 맞춰 메시지 화면의 첨부 렌더링을 인증 fetch 기반으로 변경
 
-- `BookmarkCollection` 타입에 `id`, `title`, `coverImageUrl`, `createdAt`, `savedPostIds`를 정의했습니다.
-- 게시글 타입에 컬렉션 저장 상태를 위한 `isSaved`, `savedCollectionIds` 선택 필드를 추가했습니다.
-- `BookmarkCollectionProvider`에서 컬렉션 생성과 게시글 저장/취소 상태를 전역으로 관리합니다.
-- 컬렉션 데이터는 백엔드 API가 준비되기 전까지 `localStorage`의 `gamerin_bookmark_collections` 키에 저장됩니다.
-- 피드와 게시글 상세의 북마크 버튼을 누르면 `SaveToCollectionModal`이 열립니다.
-- 모달에서 기존 모음집을 복수 선택하거나 새 모음집을 만든 뒤 현재 게시글을 바로 저장할 수 있습니다.
-- 컬렉션이 하나 이상 선택되면 기존 게시글 북마크 API를 유지하고, 모든 컬렉션에서 해제하면 기존 북마크도 해제합니다.
-- `/bookmarks` 페이지에서 전체 북마크와 각 모음집을 선택하고 해당 모음집의 게시글만 볼 수 있습니다.
-- 새로 만든 컬렉션과 게시글 포함 상태는 새로고침 후에도 현재 브라우저에서 유지됩니다.
+* **26/07/06** 전준범
 
-### 현재 사용 중인 기존 북마크 API
+  > 메시지 대화 목록을 기본 5개만 표시하고, 초과 항목은 `더보기` 버튼으로 펼쳐 볼 수 있도록 기능 추가
+  > 펼친 상태에서는 `가리기` 버튼으로 다시 기본 표시 개수로 접히도록 처리
+  > 검색 결과가 5개를 초과할 경우 현재 표시 개수/전체 검색 결과 개수를 배지로 표시
+  > 검색어 변경 시 대화 목록 펼침 상태가 초기화되도록 수정
+  > 로컬 개발 환경에서 `NEXT_PUBLIC_API_BASE_URL` 미설정 시 `localhost:3000` 프론트가 `localhost:8080` 백엔드를 바라보도록 API 기본 주소 처리 개선
+  > 메시지 실시간 스트림 연결 시 access token을 확보한 뒤 `EventSource` URL에 포함해 연결하도록 수정
+  > 검증: `git diff --check`, `npm run lint`, `npm run build` 통과
 
-```text
-POST   /api/v1/posts/{postId}/bookmarks
-DELETE /api/v1/posts/{postId}/bookmarks
-GET    /api/v1/users/me/bookmarks
-```
+  > 요약 : 메시지 대화 목록에 더보기/가리기 UX를 추가하고, 로컬 API 주소 및 메시지 스트림 연결 방식을 보완
 
-위 API는 게시글이 북마크되었는지만 관리하며 컬렉션 정보는 아직 프론트에만 존재합니다.
+* **26/07/07** 전준범
 
-### 백엔드 구현 및 협의 필요사항
+  > 다른 사용자 프로필에서 해당 사용자가 현재 로그인 사용자를 팔로우 중인지 확인할 수 있도록 `followsViewer` 필드 타입 추가
+  > 프로필 헤더의 사용자 핸들 옆에 `나를 팔로우합니다` 배지가 표시되도록 UI 추가
+  > 내 프로필 화면에서는 해당 배지가 노출되지 않도록 조건 처리
+  > 팔로우/언팔로우 버튼과 별개로 상대방이 나를 팔로우하는 상태를 구분해서 표시하도록 정리
+  > 검증: `git diff --check`, `npm run lint`, `npm run build` 통과
 
-아래 경로는 프론트와 백엔드가 협의할 수 있는 권장 계약입니다. 실제 경로가 확정되면 Context의 로컬 상태 로직을 API 호출로 교체해야 합니다.
+  > 요약 : 다른 사용자 프로필에서 상대방이 나를 팔로우하는지 `나를 팔로우합니다` 배지로 확인할 수 있도록 표시 기능 추가
 
-```text
-GET    /api/v1/bookmark-collections
-POST   /api/v1/bookmark-collections
-PATCH  /api/v1/bookmark-collections/{collectionId}
-DELETE /api/v1/bookmark-collections/{collectionId}
+* **26/07/09** 김신의
 
-PUT    /api/v1/bookmark-collections/{collectionId}/posts/{postId}
-DELETE /api/v1/bookmark-collections/{collectionId}/posts/{postId}
-```
+  > 북마크 컬렉션 관리를 위한 `BookmarkCollection` 타입과 게시글 저장 상태 필드를 추가
+  > `BookmarkCollectionProvider`를 통해 컬렉션 생성, 게시글 저장, 저장 해제 상태를 전역으로 관리하도록 구현
+  > 백엔드 컬렉션 API가 준비되기 전까지 `localStorage`의 `gamerin_bookmark_collections` 키를 사용해 컬렉션 상태를 임시 저장하도록 처리
+  > 피드와 게시글 상세 화면의 북마크 버튼 클릭 시 `SaveToCollectionModal`이 열리도록 연결
+  > 모달에서 기존 컬렉션을 복수 선택하거나 새 컬렉션을 만든 뒤 현재 게시글을 바로 저장할 수 있도록 구현
+  > 컬렉션 선택 상태에 따라 기존 북마크 API와 연동하여 서버 북마크 상태와 프론트 컬렉션 상태가 함께 갱신되도록 처리
+  > `/bookmarks` 페이지에서 전체 북마크와 컬렉션별 게시글 목록을 선택해 볼 수 있도록 화면 흐름 정리
+  > 향후 백엔드 컬렉션 API 연동을 고려해 컬렉션 생성, 수정, 삭제 및 게시글 추가/삭제 계약 방향을 README에 정리
+  > 검증: `npm run lint`, `tsc --noEmit` 통과
 
-컬렉션 생성 요청 예시:
+  > 요약 : 북마크 컬렉션 UI와 로컬 상태 관리를 추가하고, 기존 북마크 API와 함께 동작하도록 프론트 기능을 구현
 
-```json
-{
-  "title": "다시 볼 공략",
-  "coverImageUrl": null
-}
-```
+* **26/07/09** 김신의
 
-컬렉션 응답 예시:
+  > 게시글 타입에 `isReposted`, `repostCount`, `reposterInfo` 필드를 추가하여 리포스트 상태와 리포스트 표시 정보를 관리하도록 확장
+  > 게시글 카드 액션 영역에 리포스트 버튼과 리포스트 수를 표시하도록 UI 추가
+  > 리포스트로 노출된 피드 항목 상단에 `{nickname}님이 리포스트했습니다` 문구가 표시되도록 처리
+  > `useRepost` 훅을 추가하여 낙관적 업데이트, 요청 중 중복 클릭 방지, API 실패 시 롤백 흐름을 관리하도록 구현
+  > 홈, 북마크, 프로필 게시글 목록의 로컬 상태에 리포스트 변경 사항이 즉시 반영되도록 연결
+  > 임시 리포스트 API 계약으로 `POST /api/v1/posts/{postId}/reposts`, `DELETE /api/v1/posts/{postId}/reposts` 호출 흐름을 작성
+  > 현재 백엔드 리포스트 API 미구현 상태를 고려해 실제 저장/취소 연동, 리포스트 카운트 재보정, 리포스트 사용자 목록 및 알림 연동은 후속 작업으로 분리
+  > `feature/post-repost`가 `feature/bookmark-collections`에서 분기된 상태라 PR 병합 시 북마크 컬렉션 브랜치 선병합 또는 리포스트 커밋 재배치가 필요함을 정리
 
-```json
-{
-  "id": "collection-id",
-  "title": "다시 볼 공략",
-  "coverImageUrl": null,
-  "createdAt": "2026-07-09T12:00:00Z",
-  "savedPostIds": ["post-id-1", "post-id-2"]
-}
-```
+  > 요약 : 게시글 리포스트 버튼, 리포스트 수 표시, 리포스트 피드 문구, 낙관적 업데이트 기반 리포스트 프론트 흐름을 추가
 
-1. 컬렉션은 로그인 사용자별로 분리되어야 하며 다른 사용자의 컬렉션을 조회하거나 수정할 수 없어야 합니다.
-2. 한 게시글은 여러 컬렉션에 동시에 포함될 수 있어야 합니다.
-3. 동일 컬렉션에 같은 게시글을 반복 추가하거나 제거해도 중복 데이터와 오류가 생기지 않도록 멱등성을 보장해야 합니다.
-4. 컬렉션 이름 길이와 중복 이름 허용 여부를 백엔드 validation 정책으로 확정해야 합니다. 현재 프론트는 공백 이름을 차단하고 최대 40자로 제한합니다.
-5. 기존 단일 북마크 사용자를 위해 기본 컬렉션을 서버에서 자동 생성하거나, 컬렉션에 속하지 않은 북마크를 `미분류`로 처리할지 결정해야 합니다.
-6. 게시글을 마지막 컬렉션에서 제거할 때 기존 북마크도 삭제할지, 미분류 북마크로 남길지 정책을 확정해야 합니다. 현재 프론트는 기존 북마크도 삭제합니다.
-7. 컬렉션을 삭제할 때 포함된 게시글의 기존 북마크 유지 여부를 정책으로 확정해야 합니다.
-8. 삭제되거나 접근 권한이 사라진 게시글 ID를 컬렉션 응답에서 정리하는 기준이 필요합니다.
-9. 컬렉션 목록 응답에 게시물 개수와 대표 이미지가 포함되면 `/bookmarks` 화면에서 전체 게시글을 내려받지 않고도 정확한 카드 정보를 표시할 수 있습니다.
+- **26/07/09** 김신의
 
-### 현재 부족한 부분
+  > 헤더 검색창을 제어 입력으로 변경하고 검색어 입력 상태를 관리하도록 수정  
+  > 공백 검색을 차단하고 Enter 입력 시 `/search?q={검색어}` 경로로 이동하도록 검색 라우팅 연결  
+  > `/search` 페이지에서 URL의 `q` 파라미터를 읽어 현재 검색어를 표시하도록 구현  
+  > 검색 결과 유형을 `인기`, `계정`, `게시글`, `해시태그` 탭으로 분리하고 URL의 `tab` 파라미터로 초기 탭 선택이 가능하도록 처리  
+  > `GameFilter`를 재사용 가능한 제어 컴포넌트로 분리하고 `전체`, `PUBG`, `VALORANT`, `LEAGUE OF LEGENDS`, `FPS` 필터를 제공하도록 구성  
+  > 선택한 탭과 게임 필터에 따라 검색 결과 영역이 교체되는 상태 구조를 구현  
+  > `useSearchParams` 사용으로 인한 App Router 빌드 오류를 방지하기 위해 `Suspense` 경계를 추가  
+  > 향후 백엔드 검색 API 연동을 고려해 통합 검색 요청 경로, 탭 타입, 게임 필터, 계정·해시태그 응답 필드 방향을 README에 정리  
+  > 현재 백엔드 검색 API 미구현 상태를 고려해 데이터 로딩, 오류 처리, 페이지네이션, 자동완성, 최근 검색어, 모바일 검색 진입 UI는 후속 작업으로 분리  
+  > `feature/global-search-explore`가 `feature/bookmark-collections`에서 분기된 상태라 PR 병합 시 북마크 컬렉션 브랜치 선병합 또는 검색 기능 커밋 재배치가 필요함을 정리  
+  > 검증: `npm run lint`, `tsc --noEmit` 통과
 
-- 컬렉션은 `localStorage`에 저장되므로 계정 간 분리, 다른 브라우저 및 다른 기기 동기화가 지원되지 않습니다.
-- 브라우저 저장소를 삭제하거나 다른 환경에서 로그인하면 컬렉션이 유지되지 않습니다.
-- 컬렉션별 게시글 화면은 기존 북마크 API로 현재 불러온 게시글 안에서만 필터링합니다.
-- 컬렉션 이름 변경, 삭제, 순서 변경 기능은 아직 없습니다.
-- 컬렉션 대표 이미지 직접 설정과 업로드 기능은 없습니다.
-- 서버에서 이미 저장된 기존 북마크는 모달을 처음 열 때 로컬 기본 `즐겨찾기` 컬렉션으로 연결됩니다.
-- API 실패 시 컬렉션 로컬 상태와 기존 서버 북마크 상태가 일시적으로 달라질 가능성이 있어 서버 API 연동 시 트랜잭션 또는 롤백 처리가 필요합니다.
-
-### 검증
-
-- `npm run lint` 통과
-- `tsc --noEmit` 통과
-
-## 2026-07-09 전역 검색 및 탐색 프론트엔드 개발 노트
-
-작업 브랜치: `feature/global-search-explore`
-
-### 구현 내용
-
-- 헤더 검색창을 제어 입력으로 변경하고 입력값 상태를 관리합니다.
-- 공백만 입력한 검색은 차단합니다.
-- 검색어 입력 후 Enter를 누르면 `/search?q={검색어}`로 이동합니다.
-- `/search` 페이지에서 URL의 `q` 파라미터를 읽어 현재 검색어를 표시합니다.
-- 검색 결과 유형을 `인기`, `계정`, `게시글`, `해시태그` 탭으로 분리했습니다.
-- URL에 `tab=hashtag`처럼 유효한 탭이 전달되면 해당 탭을 초기 선택합니다.
-- `GameFilter`를 재사용 가능한 제어 컴포넌트로 분리했습니다.
-- 게임 필터는 `전체`, `PUBG`, `VALORANT`, `LEAGUE OF LEGENDS`, `FPS`를 제공합니다.
-- 선택한 탭과 게임 필터에 따라 하단 결과 영역이 교체되는 상태 구조를 구현했습니다.
-- `useSearchParams` 사용으로 인한 App Router 빌드 오류를 방지하도록 `Suspense` 경계를 추가했습니다.
-- 기존 `Header.tsx`의 알림 패널과 사용자 액션 코드는 변경하지 않았습니다.
-
-### 현재 프론트 라우팅 계약
-
-```text
-/search?q={keyword}
-/search?q={keyword}&tab=popular
-/search?q={keyword}&tab=accounts
-/search?q={keyword}&tab=posts
-/search?q={keyword}&tab=hashtag
-```
-
-현재 탭 값:
-
-```text
-popular | accounts | posts | hashtag
-```
-
-현재 게임 필터 값:
-
-```text
-all | pubg | valorant | league-of-legends | fps
-```
-
-### 백엔드 구현 및 협의 필요사항
-
-검색 API는 아직 구현되지 않았습니다. 아래는 단일 통합 검색 API를 사용할 경우의 권장 계약입니다.
-
-```text
-GET /api/v1/search?q={keyword}&type={type}&game={game}&cursor={cursor}&size={size}
-```
-
-요청 예시:
-
-```text
-GET /api/v1/search?q=PUBG&type=posts&game=pubg&size=20
-```
-
-통합 응답 예시:
-
-```json
-{
-  "success": true,
-  "data": {
-    "accounts": [],
-    "posts": [],
-    "hashtags": [],
-    "nextCursor": null,
-    "hasNext": false
-  }
-}
-```
-
-계정 결과 권장 필드:
-
-```json
-{
-  "userId": "user-id",
-  "handle": "player_handle",
-  "nickname": "플레이어",
-  "profileImageUrl": null,
-  "bio": null,
-  "verifiedBadge": false,
-  "followedByMe": false
-}
-```
-
-해시태그 결과 권장 필드:
-
-```json
-{
-  "tag": "PUBG",
-  "postCount": 128
-}
-```
-
-1. `q`의 최소·최대 길이와 허용 문자 정책을 확정해야 합니다.
-2. 검색어 앞뒤 공백 제거, 대소문자 무시, 한글 초성 검색 지원 여부를 확정해야 합니다.
-3. `popular` 타입은 계정·게시글·해시태그를 혼합할지, 별도 랭킹 응답을 제공할지 결정해야 합니다.
-4. 게시글 검색 결과는 기존 `PostRecord`와 동일한 응답 구조를 사용하면 현재 `Post` 컴포넌트를 재사용할 수 있습니다.
-5. 게임 필터의 서버 식별자는 프론트의 임시 slug와 맞추거나 게임 ID 기반으로 교체해야 합니다.
-6. `FPS`처럼 장르 필터와 `PUBG`처럼 개별 게임 필터를 같은 파라미터로 처리할지 별도 `genre` 파라미터를 사용할지 협의가 필요합니다.
-7. 결과가 많을 수 있으므로 cursor 기반 페이지네이션과 안정적인 정렬 기준이 필요합니다.
-8. 비공개·차단·탈퇴·정지 사용자와 삭제·숨김·신고 처리된 게시물은 검색 결과에서 제외해야 합니다.
-9. 해시태그는 저장 시 정규화 규칙과 검색 시 `#` 포함 여부를 통일해야 합니다.
-10. 검색 자동완성을 추가할 경우 별도 suggestion API와 요청 빈도 제한 정책이 필요합니다.
-
-### 현재 부족한 부분
-
-- 백엔드 검색 API가 없어 현재 결과 영역은 빈 상태 UI만 표시합니다.
-- 검색 결과 데이터 로딩, 오류 처리, 재시도, 페이지네이션은 아직 없습니다.
-- 헤더 자동완성, 최근 검색어, 추천 검색어 기능은 없습니다.
-- 모바일 화면에서는 기존 헤더 검색창이 숨겨져 있어 별도 모바일 검색 진입 UI가 필요합니다.
-- 탭과 게임 필터를 클릭해도 현재 URL의 `tab`, `game` 파라미터는 갱신되지 않습니다.
-- 게임 필터 목록은 프론트 상수이므로 서버 게임 목록과 자동 동기화되지 않습니다.
-- 게시글 본문의 해시태그를 `/search?q={tag}&tab=hashtag` 링크로 변환하는 작업은 아직 없습니다.
-- 검색어 강조 표시와 계정 팔로우 액션은 아직 연결되지 않았습니다.
-
-### 검증
-
-- `npm run lint` 통과
-- `tsc --noEmit` 통과
-
-### 브랜치 의존성
-
-`feature/global-search-explore`는 `feature/bookmark-collections`에서 분기했습니다. PR 병합 시 `feature/bookmark-collections`를 먼저 병합하거나 검색 기능 커밋을 대상 브랜치에 재배치해야 합니다.
+  > 요약 : 헤더 검색 라우팅, 검색 페이지, 결과 탭, 게임 필터, 전역 검색 화면 구조를 추가하고 백엔드 검색 API 연동 준비를 정리

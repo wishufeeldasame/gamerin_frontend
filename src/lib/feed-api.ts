@@ -32,6 +32,11 @@ export interface ExternalLinkCard {
   thumbnailUrl: string | null;
 }
 
+export interface ReposterInfo {
+  userId: string;
+  nickname: string;
+}
+
 export interface PostRecord {
   postId: string;
   author: string;
@@ -45,6 +50,9 @@ export interface PostRecord {
   likes: number;
   comments: number;
   shares: number;
+  isReposted: boolean;
+  repostCount: number;
+  reposterInfo?: ReposterInfo | null;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
   isSaved?: boolean;
@@ -81,6 +89,7 @@ export interface UserProfile {
   mediaPostCount: number;
   mediaItemCount: number;
   followedByMe?: boolean;
+  followsViewer?: boolean;
 }
 
 type UserProfilePayload = UserProfile & {
@@ -172,6 +181,9 @@ function normalizePostRecord(post: PostRecord): PostRecord {
     likes: toNumber(post.likes),
     comments: toNumber(post.comments),
     shares: toNumber(post.shares),
+    isReposted: Boolean(post.isReposted),
+    repostCount: toNumber(post.repostCount),
+    reposterInfo: post.reposterInfo ?? null,
     likedByMe: Boolean(post.likedByMe),
     bookmarkedByMe: Boolean(post.bookmarkedByMe),
     mine: Boolean(post.mine),
@@ -293,6 +305,20 @@ export function updatePostBookmarkState(post: PostRecord, bookmarkedByMe = !post
   };
 }
 
+export function updatePostRepostState(
+  post: PostRecord,
+  isReposted = !post.isReposted,
+): PostRecord {
+  return {
+    ...post,
+    isReposted,
+    repostCount: Math.max(
+      0,
+      post.repostCount + (isReposted === post.isReposted ? 0 : isReposted ? 1 : -1),
+    ),
+  };
+}
+
 export async function fetchFeed(
   tab: 'all' | 'following',
   cursor?: string | null,
@@ -359,6 +385,18 @@ export async function likePost(postId: string) {
 
 export async function unlikePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}/likes`, {
+    method: 'DELETE',
+  });
+}
+
+export async function repostPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+    method: 'POST',
+  });
+}
+
+export async function unrepostPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
     method: 'DELETE',
   });
 }
