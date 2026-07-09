@@ -26,6 +26,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
   deleteConversationMessage,
+  fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
   isMessageAuthError,
@@ -149,7 +150,7 @@ function ConversationCard({
       onClick={onSelect}
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
-          ? 'bg-black text-white shadow-xl'
+          ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
           : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
       }`}
     >
@@ -160,7 +161,7 @@ function ConversationCard({
             imageUrl={conversation.recipient.profileImageUrl}
             sizes="48px"
             className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white' : 'bg-black text-white'
+              active ? 'bg-zinc-800 text-white dark:bg-black dark:text-white' : 'bg-black text-white'
             }`}
           />
           <div className="min-w-0">
@@ -169,7 +170,7 @@ function ConversationCard({
             </p>
             <p
               className={`truncate text-[11px] font-bold uppercase tracking-widest ${
-                active ? 'text-white/55' : 'text-zinc-400'
+                active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
               <HighlightedText text={conversation.recipient.role} query={query} />
@@ -177,7 +178,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
             {formatConversationTime(conversation.updatedAt)}
           </span>
           {conversation.unreadCount > 0 ? (
@@ -187,7 +188,7 @@ function ConversationCard({
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70' : 'text-zinc-500'}`}>
+      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-black/70' : 'text-zinc-500'}`}>
         <HighlightedText text={getLastPreview(conversation)} query={query} />
       </p>
     </button>
@@ -376,23 +377,81 @@ function AttachmentGrid({
     <div className="mt-3 grid gap-2">
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
-          {attachment.type === 'video' ? (
-            <video controls src={attachment.url} className="max-h-80 w-full bg-black object-cover" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenImage(attachment)}
-              className="block w-full cursor-zoom-in"
-              aria-label={`${attachment.name} 확대 보기`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
-            </button>
-          )}
+          <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
           <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
         </div>
       ))}
     </div>
+  );
+}
+
+function MessageAttachmentMedia({
+  attachment,
+  onOpenImage,
+}: {
+  attachment: ChatAttachment;
+  onOpenImage: (attachment: ChatAttachment) => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let nextObjectUrl: string | null = null;
+
+    setObjectUrl(null);
+    setFailed(false);
+
+    fetchMessageAttachmentBlob(attachment.url)
+      .then((blob) => {
+        if (!active) return;
+        nextObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextObjectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl);
+      }
+    };
+  }, [attachment.url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-500">
+        첨부를 불러올 수 없습니다.
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 text-zinc-400">
+        <Loader2 size={22} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (attachment.type === 'video') {
+    return <video controls src={objectUrl} className="max-h-80 w-full bg-black object-cover" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenImage({ ...attachment, url: objectUrl })}
+      className="block w-full cursor-zoom-in"
+      aria-label={`${attachment.name} 확대 보기`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={objectUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+    </button>
   );
 }
 

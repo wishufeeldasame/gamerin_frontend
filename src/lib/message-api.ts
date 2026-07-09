@@ -174,6 +174,41 @@ async function messageRequest<T>(path: string, options: RequestOptions = {}): Pr
   return (result.payload as ApiEnvelope<T>).data;
 }
 
+export async function fetchMessageAttachmentBlob(url: string) {
+  const send = async (accessToken: string) =>
+    fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+      credentials: 'include',
+    });
+
+  let accessToken = await ensureAccessToken();
+  if (!accessToken) {
+    throw createMessageAuthError();
+  }
+
+  let response = await send(accessToken);
+
+  if (response.status === 401) {
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      throw createMessageAuthError();
+    }
+    response = await send(accessToken);
+  }
+
+  if (!response.ok) {
+    if (response.status === 401) {
+      clearStoredAuth();
+      throw createMessageAuthError();
+    }
+    throw new Error('Message attachment request failed.');
+  }
+
+  return response.blob();
+}
+
 export function isMessageAuthError(error: unknown) {
   if (!(error instanceof Error)) return false;
   const message = error.message.toLowerCase();

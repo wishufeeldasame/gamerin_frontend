@@ -96,6 +96,14 @@ export function loadUserSettings(): UserSettings {
   return merged;
 }
 
+export function applyThemeMode(theme: ThemeMode) {
+  if (typeof document === 'undefined') {
+    return;
+  }
+
+  document.documentElement.classList.toggle('dark', theme === 'dark');
+}
+
 export function saveUserSettings(settings: UserSettings) {
   if (typeof window === 'undefined') {
     return;
@@ -103,5 +111,6 @@ export function saveUserSettings(settings: UserSettings) {
 
   window.localStorage.setItem(USER_SETTINGS_KEY, JSON.stringify(settings));
   window.localStorage.setItem(THEME_KEY, settings.theme);
+  applyThemeMode(settings.theme);
   window.dispatchEvent(new Event(USER_SETTINGS_CHANGED_EVENT));
 }

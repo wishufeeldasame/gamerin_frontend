@@ -138,14 +138,34 @@ function toNumber(value: unknown) {
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
-    thumbnailUrl: media.thumbnailUrl ?? null,
+    mediaUrl: normalizeAssetUrl(media.mediaUrl) ?? media.mediaUrl,
+    thumbnailUrl: normalizeAssetUrl(media.thumbnailUrl),
     sortOrder: toNumber(media.sortOrder),
   };
+}
+
+function normalizeAssetUrl(value?: string | null) {
+  const url = value?.trim();
+  if (!url) {
+    return null;
+  }
+
+  if (/^(https?:|blob:|data:)/i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith('//')) {
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${protocol}${url}`;
+  }
+
+  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
 function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
+    authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
     content: post.content ?? null,
     media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
     likes: toNumber(post.likes),
@@ -168,7 +188,16 @@ function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) =>
 function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
   return {
     ...profile,
+    coverImageUrl: normalizeAssetUrl(profile.coverImageUrl),
+    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
     followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
+  };
+}
+
+function normalizeProfileImageUpload(response: ProfileImageUploadResponse): ProfileImageUploadResponse {
+  return {
+    ...response,
+    imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
   };
 }
 
@@ -395,10 +424,12 @@ export async function uploadProfileImage(target: ProfileImageUploadTarget, file:
   formData.append('target', target);
   formData.append('file', file);
 
-  return apiRequest<ProfileImageUploadResponse>('/api/v1/users/me/profile-images', {
+  const response = await apiRequest<ProfileImageUploadResponse>('/api/v1/users/me/profile-images', {
     method: 'POST',
     body: formData,
   });
+
+  return normalizeProfileImageUpload(response);
 }
 
 export async function followUser(handle: string) {

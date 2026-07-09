@@ -9,6 +9,8 @@ import {
   refreshAccessToken,
 } from '@/lib/auth-store';
 
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
   id: string;
@@ -32,6 +34,28 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+function normalizeProfileImageUrl(value: unknown) {
+  if (typeof value !== 'string') {
+    return null;
+  }
+
+  const url = value.trim();
+  if (!url) {
+    return null;
+  }
+
+  if (/^(https?:|blob:|data:)/i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith('//')) {
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${protocol}${url}`;
+  }
+
+  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+}
+
 function normalizeStoredUser(userData: User) {
   const safeUser = { ...userData } as User & {
     profileImageUrl?: unknown;
@@ -39,10 +63,7 @@ function normalizeStoredUser(userData: User) {
   };
 
   delete safeUser.coverImageUrl;
-  safeUser.profileImageUrl =
-    typeof safeUser.profileImageUrl === 'string' && safeUser.profileImageUrl.trim()
-      ? safeUser.profileImageUrl
-      : null;
+  safeUser.profileImageUrl = normalizeProfileImageUrl(safeUser.profileImageUrl);
 
   return safeUser as User;
 }
