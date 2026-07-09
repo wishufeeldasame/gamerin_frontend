@@ -5,13 +5,27 @@ import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
 
 export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
   const { user, logout } = useAuth();
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(2);
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const keyword = searchQuery.trim();
+    if (!keyword) {
+      return;
+    }
+
+    router.push(`/search?q=${encodeURIComponent(keyword)}`);
+  };
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 border-b border-[#d69a1f] bg-[#f5b93d] dark:border-neutral-800 dark:bg-neutral-900">
@@ -29,14 +43,21 @@ export function Header() {
 
         {/* 검색 영역 */}
         <div className="hidden flex-1 justify-start md:flex">
-          <label className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none">
+          <form
+            onSubmit={handleSearchSubmit}
+            role="search"
+            className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none"
+          >
             <Search size={18} className="text-zinc-500 dark:text-zinc-400" strokeWidth={2.1} />
             <input
               type="text"
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
               placeholder="게임, 플레이어, 게시글 검색..."
+              aria-label="통합 검색"
               className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:text-zinc-400"
             />
-          </label>
+          </form>
         </div>
 
         {/* 오른쪽 유저 액션 영역 */}
