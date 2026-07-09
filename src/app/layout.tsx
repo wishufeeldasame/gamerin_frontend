@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 // 1. 전역 인증 상태 관리를 위해 AuthProvider를 가져옵니다.
 import { AuthProvider } from '@/app/context/AuthContext';
+import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -45,7 +46,9 @@ export default function RootLayout({
       >
         {/* 3. AuthProvider로 전체를 감싸서 로그인 상태를 전역으로 관리합니다. */}
         <AuthProvider>
-          {children}
+          <BookmarkCollectionProvider>
+            {children}
+          </BookmarkCollectionProvider>
         </AuthProvider>
       </body>
     </html>

@@ -18,9 +18,11 @@ import {
   updatePostBookmarkState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
+import SaveToCollectionModal from './SaveToCollectionModal';
 
 interface PostProps {
   post: PostRecord;
+  likeLoading?: boolean;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
   onOpenComments?: (post: PostRecord) => void;
@@ -100,6 +102,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 
 export function Post({
   post,
+  likeLoading = false,
   onToggleLike,
   onOpenDetail,
   onOpenComments,
@@ -112,6 +115,7 @@ export function Post({
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
@@ -160,12 +164,11 @@ export function Post({
     onOpenDetail?.(post);
   };
 
-  const handleToggleBookmark = async () => {
-    if (bookmarking) {
+  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+    if (bookmarking || nextBookmarked === bookmarked) {
       return;
     }
 
-    const nextBookmarked = !bookmarked;
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
     onBookmarkChange?.(nextPost, nextBookmarked);
@@ -294,9 +297,10 @@ export function Post({
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
+            disabled={likeLoading}
             className={`group flex items-center gap-2 transition-colors ${
               post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             <Heart size={20} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
             <span className="text-sm font-black text-zinc-800">{post.likes}</span>
@@ -314,7 +318,7 @@ export function Post({
 
           <button
             type="button"
-            onClick={handleToggleBookmark}
+            onClick={() => setCollectionModalOpen(true)}
             disabled={bookmarking}
             className={`group flex items-center gap-2 transition-colors ${
               bookmarked ? 'text-black' : 'hover:text-black'
@@ -343,6 +347,16 @@ export function Post({
           onShared={(sharedPost) => onShare?.(sharedPost)}
         />
       ) : null}
+
+      <SaveToCollectionModal
+        isOpen={collectionModalOpen}
+        postId={post.postId}
+        isBookmarked={bookmarked}
+        onClose={() => setCollectionModalOpen(false)}
+        onBookmarkStateChange={(nextBookmarked) => {
+          void handleBookmarkStateChange(nextBookmarked);
+        }}
+      />
     </>
   );
 }

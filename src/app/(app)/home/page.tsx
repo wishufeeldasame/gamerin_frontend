@@ -20,6 +20,7 @@ export default function HomePage() {
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
@@ -80,7 +81,12 @@ export default function HomePage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
     const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
 
     setPosts((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -97,6 +103,12 @@ export default function HomePage() {
         current.map((item) => (item.postId === post.postId ? post : item))
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
     }
   };
 
@@ -200,6 +212,7 @@ export default function HomePage() {
                 >
                   <Post
                     post={post}
+                    likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                     onToggleLike={handleToggleLike}
                     onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                     onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}

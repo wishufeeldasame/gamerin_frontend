@@ -47,6 +47,8 @@ export interface PostRecord {
   shares: number;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
+  isSaved?: boolean;
+  savedCollectionIds?: string[];
   mine: boolean;
   createdAt: string;
 }
