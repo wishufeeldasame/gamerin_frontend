@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   CheckCheck,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Ellipsis,
   ImagePlus,
@@ -24,6 +26,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
   deleteConversationMessage,
+  fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
   isMessageAuthError,
@@ -46,7 +49,11 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+
 const MAX_MESSAGE_LENGTH = 2000;
+const CONVERSATION_PREVIEW_COUNT = 5;
+const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
+
 
 type DraftAttachment = {
   id: string;
@@ -373,23 +380,81 @@ function AttachmentGrid({
     <div className="mt-3 grid gap-2">
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
-          {attachment.type === 'video' ? (
-            <video controls src={attachment.url} className="max-h-80 w-full bg-black object-cover" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenImage(attachment)}
-              className="block w-full cursor-zoom-in"
-              aria-label={`${attachment.name} 확대 보기`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
-            </button>
-          )}
+          <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
           <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
         </div>
       ))}
     </div>
+  );
+}
+
+function MessageAttachmentMedia({
+  attachment,
+  onOpenImage,
+}: {
+  attachment: ChatAttachment;
+  onOpenImage: (attachment: ChatAttachment) => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let nextObjectUrl: string | null = null;
+
+    setObjectUrl(null);
+    setFailed(false);
+
+    fetchMessageAttachmentBlob(attachment.url)
+      .then((blob) => {
+        if (!active) return;
+        nextObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextObjectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl);
+      }
+    };
+  }, [attachment.url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-500">
+        첨부를 불러올 수 없습니다.
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 text-zinc-400">
+        <Loader2 size={22} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (attachment.type === 'video') {
+    return <video controls src={objectUrl} className="max-h-80 w-full bg-black object-cover" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenImage({ ...attachment, url: objectUrl })}
+      className="block w-full cursor-zoom-in"
+      aria-label={`${attachment.name} 확대 보기`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={objectUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+    </button>
   );
 }
 
@@ -504,6 +569,7 @@ export default function MessagesPage() {
   const [hasNextByConversation, setHasNextByConversation] = useState<Record<string, boolean>>({});
   const [activeConversationId, setActiveConversationId] = useState('');
   const [query, setQuery] = useState('');
+  const [conversationListExpanded, setConversationListExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(true);
@@ -748,13 +814,42 @@ export default function MessagesPage() {
     if (!isAuthReady || !user) return;
 
     let eventSource: EventSource | null = null;
+    let reconnectTimer: number | null = null;
+    let reconnectAttempt = 0;
     let cancelled = false;
+
+    function scheduleReconnect() {
+      if (cancelled || reconnectTimer) return false;
+      if (reconnectAttempt >= MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS) {
+        setPageError('실시간 메시지 연결에 반복해서 실패했습니다. 페이지를 새로고침하거나 다시 로그인해 주세요.');
+        return false;
+      }
+
+      reconnectAttempt += 1;
+      const retryDelay = Math.min(30000, reconnectAttempt * 2000);
+      reconnectTimer = window.setTimeout(() => {
+        reconnectTimer = null;
+        void connect();
+      }, retryDelay);
+      return true;
+    }
 
     const connect = async () => {
       try {
-        eventSource = await openMessageEventSource();
+        const nextEventSource = await openMessageEventSource();
+        if (cancelled) {
+          nextEventSource.close();
+          return;
+        }
 
-        eventSource.addEventListener('message-created', (event) => {
+        eventSource = nextEventSource;
+
+        nextEventSource.onopen = () => {
+          reconnectAttempt = 0;
+          setPageError('');
+        };
+
+        nextEventSource.addEventListener('message-created', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           const realtimeMessage = realtimeEvent.message;
           if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
@@ -769,22 +864,31 @@ export default function MessagesPage() {
           void loadConversations({ silent: true });
         });
 
-        eventSource.addEventListener('message-deleted', (event) => {
+        nextEventSource.addEventListener('message-deleted', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
           removeMessageFromConversation(realtimeEvent.conversationId, realtimeEvent.messageId);
           void loadConversations({ silent: true });
         });
 
-        eventSource.onerror = () => {
-          eventSource?.close();
-          if (!cancelled) {
+        nextEventSource.onerror = () => {
+          nextEventSource.close();
+          if (eventSource === nextEventSource) {
+            eventSource = null;
+          }
+
+          if (!cancelled && scheduleReconnect()) {
             setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
           }
         };
       } catch (error) {
         if (!cancelled) {
-          setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          setIsAuthError(isMessageAuthError(error));
+          const authError = isMessageAuthError(error);
+          setIsAuthError(authError);
+          if (authError) {
+            setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
+          } else if (scheduleReconnect()) {
+            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          }
         }
       }
     };
@@ -793,6 +897,9 @@ export default function MessagesPage() {
 
     return () => {
       cancelled = true;
+      if (reconnectTimer) {
+        window.clearTimeout(reconnectTimer);
+      }
       eventSource?.close();
     };
   }, [
@@ -815,6 +922,14 @@ export default function MessagesPage() {
       ].some((value) => value.toLowerCase().includes(normalized))
     );
   }, [conversations, query]);
+  const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
+  const visibleConversations = hasHiddenConversations && !conversationListExpanded
+    ? filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT)
+    : filteredConversations;
+
+  useEffect(() => {
+    setConversationListExpanded(false);
+  }, [query]);
 
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversationId(conversationId);
@@ -1146,9 +1261,16 @@ export default function MessagesPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
-              <p className="mt-1 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                {conversations.length} conversations
-              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  {conversations.length} conversations
+                </p>
+                {hasHiddenConversations ? (
+                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
+                    {visibleConversations.length}/{filteredConversations.length}
+                  </span>
+                ) : null}
+              </div>
             </div>
             <button
               type="button"
@@ -1194,15 +1316,30 @@ export default function MessagesPage() {
               대화 목록을 불러오는 중...
             </div>
           ) : filteredConversations.length > 0 ? (
-            filteredConversations.map((conversation) => (
-              <ConversationCard
-                key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
-                query={query}
-                onSelect={() => handleSelectConversation(conversation.id)}
-              />
-            ))
+            <>
+              {visibleConversations.map((conversation) => (
+                <ConversationCard
+                  key={conversation.id}
+                  conversation={conversation}
+                  active={conversation.id === activeConversationId}
+                  query={query}
+                  onSelect={() => handleSelectConversation(conversation.id)}
+                />
+              ))}
+
+              {hasHiddenConversations ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setConversationListExpanded((current) => !current)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-xs font-black text-black shadow-sm transition hover:border-black hover:shadow-md"
+                  >
+                    {conversationListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {conversationListExpanded ? '가리기' : '더보기'}
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
