@@ -7,6 +7,9 @@ import { useAuth } from '@/app/context/AuthContext';
 import { getAccessToken } from '@/lib/auth-store';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const PUBG_NICKNAME_REGEX = /^[A-Za-z0-9_-]{4,16}$/;
+const PUBG_NICKNAME_ERROR_MESSAGE =
+  '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 언더바(_)만 사용 가능합니다.';
 
 const availableGames = [
   {
@@ -57,11 +60,13 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
   const { updateUser } = useAuth();
   const [connectingGame, setConnectingGame] = useState<string | null>(null);
   const [pubgNickname, setPubgNickname] = useState('');
+  const [pubgNicknameError, setPubgNicknameError] = useState('');
   const [pubgPromptOpen, setPubgPromptOpen] = useState(false);
 
   const handleConnect = (gameName: string) => {
     if (gameName === 'PUBG') {
       setPubgNickname('');
+      setPubgNicknameError('');
       setPubgPromptOpen(true);
       return;
     }
@@ -75,8 +80,8 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
 
   const handlePubgSubmit = async () => {
     const playerName = pubgNickname.trim();
-    if (!playerName) {
-      alert('Please enter your PUBG nickname.');
+    if (!PUBG_NICKNAME_REGEX.test(playerName)) {
+      setPubgNicknameError(PUBG_NICKNAME_ERROR_MESSAGE);
       return;
     }
 
@@ -86,6 +91,7 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
       return;
     }
 
+    setPubgNicknameError('');
     setPubgPromptOpen(false);
     setConnectingGame('PUBG');
 
@@ -143,6 +149,7 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
   const handlePubgCancel = () => {
     setPubgPromptOpen(false);
     setPubgNickname('');
+    setPubgNicknameError('');
   };
 
   return (
@@ -257,10 +264,23 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
                   </label>
                   <input
                     value={pubgNickname}
-                    onChange={(event) => setPubgNickname(event.target.value)}
+                    onChange={(event) => {
+                      setPubgNickname(event.target.value);
+                      setPubgNicknameError('');
+                    }}
                     placeholder="Enter your PUBG nickname"
-                    className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:border-black focus:bg-white"
+                    aria-invalid={Boolean(pubgNicknameError)}
+                    className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white ${
+                      pubgNicknameError
+                        ? 'border-red-300 focus:border-red-500'
+                        : 'border-zinc-200 focus:border-black'
+                    }`}
                   />
+                  {pubgNicknameError ? (
+                    <p className="text-xs font-bold leading-relaxed text-red-500">
+                      {pubgNicknameError}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-4 border-t border-zinc-100 bg-zinc-50 p-6">
