@@ -310,3 +310,126 @@ DELETE /api/v1/bookmark-collections/{collectionId}/posts/{postId}
 
 - `npm run lint` 통과
 - `tsc --noEmit` 통과
+
+## 2026-07-09 전역 검색 및 탐색 프론트엔드 개발 노트
+
+작업 브랜치: `feature/global-search-explore`
+
+### 구현 내용
+
+- 헤더 검색창을 제어 입력으로 변경하고 입력값 상태를 관리합니다.
+- 공백만 입력한 검색은 차단합니다.
+- 검색어 입력 후 Enter를 누르면 `/search?q={검색어}`로 이동합니다.
+- `/search` 페이지에서 URL의 `q` 파라미터를 읽어 현재 검색어를 표시합니다.
+- 검색 결과 유형을 `인기`, `계정`, `게시글`, `해시태그` 탭으로 분리했습니다.
+- URL에 `tab=hashtag`처럼 유효한 탭이 전달되면 해당 탭을 초기 선택합니다.
+- `GameFilter`를 재사용 가능한 제어 컴포넌트로 분리했습니다.
+- 게임 필터는 `전체`, `PUBG`, `VALORANT`, `LEAGUE OF LEGENDS`, `FPS`를 제공합니다.
+- 선택한 탭과 게임 필터에 따라 하단 결과 영역이 교체되는 상태 구조를 구현했습니다.
+- `useSearchParams` 사용으로 인한 App Router 빌드 오류를 방지하도록 `Suspense` 경계를 추가했습니다.
+- 기존 `Header.tsx`의 알림 패널과 사용자 액션 코드는 변경하지 않았습니다.
+
+### 현재 프론트 라우팅 계약
+
+```text
+/search?q={keyword}
+/search?q={keyword}&tab=popular
+/search?q={keyword}&tab=accounts
+/search?q={keyword}&tab=posts
+/search?q={keyword}&tab=hashtag
+```
+
+현재 탭 값:
+
+```text
+popular | accounts | posts | hashtag
+```
+
+현재 게임 필터 값:
+
+```text
+all | pubg | valorant | league-of-legends | fps
+```
+
+### 백엔드 구현 및 협의 필요사항
+
+검색 API는 아직 구현되지 않았습니다. 아래는 단일 통합 검색 API를 사용할 경우의 권장 계약입니다.
+
+```text
+GET /api/v1/search?q={keyword}&type={type}&game={game}&cursor={cursor}&size={size}
+```
+
+요청 예시:
+
+```text
+GET /api/v1/search?q=PUBG&type=posts&game=pubg&size=20
+```
+
+통합 응답 예시:
+
+```json
+{
+  "success": true,
+  "data": {
+    "accounts": [],
+    "posts": [],
+    "hashtags": [],
+    "nextCursor": null,
+    "hasNext": false
+  }
+}
+```
+
+계정 결과 권장 필드:
+
+```json
+{
+  "userId": "user-id",
+  "handle": "player_handle",
+  "nickname": "플레이어",
+  "profileImageUrl": null,
+  "bio": null,
+  "verifiedBadge": false,
+  "followedByMe": false
+}
+```
+
+해시태그 결과 권장 필드:
+
+```json
+{
+  "tag": "PUBG",
+  "postCount": 128
+}
+```
+
+1. `q`의 최소·최대 길이와 허용 문자 정책을 확정해야 합니다.
+2. 검색어 앞뒤 공백 제거, 대소문자 무시, 한글 초성 검색 지원 여부를 확정해야 합니다.
+3. `popular` 타입은 계정·게시글·해시태그를 혼합할지, 별도 랭킹 응답을 제공할지 결정해야 합니다.
+4. 게시글 검색 결과는 기존 `PostRecord`와 동일한 응답 구조를 사용하면 현재 `Post` 컴포넌트를 재사용할 수 있습니다.
+5. 게임 필터의 서버 식별자는 프론트의 임시 slug와 맞추거나 게임 ID 기반으로 교체해야 합니다.
+6. `FPS`처럼 장르 필터와 `PUBG`처럼 개별 게임 필터를 같은 파라미터로 처리할지 별도 `genre` 파라미터를 사용할지 협의가 필요합니다.
+7. 결과가 많을 수 있으므로 cursor 기반 페이지네이션과 안정적인 정렬 기준이 필요합니다.
+8. 비공개·차단·탈퇴·정지 사용자와 삭제·숨김·신고 처리된 게시물은 검색 결과에서 제외해야 합니다.
+9. 해시태그는 저장 시 정규화 규칙과 검색 시 `#` 포함 여부를 통일해야 합니다.
+10. 검색 자동완성을 추가할 경우 별도 suggestion API와 요청 빈도 제한 정책이 필요합니다.
+
+### 현재 부족한 부분
+
+- 백엔드 검색 API가 없어 현재 결과 영역은 빈 상태 UI만 표시합니다.
+- 검색 결과 데이터 로딩, 오류 처리, 재시도, 페이지네이션은 아직 없습니다.
+- 헤더 자동완성, 최근 검색어, 추천 검색어 기능은 없습니다.
+- 모바일 화면에서는 기존 헤더 검색창이 숨겨져 있어 별도 모바일 검색 진입 UI가 필요합니다.
+- 탭과 게임 필터를 클릭해도 현재 URL의 `tab`, `game` 파라미터는 갱신되지 않습니다.
+- 게임 필터 목록은 프론트 상수이므로 서버 게임 목록과 자동 동기화되지 않습니다.
+- 게시글 본문의 해시태그를 `/search?q={tag}&tab=hashtag` 링크로 변환하는 작업은 아직 없습니다.
+- 검색어 강조 표시와 계정 팔로우 액션은 아직 연결되지 않았습니다.
+
+### 검증
+
+- `npm run lint` 통과
+- `tsc --noEmit` 통과
+
+### 브랜치 의존성
+
+`feature/global-search-explore`는 `feature/bookmark-collections`에서 분기했습니다. PR 병합 시 `feature/bookmark-collections`를 먼저 병합하거나 검색 기능 커밋을 대상 브랜치에 재배치해야 합니다.
