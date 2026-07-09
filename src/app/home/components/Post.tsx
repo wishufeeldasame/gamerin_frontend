@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
+import { Bookmark, Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
+import { useRepost } from '@/hooks/useRepost';
 
 interface PostProps {
   post: PostRecord;
@@ -29,6 +30,7 @@ interface PostProps {
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
   onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
+  onRepostChange?: (post: PostRecord) => void;
   onDelete?: (post: PostRecord) => void;
 }
 
@@ -109,6 +111,7 @@ export function Post({
   onShare,
   onBookmarkChange,
   onBookmarkSuccess,
+  onRepostChange,
   onDelete,
 }: PostProps) {
   const { user } = useAuth();
@@ -120,6 +123,13 @@ export function Post({
   const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
   const [bookmarking, setBookmarking] = useState(false);
+  const {
+    isReposted,
+    repostCount,
+    isLoading: isRepostLoading,
+    error: repostError,
+    toggleRepost,
+  } = useRepost(post, onRepostChange);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
 
   const shouldIgnoreCardOpen = (target: EventTarget | null) => {
@@ -225,6 +235,13 @@ export function Post({
           onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
         }`}
       >
+        {post.reposterInfo ? (
+          <div className="flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
+            <Repeat2 size={15} className="text-emerald-500" />
+            <span>{post.reposterInfo.nickname}님이 리포스트했습니다</span>
+          </div>
+        ) : null}
+
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <Link
@@ -314,6 +331,26 @@ export function Post({
           >
             <MessageCircle size={20} />
             <span className="text-sm font-black text-zinc-800">{post.comments}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void toggleRepost()}
+            disabled={isRepostLoading}
+            aria-label={isReposted ? '리포스트 취소' : '리포스트'}
+            title={repostError ?? undefined}
+            className={`group flex items-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              isReposted ? 'text-emerald-500' : 'hover:text-emerald-500'
+            }`}
+          >
+            <Repeat2 size={20} />
+            <span
+              className={`text-sm font-black ${
+                isReposted ? 'text-emerald-500' : 'text-zinc-800'
+              }`}
+            >
+              {repostCount}
+            </span>
           </button>
 
           <button

@@ -217,6 +217,7 @@ export default function HomePage() {
                     onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                     onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                     onShare={handlePostUpdated}
+                    onRepostChange={handlePostUpdated}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                     onBookmarkChange={handleBookmarkChanged}
                   />
