@@ -28,6 +28,10 @@ import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
 import {
+  ProfileStatsSummary,
+  type RepresentativeStat,
+} from '@/app/home/components/ProfileStatsSummary';
+import {
   PostRecord,
   FollowUserRecord,
   ProfileMediaItem,
@@ -183,6 +187,68 @@ function formatGameStatsSummary(stats: unknown) {
     .filter(([key]) => key !== 'accountId')
     .map(([key, value]) => `${key}: ${String(value)}`)
     .join(' · ');
+}
+
+function readNumber(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+
+    if (typeof value === 'string') {
+      const parsedValue = Number(value.replace('%', '').trim());
+      if (Number.isFinite(parsedValue)) {
+        return parsedValue;
+      }
+    }
+  }
+
+  return null;
+}
+
+function readString(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    const value = record[key];
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+
+  return null;
+}
+
+function toRepresentativeStat(fallbackGameName: string, stats: unknown): RepresentativeStat | null {
+  const rawRecord = Array.isArray(stats) ? stats[0] : stats;
+
+  if (!rawRecord || typeof rawRecord !== 'object' || Array.isArray(rawRecord)) {
+    return null;
+  }
+
+  const record = rawRecord as Record<string, unknown>;
+  const gameName =
+    readString(record, ['gameName', 'game', 'name', 'platform', 'title']) ||
+    (Number.isNaN(Number(fallbackGameName)) ? fallbackGameName : 'PUBG');
+  const tier =
+    readString(record, ['tier', 'tierLabel', 'rank', 'rankName', 'currentTier']) ?? null;
+  const kd = readNumber(record, ['kd', 'kda', 'kdRatio', 'killDeathRatio']);
+  const rawWinRate = readNumber(record, ['winRate', 'winsRate', 'winningRate']);
+  const playCount = readNumber(record, ['playCount', 'games', 'matchCount', 'matches', 'totalGames', 'rounds']);
+  const tierImageUrl =
+    readString(record, ['tierImageUrl', 'tierIconUrl', 'rankImageUrl', 'rankIconUrl']) ?? null;
+
+  if (!gameName || kd === null || rawWinRate === null || playCount === null) {
+    return null;
+  }
+
+  return {
+    gameName,
+    tier,
+    kd,
+    winRate: rawWinRate <= 1 ? Math.round(rawWinRate * 100) : rawWinRate,
+    playCount,
+    tierImageUrl,
+  };
 }
 
 export default function ProfilePage() {
@@ -342,6 +408,25 @@ export default function ProfilePage() {
       gameName,
       summary: formatGameStatsSummary(stats),
     }));
+  }, [profile?.gameStats]);
+
+  const representativeStat = useMemo(() => {
+    if (!profile?.gameStats) {
+      return null;
+    }
+
+    const statEntries = Array.isArray(profile.gameStats)
+      ? profile.gameStats.map((stats, index) => [String(index), stats] as const)
+      : Object.entries(profile.gameStats);
+
+    for (const [gameName, stats] of statEntries) {
+      const stat = toRepresentativeStat(gameName, stats);
+      if (stat) {
+        return stat;
+      }
+    }
+
+    return null;
   }, [profile?.gameStats]);
 
   const handleRefreshStats = async () => {
@@ -841,9 +926,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
-            {profile.bio || 'Tell your gaming story on GamerIN.'}
-          </p>
+          {/* Profile intro replacement: pass a real RepresentativeStat here when the profile API exposes one directly. */}
+          <ProfileStatsSummary data={representativeStat} fallbackText={profile.bio || 'Tell your gaming story on GamerIN.'} />
 
           {profile.location || profile.website ? (
             <div className="flex max-w-xl flex-wrap gap-4 text-sm font-bold text-zinc-500">
