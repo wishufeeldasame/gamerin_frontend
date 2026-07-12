@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bookmark, Heart, MessageCircle, Share2, MoreHorizontal } from 'lucide-react';
+import { Bookmark, Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -18,15 +18,19 @@ import {
   updatePostBookmarkState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
+import SaveToCollectionModal from './SaveToCollectionModal';
+import { useRepost } from '@/hooks/useRepost';
 
 interface PostProps {
   post: PostRecord;
+  likeLoading?: boolean;
   onToggleLike?: (post: PostRecord) => void;
   onOpenDetail?: (post: PostRecord) => void;
   onOpenComments?: (post: PostRecord) => void;
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
   onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
+  onRepostChange?: (post: PostRecord) => void;
   onDelete?: (post: PostRecord) => void;
 }
 
@@ -100,22 +104,32 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 
 export function Post({
   post,
+  likeLoading = false,
   onToggleLike,
   onOpenDetail,
   onOpenComments,
   onShare,
   onBookmarkChange,
   onBookmarkSuccess,
+  onRepostChange,
   onDelete,
 }: PostProps) {
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
   const [bookmarking, setBookmarking] = useState(false);
+  const {
+    isReposted,
+    repostCount,
+    isLoading: isRepostLoading,
+    error: repostError,
+    toggleRepost,
+  } = useRepost(post, onRepostChange);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
 
   const shouldIgnoreCardOpen = (target: EventTarget | null) => {
@@ -160,12 +174,11 @@ export function Post({
     onOpenDetail?.(post);
   };
 
-  const handleToggleBookmark = async () => {
-    if (bookmarking) {
+  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+    if (bookmarking || nextBookmarked === bookmarked) {
       return;
     }
 
-    const nextBookmarked = !bookmarked;
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
     onBookmarkChange?.(nextPost, nextBookmarked);
@@ -222,6 +235,13 @@ export function Post({
           onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
         }`}
       >
+        {post.reposterInfo ? (
+          <div className="flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
+            <Repeat2 size={15} className="text-emerald-500" />
+            <span>{post.reposterInfo.nickname}님이 리포스트했습니다</span>
+          </div>
+        ) : null}
+
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">
           <Link
@@ -294,9 +314,10 @@ export function Post({
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
+            disabled={likeLoading}
             className={`group flex items-center gap-2 transition-colors ${
               post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
-            }`}
+            } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             <Heart size={20} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
             <span className="text-sm font-black text-zinc-800">{post.likes}</span>
@@ -314,7 +335,27 @@ export function Post({
 
           <button
             type="button"
-            onClick={handleToggleBookmark}
+            onClick={() => void toggleRepost()}
+            disabled={isRepostLoading}
+            aria-label={isReposted ? '리포스트 취소' : '리포스트'}
+            title={repostError ?? undefined}
+            className={`group flex items-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              isReposted ? 'text-emerald-500' : 'hover:text-emerald-500'
+            }`}
+          >
+            <Repeat2 size={20} />
+            <span
+              className={`text-sm font-black ${
+                isReposted ? 'text-emerald-500' : 'text-zinc-800'
+              }`}
+            >
+              {repostCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setCollectionModalOpen(true)}
             disabled={bookmarking}
             className={`group flex items-center gap-2 transition-colors ${
               bookmarked ? 'text-black' : 'hover:text-black'
@@ -343,6 +384,16 @@ export function Post({
           onShared={(sharedPost) => onShare?.(sharedPost)}
         />
       ) : null}
+
+      <SaveToCollectionModal
+        isOpen={collectionModalOpen}
+        postId={post.postId}
+        isBookmarked={bookmarked}
+        onClose={() => setCollectionModalOpen(false)}
+        onBookmarkStateChange={(nextBookmarked) => {
+          void handleBookmarkStateChange(nextBookmarked);
+        }}
+      />
     </>
   );
 }

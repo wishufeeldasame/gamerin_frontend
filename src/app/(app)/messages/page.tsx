@@ -26,6 +26,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   createConversation,
   deleteConversationMessage,
+  fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
   isMessageAuthError,
@@ -48,8 +49,11 @@ import {
 } from '@/lib/message-store';
 
 const MESSAGE_PAGE_SIZE = 30;
+
+const MAX_MESSAGE_LENGTH = 2000;
 const CONVERSATION_PREVIEW_COUNT = 5;
 const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
+
 
 type DraftAttachment = {
   id: string;
@@ -149,7 +153,7 @@ function ConversationCard({
       onClick={onSelect}
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
-          ? 'bg-black text-white shadow-xl'
+          ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
           : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
       }`}
     >
@@ -160,7 +164,7 @@ function ConversationCard({
             imageUrl={conversation.recipient.profileImageUrl}
             sizes="48px"
             className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white' : 'bg-black text-white'
+              active ? 'bg-zinc-800 text-white dark:bg-black dark:text-white' : 'bg-black text-white'
             }`}
           />
           <div className="min-w-0">
@@ -169,7 +173,7 @@ function ConversationCard({
             </p>
             <p
               className={`truncate text-[11px] font-bold uppercase tracking-widest ${
-                active ? 'text-white/55' : 'text-zinc-400'
+                active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
               <HighlightedText text={conversation.recipient.role} query={query} />
@@ -177,7 +181,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
             {formatConversationTime(conversation.updatedAt)}
           </span>
           {conversation.unreadCount > 0 ? (
@@ -187,7 +191,7 @@ function ConversationCard({
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70' : 'text-zinc-500'}`}>
+      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-black/70' : 'text-zinc-500'}`}>
         <HighlightedText text={getLastPreview(conversation)} query={query} />
       </p>
     </button>
@@ -376,23 +380,81 @@ function AttachmentGrid({
     <div className="mt-3 grid gap-2">
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
-          {attachment.type === 'video' ? (
-            <video controls src={attachment.url} className="max-h-80 w-full bg-black object-cover" />
-          ) : (
-            <button
-              type="button"
-              onClick={() => onOpenImage(attachment)}
-              className="block w-full cursor-zoom-in"
-              aria-label={`${attachment.name} 확대 보기`}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={attachment.url} alt={attachment.name} className="max-h-80 w-full object-cover" />
-            </button>
-          )}
+          <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
           <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
         </div>
       ))}
     </div>
+  );
+}
+
+function MessageAttachmentMedia({
+  attachment,
+  onOpenImage,
+}: {
+  attachment: ChatAttachment;
+  onOpenImage: (attachment: ChatAttachment) => void;
+}) {
+  const [objectUrl, setObjectUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let nextObjectUrl: string | null = null;
+
+    setObjectUrl(null);
+    setFailed(false);
+
+    fetchMessageAttachmentBlob(attachment.url)
+      .then((blob) => {
+        if (!active) return;
+        nextObjectUrl = URL.createObjectURL(blob);
+        setObjectUrl(nextObjectUrl);
+      })
+      .catch(() => {
+        if (active) {
+          setFailed(true);
+        }
+      });
+
+    return () => {
+      active = false;
+      if (nextObjectUrl) {
+        URL.revokeObjectURL(nextObjectUrl);
+      }
+    };
+  }, [attachment.url]);
+
+  if (failed) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-500">
+        첨부를 불러올 수 없습니다.
+      </div>
+    );
+  }
+
+  if (!objectUrl) {
+    return (
+      <div className="flex h-44 items-center justify-center bg-zinc-100 text-zinc-400">
+        <Loader2 size={22} className="animate-spin" />
+      </div>
+    );
+  }
+
+  if (attachment.type === 'video') {
+    return <video controls src={objectUrl} className="max-h-80 w-full bg-black object-cover" />;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpenImage({ ...attachment, url: objectUrl })}
+      className="block w-full cursor-zoom-in"
+      aria-label={`${attachment.name} 확대 보기`}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={objectUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+    </button>
   );
 }
 
@@ -500,6 +562,7 @@ export default function MessagesPage() {
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const activeConversationIdRef = useRef('');
+  const attachmentsRef = useRef<DraftAttachment[]>([]);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
@@ -559,7 +622,15 @@ export default function MessagesPage() {
     if (videoInputRef.current) videoInputRef.current.value = '';
   }, [revokeAttachmentUrls]);
 
-  useEffect(() => () => revokeAttachmentUrls(attachments), [attachments, revokeAttachmentUrls]);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      revokeAttachmentUrls(attachmentsRef.current);
+    };
+  }, [revokeAttachmentUrls]);
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -774,7 +845,10 @@ export default function MessagesPage() {
 
     const connect = async () => {
       try {
-        const nextEventSource = await openMessageEventSource();
+        const nextEventSource = await openMessageEventSource({
+          forceRefresh: reconnectAttempt > 0,
+        });
+
         if (cancelled) {
           nextEventSource.close();
           return;
@@ -814,8 +888,8 @@ export default function MessagesPage() {
             eventSource = null;
           }
 
-          if (!cancelled && scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          if (!cancelled) {
+            scheduleReconnect();
           }
         };
       } catch (error) {
@@ -824,8 +898,8 @@ export default function MessagesPage() {
           setIsAuthError(authError);
           if (authError) {
             setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          } else if (scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          } else {
+            scheduleReconnect();
           }
         }
       }
@@ -861,9 +935,25 @@ export default function MessagesPage() {
     );
   }, [conversations, query]);
   const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
-  const visibleConversations = hasHiddenConversations && !conversationListExpanded
-    ? filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT)
-    : filteredConversations;
+  const visibleConversations = useMemo(() => {
+    if (!hasHiddenConversations || conversationListExpanded) {
+      return filteredConversations;
+    }
+
+    const previewConversations = filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT);
+    const activeConversationInList = filteredConversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+
+    if (
+      activeConversationInList === undefined ||
+      previewConversations.some((conversation) => conversation.id === activeConversationInList.id)
+    ) {
+      return previewConversations;
+    }
+
+    return [...previewConversations.slice(0, CONVERSATION_PREVIEW_COUNT - 1), activeConversationInList];
+  }, [activeConversationId, conversationListExpanded, filteredConversations, hasHiddenConversations]);
 
   useEffect(() => {
     setConversationListExpanded(false);
@@ -983,6 +1073,7 @@ export default function MessagesPage() {
 
     const trimmedMessage = message.trim();
     if (!trimmedMessage && attachments.length === 0) return;
+    if (message.length > MAX_MESSAGE_LENGTH) return;
 
     try {
       setSending(true);
@@ -1524,10 +1615,18 @@ export default function MessagesPage() {
                 <input
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
                   className="flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
                 />
+                <span
+                  className={`shrink-0 text-xs font-bold ${
+                    message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {message.length}/{MAX_MESSAGE_LENGTH}
+                </span>
                 <button
                   type="submit"
                   disabled={(!message.trim() && attachments.length === 0) || sending}

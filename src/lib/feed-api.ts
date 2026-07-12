@@ -32,6 +32,11 @@ export interface ExternalLinkCard {
   thumbnailUrl: string | null;
 }
 
+export interface ReposterInfo {
+  userId: string;
+  nickname: string;
+}
+
 export interface PostRecord {
   postId: string;
   author: string;
@@ -45,8 +50,13 @@ export interface PostRecord {
   likes: number;
   comments: number;
   shares: number;
+  isReposted: boolean;
+  repostCount: number;
+  reposterInfo?: ReposterInfo | null;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
+  isSaved?: boolean;
+  savedCollectionIds?: string[];
   mine: boolean;
   createdAt: string;
 }
@@ -138,19 +148,42 @@ function toNumber(value: unknown) {
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
-    thumbnailUrl: media.thumbnailUrl ?? null,
+    mediaUrl: normalizeAssetUrl(media.mediaUrl) ?? media.mediaUrl,
+    thumbnailUrl: normalizeAssetUrl(media.thumbnailUrl),
     sortOrder: toNumber(media.sortOrder),
   };
+}
+
+function normalizeAssetUrl(value?: string | null) {
+  const url = value?.trim();
+  if (!url) {
+    return null;
+  }
+
+  if (/^(https?:|blob:|data:)/i.test(url)) {
+    return url;
+  }
+
+  if (url.startsWith('//')) {
+    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+    return `${protocol}${url}`;
+  }
+
+  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
 function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
+    authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
     content: post.content ?? null,
     media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
     likes: toNumber(post.likes),
     comments: toNumber(post.comments),
     shares: toNumber(post.shares),
+    isReposted: Boolean(post.isReposted),
+    repostCount: toNumber(post.repostCount),
+    reposterInfo: post.reposterInfo ?? null,
     likedByMe: Boolean(post.likedByMe),
     bookmarkedByMe: Boolean(post.bookmarkedByMe),
     mine: Boolean(post.mine),
@@ -168,7 +201,16 @@ function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) =>
 function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
   return {
     ...profile,
+    coverImageUrl: normalizeAssetUrl(profile.coverImageUrl),
+    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
     followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
+  };
+}
+
+function normalizeProfileImageUpload(response: ProfileImageUploadResponse): ProfileImageUploadResponse {
+  return {
+    ...response,
+    imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
   };
 }
 
@@ -263,6 +305,20 @@ export function updatePostBookmarkState(post: PostRecord, bookmarkedByMe = !post
   };
 }
 
+export function updatePostRepostState(
+  post: PostRecord,
+  isReposted = !post.isReposted,
+): PostRecord {
+  return {
+    ...post,
+    isReposted,
+    repostCount: Math.max(
+      0,
+      post.repostCount + (isReposted === post.isReposted ? 0 : isReposted ? 1 : -1),
+    ),
+  };
+}
+
 export async function fetchFeed(
   tab: 'all' | 'following',
   cursor?: string | null,
@@ -333,6 +389,18 @@ export async function unlikePost(postId: string) {
   });
 }
 
+export async function repostPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+    method: 'POST',
+  });
+}
+
+export async function unrepostPost(postId: string) {
+  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+    method: 'DELETE',
+  });
+}
+
 export async function bookmarkPost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}/bookmarks`, {
     method: 'POST',
@@ -395,10 +463,12 @@ export async function uploadProfileImage(target: ProfileImageUploadTarget, file:
   formData.append('target', target);
   formData.append('file', file);
 
-  return apiRequest<ProfileImageUploadResponse>('/api/v1/users/me/profile-images', {
+  const response = await apiRequest<ProfileImageUploadResponse>('/api/v1/users/me/profile-images', {
     method: 'POST',
     body: formData,
   });
+
+  return normalizeProfileImageUpload(response);
 }
 
 export async function followUser(handle: string) {

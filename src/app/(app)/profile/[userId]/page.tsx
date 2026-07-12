@@ -55,6 +55,15 @@ type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
+function withImageCacheBust(imageUrl: string | null | undefined) {
+  if (!imageUrl) {
+    return imageUrl ?? null;
+  }
+
+  const separator = imageUrl.includes('?') ? '&' : '?';
+  return `${imageUrl}${separator}v=${Date.now()}`;
+}
+
 type ConnectedPlatformId = 'youtube' | 'twitch' | 'soop';
 
 type ConnectedAccount = {
@@ -218,6 +227,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
+  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -403,7 +413,12 @@ export default function ProfilePage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
     const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
 
     setPosts((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -420,6 +435,12 @@ export default function ProfilePage() {
         current.map((item) => (item.postId === post.postId ? post : item))
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
     }
   };
 
@@ -431,7 +452,7 @@ export default function ProfilePage() {
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
     if (!profile) return;
 
-    await Promise.all([
+    const [profileImageUpload, coverImageUpload] = await Promise.all([
       userInfo.profileImageFile ? uploadProfileImage('PROFILE', userInfo.profileImageFile) : Promise.resolve(null),
       userInfo.coverImageFile ? uploadProfileImage('COVER', userInfo.coverImageFile) : Promise.resolve(null),
     ]);
@@ -448,13 +469,21 @@ export default function ProfilePage() {
     }
 
     const updatedProfile = await updateMyProfile(updatePayload);
+    const nextProfileImageUrl = profileImageUpload
+      ? withImageCacheBust(profileImageUpload.imageUrl)
+      : updatedProfile.profileImageUrl;
+    const nextCoverImageUrl = coverImageUpload
+      ? withImageCacheBust(coverImageUpload.imageUrl)
+      : updatedProfile.coverImageUrl;
 
     setProfile({
       ...updatedProfile,
+      profileImageUrl: nextProfileImageUrl,
+      coverImageUrl: nextCoverImageUrl,
       followedByMe: false,
     });
-    setProfileCover(updatedProfile.coverImageUrl || null);
-    setProfileAvatar(updatedProfile.profileImageUrl);
+    setProfileCover(nextCoverImageUrl || null);
+    setProfileAvatar(nextProfileImageUrl);
     updateUser({
       handle: updatedProfile.handle,
       nickname: updatedProfile.nickname,
@@ -462,7 +491,7 @@ export default function ProfilePage() {
       bio: updatedProfile.bio ?? '',
       location: updatedProfile.location ?? '',
       website: updatedProfile.website ?? '',
-      profileImageUrl: updatedProfile.profileImageUrl,
+      profileImageUrl: nextProfileImageUrl,
     });
   };
 
@@ -879,13 +908,13 @@ export default function ProfilePage() {
             key={tab.name}
             onClick={() => setActiveTab(tab.name)}
             className={`relative flex items-center gap-2 pb-5 text-sm font-black uppercase tracking-widest transition-all ${
-              activeTab === tab.name ? 'text-black' : 'text-zinc-300 hover:text-zinc-500'
+              activeTab === tab.name ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-300 hover:text-zinc-500'
             }`}
           >
             {tab.icon}
             {tab.name}
             {activeTab === tab.name ? (
-              <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black" />
+              <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black dark:bg-[#f5b93d]" />
             ) : null}
           </button>
         ))}
@@ -955,10 +984,12 @@ export default function ProfilePage() {
                 <Post
                   key={post.postId}
                   post={post}
+                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                   onToggleLike={handleToggleLike}
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
+                  onRepostChange={handlePostUpdated}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                   onBookmarkChange={handlePostUpdated}
                 />

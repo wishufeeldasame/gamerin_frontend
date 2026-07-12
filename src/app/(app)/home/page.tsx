@@ -20,6 +20,7 @@ export default function HomePage() {
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
@@ -80,7 +81,12 @@ export default function HomePage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
     const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
 
     setPosts((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -97,6 +103,12 @@ export default function HomePage() {
         current.map((item) => (item.postId === post.postId ? post : item))
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
     }
   };
 
@@ -150,8 +162,8 @@ export default function HomePage() {
 
   return (
     <div className="flex justify-center overflow-visible">
-      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md">
+      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-purple-500/30 dark:bg-purple-700">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -160,14 +172,14 @@ export default function HomePage() {
               key={tab.value}
               onClick={() => setActiveTab(tab.value)}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                activeTab === tab.value ? 'text-black' : 'text-zinc-400 hover:text-zinc-600'
+                activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
               }`}
             >
               {tab.label}
               {activeTab === tab.value ? (
                 <motion.div
                   layoutId="underline"
-                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black"
+                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black dark:bg-[#f5b93d]"
                 />
               ) : null}
             </button>
@@ -200,10 +212,12 @@ export default function HomePage() {
                 >
                   <Post
                     post={post}
+                    likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                     onToggleLike={handleToggleLike}
                     onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                     onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                     onShare={handlePostUpdated}
+                    onRepostChange={handlePostUpdated}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                     onBookmarkChange={handleBookmarkChanged}
                   />

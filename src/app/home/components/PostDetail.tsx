@@ -24,6 +24,9 @@ import {
   updatePostLikeState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
+import SaveToCollectionModal from './SaveToCollectionModal';
+
+const MAX_COMMENT_LENGTH = 300;
 
 interface PostDetailProps {
   postId: string;
@@ -45,8 +48,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
+  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -107,11 +112,12 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   }, [postId]);
 
   const handleToggleLike = async () => {
-    if (!post) {
+    if (!post || isLikeLoading) {
       return;
     }
 
     const nextPost = updatePostLikeState(post);
+    setIsLikeLoading(true);
 
     setPost(nextPost);
     onPostUpdated?.(nextPost);
@@ -126,11 +132,16 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       setPost(post);
       onPostUpdated?.(post);
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setIsLikeLoading(false);
     }
   };
 
   const handleSubmitComment = async () => {
     if (!post || !commentText.trim() || submittingComment) {
+      return;
+    }
+    if (commentText.length > MAX_COMMENT_LENGTH) {
       return;
     }
 
@@ -182,12 +193,11 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     }
   };
 
-  const handleToggleBookmark = async () => {
-    if (!post || bookmarking) {
+  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+    if (!post || bookmarking || nextBookmarked === bookmarked) {
       return;
     }
 
-    const nextBookmarked = !bookmarked;
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
 
     setBookmarked(nextBookmarked);
@@ -348,9 +358,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             <div className="flex items-center gap-8">
               <button
                 onClick={handleToggleLike}
+                disabled={isLikeLoading}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
-                }`}
+                } disabled:cursor-not-allowed disabled:opacity-60`}
               >
                 <Heart size={22} className={post.likedByMe ? 'fill-red-500' : ''} />
                 <span>{post.likes}</span>
@@ -361,7 +372,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
               </div>
               <button
                 type="button"
-                onClick={handleToggleBookmark}
+                onClick={() => setCollectionModalOpen(true)}
                 disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
@@ -389,10 +400,18 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                 <textarea
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
+                  maxLength={MAX_COMMENT_LENGTH}
                   placeholder="Share your thoughts..."
                   className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
                   rows={3}
                 />
+                <span
+                  className={`absolute bottom-4 right-14 text-xs font-bold ${
+                    commentText.length >= MAX_COMMENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {commentText.length}/{MAX_COMMENT_LENGTH}
+                </span>
                 <button
                   onClick={handleSubmitComment}
                   disabled={!commentText.trim() || submittingComment}
@@ -462,6 +481,18 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
           onShared={(sharedPost) => {
             setPost(sharedPost);
             onPostUpdated?.(sharedPost);
+          }}
+        />
+      ) : null}
+
+      {post ? (
+        <SaveToCollectionModal
+          isOpen={collectionModalOpen}
+          postId={post.postId}
+          isBookmarked={bookmarked}
+          onClose={() => setCollectionModalOpen(false)}
+          onBookmarkStateChange={(nextBookmarked) => {
+            void handleBookmarkStateChange(nextBookmarked);
           }}
         />
       ) : null}

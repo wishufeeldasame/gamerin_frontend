@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bookmark, ImageIcon, Search } from 'lucide-react';
+import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
@@ -12,6 +12,7 @@ import {
   updatePostLikeState,
 } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
+import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 
 type BookmarkFilter = 'all' | 'media';
 type PostDetailTarget = 'post' | 'comments';
@@ -47,6 +48,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 
 export default function BookmarksPage() {
   const router = useRouter();
+  const { collections } = useBookmarkCollections();
   const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -55,6 +57,8 @@ export default function BookmarksPage() {
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<BookmarkFilter>('all');
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
+  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
   const upsertBookmark = useCallback((post: PostRecord) => {
     setBookmarks((current) => {
@@ -113,6 +117,16 @@ export default function BookmarksPage() {
 
     return bookmarks
       .filter((post) => {
+        if (selectedCollectionId === 'all') {
+          return true;
+        }
+
+        const selectedCollection = collections.find(
+          (collection) => collection.id === selectedCollectionId,
+        );
+        return selectedCollection?.savedPostIds.includes(post.postId) ?? false;
+      })
+      .filter((post) => {
         if (filter === 'media') return post.media.length > 0;
         return true;
       })
@@ -129,7 +143,12 @@ export default function BookmarksPage() {
           .toLowerCase()
           .includes(keyword);
       });
-  }, [bookmarks, filter, query]);
+  }, [bookmarks, collections, filter, query, selectedCollectionId]);
+
+  const selectedCollection = useMemo(
+    () => collections.find((collection) => collection.id === selectedCollectionId),
+    [collections, selectedCollectionId],
+  );
 
   const handleLoadMore = async () => {
     if (!hasNext || !nextCursor || loadingMore) {
@@ -164,7 +183,12 @@ export default function BookmarksPage() {
   };
 
   const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
     const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
 
     setBookmarks((current) =>
       current.map((item) => (item.postId === post.postId ? optimistic : item))
@@ -181,6 +205,12 @@ export default function BookmarksPage() {
         current.map((item) => (item.postId === post.postId ? post : item))
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
     }
   };
 
@@ -197,11 +227,11 @@ export default function BookmarksPage() {
     <div className="mx-auto max-w-4xl px-6 py-10">
       <div className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-lg">
-            <Bookmark size={24} className="fill-white" />
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-lg dark:bg-neutral-900 dark:text-[#f5b93d]">
+            <Bookmark size={24} className="fill-current" />
           </div>
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">북마크</h1>
-          <p className="mt-3 text-xs font-black uppercase tracking-widest text-zinc-400">
+          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black dark:text-zinc-100">북마크</h1>
+          <p className="mt-3 text-xs font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
             불러온 북마크 {bookmarks.length}개
           </p>
         </div>
@@ -209,14 +239,14 @@ export default function BookmarksPage() {
         <div className="w-full space-y-3 md:w-96">
           <div className="relative">
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
               size={18}
             />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black"
+              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
@@ -227,7 +257,7 @@ export default function BookmarksPage() {
                 type="button"
                 onClick={() => setFilter(option.value)}
                 className={`rounded-2xl px-4 py-2 text-xs font-black transition ${
-                  filter === option.value ? 'bg-black text-white' : 'bg-zinc-100 text-zinc-500 hover:text-black'
+                  filter === option.value ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
                 }`}
               >
                 {option.label}
@@ -237,8 +267,77 @@ export default function BookmarksPage() {
         </div>
       </div>
 
+      <section className="mb-10" aria-label="북마크 모음집">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-black dark:text-zinc-100">모음집</h2>
+            <p className="mt-1 text-xs font-bold text-zinc-400">
+              저장한 게시물을 모음집별로 확인하세요.
+            </p>
+          </div>
+          <span className="text-xs font-black text-zinc-400">{collections.length}개</span>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          <button
+            type="button"
+            onClick={() => setSelectedCollectionId('all')}
+            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+              selectedCollectionId === 'all'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+            }`}
+          >
+            <Bookmark size={20} className="fill-current" />
+            <span>
+              <strong className="block text-sm font-black">전체 북마크</strong>
+              <small className="mt-1 block text-xs font-bold opacity-60">
+                {bookmarks.length}개 게시물
+              </small>
+            </span>
+          </button>
+
+          {collections.map((collection) => {
+            const isSelected = selectedCollectionId === collection.id;
+            const savedCount = collection.savedPostIds.filter((postId) =>
+              bookmarks.some((post) => post.postId === postId),
+            ).length;
+
+            return (
+              <button
+                key={collection.id}
+                type="button"
+                onClick={() => setSelectedCollectionId(collection.id)}
+                className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                    : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+                }`}
+              >
+                <Folder size={20} className={isSelected ? 'fill-current' : 'text-zinc-400'} />
+                <span className="min-w-0">
+                  <strong className="block truncate text-sm font-black">
+                    {collection.title}
+                  </strong>
+                  <small className="mt-1 block text-xs font-bold opacity-60">
+                    {savedCount}개 게시물
+                  </small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {selectedCollection ? (
+        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
+          <Folder size={16} />
+          <span>{selectedCollection.title}</span>
+        </div>
+      ) : null}
+
       {loading ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
           북마크를 불러오는 중...
         </div>
       ) : error ? (
@@ -253,18 +352,20 @@ export default function BookmarksPage() {
           </button>
         </div>
       ) : bookmarks.length === 0 ? (
-        <div className="rounded-[36px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm">
+        <div className="rounded-[36px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-neutral-800 dark:bg-neutral-900">
+          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
             <Bookmark size={30} />
           </div>
-          <h2 className="text-2xl font-black italic tracking-tight text-black">아직 저장한 게시물이 없어요</h2>
-          <p className="mt-3 text-sm font-bold text-zinc-400">
+          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">아직 저장한 게시물이 없어요</h2>
+          <p className="mt-3 text-sm font-bold text-zinc-400 dark:text-zinc-500">
             피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.
           </p>
         </div>
       ) : visibleBookmarks.length === 0 ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-          검색 결과가 없습니다.
+        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
+          {selectedCollection
+            ? '이 모음집에 저장된 게시물이 없습니다.'
+            : '검색 결과가 없습니다.'}
         </div>
       ) : (
         <div className="space-y-4">
@@ -276,8 +377,8 @@ export default function BookmarksPage() {
               transition={{ delay: index * 0.04 }}
             >
               {post.media.length > 0 ? (
-                <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400">
-                  <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500">
+                <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
                     <ImageIcon size={12} />
                     Media
                   </span>
@@ -288,16 +389,18 @@ export default function BookmarksPage() {
                   ) : null}
                 </div>
               ) : query.trim() ? (
-                <div className="mb-2 px-2 text-[11px] font-black text-zinc-400">
+                <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
                   <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
                 </div>
               ) : null}
               <Post
                 post={post}
+                likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                 onToggleLike={handleToggleLike}
                 onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                 onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                 onShare={handlePostUpdated}
+                onRepostChange={handlePostUpdated}
                 onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                 onBookmarkChange={(changedPost, bookmarked) => {
                   if (bookmarked) {
@@ -318,7 +421,7 @@ export default function BookmarksPage() {
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+              className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-400 dark:hover:border-[#f5b93d] dark:hover:text-zinc-100 dark:disabled:text-zinc-700"
             >
               {loadingMore ? '불러오는 중...' : '더 보기'}
             </button>
