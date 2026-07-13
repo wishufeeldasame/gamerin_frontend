@@ -187,11 +187,6 @@ export default function LoginPage() {
             <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
             <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
           </div>
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left">
-            GamerIN은 현재 개발 단계입니다. 이용 중 오류나 데이터 변경이 발생할 수 있습니다.
-          </div>
-
           <div className="flex flex-col gap-4">
             <button
               type="button"

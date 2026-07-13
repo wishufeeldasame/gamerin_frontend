@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { Bookmark, Heart, MessageCircle, Repeat2, Share2, MoreHorizontal } from 'lucide-react';
+import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -19,6 +19,7 @@ import {
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
+import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
 
 interface PostProps {
@@ -120,6 +121,7 @@ export function Post({
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
   const [bookmarking, setBookmarking] = useState(false);
@@ -131,6 +133,7 @@ export function Post({
     toggleRepost,
   } = useRepost(post, onRepostChange);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
+  const canReportPost = !canDeletePost;
 
   const shouldIgnoreCardOpen = (target: EventTarget | null) => {
     if (!(target instanceof Element)) {
@@ -272,28 +275,47 @@ export function Post({
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                if (canDeletePost) {
-                  setMenuOpen((current) => !current);
-                }
-              }}
-              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+              onClick={() => setMenuOpen((current) => !current)}
+              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}
-              disabled={!canDeletePost}
             >
               <MoreHorizontal size={20} />
             </button>
 
-            {menuOpen && canDeletePost ? (
-              <div className="absolute right-0 top-10 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+            {menuOpen ? (
+              <div className="absolute right-0 top-10 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                {canReportPost ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setReportOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                  >
+                    <Flag size={15} />
+                    게시물 신고
+                  </button>
+                ) : null}
+
+                {canDeletePost ? (
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  >
+                    {deleting ? '삭제 중...' : '삭제'}
+                  </button>
+                ) : null}
+
                 <button
                   type="button"
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                  onClick={() => setMenuOpen(false)}
+                  className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
                 >
-                  {deleting ? '삭제 중...' : '삭제'}
+                  취소
                 </button>
               </div>
             ) : null}
@@ -394,6 +416,17 @@ export function Post({
           void handleBookmarkStateChange(nextBookmarked);
         }}
       />
+
+      {reportOpen ? (
+        <ReportContentModal
+          title="게시물 신고"
+          author={post.author}
+          authorHandle={post.authorHandle}
+          content={post.content}
+          emptyContentLabel="미디어 게시글"
+          onClose={() => setReportOpen(false)}
+        />
+      ) : null}
     </>
   );
 }

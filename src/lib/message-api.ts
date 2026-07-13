@@ -226,8 +226,13 @@ export async function fetchConversationList() {
   return sortConversationsByUpdatedAt(data.map(toConversation));
 }
 
-export async function openMessageEventSource() {
-  const accessToken = await ensureAccessToken();
+export async function openMessageEventSource(
+  options: { forceRefresh?: boolean } = {}
+) {
+ const accessToken = options.forceRefresh
+    ? await refreshAccessToken()
+    : await ensureAccessToken();
+
   if (!accessToken) {
     throw createMessageAuthError();
   }

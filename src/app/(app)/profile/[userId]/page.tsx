@@ -16,6 +16,8 @@ import {
   Trash2,
   Tv,
   MessageCircle,
+  MoreHorizontal,
+  Flag,
   X,
   Loader2,
   MapPin,
@@ -27,6 +29,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
+import { ReportContentModal } from '@/app/home/components/Report';
 import {
   PostRecord,
   FollowUserRecord,
@@ -204,6 +207,8 @@ export default function ProfilePage() {
   const [followActionHandle, setFollowActionHandle] = useState<string | null>(null);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileReportMenuOpen, setProfileReportMenuOpen] = useState(false);
+  const [profileReportOpen, setProfileReportOpen] = useState(false);
   const [profileCover, setProfileCover] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -784,7 +789,7 @@ export default function ProfilePage() {
             <div className="absolute bottom-2 right-2 h-8 w-8 rounded-full border-4 border-white bg-green-500" />
           </div>
 
-          <div className="mb-2 flex gap-3">
+          <div className="mb-2 flex flex-wrap justify-end gap-3">
             {isOwnProfile ? (
               <>
             <Link
@@ -804,6 +809,40 @@ export default function ProfilePage() {
               </>
             ) : (
               <>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setProfileReportMenuOpen((current) => !current)}
+                    className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+                    aria-label="사용자 메뉴"
+                    aria-expanded={profileReportMenuOpen}
+                  >
+                    <MoreHorizontal size={20} />
+                  </button>
+
+                  {profileReportMenuOpen ? (
+                    <div className="absolute right-0 top-14 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileReportMenuOpen(false);
+                          setProfileReportOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                      >
+                        <Flag size={15} />
+                        사용자 신고
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProfileReportMenuOpen(false)}
+                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
@@ -1081,6 +1120,16 @@ export default function ProfilePage() {
             website: profile.website ?? '',
           }}
           onSaveUserInfo={handleSaveUserInfo}
+        />
+      ) : null}
+      {!isOwnProfile && profileReportOpen ? (
+        <ReportContentModal
+          title="사용자 신고"
+          author={profile.nickname}
+          authorHandle={profile.handle}
+          content={profile.bio}
+          emptyContentLabel="프로필 소개 없음"
+          onClose={() => setProfileReportOpen(false)}
         />
       ) : null}
       {followListType ? (
