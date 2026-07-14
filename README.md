@@ -298,3 +298,14 @@ npm run dev
   > 검증: `npm run lint`, `tsc --noEmit` 통과
 
   > 요약 : 헤더 검색 라우팅, 검색 페이지, 결과 탭, 게임 필터, 전역 검색 화면 구조를 추가하고 백엔드 검색 API 연동 준비를 정리
+
+- **26/07/15** 전준범
+
+  > PR #34에서 변경된 메시지 SSE 인증 흐름을 백엔드 계약에 맞게 복구
+  > `EventSource` URL의 `accessToken` query parameter 생성 및 전달 로직 제거
+  > SSE 연결 전에 `POST /api/v1/messages/stream-token`을 호출하여 HttpOnly 전용 쿠키를 발급받도록 변경
+  > 토큰 없는 `/api/v1/messages/stream` URL에 `withCredentials: true`로 연결하도록 변경
+  > access token이 URL, 브라우저 히스토리, 프록시 및 서버 로그에 노출될 수 있는 경로 제거
+  > 검증: `git diff --check`, `eslint`, `tsc --noEmit`, `next build` 통과
+
+  > 요약 : PR #34의 SSE 인증 회귀를 수정하고 메시지 실시간 연결을 HttpOnly cookie 기반 방식으로 복구
