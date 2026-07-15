@@ -14,16 +14,9 @@ import {
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 
-type BookmarkFilter = 'all' | 'media';
 type PostDetailTarget = 'post' | 'comments';
 
 const BOOKMARK_PAGE_SIZE = 20;
-
-const filterOptions: { value: BookmarkFilter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'media', label: '미디어' },
-];
-
 function HighlightedText({ text, query }: { text: string; query: string }) {
   const keyword = query.trim();
   if (!keyword) return <>{text}</>;
@@ -56,7 +49,6 @@ export default function BookmarksPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<BookmarkFilter>('all');
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
@@ -127,10 +119,6 @@ export default function BookmarksPage() {
         return selectedCollection?.savedPostIds.includes(post.postId) ?? false;
       })
       .filter((post) => {
-        if (filter === 'media') return post.media.length > 0;
-        return true;
-      })
-      .filter((post) => {
         if (!keyword) return true;
 
         return [
@@ -143,7 +131,7 @@ export default function BookmarksPage() {
           .toLowerCase()
           .includes(keyword);
       });
-  }, [bookmarks, collections, filter, query, selectedCollectionId]);
+  }, [bookmarks, collections, query, selectedCollectionId]);
 
   const selectedCollection = useMemo(
     () => collections.find((collection) => collection.id === selectedCollectionId),
@@ -250,20 +238,6 @@ export default function BookmarksPage() {
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={`rounded-2xl px-4 py-2 text-xs font-black transition ${
-                  filter === option.value ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 
@@ -361,60 +335,62 @@ export default function BookmarksPage() {
             피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.
           </p>
         </div>
-      ) : visibleBookmarks.length === 0 ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
-          {selectedCollection
-            ? '이 모음집에 저장된 게시물이 없습니다.'
-            : '검색 결과가 없습니다.'}
-        </div>
       ) : (
         <div className="space-y-4">
-          {visibleBookmarks.map((post, index) => (
-            <motion.div
-              key={post.postId}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04 }}
-            >
-              {post.media.length > 0 ? (
-                <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                  <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
-                    <ImageIcon size={12} />
-                    Media
-                  </span>
-                  {query.trim() ? (
-                    <span className="normal-case">
-                      <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+          {visibleBookmarks.length === 0 ? (
+            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
+              {selectedCollection
+                ? '이 모음집에 저장된 게시물이 없습니다.'
+                : '검색 결과가 없습니다.'}
+            </div>
+          ) : (
+            visibleBookmarks.map((post, index) => (
+              <motion.div
+                key={post.postId}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04 }}
+              >
+                {post.media.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                    <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                      <ImageIcon size={12} />
+                      Media
                     </span>
-                  ) : null}
-                </div>
-              ) : query.trim() ? (
-                <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
-                  <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
-                </div>
-              ) : null}
-              <Post
-                post={post}
-                likeLoading={Boolean(likeLoadingByPostId[post.postId])}
-                onToggleLike={handleToggleLike}
-                onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
-                onShare={handlePostUpdated}
-                onRepostChange={handlePostUpdated}
-                onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                onBookmarkChange={(changedPost, bookmarked) => {
-                  if (bookmarked) {
-                    upsertBookmark(changedPost);
-                  }
-                }}
-                onBookmarkSuccess={(changedPost, bookmarked) => {
-                  if (!bookmarked) {
-                    removeBookmark(changedPost.postId);
-                  }
-                }}
-              />
-            </motion.div>
-          ))}
+                    {query.trim() ? (
+                      <span className="normal-case">
+                        <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+                      </span>
+                    ) : null}
+                  </div>
+                ) : query.trim() ? (
+                  <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
+                    <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+                  </div>
+                ) : null}
+                <Post
+                  post={post}
+                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                  onToggleLike={handleToggleLike}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onShare={handlePostUpdated}
+                  onRepostChange={handlePostUpdated}
+                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                  onBookmarkChange={(changedPost, bookmarked) => {
+                    if (bookmarked) {
+                      upsertBookmark(changedPost);
+                    }
+                  }}
+                  onBookmarkSuccess={(changedPost, bookmarked) => {
+                    if (!bookmarked) {
+                      removeBookmark(changedPost.postId);
+                    }
+                  }}
+                />
+              </motion.div>
+            ))
+          )}
 
           {hasNext ? (
             <button

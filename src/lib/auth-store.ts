@@ -3,39 +3,40 @@
 let accessTokenMemory: string | null = null;
 let refreshPromise: Promise<string | null> | null = null;
 
-const ACCESS_TOKEN_KEY = 'gamerin_access_token';
+const LEGACY_ACCESS_TOKEN_KEY = 'gamerin_access_token';
 export const AUTH_USER_KEY = 'gamerin_user';
 export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export function setAccessToken(token: string) {
   accessTokenMemory = token;
-
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  }
+  removeLegacyAccessToken();
 }
 
 export function getAccessToken() {
-  if (accessTokenMemory) {
-    return accessTokenMemory;
-  }
-
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
-  const storedToken = window.localStorage.getItem(ACCESS_TOKEN_KEY);
-  accessTokenMemory = storedToken;
-  return storedToken;
+  removeLegacyAccessToken();
+  return accessTokenMemory;
 }
 
 export function removeAccessToken() {
   accessTokenMemory = null;
+  removeLegacyAccessToken();
+}
 
-  if (typeof window !== 'undefined') {
-    window.localStorage.removeItem(ACCESS_TOKEN_KEY);
+function removeLegacyAccessToken() {
+  if (typeof window === 'undefined') {
+    return;
   }
+
+  try {
+    window.localStorage.removeItem(LEGACY_ACCESS_TOKEN_KEY);
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
+
+if (typeof window !== 'undefined') {
+  removeLegacyAccessToken();
 }
 
 type ClearStoredAuthOptions = {

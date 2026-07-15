@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 
@@ -9,7 +9,7 @@ interface SaveToCollectionModalProps {
   postId: string;
   isBookmarked?: boolean;
   onClose: () => void;
-  onBookmarkStateChange?: (isBookmarked: boolean) => void;
+  onBookmarkStateChange?: (isBookmarked: boolean) => Promise<boolean>;
 }
 
 export default function SaveToCollectionModal({
@@ -20,11 +20,13 @@ export default function SaveToCollectionModal({
   onBookmarkStateChange,
 }: SaveToCollectionModalProps) {
   const titleId = useId();
+  const initializedPostIdRef = useRef<string | null>(null);
   const { collections, createCollection, toggleBookmarkInCollection } =
     useBookmarkCollections();
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const [error, setError] = useState('');
+  const [pendingCollectionId, setPendingCollectionId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -42,10 +44,19 @@ export default function SaveToCollectionModal({
   }, [isOpen, onClose]);
 
   useEffect(() => {
+    if (!isOpen) {
+      initializedPostIdRef.current = null;
+      return;
+    }
+
+    if (initializedPostIdRef.current === postId || collections.length === 0) {
+      return;
+    }
+
+    initializedPostIdRef.current = postId;
+
     if (
-      isOpen &&
       isBookmarked &&
-      collections.length > 0 &&
       !collections.some((collection) => collection.savedPostIds.includes(postId))
     ) {
       toggleBookmarkInCollection(collections[0].id, postId);
@@ -62,18 +73,71 @@ export default function SaveToCollectionModal({
     return null;
   }
 
-  const handleCreateCollection = () => {
+  const handleCreateCollection = async () => {
+    if (pendingCollectionId) {
+      return;
+    }
+
+    const trimmedTitle = newCollectionTitle.trim();
+    if (!trimmedTitle) {
+      setError('모음집 이름을 입력해 주세요.');
+      return;
+    }
+
+    setPendingCollectionId('new');
+    setError('');
+
     try {
-      const collection = createCollection(newCollectionTitle);
+      const stateUpdated = onBookmarkStateChange
+        ? await onBookmarkStateChange(true)
+        : true;
+      if (!stateUpdated) {
+        setError('서버에 북마크를 저장하지 못했습니다.');
+        return;
+      }
+
+      const collection = createCollection(trimmedTitle);
       toggleBookmarkInCollection(collection.id, postId);
-      onBookmarkStateChange?.(true);
       setNewCollectionTitle('');
-      setError('');
       setIsCreating(false);
     } catch (createError) {
       setError(
         createError instanceof Error ? createError.message : '모음집을 만들 수 없습니다.',
       );
+    } finally {
+      setPendingCollectionId(null);
+    }
+  };
+
+  const handleCollectionChange = async (collectionId: string, isChecked: boolean) => {
+    if (pendingCollectionId) {
+      return;
+    }
+
+    const selectedCount = collections.filter((item) =>
+      item.savedPostIds.includes(postId),
+    ).length;
+    const willRemainBookmarked = isChecked ? selectedCount > 1 : true;
+
+    setPendingCollectionId(collectionId);
+    setError('');
+
+    try {
+      const stateUpdated = onBookmarkStateChange
+        ? await onBookmarkStateChange(willRemainBookmarked)
+        : true;
+      if (!stateUpdated) {
+        setError('서버에 북마크를 저장하지 못했습니다.');
+        return;
+      }
+
+      toggleBookmarkInCollection(collectionId, postId);
+    } catch (updateError) {
+      setError(
+        updateError instanceof Error ? updateError.message : '모음집을 수정할 수 없습니다.',
+      );
+    } finally {
+      setPendingCollectionId(null);
     }
   };
 
@@ -137,16 +201,9 @@ export default function SaveToCollectionModal({
                   <input
                     type="checkbox"
                     checked={isChecked}
+                    disabled={pendingCollectionId !== null}
                     onChange={() => {
-                      const selectedCount = collections.filter((item) =>
-                        item.savedPostIds.includes(postId),
-                      ).length;
-                      const willRemainBookmarked = isChecked
-                        ? selectedCount > 1
-                        : true;
-
-                      toggleBookmarkInCollection(collection.id, postId);
-                      onBookmarkStateChange?.(willRemainBookmarked);
+                      void handleCollectionChange(collection.id, isChecked);
                     }}
                     className="h-5 w-5 accent-[#f5b93d]"
                   />
@@ -169,19 +226,21 @@ export default function SaveToCollectionModal({
                   }}
                   onKeyDown={(event) => {
                     if (event.key === 'Enter') {
-                      handleCreateCollection();
+                      void handleCreateCollection();
                     }
                   }}
+                  disabled={pendingCollectionId !== null}
                   maxLength={40}
                   placeholder="모음집 이름"
                   className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-transparent px-3 text-sm text-zinc-950 outline-none focus:border-[#f5b93d] dark:border-neutral-600 dark:text-zinc-100"
                 />
                 <button
                   type="button"
-                  onClick={handleCreateCollection}
-                  className="rounded-md bg-[#f5b93d] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#f8c957]"
+                  onClick={() => void handleCreateCollection()}
+                  disabled={pendingCollectionId !== null}
+                  className="rounded-md bg-[#f5b93d] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#f8c957] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  만들기
+                  {pendingCollectionId === 'new' ? '저장 중...' : '만들기'}
                 </button>
               </div>
               {error && <p className="text-xs text-red-500">{error}</p>}
@@ -189,13 +248,18 @@ export default function SaveToCollectionModal({
           ) : (
             <button
               type="button"
-              onClick={() => setIsCreating(true)}
-              className="flex w-full items-center justify-center gap-2 py-1 text-sm font-bold text-zinc-900 transition hover:text-[#d99a18] dark:text-zinc-100 dark:hover:text-[#f5b93d]"
+              onClick={() => {
+                setError('');
+                setIsCreating(true);
+              }}
+              disabled={pendingCollectionId !== null}
+              className="flex w-full items-center justify-center gap-2 py-1 text-sm font-bold text-zinc-900 transition hover:text-[#d99a18] disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-100 dark:hover:text-[#f5b93d]"
             >
               <Plus size={18} />
               새 모음집 만들기
             </button>
           )}
+          {!isCreating && error ? <p className="mt-2 text-xs text-red-500">{error}</p> : null}
         </footer>
       </section>
     </div>

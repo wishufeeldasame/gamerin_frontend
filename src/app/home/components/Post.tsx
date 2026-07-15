@@ -175,8 +175,12 @@ export function Post({
   };
 
   const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
-    if (bookmarking || nextBookmarked === bookmarked) {
-      return;
+    if (bookmarking) {
+      return false;
+    }
+
+    if (nextBookmarked === bookmarked) {
+      return true;
     }
 
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
@@ -191,10 +195,12 @@ export function Post({
         await unbookmarkPost(post.postId);
       }
       onBookmarkSuccess?.(nextPost, nextBookmarked);
+      return true;
     } catch (error) {
       setBookmarked(bookmarked);
       onBookmarkChange?.(post, bookmarked);
       alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
+      return false;
     } finally {
       setBookmarking(false);
     }
@@ -390,9 +396,7 @@ export function Post({
         postId={post.postId}
         isBookmarked={bookmarked}
         onClose={() => setCollectionModalOpen(false)}
-        onBookmarkStateChange={(nextBookmarked) => {
-          void handleBookmarkStateChange(nextBookmarked);
-        }}
+        onBookmarkStateChange={handleBookmarkStateChange}
       />
     </>
   );
