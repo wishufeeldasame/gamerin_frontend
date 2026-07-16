@@ -3,13 +3,17 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { Folder, Plus, X } from 'lucide-react';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
+import type { BookmarkCollection } from '@/types/bookmark';
 
 interface SaveToCollectionModalProps {
   isOpen: boolean;
   postId: string;
   isBookmarked?: boolean;
   onClose: () => void;
-  onBookmarkStateChange?: (isBookmarked: boolean) => Promise<boolean>;
+  onBookmarkStateChange?: (
+    isBookmarked: boolean,
+    options?: { skipRequest?: boolean },
+  ) => Promise<boolean>;
 }
 
 export default function SaveToCollectionModal({
@@ -21,8 +25,14 @@ export default function SaveToCollectionModal({
 }: SaveToCollectionModalProps) {
   const titleId = useId();
   const initializedPostIdRef = useRef<string | null>(null);
-  const { collections, createCollection, toggleBookmarkInCollection } =
-    useBookmarkCollections();
+  const {
+    createCollection,
+    fetchCollectionsForPost,
+    addBookmarkToCollection,
+    removeBookmarkFromCollection,
+  } = useBookmarkCollections();
+  const [collections, setCollections] = useState<BookmarkCollection[]>([]);
+  const [loadingCollections, setLoadingCollections] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const [error, setError] = useState('');
@@ -49,25 +59,26 @@ export default function SaveToCollectionModal({
       return;
     }
 
-    if (initializedPostIdRef.current === postId || collections.length === 0) {
+    if (initializedPostIdRef.current === postId) {
       return;
     }
 
     initializedPostIdRef.current = postId;
 
-    if (
-      isBookmarked &&
-      !collections.some((collection) => collection.savedPostIds.includes(postId))
-    ) {
-      toggleBookmarkInCollection(collections[0].id, postId);
-    }
-  }, [
-    collections,
-    isBookmarked,
-    isOpen,
-    postId,
-    toggleBookmarkInCollection,
-  ]);
+    const loadCollections = async () => {
+      try {
+        setLoadingCollections(true);
+        setError('');
+        setCollections(await fetchCollectionsForPost(postId));
+      } catch (loadError) {
+        setError(loadError instanceof Error ? loadError.message : '모음집을 불러오지 못했습니다.');
+      } finally {
+        setLoadingCollections(false);
+      }
+    };
+
+    void loadCollections();
+  }, [fetchCollectionsForPost, isOpen, postId]);
 
   if (!isOpen) {
     return null;
@@ -88,16 +99,9 @@ export default function SaveToCollectionModal({
     setError('');
 
     try {
-      const stateUpdated = onBookmarkStateChange
-        ? await onBookmarkStateChange(true)
-        : true;
-      if (!stateUpdated) {
-        setError('서버에 북마크를 저장하지 못했습니다.');
-        return;
-      }
-
-      const collection = createCollection(trimmedTitle);
-      toggleBookmarkInCollection(collection.id, postId);
+      const collection = await createCollection(trimmedTitle, postId);
+      setCollections((current) => [{ ...collection, containsPost: true }, ...current]);
+      await onBookmarkStateChange?.(true, { skipRequest: true });
       setNewCollectionTitle('');
       setIsCreating(false);
     } catch (createError) {
@@ -114,28 +118,71 @@ export default function SaveToCollectionModal({
       return;
     }
 
-    const selectedCount = collections.filter((item) =>
-      item.savedPostIds.includes(postId),
-    ).length;
-    const willRemainBookmarked = isChecked ? selectedCount > 1 : true;
-
     setPendingCollectionId(collectionId);
     setError('');
 
     try {
-      const stateUpdated = onBookmarkStateChange
-        ? await onBookmarkStateChange(willRemainBookmarked)
-        : true;
-      if (!stateUpdated) {
-        setError('서버에 북마크를 저장하지 못했습니다.');
-        return;
+      if (isChecked) {
+        await removeBookmarkFromCollection(collectionId, postId);
+        setCollections((current) =>
+          current.map((collection) =>
+            collection.collectionId === collectionId
+              ? {
+                  ...collection,
+                  containsPost: false,
+                  bookmarkCount: Math.max(0, collection.bookmarkCount - 1),
+                }
+              : collection,
+          ),
+        );
+      } else {
+        await addBookmarkToCollection(collectionId, postId);
+        setCollections((current) =>
+          current.map((collection) =>
+            collection.collectionId === collectionId
+              ? {
+                  ...collection,
+                  containsPost: true,
+                  bookmarkCount: collection.bookmarkCount + 1,
+                }
+              : collection,
+          ),
+        );
+        await onBookmarkStateChange?.(true, { skipRequest: true });
       }
-
-      toggleBookmarkInCollection(collectionId, postId);
     } catch (updateError) {
       setError(
         updateError instanceof Error ? updateError.message : '모음집을 수정할 수 없습니다.',
       );
+    } finally {
+      setPendingCollectionId(null);
+    }
+  };
+
+  const handleRemoveAllBookmarks = async () => {
+    if (pendingCollectionId || !onBookmarkStateChange) {
+      return;
+    }
+
+    setPendingCollectionId('all');
+    setError('');
+
+    try {
+      const stateUpdated = await onBookmarkStateChange(false);
+      if (!stateUpdated) {
+        setError('서버에서 북마크를 해제하지 못했습니다.');
+        return;
+      }
+
+      setCollections((current) =>
+        current.map((collection) => ({
+          ...collection,
+          containsPost: false,
+        })),
+      );
+      onClose();
+    } catch (removeError) {
+      setError(removeError instanceof Error ? removeError.message : '북마크를 해제할 수 없습니다.');
     } finally {
       setPendingCollectionId(null);
     }
@@ -171,16 +218,20 @@ export default function SaveToCollectionModal({
         </header>
 
         <div className="max-h-80 overflow-y-auto py-2">
-          {collections.length === 0 ? (
+          {loadingCollections ? (
+            <p className="px-5 py-10 text-center text-sm text-zinc-500">
+              모음집을 불러오는 중...
+            </p>
+          ) : collections.length === 0 ? (
             <p className="px-5 py-10 text-center text-sm text-zinc-500">
               아직 만든 모음집이 없습니다.
             </p>
           ) : (
             collections.map((collection) => {
-              const isChecked = collection.savedPostIds.includes(postId);
+              const isChecked = Boolean(collection.containsPost);
               return (
                 <label
-                  key={collection.id}
+                  key={collection.collectionId}
                   className="flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
                 >
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 dark:bg-neutral-800">
@@ -196,14 +247,14 @@ export default function SaveToCollectionModal({
                     )}
                   </span>
                   <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                    {collection.title}
+                    {collection.name}
                   </span>
                   <input
                     type="checkbox"
                     checked={isChecked}
                     disabled={pendingCollectionId !== null}
                     onChange={() => {
-                      void handleCollectionChange(collection.id, isChecked);
+                      void handleCollectionChange(collection.collectionId, isChecked);
                     }}
                     className="h-5 w-5 accent-[#f5b93d]"
                   />
@@ -214,6 +265,17 @@ export default function SaveToCollectionModal({
         </div>
 
         <footer className="border-t border-zinc-200 p-4 dark:border-neutral-700">
+          {isBookmarked ? (
+            <button
+              type="button"
+              onClick={() => void handleRemoveAllBookmarks()}
+              disabled={pendingCollectionId !== null}
+              className="mb-3 w-full rounded-md border border-red-100 px-4 py-2 text-sm font-bold text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-950/60 dark:hover:bg-red-950/30"
+            >
+              {pendingCollectionId === 'all' ? '해제 중...' : '전체 북마크 해제'}
+            </button>
+          ) : null}
+
           {isCreating ? (
             <div className="space-y-2">
               <div className="flex gap-2">

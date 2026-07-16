@@ -193,7 +193,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     }
   };
 
-  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+  const handleBookmarkStateChange = async (
+    nextBookmarked: boolean,
+    options: { skipRequest?: boolean } = {},
+  ) => {
     if (!post || bookmarking) {
       return false;
     }
@@ -207,6 +210,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     setBookmarked(nextBookmarked);
     setPost(nextPost);
     onPostUpdated?.(nextPost);
+
+    if (options.skipRequest) {
+      return true;
+    }
 
     try {
       setBookmarking(true);

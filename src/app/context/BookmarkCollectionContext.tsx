@@ -9,211 +9,130 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { BookmarkCollection } from '@/types/bookmark';
 import { useAuth } from '@/app/context/AuthContext';
+import {
+  addPostToBookmarkCollection,
+  createBookmarkCollection,
+  fetchBookmarkCollections,
+  removePostFromBookmarkCollection,
+} from '@/lib/feed-api';
+import type { BookmarkCollection } from '@/types/bookmark';
 
 interface BookmarkCollectionContextValue {
   collections: BookmarkCollection[];
-  createCollection: (title: string, coverImageUrl?: string | null) => BookmarkCollection;
-  toggleBookmarkInCollection: (collectionId: string, postId: string) => void;
-  getSavedCollectionIds: (postId: string) => string[];
+  loading: boolean;
+  error: string | null;
+  refreshCollections: () => Promise<void>;
+  fetchCollectionsForPost: (postId: string) => Promise<BookmarkCollection[]>;
+  createCollection: (name: string, initialPostId?: string | null) => Promise<BookmarkCollection>;
+  addBookmarkToCollection: (collectionId: string, postId: string) => Promise<void>;
+  removeBookmarkFromCollection: (collectionId: string, postId: string) => Promise<void>;
 }
-
-const initialCollections: BookmarkCollection[] = [
-  {
-    id: 'collection-favorites',
-    title: '즐겨찾기',
-    coverImageUrl: null,
-    createdAt: new Date(0).toISOString(),
-    savedPostIds: [],
-  },
-];
-
-const BOOKMARK_COLLECTIONS_STORAGE_KEY_PREFIX = 'gamerin_bookmark_collections';
 
 const BookmarkCollectionContext = createContext<BookmarkCollectionContextValue | null>(null);
 
-function isBookmarkCollection(value: unknown): value is BookmarkCollection {
-  if (!value || typeof value !== 'object') {
-    return false;
+function upsertCollection(
+  collections: BookmarkCollection[],
+  nextCollection: BookmarkCollection,
+) {
+  const exists = collections.some(
+    (collection) => collection.collectionId === nextCollection.collectionId,
+  );
+
+  if (!exists) {
+    return [nextCollection, ...collections];
   }
 
-  const collection = value as Record<string, unknown>;
-  return (
-    typeof collection.id === 'string' &&
-    collection.id.length > 0 &&
-    typeof collection.title === 'string' &&
-    collection.title.trim().length > 0 &&
-    collection.title.length <= 100 &&
-    (collection.coverImageUrl === null ||
-      typeof collection.coverImageUrl === 'string') &&
-    typeof collection.createdAt === 'string' &&
-    Array.isArray(collection.savedPostIds) &&
-    collection.savedPostIds.every((postId) => typeof postId === 'string')
+  return collections.map((collection) =>
+    collection.collectionId === nextCollection.collectionId
+      ? { ...collection, ...nextCollection }
+      : collection,
   );
 }
 
-function createCollectionId() {
-  return typeof crypto !== 'undefined' && 'randomUUID' in crypto
-    ? crypto.randomUUID()
-    : `collection-${Date.now()}`;
-}
-
-function getBookmarkCollectionsStorageKey(userId: string) {
-  return `${BOOKMARK_COLLECTIONS_STORAGE_KEY_PREFIX}:${userId}`;
-}
-
-function createInitialCollections() {
-  return initialCollections.map((collection) => ({
-    ...collection,
-    savedPostIds: [...collection.savedPostIds],
-  }));
+function withoutPostContainment(collection: BookmarkCollection): BookmarkCollection {
+  return {
+    collectionId: collection.collectionId,
+    name: collection.name,
+    coverImageUrl: collection.coverImageUrl,
+    bookmarkCount: collection.bookmarkCount,
+    createdAt: collection.createdAt,
+    updatedAt: collection.updatedAt,
+  };
 }
 
 export function BookmarkCollectionProvider({ children }: { children: ReactNode }) {
   const { user, isAuthReady } = useAuth();
-  const currentUserId = isAuthReady ? user?.id ?? null : null;
-  const storageKey = currentUserId
-    ? getBookmarkCollectionsStorageKey(currentUserId)
-    : null;
-  const [collectionsState, setCollectionsState] = useState<{
-    userId: string | null;
-    collections: BookmarkCollection[];
-  }>({ userId: null, collections: [] });
+  const [collections, setCollections] = useState<BookmarkCollection[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Do not expose a previous account's collections while the next account loads.
-  const collections =
-    collectionsState.userId === currentUserId ? collectionsState.collections : [];
-
-  useEffect(() => {
-    try {
-      window.localStorage.removeItem(BOOKMARK_COLLECTIONS_STORAGE_KEY_PREFIX);
-    } catch {
-      // localStorage 사용이 제한된 환경에서는 무시
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!isAuthReady || !currentUserId || !storageKey) {
-      setCollectionsState({ userId: null, collections: [] });
+  const refreshCollections = useCallback(async () => {
+    if (!isAuthReady || !user) {
+      setCollections([]);
+      setError(null);
       return;
     }
 
     try {
-      const storedCollections = window.localStorage.getItem(storageKey);
-      if (!storedCollections) {
-        setCollectionsState({
-          userId: currentUserId,
-          collections: createInitialCollections(),
-        });
-        return;
-      }
-
-      const parsedCollections: unknown = JSON.parse(storedCollections);
-      if (
-        Array.isArray(parsedCollections) &&
-        parsedCollections.every(isBookmarkCollection)
-      ) {
-        setCollectionsState({ userId: currentUserId, collections: parsedCollections });
-        return;
-      }
-
-      throw new Error('Invalid bookmark collection data');
-    } catch {
-      try {
-        window.localStorage.removeItem(storageKey);
-      } catch {
-        // Storage can be unavailable in restricted browser contexts.
-      }
-
-      setCollectionsState({
-        userId: currentUserId,
-        collections: createInitialCollections(),
-      });
+      setLoading(true);
+      setError(null);
+      setCollections(await fetchBookmarkCollections());
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : '모음집을 불러오지 못했습니다.');
+      setCollections([]);
+    } finally {
+      setLoading(false);
     }
-  }, [currentUserId, isAuthReady, storageKey]);
+  }, [isAuthReady, user]);
 
-  const createCollection = useCallback(
-    (title: string, coverImageUrl: string | null = null) => {
-      if (!currentUserId || !storageKey || collectionsState.userId !== currentUserId) {
-        throw new Error('모음집을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.');
-      }
+  useEffect(() => {
+    void refreshCollections();
+  }, [refreshCollections]);
 
-      const trimmedTitle = title.trim();
-      if (!trimmedTitle) {
-        throw new Error('모음집 이름을 입력해 주세요.');
-      }
+  const fetchCollectionsForPost = useCallback(async (postId: string) => {
+    const nextCollections = await fetchBookmarkCollections(postId);
+    setCollections(nextCollections.map(withoutPostContainment));
+    return nextCollections;
+  }, []);
 
-      const collection: BookmarkCollection = {
-        id: createCollectionId(),
-        title: trimmedTitle,
-        coverImageUrl,
-        createdAt: new Date().toISOString(),
-        savedPostIds: [],
-      };
+  const createCollection = useCallback(async (name: string, initialPostId?: string | null) => {
+    const collection = await createBookmarkCollection(name, initialPostId);
+    setCollections((current) => upsertCollection(current, collection));
+    return collection;
+  }, []);
 
-      setCollectionsState((current) => {
-        if (current.userId !== currentUserId) {
-          return current;
-        }
+  const addBookmarkToCollection = useCallback(async (collectionId: string, postId: string) => {
+    const state = await addPostToBookmarkCollection(collectionId, postId);
+    setCollections((current) => upsertCollection(current, state.collection));
+  }, []);
 
-        const next = [...current.collections, collection];
-        window.localStorage.setItem(storageKey, JSON.stringify(next));
-        return { userId: currentUserId, collections: next };
-      });
-      return collection;
-    },
-    [collectionsState.userId, currentUserId, storageKey],
-  );
-
-  const toggleBookmarkInCollection = useCallback(
-    (collectionId: string, postId: string) => {
-      if (!currentUserId || !storageKey || collectionsState.userId !== currentUserId) {
-        return;
-      }
-
-      setCollectionsState((current) => {
-        if (current.userId !== currentUserId) {
-          return current;
-        }
-
-        const next = current.collections.map((collection) => {
-          if (collection.id !== collectionId) {
-            return collection;
-          }
-
-          const isSaved = collection.savedPostIds.includes(postId);
-          return {
-            ...collection,
-            savedPostIds: isSaved
-              ? collection.savedPostIds.filter((savedPostId) => savedPostId !== postId)
-              : [...collection.savedPostIds, postId],
-          };
-        });
-
-        window.localStorage.setItem(storageKey, JSON.stringify(next));
-        return { userId: currentUserId, collections: next };
-      });
-    },
-    [collectionsState.userId, currentUserId, storageKey],
-  );
-
-  const getSavedCollectionIds = useCallback(
-    (postId: string) =>
-      collections
-        .filter((collection) => collection.savedPostIds.includes(postId))
-        .map((collection) => collection.id),
-    [collections],
-  );
+  const removeBookmarkFromCollection = useCallback(async (collectionId: string, postId: string) => {
+    const state = await removePostFromBookmarkCollection(collectionId, postId);
+    setCollections((current) => upsertCollection(current, state.collection));
+  }, []);
 
   const value = useMemo(
     () => ({
       collections,
+      loading,
+      error,
+      refreshCollections,
+      fetchCollectionsForPost,
       createCollection,
-      toggleBookmarkInCollection,
-      getSavedCollectionIds,
+      addBookmarkToCollection,
+      removeBookmarkFromCollection,
     }),
-    [collections, createCollection, toggleBookmarkInCollection, getSavedCollectionIds],
+    [
+      collections,
+      loading,
+      error,
+      refreshCollections,
+      fetchCollectionsForPost,
+      createCollection,
+      addBookmarkToCollection,
+      removeBookmarkFromCollection,
+    ],
   );
 
   return (

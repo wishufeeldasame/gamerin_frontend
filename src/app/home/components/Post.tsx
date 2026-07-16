@@ -174,7 +174,10 @@ export function Post({
     onOpenDetail?.(post);
   };
 
-  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
+  const handleBookmarkStateChange = async (
+    nextBookmarked: boolean,
+    options: { skipRequest?: boolean } = {},
+  ) => {
     if (bookmarking) {
       return false;
     }
@@ -186,6 +189,11 @@ export function Post({
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
     onBookmarkChange?.(nextPost, nextBookmarked);
+
+    if (options.skipRequest) {
+      onBookmarkSuccess?.(nextPost, nextBookmarked);
+      return true;
+    }
 
     try {
       setBookmarking(true);

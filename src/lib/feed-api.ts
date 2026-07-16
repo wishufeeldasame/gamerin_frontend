@@ -1,5 +1,6 @@
 import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
+import type { BookmarkCollection } from '@/types/bookmark';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
@@ -140,6 +141,20 @@ export interface ShareResponse {
   shares: number;
 }
 
+export type BookmarkScope = 'all' | 'unclassified';
+
+export interface BookmarkRequestOptions extends FeedRequestOptions {
+  q?: string;
+  mediaOnly?: boolean;
+}
+
+export interface BookmarkCollectionPostState {
+  postId: string;
+  bookmarkedByMe: boolean;
+  collectionIds: string[];
+  collection: BookmarkCollection;
+}
+
 function toNumber(value: unknown) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : 0;
@@ -211,6 +226,26 @@ function normalizeProfileImageUpload(response: ProfileImageUploadResponse): Prof
   return {
     ...response,
     imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
+  };
+}
+
+function normalizeBookmarkCollection(collection: BookmarkCollection): BookmarkCollection {
+  return {
+    ...collection,
+    coverImageUrl: normalizeAssetUrl(collection.coverImageUrl),
+    bookmarkCount: toNumber(collection.bookmarkCount),
+    containsPost: Boolean(collection.containsPost),
+  };
+}
+
+function normalizeBookmarkCollectionPostState(
+  state: BookmarkCollectionPostState,
+): BookmarkCollectionPostState {
+  return {
+    ...state,
+    bookmarkedByMe: Boolean(state.bookmarkedByMe),
+    collectionIds: Array.isArray(state.collectionIds) ? state.collectionIds : [],
+    collection: normalizeBookmarkCollection(state.collection),
   };
 }
 
@@ -413,6 +448,69 @@ export async function unbookmarkPost(postId: string) {
   });
 }
 
+export async function fetchBookmarkCollections(postId?: string | null) {
+  const search = new URLSearchParams();
+  if (postId) {
+    search.set('postId', postId);
+  }
+
+  const suffix = search.size > 0 ? `?${search.toString()}` : '';
+  const collections = await apiRequest<BookmarkCollection[]>(`/api/v1/bookmark-collections${suffix}`);
+  return Array.isArray(collections) ? collections.map(normalizeBookmarkCollection) : [];
+}
+
+export async function createBookmarkCollection(name: string, initialPostId?: string | null) {
+  const collection = await apiRequest<BookmarkCollection>('/api/v1/bookmark-collections', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      initialPostId: initialPostId || undefined,
+    }),
+  });
+
+  return normalizeBookmarkCollection(collection);
+}
+
+export async function renameBookmarkCollection(collectionId: string, name: string) {
+  const collection = await apiRequest<BookmarkCollection>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    },
+  );
+
+  return normalizeBookmarkCollection(collection);
+}
+
+export async function deleteBookmarkCollection(collectionId: string) {
+  await apiRequest<null>(`/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function addPostToBookmarkCollection(collectionId: string, postId: string) {
+  const state = await apiRequest<BookmarkCollectionPostState>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks/${encodeURIComponent(postId)}`,
+    {
+      method: 'PUT',
+    },
+  );
+
+  return normalizeBookmarkCollectionPostState(state);
+}
+
+export async function removePostFromBookmarkCollection(collectionId: string, postId: string) {
+  const state = await apiRequest<BookmarkCollectionPostState>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks/${encodeURIComponent(postId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+
+  return normalizeBookmarkCollectionPostState(state);
+}
+
 export async function sharePost(postId: string, target: ShareTarget = 'COPY_LINK') {
   return apiRequest<ShareResponse>(`/api/v1/posts/${postId}/shares`, {
     method: 'POST',
@@ -540,7 +638,45 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   );
 }
 
-export async function fetchMyBookmarks(cursor?: string | null, size = 20, options: FeedRequestOptions = {}) {
+function appendBookmarkSearchParams(search: URLSearchParams, options: BookmarkRequestOptions) {
+  if (options.q?.trim()) {
+    search.set('q', options.q.trim());
+  }
+
+  if (typeof options.mediaOnly === 'boolean') {
+    search.set('mediaOnly', String(options.mediaOnly));
+  }
+}
+
+export async function fetchMyBookmarks(
+  cursor?: string | null,
+  size = 20,
+  options: BookmarkRequestOptions = {},
+  scope: BookmarkScope = 'all',
+) {
+  const search = new URLSearchParams({
+    scope,
+    size: String(size),
+  });
+
+  if (cursor) {
+    search.set('cursor', cursor);
+  }
+
+  appendBookmarkSearchParams(search, options);
+
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
+    signal: options.signal,
+  });
+  return normalizeCursorPage(page, normalizePostRecord);
+}
+
+export async function fetchCollectionBookmarks(
+  collectionId: string,
+  cursor?: string | null,
+  size = 20,
+  options: BookmarkRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -549,8 +685,13 @@ export async function fetchMyBookmarks(cursor?: string | null, size = 20, option
     search.set('cursor', cursor);
   }
 
-  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
-    signal: options.signal,
-  });
+  appendBookmarkSearchParams(search, options);
+
+  const page = await apiRequest<CursorPage<PostRecord>>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks?${search.toString()}`,
+    {
+      signal: options.signal,
+    },
+  );
   return normalizeCursorPage(page, normalizePostRecord);
 }

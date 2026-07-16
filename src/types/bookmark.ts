@@ -1,9 +1,11 @@
 export interface BookmarkCollection {
-  id: string;
-  title: string;
+  collectionId: string;
+  name: string;
   coverImageUrl: string | null;
+  bookmarkCount: number;
   createdAt: string;
-  savedPostIds: string[];
+  updatedAt: string;
+  containsPost?: boolean;
 }
 
 export interface PostBookmarkState {

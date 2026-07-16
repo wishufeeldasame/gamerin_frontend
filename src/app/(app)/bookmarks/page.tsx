@@ -5,12 +5,13 @@ import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
-  PostRecord,
+  fetchCollectionBookmarks,
   fetchMyBookmarks,
   likePost,
   unlikePost,
   updatePostLikeState,
 } from '@/lib/feed-api';
+import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 
@@ -41,7 +42,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 
 export default function BookmarksPage() {
   const router = useRouter();
-  const { collections } = useBookmarkCollections();
+  const { collections, loading: collectionsLoading } = useBookmarkCollections();
   const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -49,6 +50,7 @@ export default function BookmarksPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
+  const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
@@ -73,7 +75,25 @@ export default function BookmarksPage() {
       setLoadingMore(false);
       setError(null);
 
-      const page = await fetchMyBookmarks(null, BOOKMARK_PAGE_SIZE, { signal });
+      const requestOptions = {
+        signal,
+        q: query,
+        mediaOnly,
+      };
+      const page =
+        selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
+          ? await fetchMyBookmarks(
+              null,
+              BOOKMARK_PAGE_SIZE,
+              requestOptions,
+              selectedCollectionId as BookmarkScope,
+            )
+          : await fetchCollectionBookmarks(
+              selectedCollectionId,
+              null,
+              BOOKMARK_PAGE_SIZE,
+              requestOptions,
+            );
 
       if (signal?.aborted) {
         return;
@@ -93,7 +113,7 @@ export default function BookmarksPage() {
         setLoading(false);
       }
     }
-  }, []);
+  }, [mediaOnly, query, selectedCollectionId]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -104,37 +124,8 @@ export default function BookmarksPage() {
     };
   }, [loadInitialBookmarks]);
 
-  const visibleBookmarks = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-
-    return bookmarks
-      .filter((post) => {
-        if (selectedCollectionId === 'all') {
-          return true;
-        }
-
-        const selectedCollection = collections.find(
-          (collection) => collection.id === selectedCollectionId,
-        );
-        return selectedCollection?.savedPostIds.includes(post.postId) ?? false;
-      })
-      .filter((post) => {
-        if (!keyword) return true;
-
-        return [
-          post.author,
-          post.authorHandle,
-          post.game ?? '',
-          post.content ?? '',
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(keyword);
-      });
-  }, [bookmarks, collections, query, selectedCollectionId]);
-
   const selectedCollection = useMemo(
-    () => collections.find((collection) => collection.id === selectedCollectionId),
+    () => collections.find((collection) => collection.collectionId === selectedCollectionId),
     [collections, selectedCollectionId],
   );
 
@@ -145,7 +136,24 @@ export default function BookmarksPage() {
 
     try {
       setLoadingMore(true);
-      const page = await fetchMyBookmarks(nextCursor, BOOKMARK_PAGE_SIZE);
+      const requestOptions = {
+        q: query,
+        mediaOnly,
+      };
+      const page =
+        selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
+          ? await fetchMyBookmarks(
+              nextCursor,
+              BOOKMARK_PAGE_SIZE,
+              requestOptions,
+              selectedCollectionId as BookmarkScope,
+            )
+          : await fetchCollectionBookmarks(
+              selectedCollectionId,
+              nextCursor,
+              BOOKMARK_PAGE_SIZE,
+              requestOptions,
+            );
 
       setBookmarks((current) => {
         const existingPostIds = new Set(current.map((post) => post.postId));
@@ -238,6 +246,19 @@ export default function BookmarksPage() {
             />
           </div>
 
+          <button
+            type="button"
+            onClick={() => setMediaOnly((current) => !current)}
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition ${
+              mediaOnly
+                ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black'
+                : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+            }`}
+          >
+            <ImageIcon size={14} />
+            미디어만 보기
+          </button>
+
         </div>
       </div>
 
@@ -249,7 +270,9 @@ export default function BookmarksPage() {
               저장한 게시물을 모음집별로 확인하세요.
             </p>
           </div>
-          <span className="text-xs font-black text-zinc-400">{collections.length}개</span>
+          <span className="text-xs font-black text-zinc-400">
+            {collectionsLoading ? '불러오는 중' : `${collections.length}개`}
+          </span>
         </div>
 
         <div className="flex gap-3 overflow-x-auto pb-2">
@@ -271,17 +294,32 @@ export default function BookmarksPage() {
             </span>
           </button>
 
+          <button
+            type="button"
+            onClick={() => setSelectedCollectionId('unclassified')}
+            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+              selectedCollectionId === 'unclassified'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+            }`}
+          >
+            <Folder size={20} className={selectedCollectionId === 'unclassified' ? 'fill-current' : 'text-zinc-400'} />
+            <span>
+              <strong className="block text-sm font-black">미분류</strong>
+              <small className="mt-1 block text-xs font-bold opacity-60">
+                모음집 없는 북마크
+              </small>
+            </span>
+          </button>
+
           {collections.map((collection) => {
-            const isSelected = selectedCollectionId === collection.id;
-            const savedCount = collection.savedPostIds.filter((postId) =>
-              bookmarks.some((post) => post.postId === postId),
-            ).length;
+            const isSelected = selectedCollectionId === collection.collectionId;
 
             return (
               <button
-                key={collection.id}
+                key={collection.collectionId}
                 type="button"
-                onClick={() => setSelectedCollectionId(collection.id)}
+                onClick={() => setSelectedCollectionId(collection.collectionId)}
                 className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
                   isSelected
                     ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
@@ -289,12 +327,12 @@ export default function BookmarksPage() {
                 }`}
               >
                 <Folder size={20} className={isSelected ? 'fill-current' : 'text-zinc-400'} />
-                <span className="min-w-0">
-                  <strong className="block truncate text-sm font-black">
-                    {collection.title}
+                  <span className="min-w-0">
+                    <strong className="block truncate text-sm font-black">
+                    {collection.name}
                   </strong>
                   <small className="mt-1 block text-xs font-bold opacity-60">
-                    {savedCount}개 게시물
+                    {collection.bookmarkCount}개 게시물
                   </small>
                 </span>
               </button>
@@ -306,7 +344,12 @@ export default function BookmarksPage() {
       {selectedCollection ? (
         <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
           <Folder size={16} />
-          <span>{selectedCollection.title}</span>
+          <span>{selectedCollection.name}</span>
+        </div>
+      ) : selectedCollectionId === 'unclassified' ? (
+        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
+          <Folder size={16} />
+          <span>미분류 북마크</span>
         </div>
       ) : null}
 
@@ -330,21 +373,22 @@ export default function BookmarksPage() {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
             <Bookmark size={30} />
           </div>
-          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">아직 저장한 게시물이 없어요</h2>
+          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">
+            {selectedCollection || selectedCollectionId === 'unclassified' || query.trim() || mediaOnly
+              ? '표시할 북마크가 없어요'
+              : '아직 저장한 게시물이 없어요'}
+          </h2>
           <p className="mt-3 text-sm font-bold text-zinc-400 dark:text-zinc-500">
-            피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.
+            {selectedCollection || selectedCollectionId === 'unclassified'
+              ? '선택한 모음집 조건에 맞는 게시물이 없습니다.'
+              : query.trim() || mediaOnly
+                ? '검색어나 필터 조건을 바꿔보세요.'
+                : '피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.'}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
-          {visibleBookmarks.length === 0 ? (
-            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
-              {selectedCollection
-                ? '이 모음집에 저장된 게시물이 없습니다.'
-                : '검색 결과가 없습니다.'}
-            </div>
-          ) : (
-            visibleBookmarks.map((post, index) => (
+          {bookmarks.map((post, index) => (
               <motion.div
                 key={post.postId}
                 initial={{ opacity: 0, y: 20 }}
@@ -389,8 +433,7 @@ export default function BookmarksPage() {
                   }}
                 />
               </motion.div>
-            ))
-          )}
+            ))}
 
           {hasNext ? (
             <button
