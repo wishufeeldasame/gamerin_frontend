@@ -34,6 +34,7 @@ export default function SaveToCollectionModal({
   const [collections, setCollections] = useState<BookmarkCollection[]>([]);
   const [loadingCollections, setLoadingCollections] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [isPostBookmarked, setIsPostBookmarked] = useState(isBookmarked);
   const [newCollectionTitle, setNewCollectionTitle] = useState('');
   const [error, setError] = useState('');
   const [pendingCollectionId, setPendingCollectionId] = useState<string | null>(null);
@@ -59,6 +60,8 @@ export default function SaveToCollectionModal({
       return;
     }
 
+    setIsPostBookmarked(isBookmarked);
+
     if (initializedPostIdRef.current === postId) {
       return;
     }
@@ -78,7 +81,7 @@ export default function SaveToCollectionModal({
     };
 
     void loadCollections();
-  }, [fetchCollectionsForPost, isOpen, postId]);
+  }, [fetchCollectionsForPost, isBookmarked, isOpen, postId]);
 
   if (!isOpen) {
     return null;
@@ -101,6 +104,7 @@ export default function SaveToCollectionModal({
     try {
       const collection = await createCollection(trimmedTitle, postId);
       setCollections((current) => [{ ...collection, containsPost: true }, ...current]);
+      setIsPostBookmarked(true);
       await onBookmarkStateChange?.(true, { skipRequest: true });
       setNewCollectionTitle('');
       setIsCreating(false);
@@ -123,6 +127,24 @@ export default function SaveToCollectionModal({
 
     try {
       if (isChecked) {
+        const selectedCount = collections.filter((collection) => collection.containsPost).length;
+        if (selectedCount <= 1 && onBookmarkStateChange) {
+          const stateUpdated = await onBookmarkStateChange(false);
+          if (!stateUpdated) {
+            setError('서버에서 북마크를 해제하지 못했습니다.');
+            return;
+          }
+
+          setIsPostBookmarked(false);
+          setCollections((current) =>
+            current.map((collection) => ({
+              ...collection,
+              containsPost: false,
+            })),
+          );
+          return;
+        }
+
         await removeBookmarkFromCollection(collectionId, postId);
         setCollections((current) =>
           current.map((collection) =>
@@ -148,6 +170,7 @@ export default function SaveToCollectionModal({
               : collection,
           ),
         );
+        setIsPostBookmarked(true);
         await onBookmarkStateChange?.(true, { skipRequest: true });
       }
     } catch (updateError) {
@@ -180,7 +203,7 @@ export default function SaveToCollectionModal({
           containsPost: false,
         })),
       );
-      onClose();
+      setIsPostBookmarked(false);
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : '북마크를 해제할 수 없습니다.');
     } finally {
@@ -265,7 +288,7 @@ export default function SaveToCollectionModal({
         </div>
 
         <footer className="border-t border-zinc-200 p-4 dark:border-neutral-700">
-          {isBookmarked ? (
+          {isPostBookmarked ? (
             <button
               type="button"
               onClick={() => void handleRemoveAllBookmarks()}

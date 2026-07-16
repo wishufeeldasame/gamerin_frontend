@@ -52,6 +52,7 @@ export default function BookmarksPage() {
   const [query, setQuery] = useState('');
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
+  const [collectionCountOverrides, setCollectionCountOverrides] = useState<Record<string, number>>({});
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
   const upsertBookmark = useCallback((post: PostRecord) => {
@@ -102,6 +103,13 @@ export default function BookmarksPage() {
       setBookmarks(page.items);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
+
+      if (selectedCollectionId !== 'all' && selectedCollectionId !== 'unclassified') {
+        setCollectionCountOverrides((current) => ({
+          ...current,
+          [selectedCollectionId]: page.hasNext ? Math.max(page.items.length, current[selectedCollectionId] ?? 0) : page.items.length,
+        }));
+      }
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') {
         return;
@@ -162,6 +170,15 @@ export default function BookmarksPage() {
       });
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
+
+      if (selectedCollectionId !== 'all' && selectedCollectionId !== 'unclassified') {
+        setCollectionCountOverrides((current) => ({
+          ...current,
+          [selectedCollectionId]: page.hasNext
+            ? Math.max(current[selectedCollectionId] ?? 0, bookmarks.length + page.items.length)
+            : bookmarks.length + page.items.length,
+        }));
+      }
     } catch (loadError) {
       alert(loadError instanceof Error ? loadError.message : '북마크를 더 불러오지 못했습니다.');
     } finally {
@@ -314,6 +331,8 @@ export default function BookmarksPage() {
 
           {collections.map((collection) => {
             const isSelected = selectedCollectionId === collection.collectionId;
+            const displayCount =
+              collectionCountOverrides[collection.collectionId] ?? collection.bookmarkCount;
 
             return (
               <button
@@ -332,7 +351,7 @@ export default function BookmarksPage() {
                     {collection.name}
                   </strong>
                   <small className="mt-1 block text-xs font-bold opacity-60">
-                    {collection.bookmarkCount}개 게시물
+                    {displayCount}개 게시물
                   </small>
                 </span>
               </button>
