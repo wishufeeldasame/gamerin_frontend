@@ -322,3 +322,19 @@ npm run dev
   > 검증: `git diff --check`, `tsc --noEmit`, `git diff --cached --check`, `TypeScript` 통과.
 
   > 요약 : 사용자별 모음집 저장소 분리, 서버 실패 시 로컬 상태 불일치 방지, 모음집 페이지네이션 접근 불가 문제를 수정
+
+- **26/07/17** 김신의
+
+  > 북마크 모음집 상태 관리를 `localStorage` 기반에서 백엔드 API 연동 방식으로 전환
+  > `BookmarkCollection` 타입을 백엔드 응답 필드인 `collectionId`, `name`, `coverImageUrl`, `bookmarkCount`, `createdAt`, `updatedAt`, `containsPost` 기준으로 수정
+  > `GET /api/v1/bookmark-collections`와 `GET /api/v1/bookmark-collections?postId={postId}`를 사용해 모음집 목록 및 게시글별 저장 상태를 조회하도록 연결
+  > 모음집 생성 시 `POST /api/v1/bookmark-collections`에 `name`, `initialPostId`를 전송하여 생성과 동시에 현재 게시글을 저장하도록 처리
+  > 모음집 체크/해제 시 `PUT/DELETE /api/v1/bookmark-collections/{collectionId}/bookmarks/{postId}`를 호출하도록 저장 모달 로직 교체
+  > 전체 북마크 해제는 기존 `DELETE /api/v1/posts/{postId}/bookmarks` 흐름을 유지하고, 해제 후 모달 내 체크 상태와 북마크 상태가 즉시 반영되도록 수정
+  > `/bookmarks` 페이지 조회를 서버 기준으로 변경하여 전체는 `scope=all`, 미분류는 `scope=unclassified`, 모음집별은 `/api/v1/bookmark-collections/{collectionId}/bookmarks`를 사용하도록 연결
+  > 검색어 `q`, 미디어 필터 `mediaOnly`, 커서 `cursor`, 페이지 크기 `size`를 백엔드 쿼리 파라미터로 전달하도록 변경
+  > 컬렉션 목록의 `bookmarkCount`와 실제 조회 결과가 일시적으로 어긋나는 경우 선택된 모음집 조회 결과 기준으로 화면 카운트를 보정하도록 처리
+  > 백엔드 API가 별도 서버에서 동작한다는 전제로 프론트는 인증 포함 API 호출과 응답 상태 반영만 담당하도록 역할을 정리
+  > 검증: `git diff --check`, `npm run lint`, `tsc --noEmit` 통과
+
+  > 요약 : 북마크 모음집을 서버 API 기반으로 전환하고, 저장 모달과 북마크 페이지의 컬렉션별/미분류 조회 및 상태 동기화를 백엔드 계약에 맞춰 정리
