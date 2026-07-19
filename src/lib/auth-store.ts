@@ -1,7 +1,13 @@
 'use client';
 
 let accessTokenMemory: string | null = null;
-let refreshPromise: Promise<string | null> | null = null;
+let authGeneration = 0;
+let refreshRequestId = 0;
+let refreshRequest: {
+  generation: number;
+  requestId: number;
+  promise: Promise<string | null>;
+} | null = null;
 
 const LEGACY_ACCESS_TOKEN_KEY = 'gamerin_access_token';
 export const AUTH_USER_KEY = 'gamerin_user';
@@ -9,7 +15,9 @@ export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export function setAccessToken(token: string) {
+  authGeneration += 1;
   accessTokenMemory = token;
+  refreshRequest = null;
   removeLegacyAccessToken();
 }
 
@@ -18,9 +26,37 @@ export function getAccessToken() {
   return accessTokenMemory;
 }
 
+export function getAuthGeneration() {
+  return authGeneration;
+}
+
+export function isCurrentAuthGeneration(generation: number) {
+  return generation === authGeneration;
+}
+
+export function assertCurrentAuthGeneration(generation: number) {
+  if (isCurrentAuthGeneration(generation)) {
+    return;
+  }
+
+  throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+}
+
 export function removeAccessToken() {
+  authGeneration += 1;
   accessTokenMemory = null;
+  refreshRequest = null;
   removeLegacyAccessToken();
+}
+
+function setRefreshedAccessToken(token: string, expectedGeneration: number) {
+  if (!isCurrentAuthGeneration(expectedGeneration)) {
+    return false;
+  }
+
+  accessTokenMemory = token;
+  removeLegacyAccessToken();
+  return true;
 }
 
 function removeLegacyAccessToken() {
@@ -63,16 +99,21 @@ type RefreshPayload = {
   message?: string;
 };
 
-export async function refreshAccessToken() {
+export async function refreshAccessToken(expectedGeneration = authGeneration) {
   if (typeof window === 'undefined') {
     return null;
   }
 
-  if (refreshPromise) {
-    return refreshPromise;
+  if (!isCurrentAuthGeneration(expectedGeneration)) {
+    return null;
   }
 
-  refreshPromise = (async () => {
+  if (refreshRequest?.generation === expectedGeneration) {
+    return refreshRequest.promise;
+  }
+
+  const requestId = ++refreshRequestId;
+  const promise = (async () => {
     try {
       const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
         method: 'POST',
@@ -83,28 +124,45 @@ export async function refreshAccessToken() {
       const nextToken = payload?.data?.accessToken ?? null;
 
       if (!response.ok || !nextToken) {
-        clearStoredAuth();
+        if (isCurrentAuthGeneration(expectedGeneration)) {
+          clearStoredAuth();
+        }
         return null;
       }
 
-      setAccessToken(nextToken);
-      return nextToken;
+      return setRefreshedAccessToken(nextToken, expectedGeneration)
+        ? nextToken
+        : null;
     } catch {
-      clearStoredAuth();
+      if (isCurrentAuthGeneration(expectedGeneration)) {
+        clearStoredAuth();
+      }
       return null;
     } finally {
-      refreshPromise = null;
+      if (refreshRequest?.requestId === requestId) {
+        refreshRequest = null;
+      }
     }
   })();
 
-  return refreshPromise;
+  refreshRequest = {
+    generation: expectedGeneration,
+    requestId,
+    promise,
+  };
+
+  return promise;
 }
 
-export async function ensureAccessToken() {
+export async function ensureAccessToken(expectedGeneration = authGeneration) {
+  if (!isCurrentAuthGeneration(expectedGeneration)) {
+    return null;
+  }
+
   const token = getAccessToken();
   if (token) {
     return token;
   }
 
-  return refreshAccessToken();
+  return refreshAccessToken(expectedGeneration);
 }

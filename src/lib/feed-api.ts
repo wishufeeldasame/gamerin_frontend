@@ -1,4 +1,9 @@
-import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import {
+  assertCurrentAuthGeneration,
+  ensureAccessToken,
+  getAuthGeneration,
+  refreshAccessToken,
+} from '@/lib/auth-store';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
 import type { BookmarkCollection } from '@/types/bookmark';
 
@@ -277,21 +282,27 @@ async function apiRequest<T>(path: string, options: RequestOptions = {}): Promis
     return { response, payload };
   };
 
-  let accessToken = await ensureAccessToken();
+  const requestGeneration = getAuthGeneration();
+  let accessToken = await ensureAccessToken(requestGeneration);
+  assertCurrentAuthGeneration(requestGeneration);
+
   if (!accessToken) {
     throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
   }
 
   let result = await send(accessToken);
+  assertCurrentAuthGeneration(requestGeneration);
 
   if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
+    accessToken = await refreshAccessToken(requestGeneration);
+    assertCurrentAuthGeneration(requestGeneration);
 
     if (!accessToken) {
       throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
     }
 
     result = await send(accessToken);
+    assertCurrentAuthGeneration(requestGeneration);
   }
 
   if (!result.response.ok) {

@@ -338,3 +338,17 @@ npm run dev
   > 검증: `git diff --check`, `npm run lint`, `tsc --noEmit` 통과
 
   > 요약 : 북마크 모음집을 서버 API 기반으로 전환하고, 저장 모달과 북마크 페이지의 컬렉션별/미분류 조회 및 상태 동기화를 백엔드 계약에 맞춰 정리
+
+- **26/07/20** 전준범
+
+  > [P1] 북마크 요청 중 계정이 전환되면 이전 계정의 늦은 응답이 현재 계정의 모음집 상태를 덮을 수 있는 문제 수정
+  > `auth-store.ts`에 `authGeneration`을 추가하고 로그인·로그아웃 및 refresh 요청을 인증 세대별로 구분
+  > `feed-api.ts`에서 요청 시작, 최초 응답, 401 refresh, 재시도 전후의 인증 세대를 검증하고 계정이 바뀌면 `AbortError`로 중단
+  > `BookmarkCollectionContext.tsx`의 모음집 상태에 `ownerId`를 부여하고, 사용자 변경 시 기존 목록과 진행 중인 요청 상태를 즉시 초기화
+  > 모음집 조회·생성·추가·제거 응답은 요청 당시 사용자 ID와 인증 세대가 현재 사용자와 같은 경우에만 상태에 반영
+  > `AuthContext.tsx`의 앱 시작 인증 복원에도 세대 검증을 적용하여 이전 bootstrap 응답이 새 로그인 상태를 덮지 않도록 처리
+  > access token 메모리 저장, HttpOnly refresh cookie, 기존 북마크 API 계약과 동일 계정의 401 재시도 정책은 그대로 유지
+  > 검증: 검증: 계정 전환·401 경합 7개 시나리오, `tsc --noEmit`, 전체 `ESLint`, `Next.js production build`, 백엔드 북마크 테스트 30건, `PostgreSQL` 동시성 테스트 13건 통과
+  > 적용 범위: 북마크가 사용하는 `feed-api.ts`에 적용했으며 메시지·멘토링·마일리지 API는 별도 후속 작업으로 분리
+
+  > 요약 : 계정 전환 후 이전 계정의 북마크 응답과 401 재시도가 현재 계정의 토큰·모음집 상태를 덮지 못하도록 수정
