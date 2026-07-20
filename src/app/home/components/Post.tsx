@@ -34,6 +34,22 @@ interface PostProps {
   onDelete?: (post: PostRecord) => void;
 }
 
+const getRelativeTime = (dateString: string) => {
+  const now = new Date();
+  const date = new Date(dateString);
+  const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+  if (diffInSeconds < 60) return '\uBC29\uAE08 \uC804';
+  const diffInMinutes = Math.floor(diffInSeconds / 60);
+  if (diffInMinutes < 60) return `${diffInMinutes}\uBD84 \uC804`;
+  const diffInHours = Math.floor(diffInMinutes / 60);
+  if (diffInHours < 24) return `${diffInHours}\uC2DC\uAC04 \uC804`;
+  const diffInDays = Math.floor(diffInHours / 24);
+  if (diffInDays < 7) return `${diffInDays}\uC77C \uC804`;
+
+  return `${date.getMonth() + 1}\uC6D4 ${date.getDate()}\uC77C`;
+};
+
 function MediaBlock({ media }: { media: PostMedia[] }) {
   if (media.length === 0) {
     return null;
@@ -235,12 +251,17 @@ export function Post({
           onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
         }`}
       >
-        {post.reposterInfo ? (
-          <div className="flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
-            <Repeat2 size={15} className="text-emerald-500" />
-            <span>{post.reposterInfo.nickname}님이 리포스트했습니다</span>
+        {post.reposterInfo && (
+          <div className="mb-2 flex items-center gap-1.5 px-4 pt-3 text-sm text-neutral-500">
+            <Repeat2 className="text-neutral-400" size={16} />
+            <span>
+              <span className="font-semibold text-neutral-300">{post.reposterInfo.nickname}</span>
+              {'\uB2D8\uC774 \uB9AC\uD3EC\uC2A4\uD2B8\uD588\uC2B5\uB2C8\uB2E4'}
+            </span>
+            <span className="text-neutral-600">{'\u2022'}</span>
+            <span className="text-xs">{getRelativeTime(post.reposterInfo.repostedAt)}</span>
           </div>
-        ) : null}
+        )}
 
         <div className="p-5">
         <div className="mb-4 flex items-center justify-between">

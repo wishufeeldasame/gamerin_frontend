@@ -282,3 +282,13 @@ npm run dev
   > `feature/post-repost`가 `feature/bookmark-collections`에서 분기된 상태라 PR 병합 시 북마크 컬렉션 브랜치 선병합 또는 리포스트 커밋 재배치가 필요함을 정리
 
   > 요약 : 게시글 리포스트 버튼, 리포스트 수 표시, 리포스트 피드 문구, 낙관적 업데이트 기반 리포스트 프론트 흐름을 추가
+
+* **26/07/20** 김승의
+
+  > 백엔드 리포스트 응답 스펙 변경에 맞춰 `ReposterInfo` 타입에 `repostedAt` 필드를 추가
+  > 피드 카드 상단 리포스트 헤더에서 `repostedAt` 기준 상대 시간 표시를 지원하도록 `getRelativeTime()` 유틸 로직 추가
+  > 기존 `OOO님이 리포스트했습니다` 문구 옆에 `• 방금 전/분 전/시간 전/일 전/MM월 DD일` 형태의 시간을 함께 렌더링하도록 UI 수정
+  > 백엔드는 피드 조회 응답의 `reposterInfo` 객체에 `userId`, `nickname`, `repostedAt`을 함께 내려줘야 함
+  > 검증: `npm.cmd run lint`, `tsc --noEmit` 통과
+
+  > 요약 : 리포스트 피드 헤더가 백엔드의 `repostedAt` 값을 받아 리포스트 발생 시점을 상대 시간으로 표시하도록 타입과 UI를 보완

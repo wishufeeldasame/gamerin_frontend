@@ -35,6 +35,7 @@ export interface ExternalLinkCard {
 export interface ReposterInfo {
   userId: string;
   nickname: string;
+  repostedAt: string;
 }
 
 export interface PostRecord {
