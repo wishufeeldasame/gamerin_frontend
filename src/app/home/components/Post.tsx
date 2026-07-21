@@ -177,14 +177,26 @@ export function Post({
     onOpenDetail?.(post);
   };
 
-  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
-    if (bookmarking || nextBookmarked === bookmarked) {
-      return;
+  const handleBookmarkStateChange = async (
+    nextBookmarked: boolean,
+    options: { skipRequest?: boolean } = {},
+  ) => {
+    if (bookmarking) {
+      return false;
+    }
+
+    if (nextBookmarked === bookmarked) {
+      return true;
     }
 
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
     setBookmarked(nextBookmarked);
     onBookmarkChange?.(nextPost, nextBookmarked);
+
+    if (options.skipRequest) {
+      onBookmarkSuccess?.(nextPost, nextBookmarked);
+      return true;
+    }
 
     try {
       setBookmarking(true);
@@ -194,10 +206,12 @@ export function Post({
         await unbookmarkPost(post.postId);
       }
       onBookmarkSuccess?.(nextPost, nextBookmarked);
+      return true;
     } catch (error) {
       setBookmarked(bookmarked);
       onBookmarkChange?.(post, bookmarked);
       alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
+      return false;
     } finally {
       setBookmarking(false);
     }
@@ -412,9 +426,7 @@ export function Post({
         postId={post.postId}
         isBookmarked={bookmarked}
         onClose={() => setCollectionModalOpen(false)}
-        onBookmarkStateChange={(nextBookmarked) => {
-          void handleBookmarkStateChange(nextBookmarked);
-        }}
+        onBookmarkStateChange={handleBookmarkStateChange}
       />
 
       {reportOpen ? (

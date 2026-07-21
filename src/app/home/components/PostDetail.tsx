@@ -196,9 +196,16 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     }
   };
 
-  const handleBookmarkStateChange = async (nextBookmarked: boolean) => {
-    if (!post || bookmarking || nextBookmarked === bookmarked) {
-      return;
+  const handleBookmarkStateChange = async (
+    nextBookmarked: boolean,
+    options: { skipRequest?: boolean } = {},
+  ) => {
+    if (!post || bookmarking) {
+      return false;
+    }
+
+    if (nextBookmarked === bookmarked) {
+      return true;
     }
 
     const nextPost = updatePostBookmarkState(post, nextBookmarked);
@@ -207,6 +214,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
     setPost(nextPost);
     onPostUpdated?.(nextPost);
 
+    if (options.skipRequest) {
+      return true;
+    }
+
     try {
       setBookmarking(true);
       if (nextBookmarked) {
@@ -214,11 +225,13 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       } else {
         await unbookmarkPost(post.postId);
       }
+      return true;
     } catch (bookmarkError) {
       setBookmarked(bookmarked);
       setPost(post);
       onPostUpdated?.(post);
       alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
+      return false;
     } finally {
       setBookmarking(false);
     }
@@ -554,9 +567,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
           postId={post.postId}
           isBookmarked={bookmarked}
           onClose={() => setCollectionModalOpen(false)}
-          onBookmarkStateChange={(nextBookmarked) => {
-            void handleBookmarkStateChange(nextBookmarked);
-          }}
+          onBookmarkStateChange={handleBookmarkStateChange}
         />
       ) : null}
     </motion.div>

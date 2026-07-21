@@ -53,10 +53,37 @@ import {
 } from '@/lib/feed-api';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
+import {
+  disconnectGameStats,
+  fetchPubgSummary,
+  refreshR6Summary,
+  GameStatsApiError,
+  type GameName,
+  type PubgSummaryResponse,
+  type R6SummaryResponse,
+  type StatsMode,
+} from '@/lib/game-stats-api';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
 type PostDetailTarget = 'post' | 'comments';
+
+const GAME_STATS_UI_CONFIG: Record<
+  GameName,
+  {
+    displayName: string;
+    disconnectable: boolean;
+  }
+> = {
+  PUBG: {
+    displayName: 'PUBG',
+    disconnectable: true,
+  },
+  R6: {
+    displayName: 'Rainbow Six Siege',
+    disconnectable: true,
+  },
+};
 
 function withImageCacheBust(imageUrl: string | null | undefined) {
   if (!imageUrl) {
@@ -149,43 +176,176 @@ async function fetchProfileFollowsViewer(profileHandle: string, viewerHandle?: s
   }
 }
 
-function formatGameStatsSummary(stats: unknown) {
+type GameStatsRecord = Record<string, unknown>;
+
+function toGameStatsRecord(stats: unknown): GameStatsRecord | null {
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+    return null;
+  }
+
+  return stats as GameStatsRecord;
+}
+
+function readStringStat(record: GameStatsRecord, key: string) {
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readNumberStat(record: GameStatsRecord, key: string) {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function isConnectedGameStats(stats: unknown) {
+  return toGameStatsRecord(stats)?.connected === true;
+}
+
+function readStatsMode(record: GameStatsRecord): StatsMode | null {
+  const value = readStringStat(record, 'statsMode');
+  return value === 'RANKED' || value === 'NORMAL' ? value : null;
+}
+
+function isCommonGameStats(gameName: string) {
+  const normalizedGameName = gameName.toLowerCase();
+  return normalizedGameName === 'pubg' || normalizedGameName === 'r6';
+}
+
+function getDisconnectableGameName(gameName: string): GameName | null {
+  const normalizedGameName = gameName.toUpperCase();
+
+  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6') {
+    return null;
+  }
+
+  return GAME_STATS_UI_CONFIG[normalizedGameName].disconnectable ? normalizedGameName : null;
+}
+
+function formatNullablePercent(value: number | null) {
+  if (value === null) {
+    return '-';
+  }
+
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
+function formatGameStatsSummary(gameName: string, stats: unknown) {
+  const record = toGameStatsRecord(stats);
+  if (!record) {
     return String(stats ?? '');
   }
 
-  const record = stats as Record<string, unknown>;
+  if (!isCommonGameStats(gameName)) {
+    return Object.entries(record)
+      .filter(
+        ([key]) =>
+          key !== 'accountId' && key !== 'playerNameNormalized',
+      )
+      .map(([key, value]) => `${key}: ${String(value)}`)
+      .join(' · ');
+  }
+
   const summaryParts: string[] = [];
+  const tierLabel = readStringStat(record, 'tierLabel');
+  const winRate = readNumberStat(record, 'winRate');
+  const statsMode = readStatsMode(record);
+  const kd = readNumberStat(record, 'kd');
+  const matches = readNumberStat(record, 'matches');
 
-  const kda = typeof record.kda === 'number' ? record.kda : null;
-  const winRate = typeof record.winRate === 'number' ? record.winRate : null;
-  const games = typeof record.games === 'number' ? record.games : null;
-  const tierLabel = typeof record.tierLabel === 'string' ? record.tierLabel : null;
-
-  if (tierLabel) {
+  if (statsMode === 'RANKED' && tierLabel) {
     summaryParts.push(tierLabel);
   }
 
-  if (kda !== null) {
-    summaryParts.push(`K/D ${kda.toFixed(2)}`);
+  summaryParts.push(`K/D ${kd === null ? '-' : kd.toFixed(2)}`);
+  summaryParts.push(`승률 ${formatNullablePercent(winRate)}`);
+  summaryParts.push(matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`);
+
+  return summaryParts.join(' · ');
+}
+
+function formatGameStatsDetail(gameName: string, stats: unknown) {
+  if (!isCommonGameStats(gameName)) {
+    return null;
   }
 
-  if (winRate !== null) {
-    summaryParts.push(`승률 ${winRate}%`);
+  const record = toGameStatsRecord(stats);
+  if (!record) {
+    return null;
   }
 
-  if (games !== null) {
-    summaryParts.push(`${games}게임`);
+  const playerName = readStringStat(record, 'playerName');
+  const statsMode = readStatsMode(record);
+  const statsModeLabel = statsMode === 'RANKED' ? '경쟁전' : statsMode === 'NORMAL' ? '일반전' : null;
+
+  return [playerName, statsModeLabel].filter(Boolean).join(' · ') || null;
+}
+
+function removeGameStats(gameStats: UserProfile['gameStats'], gameName: string): UserProfile['gameStats'] {
+  const normalizedGameName = gameName.toLowerCase();
+  return Object.fromEntries(
+    Object.entries(gameStats).filter(([key]) => key.toLowerCase() !== normalizedGameName),
+  );
+}
+
+function applyPubgSummary(gameStats: UserProfile['gameStats'], summary: PubgSummaryResponse) {
+  if (!summary.connected) {
+    return removeGameStats(gameStats, 'PUBG');
   }
 
-  if (summaryParts.length > 0) {
-    return summaryParts.join(' · ');
+  const existing = toGameStatsRecord(gameStats.PUBG) ?? {};
+
+  return {
+    ...gameStats,
+    PUBG: {
+      ...existing,
+      game: summary.game,
+      connected: true,
+      playerName: summary.playerName,
+      tierLabel: summary.tierLabel,
+      kd: summary.kd,
+      winRate: summary.winRate,
+      matches: summary.matches,
+      statsMode: summary.statsMode,
+    },
+  };
+}
+
+function applyR6Summary(gameStats: UserProfile['gameStats'], summary: R6SummaryResponse) {
+  if (!summary.connected) {
+    return removeGameStats(gameStats, 'R6');
   }
 
-  return Object.entries(record)
-    .filter(([key]) => key !== 'accountId')
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(' · ');
+  const existing = toGameStatsRecord(gameStats.R6) ?? {};
+  return {
+    ...gameStats,
+    R6: {
+      ...existing,
+      game: summary.game,
+      connected: true,
+      playerName: summary.playerName,
+      platform: summary.platform,
+      tierLabel: summary.tierLabel,
+      kd: summary.kd,
+      winRate: summary.winRate,
+      matches: summary.matches,
+      statsMode: summary.statsMode,
+      updatedAt: summary.updatedAt,
+    },
+  };
+}
+
+function getGameStatsErrorMessage(gameName: 'PUBG' | 'R6', error: unknown) {
+  if (!(error instanceof GameStatsApiError)) {
+    return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
+  }
+
+  if (gameName === 'R6') {
+    if (error.status === 404) return 'R6 계정을 찾지 못했습니다. Ubisoft 닉네임을 확인해 주세요.';
+    if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
+    if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  return error.message;
 }
 
 export default function ProfilePage() {
@@ -206,6 +366,8 @@ export default function ProfilePage() {
   const [followListError, setFollowListError] = useState<string | null>(null);
   const [followActionHandle, setFollowActionHandle] = useState<string | null>(null);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
+  const [disconnectTarget, setDisconnectTarget] = useState<GameName | null>(null);
+  const [isDisconnectingGame, setIsDisconnectingGame] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
   const [profileReportMenuOpen, setProfileReportMenuOpen] = useState(false);
   const [profileReportOpen, setProfileReportOpen] = useState(false);
@@ -345,28 +507,137 @@ export default function ProfilePage() {
 
     return Object.entries(profile.gameStats).map(([gameName, stats]) => ({
       gameName,
-      summary: formatGameStatsSummary(stats),
+      summary: formatGameStatsSummary(gameName, stats),
+      detail: formatGameStatsDetail(gameName, stats),
+      disconnectGameName: getDisconnectableGameName(gameName),
     }));
   }, [profile?.gameStats]);
 
   const handleRefreshStats = async () => {
-    if (!profile || (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)) {
+    if (
+      !profile ||
+      isRefreshing ||
+      (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)
+    ) {
+      return;
+    }
+
+    const refreshRequests: Array<{
+      gameName: 'PUBG' | 'R6';
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse>;
+    }> = [];
+
+    if (isConnectedGameStats(profile.gameStats.PUBG)) {
+      refreshRequests.push({ gameName: 'PUBG', request: fetchPubgSummary });
+    }
+    if (isConnectedGameStats(profile.gameStats.R6)) {
+      refreshRequests.push({ gameName: 'R6', request: refreshR6Summary });
+    }
+
+    if (refreshRequests.length === 0) {
+      alert('새로고칠 연결된 게임 전적이 없습니다.');
       return;
     }
 
     try {
       setIsRefreshing(true);
-      const refreshed = await fetchMyProfile();
-      setProfile({
-        ...refreshed,
-        followedByMe: false,
+      const results = await Promise.allSettled(refreshRequests.map(({ request }) => request()));
+      let updatedGameStats = profile.gameStats;
+      const failures: string[] = [];
+      const disconnectedGames = new Set<string>();
+
+      results.forEach((result, index) => {
+        const gameName = refreshRequests[index]?.gameName;
+        if (!gameName) {
+          return;
+        }
+
+        if (result.status === 'rejected') {
+          failures.push(`${gameName}: ${getGameStatsErrorMessage(gameName, result.reason)}`);
+          return;
+        }
+
+        if (!result.value.connected) {
+          disconnectedGames.add(gameName);
+        }
+
+        updatedGameStats =
+          gameName === 'R6'
+            ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
+            : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
-      setProfileCover(refreshed.coverImageUrl || null);
-      setProfileAvatar(refreshed.profileImageUrl);
-    } catch (refreshError) {
-      alert(refreshError instanceof Error ? refreshError.message : 'Failed to refresh profile.');
+
+      let nextProfile: UserProfile = {
+        ...profile,
+        gameStats: updatedGameStats,
+      };
+
+      try {
+        const refreshed = await fetchMyProfile();
+        nextProfile = {
+          ...refreshed,
+          followedByMe: false,
+        };
+        setProfileCover(refreshed.coverImageUrl || null);
+        setProfileAvatar(refreshed.profileImageUrl);
+      } catch (profileRefreshError) {
+        failures.push(
+          profileRefreshError instanceof Error
+            ? `프로필 반영: ${profileRefreshError.message}`
+            : '프로필 반영: 프로필을 다시 불러오지 못했습니다.',
+        );
+      }
+
+      for (const gameName of disconnectedGames) {
+        nextProfile = {
+          ...nextProfile,
+          gameStats: removeGameStats(nextProfile.gameStats, gameName),
+        };
+      }
+
+      setProfile(nextProfile);
+
+      if (failures.length > 0) {
+        alert(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
+      }
     } finally {
       setIsRefreshing(false);
+    }
+  };
+
+  const handleGameConnected = async () => {
+    const refreshed = await fetchMyProfile();
+    setProfile({
+      ...refreshed,
+      followedByMe: false,
+    });
+    setProfileCover(refreshed.coverImageUrl || null);
+    setProfileAvatar(refreshed.profileImageUrl);
+  };
+
+  const handleDisconnectGame = async () => {
+    const gameName = disconnectTarget;
+
+    if (!gameName || isDisconnectingGame) {
+      return;
+    }
+
+    try {
+      setIsDisconnectingGame(true);
+      await disconnectGameStats(gameName);
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              gameStats: removeGameStats(current.gameStats, gameName),
+            }
+          : current,
+      );
+      setDisconnectTarget(null);
+    } catch (disconnectError) {
+      alert(getGameStatsErrorMessage(gameName, disconnectError));
+    } finally {
+      setIsDisconnectingGame(false);
     }
   };
 
@@ -747,6 +1018,7 @@ export default function ProfilePage() {
   }
 
   const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
+  const disconnectTargetConfig = disconnectTarget ? GAME_STATS_UI_CONFIG[disconnectTarget] : null;
   const displayedCover =
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
@@ -975,7 +1247,13 @@ export default function ProfilePage() {
                     stat+
                   </button>
 
-                  <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshStats()}
+                    disabled={isRefreshing}
+                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    aria-label="연결된 게임 전적 새로고침"
+                  >
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
                   </button>
                 </div>
@@ -997,12 +1275,25 @@ export default function ProfilePage() {
                       <div className="h-12 w-12 rounded-xl bg-zinc-300" />
                       <div>
                         <p className="text-xl font-black text-black">{entry.gameName}</p>
-                        <p className="max-w-xl truncate text-base text-slate-600">{entry.summary}</p>
+                        {entry.detail ? (
+                          <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                        ) : null}
+                        <p className="mt-1 max-w-xl truncate text-base text-slate-600">{entry.summary}</p>
                       </div>
                     </div>
 
-                    <div className="text-right">
+                    <div className="flex items-center gap-2 text-right">
                       <p className="text-sm font-black uppercase tracking-widest text-zinc-400">Live sync</p>
+                      {isOwnProfile && entry.disconnectGameName ? (
+                        <button
+                          type="button"
+                          onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                          aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 ))
@@ -1107,7 +1398,42 @@ export default function ProfilePage() {
         ) : null}
       </div>
 
-      {isOwnProfile && showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {isOwnProfile && showFetchStatsModal ? (
+        <FetchGameStatsModal
+          onClose={() => setShowFetchStatsModal(false)}
+          onConnected={handleGameConnected}
+        />
+      ) : null}
+      {isOwnProfile && disconnectTarget && disconnectTargetConfig ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4">
+          <div className="w-full max-w-md rounded-[28px] bg-white p-8 shadow-2xl">
+            <h2 className="text-2xl font-black tracking-tight text-black">
+              {disconnectTargetConfig.displayName} 전적 연동을 해제할까요?
+            </h2>
+            <p className="mt-3 text-base font-bold text-zinc-500">
+              {disconnectTargetConfig.displayName} 전적만 프로필에서 제거됩니다. 다른 게임 전적은 유지됩니다.
+            </p>
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDisconnectTarget(null)}
+                disabled={isDisconnectingGame}
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDisconnectGame()}
+                disabled={isDisconnectingGame}
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
+              >
+                {isDisconnectingGame ? 'Disconnecting...' : 'Disconnect'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}

@@ -35,7 +35,7 @@ export default function OAuthSuccessPage() {
 
                 if (cancelled) return;
 
-                // 2. 받아온 access token을 로컬 스토리지/메모리에 저장
+                // 2. 받아온 access token을 브라우저 메모리에 저장
                 setAccessToken(nextToken);
 
                 // 3. 내 사용자 정보 가져오기

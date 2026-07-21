@@ -6,6 +6,8 @@ import {
   AUTH_CLEARED_EVENT,
   AUTH_USER_KEY,
   clearStoredAuth,
+  getAuthGeneration,
+  isCurrentAuthGeneration,
   refreshAccessToken,
 } from '@/lib/auth-store';
 
@@ -91,9 +93,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      const bootstrapGeneration = getAuthGeneration();
+
       try {
         const parsedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
-        const refreshedToken = await refreshAccessToken();
+        const refreshedToken = await refreshAccessToken(bootstrapGeneration);
+
+        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
 
         if (!refreshedToken) {
           setUser(null);
@@ -104,6 +112,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(parsedUser);
         window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsedUser));
       } catch {
+        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
+
         setUser(null);
         clearStoredAuth({ notify: false });
       } finally {

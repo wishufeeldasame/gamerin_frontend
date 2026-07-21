@@ -226,21 +226,12 @@ export async function fetchConversationList() {
   return sortConversationsByUpdatedAt(data.map(toConversation));
 }
 
-export async function openMessageEventSource(
-  options: { forceRefresh?: boolean } = {}
-) {
- const accessToken = options.forceRefresh
-    ? await refreshAccessToken()
-    : await ensureAccessToken();
+export async function openMessageEventSource() {
+  await messageRequest<{ expiresAt: string }>('/stream-token', {
+    method: 'POST',
+  });
 
-  if (!accessToken) {
-    throw createMessageAuthError();
-  }
-
-  const streamUrl = new URL(`${MESSAGE_BASE}/stream`, window.location.origin);
-  streamUrl.searchParams.set('accessToken', accessToken);
-
-  return new EventSource(streamUrl.toString(), { withCredentials: true });
+  return new EventSource(`${MESSAGE_BASE}/stream`, { withCredentials: true });
 }
 
 export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {
