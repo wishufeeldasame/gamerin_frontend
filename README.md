@@ -352,3 +352,16 @@ npm run dev
   > 적용 범위: 북마크가 사용하는 `feed-api.ts`에 적용했으며 메시지·멘토링·마일리지 API는 별도 후속 작업으로 분리
 
   > 요약 : 계정 전환 후 이전 계정의 북마크 응답과 401 재시도가 현재 계정의 토큰·모음집 상태를 덮지 못하도록 수정
+
+- **26/07/21** 서장호
+
+  > PUBG와 Rainbow Six Siege의 전적 API 타입과 인증 요청을 `game-stats-api.ts`로 분리
+  > 프로필 전적 카드에 연동 닉네임, 경쟁전/일반전 구분, 티어, K/D, 승률, 경기 수를 공통 형식으로 표시
+  > 일반전에서는 티어를 표시하지 않고 조회할 수 없는 값은 `-`로 처리하도록 렌더링 규칙 정리
+  > 기존 `kda`, `games` 필드 fallback 없이 새 `kd`, `matches`, `statsMode` 응답 구조만 사용하도록 변경
+  > R6 전용 전적 제거 상태·핸들러·확인 모달을 PUBG와 R6가 함께 사용하는 공통 UI로 전환
+  > 선택한 게임에 따라 `DELETE /api/v1/pubg/disconnect` 또는 `DELETE /api/v1/r6/disconnect`를 호출하고 성공한 게임 카드만 제거하도록 구현
+  > R6 계정이 다른 사용자에게 이미 연동된 경우 백엔드의 `409 Conflict` 메시지를 연결 모달에 표시하도록 처리
+  > 검증: `git diff --check`, `npm run lint`, `npx tsc --noEmit`, `npm run build` 통과
+
+  > 요약 : PUBG/R6 공통 전적 표시와 재사용 가능한 전적 제거 UI를 구성하고 R6 중복 연동 오류를 화면에 연결
