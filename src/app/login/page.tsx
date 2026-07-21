@@ -187,7 +187,6 @@ export default function LoginPage() {
             <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
             <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
           </div>
-
           <div className="flex flex-col gap-4">
             <button
               type="button"

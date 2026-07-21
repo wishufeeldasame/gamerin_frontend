@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Bookmark, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
+import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
@@ -25,6 +25,7 @@ import {
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
+import { ReportContentModal } from './Report';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -43,6 +44,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [post, setPost] = useState<PostRecord | null>(null);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
+  const [reportComment, setReportComment] = useState<CommentRecord | null>(null);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -50,6 +52,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [bookmarked, setBookmarked] = useState(false);
@@ -274,6 +277,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   }
 
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
+  const canReportPost = !canDeletePost;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
@@ -285,7 +289,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
         <span>Back to Feed</span>
       </button>
 
-      <article className="overflow-hidden rounded-[40px] border border-zinc-100 bg-white shadow-sm">
+      <article className="rounded-[40px] border border-zinc-100 bg-white shadow-sm">
         <div className="p-8">
           <div className="mb-8 flex items-center justify-between">
             <Link href={`/profile/${encodeURIComponent(post.authorHandle)}`} className="flex items-center gap-4">
@@ -310,28 +314,47 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             <div className="relative">
               <button
                 type="button"
-                onClick={() => {
-                  if (canDeletePost) {
-                    setMenuOpen((current) => !current);
-                  }
-                }}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-zinc-300"
+                onClick={() => setMenuOpen((current) => !current)}
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
-                disabled={!canDeletePost}
               >
                 <MoreHorizontal size={24} />
               </button>
 
-              {menuOpen && canDeletePost ? (
-                <div className="absolute right-0 top-12 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+              {menuOpen ? (
+                <div className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                  {canReportPost ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        setReportPostOpen(true);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                    >
+                      <Flag size={15} />
+                      게시물 신고
+                    </button>
+                  ) : null}
+
+                  {canDeletePost ? (
+                    <button
+                      type="button"
+                      onClick={handleDeletePost}
+                      disabled={deletingPost}
+                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                    >
+                      {deletingPost ? '삭제 중...' : '삭제'}
+                    </button>
+                  ) : null}
+
                   <button
                     type="button"
-                    onClick={handleDeletePost}
-                    disabled={deletingPost}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
                   >
-                    {deletingPost ? '삭제 중...' : '삭제'}
+                    취소
                   </button>
                 </div>
               ) : null}
@@ -448,23 +471,23 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                           @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
                         </span>
                       </div>
-                      {comment.mine ? (
-                        <div className="relative">
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setCommentMenuOpenId((current) =>
-                                current === comment.commentId ? null : comment.commentId
-                              )
-                            }
-                            className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
-                            aria-label="댓글 메뉴"
-                            aria-expanded={commentMenuOpenId === comment.commentId}
-                          >
-                            <MoreHorizontal size={18} />
-                          </button>
-                          {commentMenuOpenId === comment.commentId ? (
-                            <div className="absolute right-0 top-8 z-30 min-w-28 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                      <div className="relative">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCommentMenuOpenId((current) =>
+                              current === comment.commentId ? null : comment.commentId
+                            )
+                          }
+                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
+                          aria-label="댓글 메뉴"
+                          aria-expanded={commentMenuOpenId === comment.commentId}
+                        >
+                          <MoreHorizontal size={18} />
+                        </button>
+                        {commentMenuOpenId === comment.commentId ? (
+                          <div className="absolute right-0 top-8 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                            {comment.mine ? (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteComment(comment)}
@@ -473,10 +496,29 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                               >
                                 {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
                               </button>
-                            </div>
-                          ) : null}
-                        </div>
-                      ) : null}
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCommentMenuOpenId(null);
+                                  setReportComment(comment);
+                                }}
+                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                              >
+                                <Flag size={15} />
+                                댓글 신고
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setCommentMenuOpenId(null)}
+                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                            >
+                              취소
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                     <p className="text-sm font-medium text-zinc-700">{comment.content}</p>
                   </div>
@@ -495,6 +537,27 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             setPost(sharedPost);
             onPostUpdated?.(sharedPost);
           }}
+        />
+      ) : null}
+
+      {reportComment ? (
+        <ReportContentModal
+          title="댓글 신고"
+          author={reportComment.author}
+          authorHandle={reportComment.authorHandle}
+          content={reportComment.content}
+          emptyContentLabel="댓글 내용 없음"
+          onClose={() => setReportComment(null)}
+        />
+      ) : null}
+      {reportPostOpen ? (
+        <ReportContentModal
+          title="게시물 신고"
+          author={post.author}
+          authorHandle={post.authorHandle}
+          content={post.content}
+          emptyContentLabel="미디어 게시글"
+          onClose={() => setReportPostOpen(false)}
         />
       ) : null}
 

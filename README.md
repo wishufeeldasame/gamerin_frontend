@@ -299,7 +299,30 @@ npm run dev
 
   > 요약 : 헤더 검색 라우팅, 검색 페이지, 결과 탭, 게임 필터, 전역 검색 화면 구조를 추가하고 백엔드 검색 API 연동 준비를 정리
 
-- **26/07/15** 전준범
+<* **26/07/12** 전준범
+
+  > 메시지 첨부 미리보기 URL 정리 방식을 `attachmentsRef` 기반으로 변경해, 이미지 일부 삭제 시 남은 미리보기가 깨질 수 있는 문제 보완
+  > 메시지 SSE 연결 함수에 `forceRefresh` 옵션을 추가하고, 재연결 시 새 access token을 확보하도록 흐름 개선
+  > SSE 연결 끊김 시 불필요한 재연결 오류 문구를 노출하지 않고, 내부 재연결만 유지하도록 정리
+  > 대화 목록이 5개 초과로 접힌 상태에서도 현재 선택된 대화가 목록에 유지되도록 표시 로직 개선
+  > 검증: `npm run lint` 통과, TypeScript `tsc --noEmit` 통과, 변경 파일 ESLint 직접 실행 통과
+
+  > 요약 : 메시지 첨부 미리보기 안정성, 실시간 메시지 재연결 토큰 갱신, 접힌 대화 목록의 선택 대화 유지 동작을 개선
+
+* **26/07/14** 전준범
+
+  > 게시물·댓글·사용자 신고 UI를 공통 `Report.tsx` 컴포넌트로 분리해 동일한 신고 절차를 재사용하도록 구성
+  > 게시물 목록과 상세 화면의 `...` 메뉴에서 다른 사용자의 게시물을 신고할 수 있도록 기능 추가
+  > 게시물 상세 화면에서 다른 사용자의 댓글을 신고할 수 있도록 메뉴 추가
+  > 다른 사용자 프로필의 채팅 버튼 왼쪽에 `...` 메뉴를 추가하고 사용자 신고 기능 연결
+  > 신고 사유 8종을 제공하고, `기타` 선택 시 최대 300자의 사유를 직접 입력할 수 있도록 처리
+  > 신고 확인 모달과 접수 완료 안내 화면을 추가하고, 본인 콘텐츠에는 신고 대신 기존 삭제 메뉴가 표시되도록 구분
+  > 메시지 SSE 연결 함수에 선택적 `forceRefresh` 옵션을 추가해 재연결 시 새로운 access token을 사용하도록 개선
+  > 검증: `npm run lint` 통과, TypeScript `npx tsc --noEmit` 통과, `npm run build` 통과
+
+  > 요약 : 게시물·댓글·사용자 신고 UI를 공통 컴포넌트로 구성하고, 메시지 실시간 재연결 시 access token 갱신 흐름을 개선
+
+* **26/07/15** 전준범
 
   > PR #34에서 변경된 메시지 SSE 인증 흐름을 백엔드 계약에 맞게 복구
   > `EventSource` URL의 `accessToken` query parameter 생성 및 전달 로직 제거
@@ -310,36 +333,36 @@ npm run dev
 
   > 요약 : PR #34의 SSE 인증 회귀를 수정하고 메시지 실시간 연결을 HttpOnly cookie 기반 방식으로 복구
 
-- **26/07/16** 전준범
+* **26/07/16** 전준범
 
   > PR #36 북마크 모음집의 공용 `localStorage` 키를 사용자 ID별 `gamerin_bookmark_collections:{userId}` 키로 분리
   > 로그인 사용자가 바뀌거나 로그아웃될 때 이전 계정의 모음집 상태를 즉시 비우고, 현재 계정 키에서 다시 불러오도록 수정
   > 이전 공용 키 `gamerin_bookmark_collections`는 읽지 않고 삭제하여 계정 간 모음집 정보가 다시 표시되지 않도록 정리
   > 모음집에 게시글을 추가하거나 제거할 때 서버 북마크 요청이 성공한 뒤에만 로컬 `savedPostIds`를 변경하도록 수정
   > 서버 요청 실패 시 모음집 상태를 변경하지 않고 오류를 표시하며, 요청 중 중복 선택을 막도록 처리
-  > 선택한 모음집의 현재 로드 결과가 비어 있어도 다음 페이지가 있으면 `더 보기` 버튼을 표시하도록 페이지네이션 20개 이상시 더보기 표현 조건 수정
+  > 선택한 모음집의 현재 로드 결과가 비어 있어도 다음 페이지가 있으면 `더 보기` 버튼을 표시하도록 페이지네이션 표시 조건 수정
   > 저장된 모음집 JSON의 구조를 검증하고, 잘못된 현재 사용자 데이터는 해당 사용자 키만 초기화하도록 보완
-  > 검증: `git diff --check`, `tsc --noEmit`, `git diff --cached --check`, `TypeScript` 통과.
+  > 검증: `git diff --check`, `tsc --noEmit`, `git diff --cached --check` 통과
 
   > 요약 : 사용자별 모음집 저장소 분리, 서버 실패 시 로컬 상태 불일치 방지, 모음집 페이지네이션 접근 불가 문제를 수정
 
-- **26/07/17** 김신의
+* **26/07/17** 김신의
 
   > 북마크 모음집 상태 관리를 `localStorage` 기반에서 백엔드 API 연동 방식으로 전환
   > `BookmarkCollection` 타입을 백엔드 응답 필드인 `collectionId`, `name`, `coverImageUrl`, `bookmarkCount`, `createdAt`, `updatedAt`, `containsPost` 기준으로 수정
   > `GET /api/v1/bookmark-collections`와 `GET /api/v1/bookmark-collections?postId={postId}`를 사용해 모음집 목록 및 게시글별 저장 상태를 조회하도록 연결
   > 모음집 생성 시 `POST /api/v1/bookmark-collections`에 `name`, `initialPostId`를 전송하여 생성과 동시에 현재 게시글을 저장하도록 처리
-  > 모음집 체크/해제 시 `PUT/DELETE /api/v1/bookmark-collections/{collectionId}/bookmarks/{postId}`를 호출하도록 저장 모달 로직 교체
+  > 모음집 체크·해제 시 `PUT/DELETE /api/v1/bookmark-collections/{collectionId}/bookmarks/{postId}`를 호출하도록 저장 모달 로직 교체
   > 전체 북마크 해제는 기존 `DELETE /api/v1/posts/{postId}/bookmarks` 흐름을 유지하고, 해제 후 모달 내 체크 상태와 북마크 상태가 즉시 반영되도록 수정
   > `/bookmarks` 페이지 조회를 서버 기준으로 변경하여 전체는 `scope=all`, 미분류는 `scope=unclassified`, 모음집별은 `/api/v1/bookmark-collections/{collectionId}/bookmarks`를 사용하도록 연결
   > 검색어 `q`, 미디어 필터 `mediaOnly`, 커서 `cursor`, 페이지 크기 `size`를 백엔드 쿼리 파라미터로 전달하도록 변경
   > 컬렉션 목록의 `bookmarkCount`와 실제 조회 결과가 일시적으로 어긋나는 경우 선택된 모음집 조회 결과 기준으로 화면 카운트를 보정하도록 처리
-  > 백엔드 API가 별도 서버에서 동작한다는 전제로 프론트는 인증 포함 API 호출과 응답 상태 반영만 담당하도록 역할을 정리
+  > 백엔드 API가 별도 서버에서 동작한다는 전제로 프론트는 인증 포함 API 호출과 응답 상태 반영만 담당하도록 역할 정리
   > 검증: `git diff --check`, `npm run lint`, `tsc --noEmit` 통과
 
-  > 요약 : 북마크 모음집을 서버 API 기반으로 전환하고, 저장 모달과 북마크 페이지의 컬렉션별/미분류 조회 및 상태 동기화를 백엔드 계약에 맞춰 정리
+  > 요약 : 북마크 모음집을 서버 API 기반으로 전환하고, 저장 모달과 북마크 페이지의 컬렉션별·미분류 조회 및 상태 동기화를 백엔드 계약에 맞춰 정리
 
-- **26/07/20** 전준범
+* **26/07/20** 전준범
 
   > [P1] 북마크 요청 중 계정이 전환되면 이전 계정의 늦은 응답이 현재 계정의 모음집 상태를 덮을 수 있는 문제 수정
   > `auth-store.ts`에 `authGeneration`을 추가하고 로그인·로그아웃 및 refresh 요청을 인증 세대별로 구분
@@ -348,15 +371,15 @@ npm run dev
   > 모음집 조회·생성·추가·제거 응답은 요청 당시 사용자 ID와 인증 세대가 현재 사용자와 같은 경우에만 상태에 반영
   > `AuthContext.tsx`의 앱 시작 인증 복원에도 세대 검증을 적용하여 이전 bootstrap 응답이 새 로그인 상태를 덮지 않도록 처리
   > access token 메모리 저장, HttpOnly refresh cookie, 기존 북마크 API 계약과 동일 계정의 401 재시도 정책은 그대로 유지
-  > 검증: 검증: 계정 전환·401 경합 7개 시나리오, `tsc --noEmit`, 전체 `ESLint`, `Next.js production build`, 백엔드 북마크 테스트 30건, `PostgreSQL` 동시성 테스트 13건 통과
+  > 검증: 계정 전환·401 경합 7개 시나리오, `tsc --noEmit`, 전체 `ESLint`, `Next.js production build`, 백엔드 북마크 테스트 30건, `PostgreSQL` 동시성 테스트 13건 통과
   > 적용 범위: 북마크가 사용하는 `feed-api.ts`에 적용했으며 메시지·멘토링·마일리지 API는 별도 후속 작업으로 분리
 
   > 요약 : 계정 전환 후 이전 계정의 북마크 응답과 401 재시도가 현재 계정의 토큰·모음집 상태를 덮지 못하도록 수정
 
-- **26/07/21** 서장호
+* **26/07/21** 서장호
 
   > PUBG와 Rainbow Six Siege의 전적 API 타입과 인증 요청을 `game-stats-api.ts`로 분리
-  > 프로필 전적 카드에 연동 닉네임, 경쟁전/일반전 구분, 티어, K/D, 승률, 경기 수를 공통 형식으로 표시
+  > 프로필 전적 카드에 연동 닉네임, 경쟁전·일반전 구분, 티어, K/D, 승률, 경기 수를 공통 형식으로 표시
   > 일반전에서는 티어를 표시하지 않고 조회할 수 없는 값은 `-`로 처리하도록 렌더링 규칙 정리
   > 기존 `kda`, `games` 필드 fallback 없이 새 `kd`, `matches`, `statsMode` 응답 구조만 사용하도록 변경
   > R6 전용 전적 제거 상태·핸들러·확인 모달을 PUBG와 R6가 함께 사용하는 공통 UI로 전환

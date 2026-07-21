@@ -562,6 +562,7 @@ export default function MessagesPage() {
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const activeConversationIdRef = useRef('');
+  const attachmentsRef = useRef<DraftAttachment[]>([]);
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
@@ -621,7 +622,15 @@ export default function MessagesPage() {
     if (videoInputRef.current) videoInputRef.current.value = '';
   }, [revokeAttachmentUrls]);
 
-  useEffect(() => () => revokeAttachmentUrls(attachments), [attachments, revokeAttachmentUrls]);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      revokeAttachmentUrls(attachmentsRef.current);
+    };
+  }, [revokeAttachmentUrls]);
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -836,7 +845,10 @@ export default function MessagesPage() {
 
     const connect = async () => {
       try {
-        const nextEventSource = await openMessageEventSource();
+        const nextEventSource = await openMessageEventSource({
+          forceRefresh: reconnectAttempt > 0,
+        });
+
         if (cancelled) {
           nextEventSource.close();
           return;
@@ -876,8 +888,8 @@ export default function MessagesPage() {
             eventSource = null;
           }
 
-          if (!cancelled && scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          if (!cancelled) {
+            scheduleReconnect();
           }
         };
       } catch (error) {
@@ -886,8 +898,8 @@ export default function MessagesPage() {
           setIsAuthError(authError);
           if (authError) {
             setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          } else if (scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          } else {
+            scheduleReconnect();
           }
         }
       }
@@ -923,9 +935,25 @@ export default function MessagesPage() {
     );
   }, [conversations, query]);
   const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
-  const visibleConversations = hasHiddenConversations && !conversationListExpanded
-    ? filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT)
-    : filteredConversations;
+  const visibleConversations = useMemo(() => {
+    if (!hasHiddenConversations || conversationListExpanded) {
+      return filteredConversations;
+    }
+
+    const previewConversations = filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT);
+    const activeConversationInList = filteredConversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+
+    if (
+      activeConversationInList === undefined ||
+      previewConversations.some((conversation) => conversation.id === activeConversationInList.id)
+    ) {
+      return previewConversations;
+    }
+
+    return [...previewConversations.slice(0, CONVERSATION_PREVIEW_COUNT - 1), activeConversationInList];
+  }, [activeConversationId, conversationListExpanded, filteredConversations, hasHiddenConversations]);
 
   useEffect(() => {
     setConversationListExpanded(false);
