@@ -26,6 +26,7 @@ import {
 import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
+import { HashtagText } from './HashtagText';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -361,7 +362,11 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             </div>
           </div>
 
-          {post.content ? <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">{post.content}</p> : null}
+          {post.content ? (
+            <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">
+              <HashtagText text={post.content} />
+            </p>
+          ) : null}
 
           {post.media.length > 0 ? (
             <div className="mb-8 space-y-3">
