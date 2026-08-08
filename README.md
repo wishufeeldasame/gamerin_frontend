@@ -388,3 +388,15 @@ npm run dev
   > 검증: `git diff --check`, `npm run lint`, `npx tsc --noEmit`, `npm run build` 통과
 
   > 요약 : PUBG/R6 공통 전적 표시와 재사용 가능한 전적 제거 UI를 구성하고 R6 중복 연동 오류를 화면에 연결
+
+* **26/08/08** 김신의
+
+  > 백엔드 리포스트 계약에 맞춰 `ReposterInfo.repostedAt`과 `RepostActionResponse` 타입을 추가
+  > `POST /api/v1/posts/{postId}/reposts`, `DELETE /api/v1/posts/{postId}/reposts` 응답의 `isReposted`, `repostCount`를 프론트 상태 보정에 사용하도록 수정
+  > 게시글 목록 카드에서 리포스트 표시 영역에 리포스트 시간을 함께 표시하고, 본인 게시글 리포스트 버튼을 비활성화하도록 처리
+  > 게시글 상세 화면 액션 영역에 리포스트 생성·취소 버튼과 카운트 표시를 추가하고, 상세 응답에서는 `isReposted`, `repostCount`만 사용하도록 연결
+  > 북마크 페이지에 남아 있던 이전 모음집 UI 중복 블록을 제거해 `BookmarkCollection` 타입 불일치 빌드 오류를 수정
+  > 메시지 SSE 재연결 호출부와 `openMessageEventSource` 함수 시그니처를 맞춰 `forceRefresh` 옵션을 처리하도록 수정
+  > 검증: `npm.cmd run lint`, `npm.cmd run build` 통과
+
+  > 요약 : 게시글 리포스트 백엔드 계약에 맞춰 목록·상세 화면 리포스트 UI를 연동하고, PR 빌드를 막던 기존 타입 오류를 함께 정리

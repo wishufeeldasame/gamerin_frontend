@@ -41,6 +41,7 @@ export interface ExternalLinkCard {
 export interface ReposterInfo {
   userId: string;
   nickname: string;
+  repostedAt: string;
 }
 
 export interface PostRecord {
@@ -144,6 +145,13 @@ export type ShareTarget = 'COPY_LINK' | 'WEB_SHARE' | 'KAKAO' | 'X' | 'FACEBOOK'
 export interface ShareResponse {
   postId: string;
   shares: number;
+}
+
+export interface RepostActionResponse {
+  postId: string;
+  isReposted: boolean;
+  repostCount: number;
+  repostedAt: string | null;
 }
 
 export type BookmarkScope = 'all' | 'unclassified';
@@ -436,13 +444,13 @@ export async function unlikePost(postId: string) {
 }
 
 export async function repostPost(postId: string) {
-  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
     method: 'POST',
   });
 }
 
 export async function unrepostPost(postId: string) {
-  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
     method: 'DELETE',
   });
 }

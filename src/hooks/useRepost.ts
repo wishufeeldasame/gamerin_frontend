@@ -46,11 +46,20 @@ export function useRepost(post: PostRecord, onChange?: UseRepostOptions['onChang
     onChange?.(optimisticPost);
 
     try {
-      if (optimisticPost.isReposted) {
-        await repostPost(post.postId);
-      } else {
-        await unrepostPost(post.postId);
-      }
+      const response = optimisticPost.isReposted
+        ? await repostPost(post.postId)
+        : await unrepostPost(post.postId);
+      const confirmedPost = {
+        ...currentPost,
+        isReposted: response.isReposted,
+        repostCount: response.repostCount,
+      };
+
+      setRepostState({
+        isReposted: confirmedPost.isReposted,
+        repostCount: confirmedPost.repostCount,
+      });
+      onChange?.(confirmedPost);
     } catch (repostError) {
       setRepostState({
         isReposted: currentPost.isReposted,
