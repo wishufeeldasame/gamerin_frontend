@@ -388,3 +388,18 @@ npm run dev
   > 검증: `git diff --check`, `npm run lint`, `npx tsc --noEmit`, `npm run build` 통과
 
   > 요약 : PUBG/R6 공통 전적 표시와 재사용 가능한 전적 제거 UI를 구성하고 R6 중복 연동 오류를 화면에 연결
+
+* **26/08/11** 전준범
+
+  > 일반 사용자 신고 API 클라이언트를 `src/lib/report-api.ts`로 분리
+  > `GET /api/v1/reports/reasons`를 호출해 백엔드 신고 사유 코드와 라벨을 모달에 동적으로 표시
+  > `POST /api/v1/reports`에 `targetType`, `targetId`, `reasonCode`, `details`를 전송해 실제 신고가 DB에 접수되도록 연결
+  > 기존 인증 흐름과 동일하게 Bearer access token, 인증 세대 검증, 401 refresh 후 1회 재시도를 적용
+  > 게시글은 `POST`와 `postId`, 댓글은 `COMMENT`와 `commentId`, 사용자 프로필은 `USER`와 사용자 UUID를 전달하도록 연결
+  > `OTHER` 선택 시 최대 300자의 상세 사유를 전송하고, 사유 조회 로딩·재시도·접수 오류 상태를 화면에 표시
+  > 신고 API 성공 후에만 접수 완료 화면을 표시하고, 동일 대상을 다시 신고한 경우 `409 Conflict`를 `이미 신고한 대상입니다.` 메시지로 처리
+  > 로컬 백엔드 `feat/report`와 실제 통신하여 사유 조회 `200`, 신고 접수 `200`, 동일 대상 재신고 `409`, `localhost:3000` CORS 허용을 확인
+  > 현재 연동 범위는 게시글·댓글·사용자이며, 멘토링·메시지 신고와 관리자 신고 목록 연동은 후속 작업으로 분리
+  > 검증: 변경 파일 ESLint 통과. 
+
+  > 요약 : 게시글·댓글·사용자 신고 UI를 백엔드 신고 사유 조회 및 신고 접수 API와 연결하고 인증·중복 신고·오류 처리 흐름을 구현
