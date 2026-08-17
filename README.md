@@ -1,5 +1,21 @@
 # GamerIN Frontend
 
+## 최근 작업 - 알림 프론트 연동
+
+* **26/08/18** 김서영
+
+  > 백엔드 알림 API 계약에 맞춰 프론트 알림 드롭다운과 상단 unread 배지를 실제 API 기반으로 전환
+  > `src/lib/notification-api.ts`를 추가하여 알림 목록, 읽지 않은 알림 개수, 개별 읽음, 전체 읽음 API 호출을 분리
+  > Header 알림 배지를 더미 값이 아닌 `GET /api/v1/notifications/unread-count` 응답 기준으로 표시
+  > 기존 더미 `NotificationPanel`을 API 연동 패널로 교체하고 커서 기반 더보기, 로딩, 오류, 빈 상태 UI를 추가
+  > 알림 클릭 시 개별 읽음 처리 후 타입별 경로로 이동하도록 처리
+  > 게시글/댓글/리포스트/멘션은 게시글 상세, 팔로우는 사용자 프로필, DM은 대화방, 멘토링 알림은 멘토링 화면으로 라우팅
+  > `actor`가 null이거나 참조 ID가 없는 알림도 화면이 깨지지 않도록 fallback 문구와 이동 방어 처리 적용
+  > 전체 읽음 처리 성공 시 목록 read 상태와 unread count를 즉시 갱신하고 서버 count를 재조회하도록 정리
+  > 검증: `git diff --check`, `npm.cmd run lint`, `npm.cmd run build` 통과
+
+  > 요약 : 알림 API client, Header unread 배지, 알림 드롭다운 목록/읽음/더보기/타입별 이동 기능을 백엔드 계약에 맞춰 연동
+
 ## 최근 작업 - 해시태그 및 통합 검색 프론트 연동
 
 * **26/08/08** 김서영
