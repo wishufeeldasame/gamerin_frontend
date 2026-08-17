@@ -4,9 +4,10 @@ import { Bell, MessageSquare, Search, LogOut } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
+import { fetchUnreadNotificationCount } from "@/lib/notification-api";
 
 export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
@@ -14,7 +15,35 @@ export function Header() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationOpen, setNotificationOpen] = useState(false);
-  const [notificationUnreadCount, setNotificationUnreadCount] = useState(2);
+  const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadUnreadCount = async () => {
+      if (!user) {
+        setNotificationUnreadCount(0);
+        return;
+      }
+
+      try {
+        const count = await fetchUnreadNotificationCount();
+        if (!cancelled) {
+          setNotificationUnreadCount(count);
+        }
+      } catch {
+        if (!cancelled) {
+          setNotificationUnreadCount(0);
+        }
+      }
+    };
+
+    void loadUnreadCount();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
