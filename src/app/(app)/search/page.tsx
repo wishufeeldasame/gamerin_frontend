@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Files, Hash, Search, Sparkles, UserRound } from 'lucide-react';
+import { Hash, Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Post } from '@/app/home/components/Post';
 import {
@@ -24,10 +24,10 @@ import {
 } from '@/lib/feed-api';
 
 const searchTabs = [
-  { value: 'all', label: '전체', icon: Sparkles },
-  { value: 'accounts', label: '계정', icon: UserRound },
-  { value: 'posts', label: '게시글', icon: Files },
-  { value: 'hashtags', label: '해시태그', icon: Hash },
+  { value: 'all', label: '\uC804\uCCB4' },
+  { value: 'accounts', label: '\uC0AC\uC6A9\uC790' },
+  { value: 'posts', label: '\uAC8C\uC2DC\uAE00' },
+  { value: 'hashtags', label: '\uD574\uC2DC\uD0DC\uADF8' },
 ] as const;
 
 type SearchTab = (typeof searchTabs)[number]['value'];
@@ -222,7 +222,7 @@ function SearchPageContent() {
   }, [loadSearch]);
 
   const activeTabLabel = useMemo(
-    () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '전체',
+    () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '\uC804\uCCB4',
     [activeTab],
   );
 
@@ -317,27 +317,20 @@ function SearchPageContent() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-5 py-8 sm:px-8">
-      <header className="border-b border-zinc-200 pb-6 dark:border-neutral-800">
-        <div className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-md bg-black text-white dark:bg-[#f5b93d] dark:text-black">
-            <Search size={20} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate text-2xl font-black text-black dark:text-zinc-100">
-              {query ? `"${query}" 검색 결과` : '검색'}
-            </h1>
-            <p className="mt-1 text-xs font-bold text-zinc-400">{activeTabLabel}</p>
-          </div>
-        </div>
+    <div className="border-t-4 border-[#f5b93d]">
+      <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8">
+      <header className="pb-7">
+        <h1 className="text-2xl font-black text-black dark:text-zinc-100">{'\uAC80\uC0C9 \uACB0\uACFC'}</h1>
+        <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          {query ? `'${query}'` + '\uC5D0 \uB300\uD55C \uACB0\uACFC' : '\uAC80\uC0C9\uC5B4\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694'}
+        </p>
       </header>
 
       <nav
-        className="mt-6 grid grid-cols-4 border-b border-zinc-200 dark:border-neutral-800"
+        className="grid grid-cols-4 border-b border-zinc-200 dark:border-neutral-800"
         aria-label="검색 결과 유형"
       >
         {searchTabs.map((tab) => {
-          const Icon = tab.icon;
           const isSelected = activeTab === tab.value;
 
           return (
@@ -346,16 +339,15 @@ function SearchPageContent() {
               type="button"
               onClick={() => setTab(tab.value)}
               aria-pressed={isSelected}
-              className={`relative flex min-h-12 items-center justify-center gap-2 px-2 text-sm font-black transition ${
+              className={`relative flex min-h-12 items-center justify-center px-2 text-sm font-black transition ${
                 isSelected
-                  ? 'text-black dark:text-[#f5b93d]'
+                  ? 'text-black dark:text-zinc-100'
                   : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200'
               }`}
             >
-              <Icon size={17} />
               <span>{tab.label}</span>
               {isSelected ? (
-                <span className="absolute inset-x-0 bottom-0 h-1 bg-black dark:bg-[#f5b93d]" />
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f5b93d]" />
               ) : null}
             </button>
           );
@@ -479,6 +471,7 @@ function SearchPageContent() {
           <EmptyState query={query} label="해시태그" />
         )}
       </section>
+      </div>
     </div>
   );
 }
