@@ -1450,6 +1450,8 @@ export default function ProfilePage() {
       ) : null}
       {!isOwnProfile && profileReportOpen ? (
         <ReportContentModal
+          targetType="USER"
+          targetId={profile.id}
           title="사용자 신고"
           author={profile.nickname}
           authorHandle={profile.handle}
