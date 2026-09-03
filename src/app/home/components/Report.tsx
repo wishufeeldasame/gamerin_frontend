@@ -1,21 +1,20 @@
 'use client';
 
 import { CheckCircle2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { getInitials } from '@/lib/feed-api';
-
-const reportReasons = [
-  '스팸 또는 광고성 콘텐츠',
-  '욕설 또는 혐오 표현',
-  '괴롭힘 또는 위협',
-  '음란하거나 부적절한 콘텐츠',
-  '사칭 또는 허위 정보',
-  '개인정보 노출',
-  '저작권 침해',
-  '기타',
-];
+import {
+  ReportApiError,
+  createReport,
+  fetchReportReasons,
+  type ReportReason,
+  type ReportReasonCode,
+  type ReportTargetType,
+} from '@/lib/report-api';
 
 interface ReportContentModalProps {
+  targetType: ReportTargetType;
+  targetId: string;
   title: string;
   author: string;
   authorHandle: string;
@@ -25,6 +24,8 @@ interface ReportContentModalProps {
 }
 
 export function ReportContentModal({
+  targetType,
+  targetId,
   title,
   author,
   authorHandle,
@@ -32,23 +33,83 @@ export function ReportContentModal({
   emptyContentLabel,
   onClose,
 }: ReportContentModalProps) {
-  const [selectedReason, setSelectedReason] = useState('');
+  const [reportReasons, setReportReasons] = useState<ReportReason[]>([]);
+  const [selectedReason, setSelectedReason] = useState<ReportReasonCode | ''>('');
   const [customReason, setCustomReason] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const canSubmit = Boolean(selectedReason && (selectedReason !== '기타' || customReason.trim()));
+  const [loadingReasons, setLoadingReasons] = useState(true);
+  const [reasonsError, setReasonsError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [reasonsReloadKey, setReasonsReloadKey] = useState(0);
+  const canSubmit = Boolean(
+    selectedReason && (selectedReason !== 'OTHER' || customReason.trim()),
+  );
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    const loadReasons = async () => {
+      try {
+        setLoadingReasons(true);
+        setReasonsError(null);
+        const reasons = await fetchReportReasons(controller.signal);
+        setReportReasons(reasons);
+      } catch (error) {
+        if (error instanceof DOMException && error.name === 'AbortError') {
+          return;
+        }
+
+        setReasonsError(
+          error instanceof Error ? error.message : '신고 사유를 불러오지 못했습니다.',
+        );
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoadingReasons(false);
+        }
+      }
+    };
+
+    void loadReasons();
+    return () => controller.abort();
+  }, [reasonsReloadKey]);
 
   const handleSubmit = () => {
     if (!canSubmit) {
       return;
     }
 
+    setSubmitError(null);
     setConfirmOpen(true);
   };
 
-  const handleConfirm = () => {
-    setConfirmOpen(false);
-    setSubmitted(true);
+  const handleConfirm = async () => {
+    if (!selectedReason || (selectedReason === 'OTHER' && !customReason.trim()) || submitting) {
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setSubmitError(null);
+      await createReport({
+        targetType,
+        targetId,
+        reasonCode: selectedReason,
+        details: selectedReason === 'OTHER' ? customReason.trim() : null,
+      });
+      setConfirmOpen(false);
+      setSubmitted(true);
+    } catch (error) {
+      setConfirmOpen(false);
+      if (error instanceof ReportApiError && error.status === 409) {
+        setSubmitError('이미 신고한 대상입니다.');
+      } else {
+        setSubmitError(error instanceof Error ? error.message : '신고 접수에 실패했습니다.');
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submitted) {
@@ -125,14 +186,33 @@ export function ReportContentModal({
           <section>
             <p className="mb-3 text-sm font-black text-black">신고 사유를 선택해주세요</p>
             <div className="space-y-2">
+              {loadingReasons ? (
+                <p className="rounded-xl bg-zinc-50 px-4 py-4 text-center text-sm font-bold text-zinc-500">
+                  신고 사유를 불러오는 중입니다.
+                </p>
+              ) : null}
+
+              {reasonsError ? (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                  <p role="alert">{reasonsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => setReasonsReloadKey((current) => current + 1)}
+                    className="mt-2 underline underline-offset-2"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              ) : null}
+
               {reportReasons.map((reason) => {
-                const selected = selectedReason === reason;
+                const selected = selectedReason === reason.code;
 
                 return (
                   <button
-                    key={reason}
+                    key={reason.code}
                     type="button"
-                    onClick={() => setSelectedReason(reason)}
+                    onClick={() => setSelectedReason(reason.code)}
                     className={[
                       'flex h-11 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-black transition',
                       selected
@@ -140,7 +220,7 @@ export function ReportContentModal({
                         : 'border-zinc-100 bg-white text-black hover:border-zinc-300',
                     ].join(' ')}
                   >
-                    <span>{reason}</span>
+                    <span>{reason.label}</span>
                     <span
                       className={[
                         'flex h-5 w-5 items-center justify-center rounded-full border',
@@ -153,7 +233,7 @@ export function ReportContentModal({
                 );
               })}
 
-              {selectedReason === '기타' ? (
+              {selectedReason === 'OTHER' ? (
                 <div className="pt-2">
                   <textarea
                     value={customReason}
@@ -170,6 +250,15 @@ export function ReportContentModal({
               ) : null}
             </div>
           </section>
+
+          {submitError ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+            >
+              {submitError}
+            </p>
+          ) : null}
         </div>
 
         <footer className="flex gap-3 border-t border-zinc-100 px-6 py-4">
@@ -183,7 +272,7 @@ export function ReportContentModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit}
+            disabled={!canSubmit || loadingReasons}
             className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200"
           >
             신고 접수
@@ -206,8 +295,9 @@ export function ReportContentModal({
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
+                disabled={submitting}
                 aria-label="신고 확인 닫기"
-                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <X size={18} />
               </button>
@@ -219,16 +309,18 @@ export function ReportContentModal({
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                className="h-11 flex-1 rounded-xl border border-zinc-200 text-sm font-black text-black transition hover:border-zinc-400"
+                disabled={submitting}
+                className="h-11 flex-1 rounded-xl border border-zinc-200 text-sm font-black text-black transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 돌아가기
               </button>
               <button
                 type="button"
-                onClick={handleConfirm}
-                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600"
+                onClick={() => void handleConfirm()}
+                disabled={submitting}
+                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
               >
-                신고 접수
+                {submitting ? '접수 중...' : '신고 접수'}
               </button>
             </div>
           </section>
