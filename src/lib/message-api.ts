@@ -226,7 +226,11 @@ export async function fetchConversationList() {
   return sortConversationsByUpdatedAt(data.map(toConversation));
 }
 
-export async function openMessageEventSource() {
+export async function openMessageEventSource(options: { forceRefresh?: boolean } = {}) {
+  if (options.forceRefresh) {
+    await refreshAccessToken();
+  }
+
   await messageRequest<{ expiresAt: string }>('/stream-token', {
     method: 'POST',
   });
