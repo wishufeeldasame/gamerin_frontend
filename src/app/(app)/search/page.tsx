@@ -24,10 +24,10 @@ import {
 } from '@/lib/feed-api';
 
 const searchTabs = [
-  { value: 'all', label: '\uC804\uCCB4' },
-  { value: 'accounts', label: '\uC0AC\uC6A9\uC790' },
-  { value: 'posts', label: '\uAC8C\uC2DC\uAE00' },
-  { value: 'hashtags', label: '\uD574\uC2DC\uD0DC\uADF8' },
+  { value: 'all', label: '전체' },
+  { value: 'accounts', label: '사용자' },
+  { value: 'posts', label: '게시글' },
+  { value: 'hashtags', label: '해시태그' },
 ] as const;
 
 type SearchTab = (typeof searchTabs)[number]['value'];
@@ -51,7 +51,7 @@ function EmptyState({ query, label }: { query: string; label: string }) {
         {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
       </h2>
       <p className="mt-2 text-sm font-bold text-zinc-400">
-        {query ? '다른 키워드로 다시 검색해 보세요.' : '상단 검색창에서 계정, 게시글, 해시태그를 검색할 수 있습니다.'}
+        {query ? '다른 키워드로 다시 검색해 보세요.' : '상단 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
       </p>
     </div>
   );
@@ -152,6 +152,11 @@ function SearchPageContent() {
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const loadControllerRef = useRef<AbortController | null>(null);
 
+  const activeTabLabel = useMemo(
+    () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '전체',
+    [activeTab],
+  );
+
   const setTab = (tab: SearchTab) => {
     const params = new URLSearchParams(searchParams.toString());
     params.set('tab', tab);
@@ -186,19 +191,19 @@ function SearchPageContent() {
       setError(null);
 
       if (activeTab === 'all') {
-        setOverview(await fetchSearchOverview(query, OVERVIEW_SIZE));
+        setOverview(await fetchSearchOverview(query, OVERVIEW_SIZE, { signal: controller.signal }));
       } else if (activeTab === 'accounts') {
-        const page = await fetchSearchAccounts(query, null, PAGE_SIZE);
+        const page = await fetchSearchAccounts(query, null, PAGE_SIZE, { signal: controller.signal });
         setAccounts(page.items);
         setAccountCursor(page.nextCursor);
         setAccountHasNext(page.hasNext);
       } else if (activeTab === 'posts') {
-        const page = await fetchSearchPosts(query, null, PAGE_SIZE);
+        const page = await fetchSearchPosts(query, null, PAGE_SIZE, { signal: controller.signal });
         setPosts(page.items);
         setPostCursor(page.nextCursor);
         setPostHasNext(page.hasNext);
       } else {
-        setHashtags(await fetchSearchHashtags(query, PAGE_SIZE));
+        setHashtags(await fetchSearchHashtags(query, PAGE_SIZE, { signal: controller.signal }));
       }
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') {
@@ -221,11 +226,6 @@ function SearchPageContent() {
     };
   }, [loadSearch]);
 
-  const activeTabLabel = useMemo(
-    () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '\uC804\uCCB4',
-    [activeTab],
-  );
-
   const handleToggleLike = async (post: PostRecord) => {
     if (likeLoadingByPostId[post.postId]) {
       return;
@@ -243,7 +243,7 @@ function SearchPageContent() {
       }
     } catch (likeError) {
       setPosts((current) => current.map((item) => (item.postId === post.postId ? post : item)));
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -319,158 +319,156 @@ function SearchPageContent() {
   return (
     <div className="border-t-4 border-[#f5b93d]">
       <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8">
-      <header className="pb-7">
-        <h1 className="text-2xl font-black text-black dark:text-zinc-100">{'\uAC80\uC0C9 \uACB0\uACFC'}</h1>
-        <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-          {query ? `'${query}'` + '\uC5D0 \uB300\uD55C \uACB0\uACFC' : '\uAC80\uC0C9\uC5B4\uB97C \uC785\uB825\uD574 \uC8FC\uC138\uC694'}
-        </p>
-      </header>
+        <header className="pb-7">
+          <h1 className="text-2xl font-black text-black dark:text-zinc-100">검색 결과</h1>
+          <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+            {query ? `'${query}'에 대한 결과` : '검색어를 입력해 주세요'}
+          </p>
+        </header>
 
-      <nav
-        className="grid grid-cols-4 border-b border-zinc-200 dark:border-neutral-800"
-        aria-label="검색 결과 유형"
-      >
-        {searchTabs.map((tab) => {
-          const isSelected = activeTab === tab.value;
+        <nav
+          className="grid grid-cols-4 border-b border-zinc-200 dark:border-neutral-800"
+          aria-label="검색 결과 유형"
+        >
+          {searchTabs.map((tab) => {
+            const isSelected = activeTab === tab.value;
 
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              onClick={() => setTab(tab.value)}
-              aria-pressed={isSelected}
-              className={`relative flex min-h-12 items-center justify-center px-2 text-sm font-black transition ${
-                isSelected
-                  ? 'text-black dark:text-zinc-100'
-                  : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {isSelected ? (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f5b93d]" />
-              ) : null}
-            </button>
-          );
-        })}
-      </nav>
+            return (
+              <button
+                key={tab.value}
+                type="button"
+                onClick={() => setTab(tab.value)}
+                aria-pressed={isSelected}
+                className={`relative flex min-h-12 items-center justify-center px-2 text-sm font-black transition ${
+                  isSelected
+                    ? 'text-black dark:text-zinc-100'
+                    : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200'
+                }`}
+              >
+                <span>{tab.label}</span>
+                {isSelected ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f5b93d]" /> : null}
+              </button>
+            );
+          })}
+        </nav>
 
-      <section className="mt-8 min-h-72" aria-live="polite">
-        {loading ? (
-          <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900">
-            검색 결과를 불러오는 중...
-          </div>
-        ) : error ? (
-          <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-            <p className="font-black text-red-500">{error}</p>
-            <button
-              type="button"
-              onClick={() => void loadSearch()}
-              className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
-            >
-              다시 시도
-            </button>
-          </div>
-        ) : !query ? (
-          <EmptyState query={query} label={activeTabLabel} />
-        ) : activeTab === 'all' ? (
-          overview ? (
-            <div className="space-y-10">
-              <section>
-                <SectionHeader
-                  title="계정"
-                  hasMore={overview.accounts.hasMore}
-                  onMore={() => setTab('accounts')}
-                />
-                {overview.accounts.items.length > 0 ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {overview.accounts.items.map((account) => (
-                      <AccountCard key={account.userId} account={account} />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState query={query} label="계정" />
-                )}
-              </section>
+        <section className="mt-8 min-h-72" aria-live="polite">
+          {loading ? (
+            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900">
+              검색 결과를 불러오는 중...
+            </div>
+          ) : error ? (
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
+              <p className="font-black text-red-500">{error}</p>
+              <button
+                type="button"
+                onClick={() => void loadSearch()}
+                className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+              >
+                다시 시도
+              </button>
+            </div>
+          ) : !query ? (
+            <EmptyState query={query} label={activeTabLabel} />
+          ) : activeTab === 'all' ? (
+            overview ? (
+              <div className="space-y-10">
+                <section>
+                  <SectionHeader
+                    title="사용자"
+                    hasMore={overview.accounts.hasMore}
+                    onMore={() => setTab('accounts')}
+                  />
+                  {overview.accounts.items.length > 0 ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {overview.accounts.items.map((account) => (
+                        <AccountCard key={account.userId} account={account} />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState query={query} label="사용자" />
+                  )}
+                </section>
 
-              <section>
-                <SectionHeader
-                  title="해시태그"
-                  hasMore={overview.hashtags.hasMore}
-                  onMore={() => setTab('hashtags')}
-                />
-                {overview.hashtags.items.length > 0 ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {overview.hashtags.items.map((hashtag) => (
-                      <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState query={query} label="해시태그" />
-                )}
-              </section>
+                <section>
+                  <SectionHeader
+                    title="해시태그"
+                    hasMore={overview.hashtags.hasMore}
+                    onMore={() => setTab('hashtags')}
+                  />
+                  {overview.hashtags.items.length > 0 ? (
+                    <div className="grid gap-3 md:grid-cols-2">
+                      {overview.hashtags.items.map((hashtag) => (
+                        <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
+                      ))}
+                    </div>
+                  ) : (
+                    <EmptyState query={query} label="해시태그" />
+                  )}
+                </section>
 
-              <section>
-                <SectionHeader
-                  title="게시글"
-                  hasMore={overview.posts.hasMore}
-                  onMore={() => setTab('posts')}
-                />
-                {overview.posts.items.length > 0 ? renderPosts(overview.posts.items) : <EmptyState query={query} label="게시글" />}
-              </section>
+                <section>
+                  <SectionHeader
+                    title="게시글"
+                    hasMore={overview.posts.hasMore}
+                    onMore={() => setTab('posts')}
+                  />
+                  {overview.posts.items.length > 0 ? renderPosts(overview.posts.items) : <EmptyState query={query} label="게시글" />}
+                </section>
+              </div>
+            ) : (
+              <EmptyState query={query} label="전체" />
+            )
+          ) : activeTab === 'accounts' ? (
+            accounts.length > 0 ? (
+              <>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {accounts.map((account) => (
+                    <AccountCard key={account.userId} account={account} />
+                  ))}
+                </div>
+                {accountHasNext ? (
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                  >
+                    {loadingMore ? '불러오는 중...' : '더보기'}
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <EmptyState query={query} label="사용자" />
+            )
+          ) : activeTab === 'posts' ? (
+            posts.length > 0 ? (
+              <>
+                {renderPosts(posts)}
+                {postHasNext ? (
+                  <button
+                    type="button"
+                    onClick={loadMore}
+                    disabled={loadingMore}
+                    className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                  >
+                    {loadingMore ? '불러오는 중...' : '더보기'}
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <EmptyState query={query} label="게시글" />
+            )
+          ) : hashtags.length > 0 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              {hashtags.map((hashtag) => (
+                <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
+              ))}
             </div>
           ) : (
-            <EmptyState query={query} label="전체" />
-          )
-        ) : activeTab === 'accounts' ? (
-          accounts.length > 0 ? (
-            <>
-              <div className="grid gap-3 md:grid-cols-2">
-                {accounts.map((account) => (
-                  <AccountCard key={account.userId} account={account} />
-                ))}
-              </div>
-              {accountHasNext ? (
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
-                >
-                  {loadingMore ? '불러오는 중...' : '더 보기'}
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <EmptyState query={query} label="계정" />
-          )
-        ) : activeTab === 'posts' ? (
-          posts.length > 0 ? (
-            <>
-              {renderPosts(posts)}
-              {postHasNext ? (
-                <button
-                  type="button"
-                  onClick={loadMore}
-                  disabled={loadingMore}
-                  className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
-                >
-                  {loadingMore ? '불러오는 중...' : '더 보기'}
-                </button>
-              ) : null}
-            </>
-          ) : (
-            <EmptyState query={query} label="게시글" />
-          )
-        ) : hashtags.length > 0 ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            {hashtags.map((hashtag) => (
-              <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState query={query} label="해시태그" />
-        )}
-      </section>
+            <EmptyState query={query} label="해시태그" />
+          )}
+        </section>
       </div>
     </div>
   );
