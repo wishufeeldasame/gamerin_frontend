@@ -21,6 +21,7 @@ import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
+import { HashtagText } from './HashtagText';
 
 interface PostProps {
   post: PostRecord;
@@ -345,7 +346,7 @@ export function Post({
 
         {post.content ? (
           <p className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
-            {post.content}
+            <HashtagText text={post.content} />
           </p>
         ) : null}
         </div>

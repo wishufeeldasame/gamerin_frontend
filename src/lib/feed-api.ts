@@ -200,7 +200,7 @@ function normalizeAssetUrl(value?: string | null) {
   return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
-function normalizePostRecord(post: PostRecord): PostRecord {
+export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
     authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
@@ -218,7 +218,7 @@ function normalizePostRecord(post: PostRecord): PostRecord {
   };
 }
 
-function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
+export function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
   return {
     items: Array.isArray(page.items) ? page.items.map(normalizeItem) : [],
     nextCursor: page.nextCursor ?? null,
