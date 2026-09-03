@@ -547,6 +547,8 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
 
       {reportComment ? (
         <ReportContentModal
+          targetType="COMMENT"
+          targetId={reportComment.commentId}
           title="댓글 신고"
           author={reportComment.author}
           authorHandle={reportComment.authorHandle}
@@ -557,6 +559,8 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       ) : null}
       {reportPostOpen ? (
         <ReportContentModal
+          targetType="POST"
+          targetId={post.postId}
           title="게시물 신고"
           author={post.author}
           authorHandle={post.authorHandle}

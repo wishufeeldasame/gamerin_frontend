@@ -845,9 +845,7 @@ export default function MessagesPage() {
 
     const connect = async () => {
       try {
-        const nextEventSource = await openMessageEventSource({
-          forceRefresh: reconnectAttempt > 0,
-        });
+        const nextEventSource = await openMessageEventSource();
 
         if (cancelled) {
           nextEventSource.close();
