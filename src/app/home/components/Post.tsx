@@ -438,6 +438,8 @@ export function Post({
 
       {reportOpen ? (
         <ReportContentModal
+          targetType="POST"
+          targetId={post.postId}
           title="게시물 신고"
           author={post.author}
           authorHandle={post.authorHandle}
