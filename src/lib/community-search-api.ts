@@ -19,6 +19,10 @@ type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
 
+type SearchRequestOptions = {
+  signal?: AbortSignal;
+};
+
 export interface HashtagSummary {
   hashtagId: string;
   name: string;
@@ -141,17 +145,24 @@ function appendQuery(search: URLSearchParams, query: string) {
   search.set('q', query.trim());
 }
 
-export async function fetchHashtagSuggestions(query: string, size = 10) {
+export async function fetchHashtagSuggestions(query: string, size = 10, options: SearchRequestOptions = {}) {
   const search = new URLSearchParams({
     query: query.trim(),
     size: String(size),
   });
 
-  const hashtags = await communityRequest<HashtagSummary[]>(`/api/v1/hashtags?${search.toString()}`);
+  const hashtags = await communityRequest<HashtagSummary[]>(`/api/v1/hashtags?${search.toString()}`, {
+    signal: options.signal,
+  });
   return Array.isArray(hashtags) ? hashtags.map(normalizeHashtag) : [];
 }
 
-export async function fetchHashtagPosts(name: string, cursor?: string | null, size = 20) {
+export async function fetchHashtagPosts(
+  name: string,
+  cursor?: string | null,
+  size = 20,
+  options: SearchRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -162,17 +173,22 @@ export async function fetchHashtagPosts(name: string, cursor?: string | null, si
 
   const page = await communityRequest<CursorPage<PostRecord>>(
     `/api/v1/hashtags/${encodeURIComponent(name.replace(/^#/, ''))}/posts?${search.toString()}`,
+    {
+      signal: options.signal,
+    },
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
-export async function fetchSearchOverview(query: string, size = 5) {
+export async function fetchSearchOverview(query: string, size = 5, options: SearchRequestOptions = {}) {
   const search = new URLSearchParams({
     size: String(size),
   });
   appendQuery(search, query);
 
-  const overview = await communityRequest<SearchOverview>(`/api/v1/search?${search.toString()}`);
+  const overview = await communityRequest<SearchOverview>(`/api/v1/search?${search.toString()}`, {
+    signal: options.signal,
+  });
   return {
     ...overview,
     accounts: {
@@ -196,7 +212,12 @@ export async function fetchSearchOverview(query: string, size = 5) {
   };
 }
 
-export async function fetchSearchAccounts(query: string, cursor?: string | null, size = 20) {
+export async function fetchSearchAccounts(
+  query: string,
+  cursor?: string | null,
+  size = 20,
+  options: SearchRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -208,11 +229,19 @@ export async function fetchSearchAccounts(query: string, cursor?: string | null,
 
   const page = await communityRequest<CursorPage<SimpleUserProfile>>(
     `/api/v1/search/accounts?${search.toString()}`,
+    {
+      signal: options.signal,
+    },
   );
   return normalizeCursorPage(page, normalizeUserProfile);
 }
 
-export async function fetchSearchPosts(query: string, cursor?: string | null, size = 20) {
+export async function fetchSearchPosts(
+  query: string,
+  cursor?: string | null,
+  size = 20,
+  options: SearchRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -222,16 +251,20 @@ export async function fetchSearchPosts(query: string, cursor?: string | null, si
     search.set('cursor', cursor);
   }
 
-  const page = await communityRequest<CursorPage<PostRecord>>(`/api/v1/search/posts?${search.toString()}`);
+  const page = await communityRequest<CursorPage<PostRecord>>(`/api/v1/search/posts?${search.toString()}`, {
+    signal: options.signal,
+  });
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
-export async function fetchSearchHashtags(query: string, size = 20) {
+export async function fetchSearchHashtags(query: string, size = 20, options: SearchRequestOptions = {}) {
   const search = new URLSearchParams({
     size: String(size),
   });
   appendQuery(search, query);
 
-  const hashtags = await communityRequest<HashtagSummary[]>(`/api/v1/search/hashtags?${search.toString()}`);
+  const hashtags = await communityRequest<HashtagSummary[]>(`/api/v1/search/hashtags?${search.toString()}`, {
+    signal: options.signal,
+  });
   return Array.isArray(hashtags) ? hashtags.map(normalizeHashtag) : [];
 }

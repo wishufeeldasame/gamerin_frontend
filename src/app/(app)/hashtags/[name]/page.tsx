@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Hash } from 'lucide-react';
 import { Post } from '@/app/home/components/Post';
@@ -14,10 +14,18 @@ import {
 
 const HASHTAG_PAGE_SIZE = 20;
 
+function decodeHashtagName(value: string) {
+  try {
+    return decodeURIComponent(value).replace(/^#/, '');
+  } catch {
+    return value.replace(/^#/, '');
+  }
+}
+
 export default function HashtagPostsPage() {
   const router = useRouter();
   const params = useParams<{ name: string }>();
-  const hashtagName = decodeURIComponent(params.name ?? '').replace(/^#/, '');
+  const hashtagName = useMemo(() => decodeHashtagName(params.name ?? ''), [params.name]);
   const [posts, setPosts] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -28,8 +36,8 @@ export default function HashtagPostsPage() {
   const loadControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
     const controller = new AbortController();
+    loadControllerRef.current?.abort();
     loadControllerRef.current = controller;
 
     const loadInitialPosts = async () => {
@@ -44,19 +52,22 @@ export default function HashtagPostsPage() {
       try {
         setLoading(true);
         setError(null);
-        const page = await fetchHashtagPosts(hashtagName, null, HASHTAG_PAGE_SIZE);
+        const page = await fetchHashtagPosts(hashtagName, null, HASHTAG_PAGE_SIZE, {
+          signal: controller.signal,
+        });
 
-        if (!cancelled) {
-          setPosts(page.items);
-          setNextCursor(page.nextCursor);
-          setHasNext(page.hasNext);
-        }
+        setPosts(page.items);
+        setNextCursor(page.nextCursor);
+        setHasNext(page.hasNext);
       } catch (loadError) {
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '해시태그 게시글을 불러오지 못했습니다.');
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
         }
+
+        setError(loadError instanceof Error ? loadError.message : '해시태그 게시글을 불러오지 못했습니다.');
       } finally {
-        if (!cancelled) {
+        if (loadControllerRef.current === controller) {
+          loadControllerRef.current = null;
           setLoading(false);
         }
       }
@@ -65,9 +76,7 @@ export default function HashtagPostsPage() {
     void loadInitialPosts();
 
     return () => {
-      cancelled = true;
       controller.abort();
-      loadControllerRef.current = null;
     };
   }, [hashtagName]);
 
@@ -109,7 +118,7 @@ export default function HashtagPostsPage() {
       }
     } catch (likeError) {
       setPosts((current) => current.map((item) => (item.postId === post.postId ? post : item)));
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -179,7 +188,7 @@ export default function HashtagPostsPage() {
               disabled={loadingMore}
               className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
             >
-              {loadingMore ? '불러오는 중...' : '더 보기'}
+              {loadingMore ? '불러오는 중...' : '더보기'}
             </button>
           ) : null}
         </div>
