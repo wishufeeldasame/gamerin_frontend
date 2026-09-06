@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 
 export type AdminPageKey =
   | 'dashboard'
@@ -43,7 +44,7 @@ type AdminShellProps = {
 const navigationItems = [
   { key: 'dashboard', label: '대시보드', icon: LayoutDashboard, href: '/admin' },
   { key: 'users', label: '사용자 관리', icon: UsersRound, href: '/admin/users' },
-  { key: 'content', label: '게시글·댓글 관리', icon: FileText, href: '/admin/content' },
+  { key: 'content', label: '숨김 콘텐츠 관리', icon: FileText, href: '/admin/content' },
   { key: 'reports', label: '신고 관리', icon: Flag, href: '/admin/reports' },
   { key: 'auditLogs', label: '작업 이력', icon: ClipboardList, href: '/admin/audit-logs' },
   { key: 'mentoring', label: '멘토링 관리', icon: Gamepad2, href: '/admin/mentoring' },
@@ -62,6 +63,10 @@ type AdminSidebarProps = {
 };
 
 function AdminSidebar({ activePage, className = '', onNavigate }: AdminSidebarProps) {
+  const { user, logout } = useAuth();
+  const displayName = user?.nickname || user?.name || '관리자';
+  const adminHandle = user?.handle ? `@${user.handle.replace(/^@/, '')}` : '';
+  const initial = displayName.trim().charAt(0) || '관';
   return (
     <aside className={`flex h-dvh min-h-[640px] w-60 flex-col overflow-y-auto bg-[#102a56] px-4 py-6 ${className}`}>
       <Link href="/admin" onClick={onNavigate} className="flex h-[38px] items-center gap-2.5 px-2">
@@ -108,19 +113,20 @@ function AdminSidebar({ activePage, className = '', onNavigate }: AdminSidebarPr
 
       <div className="mt-auto border-t border-white/10 pt-[17px]">
         <div className="flex items-center gap-3 p-2">
-          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[#315ef5] text-[14px] font-bold text-white">관</div>
+          <div className="grid size-9 shrink-0 place-items-center rounded-full bg-[#315ef5] text-[14px] font-bold text-white">{initial}</div>
           <div className="min-w-0">
-            <p className="truncate text-[13px] leading-[19.5px] font-bold text-white">관리자 김민수</p>
-            <p className="truncate text-[11px] leading-[16.5px] text-[#7b8aa8]">@admin01</p>
+            <p className="truncate text-[13px] leading-[19.5px] font-bold text-white">{displayName}</p>
+            <p className="truncate text-[11px] leading-[16.5px] text-[#7b8aa8]">{adminHandle}</p>
           </div>
         </div>
-        <Link
-          href="/admin/login"
+        <button
+          type="button"
+          onClick={() => void logout({ redirectTo: '/admin/login' })}
           className="mt-1 flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-[13px] leading-[19.5px] font-semibold text-[#b7c3da] transition hover:bg-white/5 hover:text-white"
         >
           <LogOut className="size-[18px]" strokeWidth={1.7} aria-hidden="true" />
           로그아웃
-        </Link>
+        </button>
       </div>
     </aside>
   );
@@ -141,6 +147,10 @@ function AdminHeader({
   headerActions,
   onMenuOpen,
 }: AdminHeaderProps) {
+  const { user } = useAuth();
+  const displayName = user?.nickname || user?.name || '관리자';
+  const initial = displayName.trim().charAt(0) || '관';
+
   return (
     <header className="flex min-h-20 flex-wrap items-center justify-between gap-3 border-b border-[#e4e7ec] bg-[rgba(255,255,255,0.95)] px-4 py-3 sm:px-6 lg:px-8">
       <div className="flex min-w-0 items-start gap-3">
@@ -175,12 +185,12 @@ function AdminHeader({
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
-        <p className="hidden text-xs leading-[18px] text-[#98a2b3] xl:block">마지막 갱신 방금 전</p>
         {headerActions}
         {showRefresh && !headerActions ? (
           <button
             type="button"
             className="flex h-9 items-center gap-2 rounded-2xl border border-[#d0d5dd] bg-white px-3 text-[13px] font-semibold text-[#344054] transition hover:bg-[#f9fafb]"
+            onClick={() => window.location.reload()}
             aria-label="화면 새로고침"
           >
             <RefreshCw className="size-4" strokeWidth={1.7} aria-hidden="true" />
@@ -188,9 +198,9 @@ function AdminHeader({
           </button>
         ) : null}
         <div className="hidden items-center gap-2 border-l border-[#e4e7ec] pl-[13px] md:flex">
-          <div className="grid size-8 place-items-center rounded-full bg-[#315ef5] text-[12.8px] font-bold text-white">관</div>
+          <div className="grid size-8 place-items-center rounded-full bg-[#315ef5] text-[12.8px] font-bold text-white">{initial}</div>
           <div>
-            <p className="text-xs leading-[15px] font-bold text-[#172033]">관리자 김민수</p>
+            <p className="text-xs leading-[15px] font-bold text-[#172033]">{displayName}</p>
             <span className="mt-1 inline-flex rounded-full bg-[#eef3ff] px-1.5 py-0.5 text-[10px] font-semibold text-[#1d46c7]">관리자</span>
           </div>
         </div>
