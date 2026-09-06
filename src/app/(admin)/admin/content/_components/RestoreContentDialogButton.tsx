@@ -1,72 +1,104 @@
 'use client';
 
-import { FormEvent, useId, useState } from 'react';
+import { useId, useState } from 'react';
 import { AdminDialog } from '../../_components/AdminDialog';
 
 type RestoreContentButtonProps = {
   contentPreview: string;
-  onRestore: (reason: string) => void;
+  onRestore: () => Promise<void>;
+  disabled?: boolean;
 };
 
-export function RestoreContentButton({ contentPreview, onRestore }: RestoreContentButtonProps) {
+export function RestoreContentButton({
+  contentPreview,
+  onRestore,
+  disabled = false,
+}: RestoreContentButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [reason, setReason] = useState('');
-  const [reasonError, setReasonError] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const titleId = useId();
   const descriptionId = useId();
-  const reasonId = `restore-reason-${titleId}`;
-  const reasonErrorId = `restore-reason-error-${titleId}`;
 
   const closeDialog = () => {
-    setReason('');
-    setReasonError(false);
+    if (isSubmitting) return;
+    setSubmitError(null);
     setIsOpen(false);
   };
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!reason.trim()) {
-      setReasonError(true);
-      return;
-    }
+  const handleRestore = async () => {
+    if (isSubmitting) return;
 
-    onRestore(reason.trim());
-    closeDialog();
+    setIsSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      await onRestore();
+      setIsOpen(false);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : '콘텐츠를 복구하지 못했습니다.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
     <>
-      <button type="button" onClick={() => setIsOpen(true)} className="inline-flex rounded-2xl border border-[#d0d5dd] bg-white px-[13px] py-[7px] text-xs font-semibold text-[#344054] transition hover:border-[#98a2b3] hover:bg-[#f9fafb]">
+      <button
+        type="button"
+        disabled={disabled}
+        title={disabled ? '콘텐츠 복구 기능을 사용할 수 없습니다.' : undefined}
+        onClick={() => {
+          setSubmitError(null);
+          setIsOpen(true);
+        }}
+        className="inline-flex rounded-2xl border border-[#d0d5dd] bg-white px-[13px] py-[7px] text-xs font-semibold text-[#344054] transition hover:border-[#98a2b3] hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:border-[#e4e7ec] disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
+      >
         복구
       </button>
 
-      <AdminDialog isOpen={isOpen} titleId={titleId} descriptionId={descriptionId} onClose={closeDialog} maxWidthClassName="max-w-[448px]">
-        <h2 id={titleId} className="text-xl leading-[30px] font-bold text-[#172033]">콘텐츠를 복구하시겠습니까?</h2>
+      <AdminDialog
+        isOpen={isOpen}
+        titleId={titleId}
+        descriptionId={descriptionId}
+        onClose={closeDialog}
+        maxWidthClassName="max-w-[448px]"
+      >
+        <h2 id={titleId} className="text-xl leading-[30px] font-bold text-[#172033]">
+          콘텐츠를 복구하시겠습니까?
+        </h2>
         <p id={descriptionId} className="mt-1.5 text-[13px] leading-[19.5px] text-[#667085]">
-          복구하면 사용자에게 다시 표시됩니다. 복구 사유는 작업 이력에 기록됩니다.
+          복구하면 사용자에게 다시 표시됩니다.
         </p>
-        <p className="mt-4 truncate rounded-2xl bg-[#f9fafb] p-3 text-[13px] text-[#344054]">&quot;{contentPreview}&quot;</p>
+        <p className="mt-4 break-all rounded-2xl bg-[#f9fafb] p-3 text-[13px] text-[#344054]">
+          {contentPreview}
+        </p>
 
-        <form onSubmit={handleSubmit} noValidate>
-          <label htmlFor={reasonId} className="mt-4 mb-1.5 block text-[13px] font-semibold text-[#344054]">복구 사유 <span className="text-[#d92d20]">*</span></label>
-          <textarea
-            id={reasonId}
-            value={reason}
-            onChange={(event) => {
-              setReason(event.target.value);
-              if (event.target.value.trim()) setReasonError(false);
-            }}
-            aria-invalid={reasonError}
-            aria-describedby={reasonError ? reasonErrorId : undefined}
-            placeholder="복구 근거를 입력해주세요."
-            className={`h-[89px] w-full resize-none rounded-2xl border bg-white p-[13px] text-sm text-[#172033] outline-none transition ${reasonError ? 'border-[#f04438] focus:ring-2 focus:ring-[#f04438]/10' : 'border-[#d0d5dd] focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10'}`}
-          />
-          {reasonError ? <p id={reasonErrorId} className="mt-1.5 text-xs text-[#f04438]" role="alert">복구 사유는 필수입니다.</p> : null}
-          <div className="mt-5 flex justify-end gap-2">
-            <button type="button" onClick={closeDialog} className="h-10 rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] hover:bg-[#f9fafb]">취소</button>
-            <button type="submit" className="h-10 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white hover:bg-[#294fd5]">콘텐츠 복구</button>
-          </div>
-        </form>
+        {submitError ? (
+          <p className="mt-4 rounded-xl border border-[#fecdca] bg-[#fef3f2] px-3 py-2 text-xs text-[#b42318]" role="alert">
+            {submitError}
+          </p>
+        ) : null}
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={closeDialog}
+            disabled={isSubmitting}
+            className="h-10 rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleRestore()}
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+            className="h-10 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white hover:bg-[#294fd5] disabled:cursor-wait disabled:opacity-60"
+          >
+            {isSubmitting ? '복구 중...' : '콘텐츠 복구'}
+          </button>
+        </div>
       </AdminDialog>
     </>
   );

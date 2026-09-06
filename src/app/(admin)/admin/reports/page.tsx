@@ -14,7 +14,8 @@ export default function AdminReportsPage() {
       <AdminShell
         activePage="reports"
         title="신고 관리"
-        description="전체 10건의 신고"
+        description="접수된 신고를 확인하고 처리하세요."
+        showRefresh={false}
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '신고 관리' }]}
       >
         <AdminReportsManagement />
