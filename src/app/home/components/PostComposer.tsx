@@ -4,9 +4,10 @@
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
+import { Hash, ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
+import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
 
 interface PostComposerProps {
   onCreated?: (post: PostRecord) => void;
@@ -29,6 +30,12 @@ const MAX_VIDEO_DURATION_SECONDS = 120;
 const MAX_POST_CONTENT_LENGTH = 1000;
 const MAX_THUMBNAIL_CANVAS_WIDTH = 1280;
 const MAX_THUMBNAIL_CANVAS_HEIGHT = 720;
+
+type ActiveHashtagQuery = {
+  query: string;
+  start: number;
+  end: number;
+};
 
 function isImageFile(file: File) {
   const type = file.type.toLowerCase();
@@ -171,6 +178,7 @@ async function generateThumbnailOptions(file: File) {
 
 export function PostComposer({ onCreated }: PostComposerProps) {
   const { user } = useAuth();
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
@@ -185,6 +193,9 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [activeHashtagQuery, setActiveHashtagQuery] = useState<ActiveHashtagQuery | null>(null);
+  const [hashtagSuggestions, setHashtagSuggestions] = useState<HashtagSummary[]>([]);
+  const [loadingHashtagSuggestions, setLoadingHashtagSuggestions] = useState(false);
 
   const hasFiles = imageFiles.length > 0 || Boolean(videoFile);
   const selectedThumbnail = thumbnailOptions.find((option) => option.id === selectedThumbnailId) ?? null;
@@ -206,6 +217,46 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       revokeThumbnailOptions(thumbnailOptions);
     };
   }, [thumbnailOptions]);
+
+  useEffect(() => {
+    if (!activeHashtagQuery?.query) {
+      setHashtagSuggestions([]);
+      setLoadingHashtagSuggestions(false);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoadingHashtagSuggestions(true);
+        const suggestions = await fetchHashtagSuggestions(activeHashtagQuery.query, 10, {
+          signal: controller.signal,
+        });
+        if (!cancelled) {
+          setHashtagSuggestions(suggestions);
+        }
+      } catch (suggestionError) {
+        if (suggestionError instanceof DOMException && suggestionError.name === 'AbortError') {
+          return;
+        }
+
+        if (!cancelled) {
+          setHashtagSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHashtagSuggestions(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeHashtagQuery]);
 
   const clearThumbnailSelection = () => {
     setThumbnailOptions([]);
@@ -240,7 +291,58 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const resetComposer = () => {
     setContent('');
     setExternalLinkUrl('');
+    setActiveHashtagQuery(null);
+    setHashtagSuggestions([]);
     clearAttachments();
+  };
+
+  const updateActiveHashtagQuery = (value: string, caretPosition: number | null) => {
+    if (caretPosition === null) {
+      setActiveHashtagQuery(null);
+      return;
+    }
+
+    const beforeCaret = value.slice(0, caretPosition);
+    const match = beforeCaret.match(/(^|\s)#([\p{L}\p{N}_]{1,50})$/u);
+
+    if (!match || match.index === undefined) {
+      setActiveHashtagQuery(null);
+      return;
+    }
+
+    const prefixLength = match[1]?.length ?? 0;
+    setActiveHashtagQuery({
+      query: match[2] ?? '',
+      start: match.index + prefixLength,
+      end: caretPosition,
+    });
+  };
+
+  const handleContentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const nextContent = event.target.value;
+    setContent(nextContent);
+    updateActiveHashtagQuery(nextContent, event.target.selectionStart);
+  };
+
+  const handleSelectHashtagSuggestion = (name: string) => {
+    if (!activeHashtagQuery) {
+      return;
+    }
+
+    const replacement = `#${name}`;
+    const nextContent = `${content.slice(0, activeHashtagQuery.start)}${replacement}${content.slice(
+      activeHashtagQuery.end,
+    )}`;
+    const nextCaretPosition = activeHashtagQuery.start + replacement.length;
+
+    setContent(nextContent);
+    setActiveHashtagQuery(null);
+    setHashtagSuggestions([]);
+
+    window.requestAnimationFrame(() => {
+      contentTextareaRef.current?.focus();
+      contentTextareaRef.current?.setSelectionRange(nextCaretPosition, nextCaretPosition);
+    });
   };
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
@@ -410,12 +512,45 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
         <div className="min-w-0 flex-1 space-y-4">
           <textarea
+            ref={contentTextareaRef}
             value={content}
-            onChange={(event) => setContent(event.target.value)}
+            onChange={handleContentChange}
+            onClick={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
+            onKeyUp={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
             maxLength={MAX_POST_CONTENT_LENGTH}
             placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
             className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
           />
+          {activeHashtagQuery ? (
+            <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-lg">
+              <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 text-xs font-black text-zinc-400">
+                <Hash size={14} />
+                <span>#{activeHashtagQuery.query}</span>
+              </div>
+
+              {loadingHashtagSuggestions ? (
+                <div className="px-4 py-3 text-sm font-bold text-zinc-400">해시태그를 찾는 중...</div>
+              ) : hashtagSuggestions.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto py-1">
+                  {hashtagSuggestions.map((hashtag) => (
+                    <button
+                      key={hashtag.hashtagId}
+                      type="button"
+                      onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50"
+                    >
+                      <span className="font-black text-zinc-900">#{hashtag.name}</span>
+                      <span className="text-xs font-bold text-zinc-400">
+                        {hashtag.postCount.toLocaleString()} posts
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-sm font-bold text-zinc-400">일치하는 해시태그가 없습니다.</div>
+              )}
+            </div>
+          ) : null}
           <div
             className={`text-right text-xs font-bold ${
               content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'

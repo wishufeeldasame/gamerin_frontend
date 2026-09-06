@@ -41,6 +41,7 @@ export interface ExternalLinkCard {
 export interface ReposterInfo {
   userId: string;
   nickname: string;
+  repostedAt: string;
 }
 
 export interface PostRecord {
@@ -146,6 +147,13 @@ export interface ShareResponse {
   shares: number;
 }
 
+export interface RepostActionResponse {
+  postId: string;
+  isReposted: boolean;
+  repostCount: number;
+  repostedAt: string | null;
+}
+
 export type BookmarkScope = 'all' | 'unclassified';
 
 export interface BookmarkRequestOptions extends FeedRequestOptions {
@@ -192,7 +200,7 @@ function normalizeAssetUrl(value?: string | null) {
   return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
-function normalizePostRecord(post: PostRecord): PostRecord {
+export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
     authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
@@ -210,7 +218,7 @@ function normalizePostRecord(post: PostRecord): PostRecord {
   };
 }
 
-function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
+export function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
   return {
     items: Array.isArray(page.items) ? page.items.map(normalizeItem) : [],
     nextCursor: page.nextCursor ?? null,
@@ -436,13 +444,13 @@ export async function unlikePost(postId: string) {
 }
 
 export async function repostPost(postId: string) {
-  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
     method: 'POST',
   });
 }
 
 export async function unrepostPost(postId: string) {
-  await apiRequest<null>(`/api/v1/posts/${postId}/reposts`, {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
     method: 'DELETE',
   });
 }

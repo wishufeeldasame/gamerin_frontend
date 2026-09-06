@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Send } from 'lucide-react';
+import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
@@ -18,14 +18,17 @@ import {
   formatRelativeTime,
   getInitials,
   likePost,
+  repostPost,
   unbookmarkPost,
   unlikePost,
+  unrepostPost,
   updatePostBookmarkState,
   updatePostLikeState,
 } from '@/lib/feed-api';
 import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
+import { HashtagText } from './HashtagText';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -55,6 +58,8 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [isLikeLoading, setIsLikeLoading] = useState(false);
+  const [isRepostLoading, setIsRepostLoading] = useState(false);
+  const [repostError, setRepostError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -137,6 +142,46 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setIsLikeLoading(false);
+    }
+  };
+
+  const handleToggleRepost = async () => {
+    if (!post || isRepostLoading || post.mine) {
+      return;
+    }
+
+    const previousPost = post;
+    const optimisticPost = {
+      ...post,
+      isReposted: !post.isReposted,
+      repostCount: Math.max(0, post.repostCount + (post.isReposted ? -1 : 1)),
+    };
+
+    setIsRepostLoading(true);
+    setRepostError(null);
+    setPost(optimisticPost);
+    onPostUpdated?.(optimisticPost);
+
+    try {
+      const response = optimisticPost.isReposted
+        ? await repostPost(previousPost.postId)
+        : await unrepostPost(previousPost.postId);
+      const confirmedPost = {
+        ...previousPost,
+        isReposted: response.isReposted,
+        repostCount: response.repostCount,
+      };
+
+      setPost(confirmedPost);
+      onPostUpdated?.(confirmedPost);
+    } catch (toggleError) {
+      setPost(previousPost);
+      onPostUpdated?.(previousPost);
+      const message = toggleError instanceof Error ? toggleError.message : 'Failed to update repost.';
+      setRepostError(message);
+      alert(message);
+    } finally {
+      setIsRepostLoading(false);
     }
   };
 
@@ -278,6 +323,10 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
 
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
   const canReportPost = !canDeletePost;
+  const canRepostPost = !post.mine;
+  const repostButtonTitle = post.mine
+    ? '본인 게시글은 리포스트할 수 없습니다.'
+    : repostError ?? undefined;
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
@@ -361,7 +410,11 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             </div>
           </div>
 
-          {post.content ? <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">{post.content}</p> : null}
+          {post.content ? (
+            <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">
+              <HashtagText text={post.content} />
+            </p>
+          ) : null}
 
           {post.media.length > 0 ? (
             <div className="mb-8 space-y-3">
@@ -406,6 +459,19 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                 <MessageCircle size={22} />
                 <span>{post.comments}</span>
               </div>
+              <button
+                type="button"
+                onClick={() => void handleToggleRepost()}
+                disabled={isRepostLoading || !canRepostPost}
+                aria-label={post.isReposted ? '리포스트 취소' : '리포스트'}
+                title={repostButtonTitle}
+                className={`flex items-center gap-2 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
+                  post.isReposted ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'
+                }`}
+              >
+                <Repeat2 size={22} />
+                <span>{post.repostCount}</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setCollectionModalOpen(true)}

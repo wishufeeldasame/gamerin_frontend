@@ -21,6 +21,7 @@ import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
+import { HashtagText } from './HashtagText';
 
 interface PostProps {
   post: PostRecord;
@@ -134,6 +135,10 @@ export function Post({
   } = useRepost(post, onRepostChange);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
   const canReportPost = !canDeletePost;
+  const canRepostPost = !post.mine;
+  const repostButtonTitle = post.mine
+    ? '본인 게시글은 리포스트할 수 없습니다.'
+    : repostError ?? undefined;
 
   const shouldIgnoreCardOpen = (target: EventTarget | null) => {
     if (!(target instanceof Element)) {
@@ -255,7 +260,10 @@ export function Post({
         {post.reposterInfo ? (
           <div className="flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
             <Repeat2 size={15} className="text-emerald-500" />
-            <span>{post.reposterInfo.nickname}님이 리포스트했습니다</span>
+            <span>
+              {post.reposterInfo.nickname}님이 리포스트했습니다
+              {post.reposterInfo.repostedAt ? ` · ${formatRelativeTime(post.reposterInfo.repostedAt)}` : ''}
+            </span>
           </div>
         ) : null}
 
@@ -338,7 +346,7 @@ export function Post({
 
         {post.content ? (
           <p className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
-            {post.content}
+            <HashtagText text={post.content} />
           </p>
         ) : null}
         </div>
@@ -372,9 +380,9 @@ export function Post({
           <button
             type="button"
             onClick={() => void toggleRepost()}
-            disabled={isRepostLoading}
+            disabled={isRepostLoading || !canRepostPost}
             aria-label={isReposted ? '리포스트 취소' : '리포스트'}
-            title={repostError ?? undefined}
+            title={repostButtonTitle}
             className={`group flex items-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               isReposted ? 'text-emerald-500' : 'hover:text-emerald-500'
             }`}

@@ -372,6 +372,7 @@ export default function BookmarksPage() {
         </div>
       ) : null}
 
+
       {loading ? (
         <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
           북마크를 불러오는 중...
