@@ -3,9 +3,12 @@ import {
   ensureAccessToken,
   getAuthGeneration,
   refreshAccessToken,
+  logoutAuthSession,
 } from '@/lib/auth-store';
+import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
+import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
 const REPORTS_BASE = '/api/v1/reports';
 
 interface ApiEnvelope<T> {
@@ -104,6 +107,7 @@ async function reportRequest<T>(path: string, options: RequestOptions = {}): Pro
     throw new ReportApiError('로그인이 필요하거나 인증이 만료되었습니다.', 401);
   }
 
+
   let result = await send(accessToken);
   assertCurrentAuthGeneration(requestGeneration);
 
@@ -120,6 +124,11 @@ async function reportRequest<T>(path: string, options: RequestOptions = {}): Pro
   }
 
   if (!result.response.ok) {
+    if (isBlockedAccountResponse(result.response.status, result.payload as never)) {
+      await logoutAuthSession();
+      throw new ReportApiError(BLOCKED_ACCOUNT_MESSAGE, result.response.status);
+    }
+
     throw new ReportApiError(
       result.payload?.message ?? '신고 요청 처리에 실패했습니다.',
       result.response.status,
