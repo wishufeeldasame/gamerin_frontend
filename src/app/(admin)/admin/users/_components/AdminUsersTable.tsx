@@ -3,6 +3,7 @@
 import { ChevronDown, Search } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
+import { AdminDemoNotice } from '../../_components/AdminDemoNotice';
 import { AdminPagination } from '../../_components/AdminPagination';
 import { AdminStatePanel } from '../../_components/AdminStatePanel';
 import { AdminStatusBadge } from '../../_components/AdminStatusBadge';
@@ -32,6 +33,7 @@ export function AdminUsersTable() {
 
   return (
     <div className="w-full p-4 sm:p-6 lg:p-8">
+      <AdminDemoNotice description="사용자 목록과 상세 데이터는 사용자 관리 API 연결 전 예시입니다. 이 화면에서는 실제 계정 상태가 변경되지 않습니다." />
       <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-[17px] shadow-[0_1px_1px_rgba(16,24,40,0.04)]" aria-label="사용자 검색 및 필터">
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <label className="relative md:col-span-1">

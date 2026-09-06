@@ -1,17 +1,21 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { getApiBaseUrl } from '@/lib/api-base';
 import { useRouter } from 'next/navigation';
 import {
   AUTH_CLEARED_EVENT,
+  AUTH_LOGOUT_STATE_EVENT,
   AUTH_USER_KEY,
-  clearStoredAuth,
   getAuthGeneration,
+  isLogoutInProgress,
   isCurrentAuthGeneration,
+  logoutAuthSession,
   refreshAccessToken,
 } from '@/lib/auth-store';
+import { isBlockedAccountResponse, isBlockedAccountStatus } from '@/lib/auth-session-policy';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
@@ -24,14 +28,17 @@ interface User {
   location?: string;
   website?: string;
   profileImageUrl?: string | null;
+  role?: string;
+  status?: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isAuthReady: boolean;
+  isLoggingOut: boolean;
   login: (userData: User) => void;
   updateUser: (updates: Partial<User>) => void;
-  logout: (options?: { redirectTo?: string | null }) => void;
+  logout: (options?: { redirectTo?: string | null }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,21 +81,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const handleAuthCleared = () => {
       setUser(null);
     };
+    const handleLogoutState = (event: Event) => {
+      setIsLoggingOut((event as CustomEvent<boolean>).detail);
+    };
 
+    setIsLoggingOut(isLogoutInProgress());
     window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
-    return () => window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+    window.addEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
+    return () => {
+      window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+      window.removeEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
+    };
   }, []);
 
   useEffect(() => {
     const bootstrapAuth = async () => {
-      const savedUser = window.localStorage.getItem(AUTH_USER_KEY);
+      let savedUser: string | null;
 
-      if (!savedUser) {
+      try {
+        savedUser = window.localStorage.getItem(AUTH_USER_KEY);
+
+        if (!savedUser) {
+          setIsAuthReady(true);
+          return;
+        }
+      } catch {
+        setUser(null);
+        await logoutAuthSession({ notify: false });
         setIsAuthReady(true);
         return;
       }
@@ -96,7 +121,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const bootstrapGeneration = getAuthGeneration();
 
       try {
-        const parsedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
+        const storedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
         const refreshedToken = await refreshAccessToken(bootstrapGeneration);
 
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
@@ -105,19 +130,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!refreshedToken) {
           setUser(null);
-          clearStoredAuth({ notify: false });
+          await logoutAuthSession({ notify: false });
           return;
         }
 
-        setUser(parsedUser);
-        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsedUser));
+        const meResponse = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
+          headers: { Authorization: `Bearer ${refreshedToken}` },
+          credentials: 'include',
+        });
+        const mePayload = await meResponse.json().catch(() => null);
+        const me = mePayload?.data;
+
+        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
+
+        if (
+          isBlockedAccountResponse(meResponse.status, mePayload) ||
+          isBlockedAccountStatus(me?.status) ||
+          !meResponse.ok ||
+          !me ||
+          typeof me.userId !== 'string' ||
+          typeof me.handle !== 'string' ||
+          typeof me.nickname !== 'string'
+        ) {
+          await logoutAuthSession({ notify: false });
+          setUser(null);
+          return;
+        }
+
+        const verifiedUser = normalizeStoredUser({
+          ...storedUser,
+          id: me.userId,
+          handle: me.handle,
+          nickname: me.nickname,
+          name: storedUser.name || me.nickname,
+          role: typeof me.role === 'string' ? me.role : undefined,
+          status: typeof me.status === 'string' ? me.status : undefined,
+        });
+        setUser(verifiedUser);
+        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(verifiedUser));
       } catch {
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
           return;
         }
 
         setUser(null);
-        clearStoredAuth({ notify: false });
+        await logoutAuthSession({ notify: false });
       } finally {
         setIsAuthReady(true);
       }
@@ -144,9 +203,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const logout = useCallback((options?: { redirectTo?: string | null }) => {
+  const logout = useCallback(async (options?: { redirectTo?: string | null }) => {
     setUser(null);
-    clearStoredAuth({ notify: false });
+    await logoutAuthSession({ notify: false });
 
     const redirectTo = options?.redirectTo ?? '/login';
     if (redirectTo) {
@@ -155,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthReady, login, updateUser, logout }}>
+    <AuthContext.Provider value={{ user, isAuthReady, isLoggingOut, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,7 @@
 import { ChevronDown, RotateCcw, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { FormEvent, useState } from 'react';
 import type { AdminSanctionType, AdminUser } from '@/types/admin';
+import { AdminDemoNotice } from '../../_components/AdminDemoNotice';
 import { AdminDialog } from '../../_components/AdminDialog';
 import { AdminStatusBadge } from '../../_components/AdminStatusBadge';
 import { AdminToast } from '../../_components/AdminToast';
@@ -110,6 +111,7 @@ export function AdminUserDetail({ user }: { user: AdminUser }) {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] p-4 sm:p-6 lg:p-8">
+      <AdminDemoNotice description="사용자 정보와 이력은 예시 데이터입니다. 사용자 제재 API 연결 전까지 제재 적용과 정지 해제는 사용할 수 없습니다." />
       <section className="flex min-h-[125px] flex-col items-start justify-between gap-6 rounded-[20px] border border-[#e4e7ec] bg-white p-5 shadow-[0_1px_1px_rgba(16,24,40,0.04)] md:flex-row md:p-[25px]">
         <div className="flex items-center gap-4">
           <div className="grid size-14 shrink-0 place-items-center rounded-full text-xl font-bold text-white sm:size-16 sm:text-[25.6px]" style={{ backgroundColor: user.avatarColor }}>
@@ -153,6 +155,7 @@ export function AdminUserDetail({ user }: { user: AdminUser }) {
         <section className="min-h-[419px] rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-[0_1px_1px_rgba(16,24,40,0.04)] sm:p-[21px]">
           <h2 className="text-base font-bold text-[#172033]">제재 관리</h2>
           <form className="pt-4" onSubmit={handleSubmit} noValidate>
+            <fieldset disabled className="m-0 min-w-0 border-0 p-0">
             <label htmlFor="sanction-type" className="mb-1.5 block text-[13px] font-semibold text-[#344054]">제재 유형</label>
             <div className="relative">
               <select
@@ -199,8 +202,9 @@ export function AdminUserDetail({ user }: { user: AdminUser }) {
             ) : null}
 
             <p className="mt-4 rounded-2xl bg-[#f9fafb] p-3 text-xs leading-5 text-[#98a2b3]">
-              {isProtectedAdmin ? '관리자 계정은 이 화면에서 제재할 수 없습니다.' : '모든 제재와 해제에는 사유가 필요하며 작업 이력에 기록됩니다.'}
+              사용자 제재 API 연결 전이므로 입력과 상태 변경이 비활성화되어 있습니다.
             </p>
+            </fieldset>
           </form>
         </section>
       </div>

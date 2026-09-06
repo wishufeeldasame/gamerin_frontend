@@ -106,7 +106,7 @@ export function AdminSettingsScreen() {
           <button
             type="button"
             onClick={() => setSavedSettings(settings)}
-            className="h-10 rounded-2xl bg-[#315ef5] px-4 text-sm leading-[21px] font-semibold text-white transition hover:bg-[#2448c9]"
+            className="h-10 rounded-2xl bg-[#315ef5] px-4 text-sm leading-[21px] font-semibold text-white transition hover:bg-[#2448c9] disabled:cursor-not-allowed disabled:bg-[#98a2b3]"
           >
             변경사항 저장
           </button>

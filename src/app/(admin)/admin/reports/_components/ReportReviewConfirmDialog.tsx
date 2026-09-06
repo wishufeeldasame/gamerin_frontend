@@ -10,6 +10,7 @@ type ReportReviewConfirmDialogProps = {
   userAction: string;
   reason: string;
   confirmLabel: string;
+  isSubmitting: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -30,6 +31,7 @@ export function ReportReviewConfirmDialog({
   userAction,
   reason,
   confirmLabel,
+  isSubmitting,
   onClose,
   onConfirm,
 }: ReportReviewConfirmDialogProps) {
@@ -38,7 +40,7 @@ export function ReportReviewConfirmDialog({
       isOpen={isOpen}
       titleId="report-review-confirm-title"
       descriptionId="report-review-confirm-description"
-      onClose={onClose}
+      onClose={isSubmitting ? () => undefined : onClose}
     >
       <div className="grid size-11 place-items-center rounded-2xl bg-[#feeceb]">
         <TriangleAlert className="size-6 text-[#d92d20]" strokeWidth={1.8} aria-hidden="true" />
@@ -58,11 +60,11 @@ export function ReportReviewConfirmDialog({
       </dl>
 
       <div className="mt-5 flex justify-end gap-2">
-        <button type="button" onClick={onClose} className="h-10 rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb]">
+        <button type="button" disabled={isSubmitting} onClick={onClose} className="h-10 rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:opacity-50">
           취소
         </button>
-        <button type="button" onClick={onConfirm} className="h-10 rounded-2xl bg-[#d92d20] px-4 text-sm font-semibold text-white transition hover:bg-[#b42318]">
-          {confirmLabel}
+        <button type="button" disabled={isSubmitting} onClick={onConfirm} className="h-10 rounded-2xl bg-[#d92d20] px-4 text-sm font-semibold text-white transition hover:bg-[#b42318] disabled:bg-[#98a2b3]">
+          {isSubmitting ? '처리 중...' : confirmLabel}
         </button>
       </div>
     </AdminDialog>

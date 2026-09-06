@@ -7,14 +7,20 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import { setAccessToken } from '@/lib/auth-store';
+import {
+  logoutAuthSession,
+  setAccessToken,
+  waitForLogoutCompletion,
+} from '@/lib/auth-store';
+import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
+import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, isAuthReady, login } = useAuth();
+  const { user, isAuthReady, isLoggingOut, login } = useAuth();
 
   const [showIdLogin, setShowIdLogin] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -109,6 +115,7 @@ export default function LoginPage() {
     setLoginLoading(true);
 
     try {
+      await waitForLogoutCompletion();
       const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -120,6 +127,11 @@ export default function LoginPage() {
       });
 
       const data = await response.json().catch(() => null);
+      if (isBlockedAccountResponse(response.status, data)) {
+        await logoutAuthSession();
+        throw new Error(BLOCKED_ACCOUNT_MESSAGE);
+      }
+
 
       if (!response.ok) {
         throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
@@ -245,10 +257,10 @@ export default function LoginPage() {
                 <button
                   type="button"
                   onClick={handleLocalLogin}
-                  disabled={loginLoading}
+                  disabled={loginLoading || isLoggingOut}
                   className="h-12 w-full rounded-full bg-black text-[15px] font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
-                  {loginLoading ? '로그인 중...' : '로그인'}
+                  {isLoggingOut ? '이전 세션 정리 중...' : loginLoading ? '로그인 중...' : '로그인'}
                 </button>
               </motion.div>
             ) : null}
