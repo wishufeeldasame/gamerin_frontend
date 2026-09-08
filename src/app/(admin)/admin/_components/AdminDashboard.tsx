@@ -1,3 +1,5 @@
+'use client';
+
 import {
   ArrowUpRight,
   CircleCheck,
@@ -6,10 +8,16 @@ import {
   UserRoundX,
 } from 'lucide-react';
 import Link from 'next/link';
-import type { AdminReportStatus } from '@/types/admin';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchAdminReports } from '@/lib/admin-report-api';
+import { useVisiblePolling } from '@/hooks/useVisiblePolling';
+import type { AdminReport, AdminReportStatus } from '@/types/admin';
 import { dashboardReportReasons, dashboardSummaryCards } from '../_data/dashboard';
-import { reports } from '../reports/_data/reports';
+import { mapAdminReport } from '../reports/_utils/report-mapper';
+import { AdminDemoNotice } from './AdminDemoNotice';
+import { AdminRefreshStatus } from './AdminRefreshStatus';
 import { AdminStatusBadge } from './AdminStatusBadge';
+import { AdminStatePanel } from './AdminStatePanel';
 import { AdminShell } from './AdminShell';
 
 const summaryIcons = {
@@ -60,18 +68,101 @@ function SummaryCards() {
 }
 
 function RecentReportsCard() {
+  const [reports, setReports] = useState<AdminReport[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const requestInFlightRef = useRef(false);
+
+  const loadReports = useCallback(async (initial = false) => {
+    if (requestInFlightRef.current) return;
+
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
+    requestInFlightRef.current = true;
+    if (initial) {
+      setLoading(true);
+      setLoadError(null);
+    } else {
+      setIsRefreshing(true);
+      setRefreshError(null);
+    }
+
+    try {
+      const response = await fetchAdminReports(
+        { page: 0, size: 10, sort: 'createdAt,desc' },
+        controller.signal,
+      );
+      setReports(response.content.map((report) => mapAdminReport(report)));
+      setLoadError(null);
+      setRefreshError(null);
+      setLastUpdatedAt(new Date());
+    } catch (error: unknown) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      const message = error instanceof Error ? error.message : '최근 신고를 불러오지 못했습니다.';
+      if (initial) {
+        setReports([]);
+        setLoadError(message);
+      } else {
+        setRefreshError(message);
+      }
+    } finally {
+      requestInFlightRef.current = false;
+      setLoading(false);
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadReports(true);
+    return () => requestControllerRef.current?.abort();
+  }, [loadReports]);
+
+  useVisiblePolling(() => loadReports(false), { intervalMs: 30_000 });
+
   return (
     <section className="overflow-hidden rounded-[20px] border border-[#e4e7ec] bg-white shadow-[0_1px_1px_rgba(16,24,40,0.04)]">
-      <div className="flex h-[58px] items-center justify-between border-b border-[#f2f4f7] px-5">
+      <div className="flex min-h-[58px] flex-wrap items-center justify-between gap-3 border-b border-[#f2f4f7] px-5 py-2">
         <h2 className="text-base leading-6 font-bold text-[#172033]">최근 신고</h2>
-        <Link
-          href="/admin/reports"
-          className="text-[13px] leading-[19.5px] font-semibold text-[#315ef5] hover:underline"
-        >
-          전체 보기
-        </Link>
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <AdminRefreshStatus
+            isRefreshing={isRefreshing}
+            lastUpdatedAt={lastUpdatedAt}
+            onRefresh={() => void loadReports(false)}
+          />
+          <Link
+            href="/admin/reports"
+            className="text-[13px] leading-[19.5px] font-semibold text-[#315ef5] hover:underline"
+          >
+            전체 보기
+          </Link>
+        </div>
       </div>
 
+      {loading ? (
+        <AdminStatePanel state="loading" title="최근 신고를 불러오는 중입니다." compact />
+      ) : loadError ? (
+        <AdminStatePanel
+          state="error"
+          title="최근 신고를 불러오지 못했습니다."
+          description={loadError}
+          onRetry={() => void loadReports(true)}
+          compact
+        />
+      ) : refreshError && reports.length === 0 ? (
+        <AdminStatePanel
+          state="error"
+          title="최근 신고를 새로 확인하지 못했습니다."
+          description={refreshError}
+          onRetry={() => void loadReports(false)}
+          compact
+        />
+      ) : reports.length === 0 ? (
+        <AdminStatePanel state="empty" title="접수된 신고가 없습니다." compact />
+      ) : (
       <div className="overflow-x-auto">
         <table className="w-full min-w-[709px] table-fixed border-collapse">
           <colgroup>
@@ -114,6 +205,12 @@ function RecentReportsCard() {
           </tbody>
         </table>
       </div>
+      )}
+      {refreshError && reports.length > 0 ? (
+        <p className="border-t border-[#fedf89] bg-[#fffaeb] px-5 py-2 text-xs text-[#b54708]" role="status">
+          기존 목록을 유지했습니다. 새 데이터를 확인하지 못했습니다.
+        </p>
+      ) : null}
     </section>
   );
 }
@@ -144,8 +241,9 @@ function ReportReasonsCard() {
 
 export function AdminDashboard() {
   return (
-    <AdminShell activePage="dashboard" title="대시보드" description="관리자 시스템의 주요 현황을 확인하세요.">
+    <AdminShell activePage="dashboard" title="대시보드" description="관리자 시스템의 주요 현황을 확인하세요." showRefresh={false}>
       <div className="w-full p-4 sm:p-6 lg:p-8">
+        <AdminDemoNotice description="요약 카드와 신고 사유 분포는 통계 API 연결 전 예시 데이터입니다. 최근 신고 목록은 관리자 신고 API에서 불러옵니다." />
         <SummaryCards />
         <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.85fr)_minmax(300px,1fr)]">
           <RecentReportsCard />

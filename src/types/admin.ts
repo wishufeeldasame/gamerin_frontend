@@ -1,16 +1,11 @@
 export type AdminReportStatus = '접수' | '검토 중' | '처리 완료' | '반려';
 
-export type AdminReportTargetType = '게시글' | '댓글' | '사용자' | '메시지';
+export type AdminReportTargetType = '게시글' | '댓글' | '사용자' | '멘토링' | '메시지';
 
-export type AdminReportReason =
-  | '광고·홍보'
-  | '욕설·비하·혐오'
-  | '음란·성적 콘텐츠'
-  | '도배·시스템 악용'
-  | '사기·거래 피해'
-  | '기타';
+export type AdminReportReason = string;
 
 export type AdminReportUser = {
+  id?: string;
   name: string;
   handle: string;
   initial: string;
@@ -21,6 +16,7 @@ export type AdminReportUser = {
 
 export type AdminReport = {
   id: string;
+  reportUuid?: string;
   targetType: AdminReportTargetType;
   target: string;
   reason: AdminReportReason;
@@ -32,6 +28,9 @@ export type AdminReport = {
   content: string;
   reporterUser: AdminReportUser;
   targetUser: AdminReportUser;
+  targetId?: string;
+  contentHidden?: boolean;
+  updatedAt?: string;
 };
 
 export type AdminUserStatus = '활성' | '정지';

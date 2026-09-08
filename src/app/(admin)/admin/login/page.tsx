@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Noto_Sans_KR } from 'next/font/google';
-import { ShieldCheck } from 'lucide-react';
 import { AdminLoginForm } from './_components/AdminLoginForm';
 
 const notoSansKr = Noto_Sans_KR({
@@ -40,18 +39,6 @@ export default function AdminLoginPage() {
 
         <AdminLoginForm />
 
-        <aside className="mt-4 flex items-start gap-2 rounded-2xl bg-[#eef3ff] px-3.5 py-3 text-xs leading-[18px] text-[#1d46c7]">
-          <ShieldCheck
-            className="mt-0.5 size-4 shrink-0"
-            strokeWidth={1.7}
-            aria-hidden="true"
-          />
-          <p>
-            이 페이지는 관리자 계정에만 접근이 허용됩니다. 데모: 아이디{' '}
-            <strong className="font-bold">admin01</strong> / 비밀번호{' '}
-            <strong className="font-bold">admin</strong>
-          </p>
-        </aside>
       </section>
     </main>
   );
