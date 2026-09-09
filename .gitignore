@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -48,4 +51,4 @@ next-env.d.ts
 .codex
 
 AGENTS.md
-CLAUDE.md 
+CLAUDE.md
