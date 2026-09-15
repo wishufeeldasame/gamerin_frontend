@@ -140,42 +140,6 @@ function normalizeHandle(value: string) {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
 
-const PROFILE_FOLLOWS_VIEWER_PAGE_SIZE = 100;
-
-async function fetchProfileFollowsViewer(profileHandle: string, viewerHandle?: string | null) {
-  if (!viewerHandle) {
-    return false;
-  }
-
-  const normalizedProfileHandle = profileHandle.toLowerCase();
-  const normalizedViewerHandle = viewerHandle.toLowerCase();
-
-  if (normalizedProfileHandle === normalizedViewerHandle) {
-    return false;
-  }
-
-  try {
-    let cursor: string | null = null;
-
-    while (true) {
-      const page = await fetchFollowing(profileHandle, cursor, PROFILE_FOLLOWS_VIEWER_PAGE_SIZE);
-      const followsViewer = page.items.some((user) => user.handle.toLowerCase() === normalizedViewerHandle);
-
-      if (followsViewer) {
-        return true;
-      }
-
-      if (!page.hasNext || !page.nextCursor) {
-        return false;
-      }
-
-      cursor = page.nextCursor;
-    }
-  } catch {
-    return false;
-  }
-}
-
 type GameStatsRecord = Record<string, unknown>;
 
 function toGameStatsRecord(stats: unknown): GameStatsRecord | null {
@@ -443,14 +407,12 @@ export default function ProfilePage() {
         const shouldLoadMyProfile =
           !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
         const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
-        const [postPage, mediaPage, followsViewer] = await Promise.all([
+        const [postPage, mediaPage] = await Promise.all([
           fetchUserPosts(loadedProfile.handle),
           fetchUserMedia(loadedProfile.handle),
-          shouldLoadMyProfile
-            ? Promise.resolve(false)
-            : fetchProfileFollowsViewer(loadedProfile.handle, currentUser?.handle),
         ]);
         const followedByMe = shouldLoadMyProfile ? false : Boolean(loadedProfile.followedByMe);
+        const followsViewer = shouldLoadMyProfile ? false : Boolean(loadedProfile.followsViewer);
         const resolvedProfile = {
           ...loadedProfile,
           followedByMe,
