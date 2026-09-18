@@ -489,3 +489,15 @@ npm run dev
   > 검증: B-1 관련 테스트 7건, 전체 단위 테스트 70건, `npm run lint`, `npm run build` 통과
 
   > 요약 : 북마크 해제 성공 후 모음집을 서버 기준으로 재조회하고, 동기화 중 오래된 개수를 숨겨 게시글 상태와 모음집 개수가 일치하도록 수정
+
+* **26/09/18** 전준범
+
+  > [B-2] OAuth 인증 처리 화면에서 줄바꿈으로 분리되어 적용되지 않던 `font-sans`와 `justify-center` Tailwind 클래스를 정상 클래스 단위로 복구
+  > 로딩 화면의 기본 sans 글꼴과 인증 실패 화면의 오류 아이콘 중앙 정렬이 정상 적용되도록 실제 UI 결함만 최소 수정
+  > 정상 클래스인 `border-zinc-200`, `border-t-black`과 기존 안내·오류 문구는 변경하지 않고, 로그인 화면의 개발 단계 경고 배너도 복원하지 않음
+  > refresh 요청, access token 저장, `login()`, `logoutAuthSession()`, `/auth/me`, 차단 계정 처리, 성공 시 `/home` 이동과 실패 후 3초 뒤 `/login` 이동 등 기존 인증 로직 유지
+  > OAuth 로딩·실패·성공 상태 테스트를 추가하여 필요한 클래스 적용, 실패 시 세션 정리와 fake timer 기반 로그인 이동, 성공 시 토큰 저장·로그인·홈 이동을 검증
+  > 백엔드, API 계약, 인증 정책과 `AuthContext` 등 인증 공통 모듈은 변경하지 않고 OAuth 화면과 회귀 테스트 범위로 작업을 제한
+  > 검증: B-2 관련 테스트 3건, 전체 단위 테스트 73건, `npm run lint`, `npm run build`, `git diff --check` 통과
+
+  > 요약 : OAuth 인증 처리 화면의 깨진 Tailwind 클래스를 복구하고, 기존 성공·실패 인증 흐름을 회귀 테스트로 보장

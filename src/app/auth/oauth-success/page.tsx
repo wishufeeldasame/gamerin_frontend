@@ -100,13 +100,11 @@ export default function OAuthSuccessPage() {
     }, [login, router]);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-white font-
-  sans text-black">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-white font-sans text-black">
             <div className="flex flex-col items-center space-y-4">
                 {error ? (
                     <>
-                        <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-
-  center text-red-600 font-bold text-xl">!</div>
+                        <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xl">!</div>
                         <h1 className="text-xl font-bold">오류 발생</h1>
                         <p className="text-zinc-600">{error}</p>
                         <p className="text-zinc-400 text-sm">잠시 후 로그인 페이지로 이동합니다...</p>
