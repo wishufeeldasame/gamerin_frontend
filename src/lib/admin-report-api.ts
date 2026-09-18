@@ -1,30 +1,7 @@
-import {
-  assertCurrentAuthGeneration,
-  ensureAccessToken,
-  getAuthGeneration,
-  refreshAccessToken,
-  logoutAuthSession,
-} from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import { notifyAdminAuthorizationFailure } from '@/lib/admin-auth';
 
 const ADMIN_REPORTS_BASE = '/api/v1/admin/reports';
-import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
-
-interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-interface ErrorEnvelope {
-  success?: boolean;
-  message?: string;
-}
-
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
 
 export type AdminReportStatusCode = 'RECEIVED' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
 export type AdminReportTargetTypeCode = 'POST' | 'COMMENT' | 'USER' | 'MENTORING' | 'MESSAGE';
@@ -106,86 +83,44 @@ export interface AdminReportResolutionRequest {
   includeRelatedReports: boolean;
 }
 
-export class AdminReportApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
+export class AdminReportApiError extends ApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
     this.name = 'AdminReportApiError';
   }
 }
 
-export async function adminApiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const apiBase = getApiBaseUrl();
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${apiBase}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-    const payload = (await response.json().catch(() => null)) as
-      | ApiEnvelope<T>
-      | ErrorEnvelope
-      | null;
-
-    return { response, payload };
-  };
-
-  const requestGeneration = getAuthGeneration();
-  let accessToken = await ensureAccessToken(requestGeneration);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (!accessToken) {
-    notifyAdminAuthorizationFailure(401);
-    throw new AdminReportApiError('관리자 로그인이 필요합니다.', 401);
-  }
-
-  let result = await send(accessToken);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken(requestGeneration);
-    assertCurrentAuthGeneration(requestGeneration);
-
-    if (!accessToken) {
+// toError는 요청 세대가 현재일 때만 호출되므로, 이전 사용자의 요청은 관리자 가드에 알리지 않는다.
+const ADMIN_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) => {
+    if (reason === 'unauthenticated') {
       notifyAdminAuthorizationFailure(401);
-      throw new AdminReportApiError('관리자 로그인이 필요합니다.', 401);
+      return new AdminReportApiError('관리자 로그인이 필요합니다.', 401);
     }
 
-    result = await send(accessToken);
-    assertCurrentAuthGeneration(requestGeneration);
-  }
-  if (isBlockedAccountResponse(result.response.status, result.payload as never)) {
-    void logoutAuthSession();
-    notifyAdminAuthorizationFailure(401);
-    throw new AdminReportApiError(BLOCKED_ACCOUNT_MESSAGE, result.response.status);
-  }
+    if (reason === 'blocked') {
+      notifyAdminAuthorizationFailure(401);
+      return new AdminReportApiError(message ?? '관리자 요청 처리에 실패했습니다.', status);
+    }
 
-  if (!result.response.ok) {
-    if (result.response.status === 401 || result.response.status === 403) {
-      notifyAdminAuthorizationFailure(result.response.status);
+    if (reason === 'invalid-response') {
+      return new AdminReportApiError('관리자 신고 API 응답 형식이 올바르지 않습니다.', status);
+    }
+
+    if (reason === 'http' && (status === 401 || status === 403)) {
+      notifyAdminAuthorizationFailure(status);
     }
 
     const fallbackMessage =
-      result.response.status === 403
+      reason === 'http' && status === 403
         ? '관리자 권한이 필요한 기능입니다.'
         : '관리자 요청 처리에 실패했습니다.';
-    throw new AdminReportApiError(result.payload?.message ?? fallbackMessage, result.response.status);
-  }
+    return new AdminReportApiError(message ?? fallbackMessage, status);
+  },
+};
 
-  if (!result.payload || !('data' in result.payload)) {
-    throw new AdminReportApiError('관리자 신고 API 응답 형식이 올바르지 않습니다.', result.response.status);
-  }
-
-  return result.payload.data;
+export function adminApiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, ADMIN_CLIENT, options);
 }
 
 export function fetchAdminReports(params: AdminReportSearchParams, signal?: AbortSignal) {
