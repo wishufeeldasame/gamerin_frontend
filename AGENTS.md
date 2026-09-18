@@ -26,7 +26,8 @@
 - 이 디렉토리는 독립 Git 저장소다. 작업 시작 시 이 저장소 루트에서 `git status --short --branch`를 확인하고 기존 사용자 변경을 보존한다.
 - Git 명령은 대상 저장소에서 실행한다. `capstone/`처럼 여러 저장소를 모아 둔 상위 디렉토리를 하나의 Git 저장소로 취급하지 않는다.
 - commit, push, merge, rebase, reset, `checkout --`, 변경 폐기 및 대량 삭제는 사용자 승인 후 수행한다.
-- 컨테이너 기동·중지·재시작, DB 초기화·복원, 볼륨·데이터 디렉토리 삭제, 실제 배포 등 런타임 상태 변경은 사용자 승인 후 수행한다.
+- 컨테이너 기동·중지·재시작(`docker compose --env-file .env up -d`, `stop`, `restart` 등)은 승인 없이 수행할 수 있다. 전후 상태를 `ps`로 확인하고, 변경한 컨테이너와 이유를 완료 보고에 명시한다.
+- DB 초기화·복원, 볼륨·데이터 디렉토리 삭제(`down -v` 포함), 배포 스크립트 실행과 실제 배포 등 그 밖의 런타임 상태 변경은 사용자 승인 후 수행한다.
 - DB 복원 전에는 대상 DB, 최신 백업과 복원 파일을 확인한다.
 
 ## 민감정보와 런타임 데이터
@@ -114,9 +115,9 @@
 - `src/lib/api-base.ts`의 `getApiBaseUrl()`은 설정값이 있으면 앞뒤 공백과 마지막 슬래시를 제거한다.
 - 설정값이 없으면 서버에서는 빈 문자열을 반환한다.
 - 브라우저가 localhost/127.0.0.1의 3000 포트라면 같은 프로토콜·호스트의 8080 주소를 사용하고, 그 외에는 빈 문자열을 반환한다.
-- `message-api.ts`, `community-search-api.ts`, `auth-store.ts`, `AuthContext.tsx`는 `getApiBaseUrl()`을 사용한다.
-- `feed-api.ts`, `mentoring-api.ts`, `mileage-api.ts` 등은 환경변수로 별도 `API_BASE`를 선언한다.
-- 별도 `API_BASE` 선언 모듈은 환경변수 미설정 시 `http://localhost:8080`을 기본값으로 사용하는 경우가 있으므로 한쪽만 바꿔 전체에 적용됐다고 가정하지 않는다.
+- 인증이 필요한 요청은 `src/lib/api-client.ts`의 `apiRequest()`/`apiRequestBlob()`을 사용하고, 요청할 때 `getApiBaseUrl()`로 주소를 얻는다. 도메인 모듈은 엔드포인트 함수와 도메인 오류 변환(`toError`)만 둔다.
+- 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
+- `community-search-api.ts`는 아직 자체 래퍼를 사용한다(#56 (b) 단계). 인증 화면 일부(`find-id`, `auth/forgot-password`, `auth/reset-password`)는 환경변수 미설정 시 `http://localhost:8080`을 기본값으로 쓰므로(#57) 한쪽만 바꿔 전체에 적용됐다고 가정하지 않는다.
 
 ### SSE, 첨부, 이미지
 
