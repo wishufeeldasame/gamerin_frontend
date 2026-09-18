@@ -254,8 +254,19 @@ export function clearStoredAuth({
   }
 }
 
-export function logoutAuthSession(options: ClearStoredAuthOptions = {}) {
-  if (logoutRequest) return logoutRequest;
+export function logoutAuthSession(options: ClearStoredAuthOptions = {}): Promise<void> {
+  if (logoutRequest) {
+    if (authGeneration === loggedOutGeneration) return logoutRequest;
+
+    // 이전 로그아웃 요청이 끝나기 전에 새로 로그인했다. 새 세션도 즉시 지우고,
+    // 서버 로그아웃은 이전 요청이 끝난 뒤 그사이 다시 로그인하지 않았을 때만 보낸다.
+    clearStoredAuth(options);
+    const clearedGeneration = authGeneration;
+    loggedOutGeneration = clearedGeneration;
+    return logoutRequest.then(() => (
+      authGeneration === clearedGeneration ? logoutAuthSession(options) : undefined
+    ));
+  }
 
   const accessToken = getAccessToken();
   const headers = new Headers();

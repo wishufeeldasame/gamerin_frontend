@@ -269,6 +269,40 @@ describe('다른 탭의 로그아웃', () => {
   });
 });
 
+describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
+  it('새 세션이 만료되면 진행 중인 로그아웃을 재사용하지 않고 새 토큰도 지운 뒤 서버 로그아웃을 이어서 보낸다', async () => {
+    const firstLogout = deferred<Response>();
+    api.route('/api/v1/auth/logout', () => firstLogout.promise);
+    void store.logoutAuthSession({ notify: false });
+    store.setAccessToken('token-new-login');
+    api.route('/api/v1/items', () => json(401, {}), () => json(401, {}));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-new-refreshed' } }));
+
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({ reason: 'http', status: 401 });
+    expect(store.getAccessToken()).toBeNull();
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+
+    firstLogout.resolve(new Response(null, { status: 204 }));
+    await store.waitForLogoutCompletion();
+    await flush();
+    expect(api.count('/api/v1/auth/logout')).toBe(2);
+  });
+
+  it('이전 로그아웃이 끝나기 전에 또 로그인했으면 이어지는 서버 로그아웃을 보내지 않는다', async () => {
+    const firstLogout = deferred<Response>();
+    api.route('/api/v1/auth/logout', () => firstLogout.promise);
+    void store.logoutAuthSession({ notify: false });
+    store.setAccessToken('token-second');
+    const chained = store.logoutAuthSession({ notify: false });
+    store.setAccessToken('token-third');
+
+    firstLogout.resolve(new Response(null, { status: 204 }));
+    await chained;
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+    expect(store.getAccessToken()).toBe('token-third');
+  });
+});
+
 describe('403과 차단 계정', () => {
   it('일반 403은 권한 오류로 끝내고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => json(403, { message: '권한이 없습니다.' }));
