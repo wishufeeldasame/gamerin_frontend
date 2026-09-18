@@ -226,14 +226,21 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
 
     let cancelled = false;
+    const controller = new AbortController();
     const timeoutId = window.setTimeout(async () => {
       try {
         setLoadingHashtagSuggestions(true);
-        const suggestions = await fetchHashtagSuggestions(activeHashtagQuery.query, 10);
+        const suggestions = await fetchHashtagSuggestions(activeHashtagQuery.query, 10, {
+          signal: controller.signal,
+        });
         if (!cancelled) {
           setHashtagSuggestions(suggestions);
         }
-      } catch {
+      } catch (suggestionError) {
+        if (suggestionError instanceof DOMException && suggestionError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setHashtagSuggestions([]);
         }
@@ -246,6 +253,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
     return () => {
       cancelled = true;
+      controller.abort();
       window.clearTimeout(timeoutId);
     };
   }, [activeHashtagQuery]);

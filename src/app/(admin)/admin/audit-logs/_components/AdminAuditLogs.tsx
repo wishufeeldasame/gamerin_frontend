@@ -2,6 +2,7 @@
 
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { AdminDemoNotice } from '../../_components/AdminDemoNotice';
 import { AdminFilterSelect } from '../../_components/AdminFilterSelect';
 import { AdminPagination } from '../../_components/AdminPagination';
 import { AdminStatePanel } from '../../_components/AdminStatePanel';
@@ -39,6 +40,7 @@ export function AdminAuditLogs() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] p-4 sm:p-6 lg:p-8">
+      <AdminDemoNotice description="감사 로그 조회 API가 아직 연결되지 않아 예시 작업 이력을 표시합니다. 실제 관리자 처리 내역이 아닙니다." />
       <section className="rounded-[20px] border border-[#e4e7ec] bg-white p-[17px] shadow-[0_1px_1px_rgba(16,24,40,0.04)]" aria-label="작업 이력 검색 및 필터">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(260px,1.5fr)_repeat(3,minmax(160px,1fr))]">
           <label className="relative sm:col-span-2 xl:col-span-1"><span className="sr-only">작업 이력 검색</span><Search className="pointer-events-none absolute top-3 left-3 size-4 text-[#98a2b3]" strokeWidth={1.7} aria-hidden="true" /><input type="search" value={query} onChange={(event) => { setQuery(event.target.value); setCurrentPage(0); }} placeholder="이력 ID · 대상 ID · 사유 검색" className="h-10 w-full rounded-2xl border border-[#d0d5dd] bg-white pr-3 pl-[37px] text-sm outline-none focus:border-[#315ef5]" /></label>

@@ -7,6 +7,7 @@ import type { KeyboardEvent, MouseEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
+import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import {
   PostMedia,
   PostRecord,
@@ -117,6 +118,7 @@ export function Post({
   onDelete,
 }: PostProps) {
   const { user } = useAuth();
+  const { refreshCollections } = useBookmarkCollections();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
@@ -203,20 +205,29 @@ export function Post({
       return true;
     }
 
+    setBookmarking(true);
+
     try {
-      setBookmarking(true);
-      if (nextBookmarked) {
-        await bookmarkPost(post.postId);
-      } else {
-        await unbookmarkPost(post.postId);
+      try {
+        if (nextBookmarked) {
+          await bookmarkPost(post.postId);
+        } else {
+          await unbookmarkPost(post.postId);
+        }
+      } catch (error) {
+        setBookmarked(bookmarked);
+        onBookmarkChange?.(post, bookmarked);
+        alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
+        return false;
       }
+
       onBookmarkSuccess?.(nextPost, nextBookmarked);
+
+      if (!nextBookmarked) {
+        void refreshCollections().catch(() => undefined);
+      }
+
       return true;
-    } catch (error) {
-      setBookmarked(bookmarked);
-      onBookmarkChange?.(post, bookmarked);
-      alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
-      return false;
     } finally {
       setBookmarking(false);
     }

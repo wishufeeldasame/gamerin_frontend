@@ -4,8 +4,11 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
+import { logoutAuthSession } from '@/lib/auth-store';
+import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse, isBlockedAccountStatus } from '@/lib/auth-session-policy';
+import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+const API_BASE = getApiBaseUrl();
 
 export default function OAuthSuccessPage() {
     const router = useRouter();
@@ -22,12 +25,17 @@ export default function OAuthSuccessPage() {
                     method: 'POST',
                     credentials: 'include',
                 });
+                const refreshBody = await response.json().catch(() => null);
+                if (isBlockedAccountResponse(response.status, refreshBody)) {
+                    throw new Error(BLOCKED_ACCOUNT_MESSAGE);
+                }
+
 
                 if (!response.ok) {
                     throw new Error('인증 세션 생성에 실패했습니다.');
                 }
 
-                const body = await response.json();
+                const body = refreshBody;
                 const nextToken = body?.data?.accessToken;
                 if (!nextToken) {
                     throw new Error('액세스 토큰을 받아오지 못했습니다.');
@@ -46,11 +54,15 @@ export default function OAuthSuccessPage() {
                     credentials: 'include',
                 });
 
+                const meBody = await meResponse.json().catch(() => null);
+                if (isBlockedAccountResponse(meResponse.status, meBody) || isBlockedAccountStatus(meBody?.data?.status)) {
+                    throw new Error(BLOCKED_ACCOUNT_MESSAGE);
+                }
+
                 if (!meResponse.ok) {
                     throw new Error('사용자 정보를 가져올 수 없습니다.');
                 }
 
-                const meBody = await meResponse.json();
                 const meData = meBody?.data;
 
                 if (!meData) {
@@ -72,6 +84,7 @@ export default function OAuthSuccessPage() {
             } catch (err) {
                 if (cancelled) return;
                 console.error(err);
+                await logoutAuthSession();
                 setError(err instanceof Error ? err.message : '로그인 처리 중 오류가 발생했습니다.');
                 setTimeout(() => {
                     router.replace('/login');
@@ -87,13 +100,11 @@ export default function OAuthSuccessPage() {
     }, [login, router]);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-white font-
-  sans text-black">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-white font-sans text-black">
             <div className="flex flex-col items-center space-y-4">
                 {error ? (
                     <>
-                        <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-
-  center text-red-600 font-bold text-xl">!</div>
+                        <div className="h-12 w-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 font-bold text-xl">!</div>
                         <h1 className="text-xl font-bold">오류 발생</h1>
                         <p className="text-zinc-600">{error}</p>
                         <p className="text-zinc-400 text-sm">잠시 후 로그인 페이지로 이동합니다...</p>

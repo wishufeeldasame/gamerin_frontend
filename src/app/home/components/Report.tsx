@@ -1,8 +1,9 @@
 'use client';
 
 import { CheckCircle2, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getInitials } from '@/lib/feed-api';
+import { REPORT_DETAILS_MAX_LENGTH } from '@/lib/report-validation';
 import {
   ReportApiError,
   createReport,
@@ -42,9 +43,12 @@ export function ReportContentModal({
   const [reasonsError, setReasonsError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
   const [reasonsReloadKey, setReasonsReloadKey] = useState(0);
   const canSubmit = Boolean(
-    selectedReason && (selectedReason !== 'OTHER' || customReason.trim()),
+    selectedReason &&
+      (selectedReason !== 'OTHER' || customReason.trim()) &&
+      customReason.length <= REPORT_DETAILS_MAX_LENGTH,
   );
 
   useEffect(() => {
@@ -76,7 +80,7 @@ export function ReportContentModal({
   }, [reasonsReloadKey]);
 
   const handleSubmit = () => {
-    if (!canSubmit) {
+    if (!canSubmit || submitting || submitLockRef.current) {
       return;
     }
 
@@ -85,10 +89,11 @@ export function ReportContentModal({
   };
 
   const handleConfirm = async () => {
-    if (!selectedReason || (selectedReason === 'OTHER' && !customReason.trim()) || submitting) {
+    if (!selectedReason || (selectedReason === 'OTHER' && !customReason.trim()) || submitLockRef.current) {
       return;
     }
 
+    submitLockRef.current = true;
     try {
       setSubmitting(true);
       setSubmitError(null);
@@ -96,7 +101,7 @@ export function ReportContentModal({
         targetType,
         targetId,
         reasonCode: selectedReason,
-        details: selectedReason === 'OTHER' ? customReason.trim() : null,
+        details: customReason.trim() || null,
       });
       setConfirmOpen(false);
       setSubmitted(true);
@@ -108,6 +113,7 @@ export function ReportContentModal({
         setSubmitError(error instanceof Error ? error.message : '신고 접수에 실패했습니다.');
       }
     } finally {
+      submitLockRef.current = false;
       setSubmitting(false);
     }
   };
@@ -233,21 +239,24 @@ export function ReportContentModal({
                 );
               })}
 
-              {selectedReason === 'OTHER' ? (
-                <div className="pt-2">
-                  <textarea
-                    value={customReason}
-                    onChange={(event) => setCustomReason(event.target.value)}
-                    maxLength={300}
-                    placeholder="신고 사유를 자세히 입력해주세요."
-                    aria-label="기타 신고 사유"
-                    className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d]"
-                  />
-                  <p className="mt-1 text-right text-xs font-bold text-zinc-400">
-                    {customReason.length} / 300
-                  </p>
-                </div>
-              ) : null}
+              <div className="pt-2">
+                <label htmlFor="report-details" className="mb-2 block text-sm font-black text-black">
+                  상세 내용 {selectedReason === 'OTHER' ? '(필수)' : '(선택)'}
+                </label>
+                <textarea
+                  id="report-details"
+                  value={customReason}
+                  onChange={(event) => setCustomReason(event.target.value)}
+                  maxLength={REPORT_DETAILS_MAX_LENGTH}
+                  placeholder={selectedReason === 'OTHER' ? '기타 신고 사유를 자세히 입력해주세요.' : '추가로 설명할 내용이 있다면 입력해주세요.'}
+                  aria-label="신고 상세 내용"
+                  aria-required={selectedReason === 'OTHER'}
+                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d]"
+                />
+                <p className="mt-1 text-right text-xs font-bold text-zinc-400">
+                  {customReason.length} / {REPORT_DETAILS_MAX_LENGTH}
+                </p>
+              </div>
             </div>
           </section>
 
@@ -272,7 +281,7 @@ export function ReportContentModal({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={!canSubmit || loadingReasons}
+            disabled={!canSubmit || loadingReasons || submitting}
             className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200"
           >
             신고 접수

@@ -12,6 +12,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { AdminDemoNotice } from '../../_components/AdminDemoNotice';
 import {
   initialApplications,
   initialPrograms,
@@ -153,15 +154,19 @@ function ApplicationsTable({ applications, onStatusChange, onApproveRequest }: A
                     <span className="inline-flex items-center gap-2">
                       <button
                         type="button"
+                        disabled
+                        title="멘토 승인 관리 API 연결 후 사용할 수 있습니다."
                         onClick={() => onStatusChange(application.id, '반려')}
-                        className="h-8 rounded-xl border border-[#d0d5dd] bg-[#fff] px-3 text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb]"
+                        className="h-8 rounded-xl border border-[#d0d5dd] bg-[#fff] px-3 text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
                       >
                         반려
                       </button>
                       <button
                         type="button"
+                        disabled
+                        title="멘토 승인 관리 API 연결 후 사용할 수 있습니다."
                         onClick={() => onApproveRequest(application)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#315ef5] px-3 text-xs leading-[18px] font-semibold text-white transition hover:bg-[#2448c9]"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#315ef5] px-3 text-xs leading-[18px] font-semibold text-white transition hover:bg-[#2448c9] disabled:cursor-not-allowed disabled:bg-[#98a2b3]"
                       >
                         <Check className="size-3.5" strokeWidth={2} aria-hidden="true" />
                         승인
@@ -255,13 +260,15 @@ function ProgramsTable({ programs, onStatusChange, onHideRequest }: ProgramsTabl
                     <span className="inline-flex items-center gap-2">
                       <button
                         type="button"
+                        disabled
+                        title="멘토링 프로그램 관리 API 연결 후 사용할 수 있습니다."
                         onClick={() =>
                           onStatusChange(
                             program.id,
                             program.status === '운영 중' ? '일시정지' : '운영 중',
                           )
                         }
-                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#d0d5dd] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb]"
+                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#d0d5dd] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
                       >
                         {program.status === '운영 중' ? (
                           <Pause className="size-3.5" strokeWidth={1.7} aria-hidden="true" />
@@ -272,8 +279,10 @@ function ProgramsTable({ programs, onStatusChange, onHideRequest }: ProgramsTabl
                       </button>
                       <button
                         type="button"
+                        disabled
+                        title="멘토링 프로그램 관리 API 연결 후 사용할 수 있습니다."
                         onClick={() => onHideRequest(program)}
-                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#fda29b] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#b42318] transition hover:bg-[#fff5f4]"
+                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#fda29b] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#b42318] transition hover:bg-[#fff5f4] disabled:cursor-not-allowed disabled:border-[#e4e7ec] disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
                       >
                         <EyeOff className="size-3.5" strokeWidth={1.7} aria-hidden="true" />
                         숨김
@@ -381,6 +390,7 @@ export function AdminMentoringManagement() {
 
   return (
     <div className="mx-auto w-full max-w-[1200px] p-4 sm:p-6 lg:p-8">
+      <AdminDemoNotice description="멘토 승인, 프로그램 상태와 요약 통계는 관리 API 연결 전 예시입니다. 상태 변경 버튼은 비활성화되어 있습니다." />
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="멘토링 현황 요약">
         {baseSummaryCards.map((card, index) => {
           const Icon = card.icon;
