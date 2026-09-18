@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { getApiBaseUrl } from '@/lib/api-base';
+import { ApiError, apiRequest } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 import {
   AUTH_CLEARED_EVENT,
@@ -11,9 +12,9 @@ import {
   isLogoutInProgress,
   isCurrentAuthGeneration,
   logoutAuthSession,
-  refreshAccessToken,
+  refreshAccessTokenResult,
 } from '@/lib/auth-store';
-import { isBlockedAccountResponse, isBlockedAccountStatus } from '@/lib/auth-session-policy';
+import { isBlockedAccountStatus } from '@/lib/auth-session-policy';
 
 const API_BASE = getApiBaseUrl();
 
@@ -119,42 +120,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const bootstrapGeneration = getAuthGeneration();
+      let storedUser: User;
 
       try {
-        const storedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
-        const refreshedToken = await refreshAccessToken(bootstrapGeneration);
+        storedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
+      } catch {
+        setUser(null);
+        await logoutAuthSession({ notify: false });
+        setIsAuthReady(true);
+        return;
+      }
 
+      try {
+        const refreshResult = await refreshAccessTokenResult(bootstrapGeneration);
+
+        // 인증 거절이면 refresh가 세션을 이미 종료해 세대가 바뀌었다.
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
           return;
         }
 
-        if (!refreshedToken) {
+        // 일시 장애면 세션(refresh cookie, 저장 사용자)은 유지하되 검증되지 않은 사용자는 복원하지 않는다.
+        if (refreshResult.status !== 'refreshed') {
           setUser(null);
-          await logoutAuthSession({ notify: false });
           return;
         }
 
-        const meResponse = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
-          headers: { Authorization: `Bearer ${refreshedToken}` },
-          credentials: 'include',
+        // 최종 401·차단 계정이면 api-client가 세션을 종료하고, 일시 장애·형식 오류면 세션을 유지한 채 throw한다.
+        const me = await apiRequest<Record<string, unknown> | null>('/api/v1/auth/me', {
+          toError: ({ status, message }) => new ApiError(message ?? 'Failed to verify the session.', status),
         });
-        const mePayload = await meResponse.json().catch(() => null);
-        const me = mePayload?.data;
 
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
+
+        if (isBlockedAccountStatus(me?.status)) {
+          await logoutAuthSession({ notify: false });
+          setUser(null);
           return;
         }
 
         if (
-          isBlockedAccountResponse(meResponse.status, mePayload) ||
-          isBlockedAccountStatus(me?.status) ||
-          !meResponse.ok ||
           !me ||
           typeof me.userId !== 'string' ||
           typeof me.handle !== 'string' ||
           typeof me.nickname !== 'string'
         ) {
-          await logoutAuthSession({ notify: false });
           setUser(null);
           return;
         }
@@ -176,7 +187,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         setUser(null);
-        await logoutAuthSession({ notify: false });
       } finally {
         setIsAuthReady(true);
       }
