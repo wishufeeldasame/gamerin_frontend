@@ -4,10 +4,15 @@ import { Bell, MessageSquare, Search, LogOut } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
 import { fetchUnreadNotificationCount } from "@/lib/notification-api";
+import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
+import { useVisiblePolling } from "@/hooks/useVisiblePolling";
+
+const UNREAD_REFRESH_INTERVAL_MS = 60_000;
+const UNREAD_STALE_TIME_MS = 5_000;
 
 export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
@@ -16,40 +21,74 @@ export function Header() {
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationOpen, setNotificationOpen] = useState(false);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
+  const unreadRequestRef = useRef<Promise<void> | null>(null);
+  const unreadAbortControllerRef = useRef<AbortController | null>(null);
+  const lastUnreadRefreshRef = useRef(0);
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshUnreadCount = useCallback(async (force = false) => {
+    if (!user) {
+      unreadAbortControllerRef.current?.abort();
+      unreadAbortControllerRef.current = null;
+      unreadRequestRef.current = null;
+      lastUnreadRefreshRef.current = 0;
+      setNotificationUnreadCount(0);
+      return;
+    }
+
+    if (!force && Date.now() - lastUnreadRefreshRef.current < UNREAD_STALE_TIME_MS) {
+      return;
+    }
+
+    if (unreadRequestRef.current) {
+      return unreadRequestRef.current;
+    }
+
     const controller = new AbortController();
+    unreadAbortControllerRef.current = controller;
 
-    const loadUnreadCount = async () => {
-      if (!user) {
-        setNotificationUnreadCount(0);
-        return;
-      }
-
-      try {
-        const count = await fetchUnreadNotificationCount({ signal: controller.signal });
-        if (!cancelled) {
+    const request = fetchUnreadNotificationCount({ signal: controller.signal })
+      .then((count) => {
+        if (!controller.signal.aborted) {
           setNotificationUnreadCount(count);
+          lastUnreadRefreshRef.current = Date.now();
         }
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-          return;
-        }
-
-        if (!cancelled) {
+      })
+      .catch((loadError) => {
+        if (!(loadError instanceof DOMException && loadError.name === 'AbortError')) {
           setNotificationUnreadCount(0);
         }
-      }
-    };
+      })
+      .finally(() => {
+        if (unreadAbortControllerRef.current === controller) {
+          unreadAbortControllerRef.current = null;
+          unreadRequestRef.current = null;
+        }
+      });
 
-    void loadUnreadCount();
+    unreadRequestRef.current = request;
+    return request;
+  }, [user]);
+
+  useEffect(() => {
+    void refreshUnreadCount(true);
 
     return () => {
-      cancelled = true;
-      controller.abort();
+      unreadAbortControllerRef.current?.abort();
+      unreadAbortControllerRef.current = null;
+      unreadRequestRef.current = null;
     };
-  }, [user]);
+  }, [refreshUnreadCount]);
+
+  useEffect(() => {
+    return subscribeToNotificationInvalidation(() => {
+      void refreshUnreadCount(true);
+    });
+  }, [refreshUnreadCount]);
+
+  useVisiblePolling(() => refreshUnreadCount(), {
+    enabled: Boolean(user),
+    intervalMs: UNREAD_REFRESH_INTERVAL_MS,
+  });
 
   const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

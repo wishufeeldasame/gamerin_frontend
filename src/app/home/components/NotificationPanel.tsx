@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   AtSign,
@@ -24,8 +24,12 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   type NotificationRecord,
-  type NotificationType,
 } from '@/lib/notification-api';
+import {
+  getNotificationPresentation,
+  type NotificationIconKind,
+} from '@/lib/notification-presentation';
+import { subscribeToNotificationInvalidation } from '@/lib/notification-sync';
 import { formatRelativeTime, getInitials } from '@/lib/feed-api';
 
 interface NotificationPanelProps {
@@ -35,100 +39,36 @@ interface NotificationPanelProps {
 
 const PAGE_SIZE = 20;
 
-function getNotificationIcon(type: NotificationType) {
-  if (type === 'like') return <Heart size={16} className="fill-red-500 text-red-500" />;
-  if (type === 'comment') return <MessageCircle size={16} className="text-zinc-900" />;
-  if (type === 'follow') return <UserPlus size={16} className="text-blue-500" />;
-  if (type === 'repost') return <Repeat2 size={16} className="text-emerald-600" />;
-  if (type === 'direct_message') return <Mail size={16} className="text-violet-500" />;
-  if (type === 'mention') return <AtSign size={16} className="text-[#d69a1f]" />;
-  if (type === 'mentoring_review') return <Star size={16} className="fill-[#f5b93d] text-[#d69a1f]" />;
-  return <GraduationCap size={16} className="text-zinc-700" />;
-}
-
-function getNotificationMessage(notification: NotificationRecord) {
-  const name = notification.actor?.nickname ?? '새 알림';
-
-  switch (notification.type) {
-    case 'like':
-      return `${name}님이 게시글을 좋아합니다.`;
-    case 'comment':
-      return `${name}님이 게시글에 댓글을 남겼습니다.`;
-    case 'follow':
-      return `${name}님이 나를 팔로우했습니다.`;
-    case 'repost':
-      return `${name}님이 게시글을 리포스트했습니다.`;
-    case 'direct_message':
-      return `${name}님이 메시지를 보냈습니다.`;
-    case 'mentoring_application':
-      return `${name}님이 멘토링을 신청했습니다.`;
-    case 'mentoring_cancelled':
-      return '멘토링 신청이 취소되었습니다.';
-    case 'mentoring_accepted':
-      return '멘토링 신청이 수락되었습니다.';
-    case 'mentoring_rejected':
-      return '멘토링 신청이 거절되었습니다.';
-    case 'mentoring_started':
-      return '멘토링이 시작되었습니다.';
-    case 'mentoring_finished':
-      return '멘토링이 종료되었습니다.';
-    case 'mentoring_completed':
-      return '멘토링이 완료되었습니다.';
-    case 'mentoring_review':
-      return `${name}님이 멘토링 리뷰를 남겼습니다.`;
-    case 'mention':
-      return `${name}님이 나를 언급했습니다.`;
-    default:
-      return '새 알림이 도착했습니다.';
+function getNotificationIcon(kind: NotificationIconKind) {
+  switch (kind) {
+    case 'heart':
+      return <Heart size={16} className="fill-red-500 text-red-500" />;
+    case 'message-circle':
+      return <MessageCircle size={16} className="text-zinc-900 dark:text-zinc-100" />;
+    case 'user-plus':
+      return <UserPlus size={16} className="text-blue-500" />;
+    case 'repeat':
+      return <Repeat2 size={16} className="text-emerald-600" />;
+    case 'mail':
+      return <Mail size={16} className="text-violet-500" />;
+    case 'at-sign':
+      return <AtSign size={16} className="text-[#d69a1f]" />;
+    case 'star':
+      return <Star size={16} className="fill-[#f5b93d] text-[#d69a1f]" />;
+    case 'graduation-cap':
+      return <GraduationCap size={16} className="text-zinc-700 dark:text-zinc-200" />;
+    case 'bell':
+      return <Bell size={16} className="text-zinc-500" />;
   }
-}
-
-function getNotificationHref(notification: NotificationRecord) {
-  if (
-    ['like', 'comment', 'repost', 'mention'].includes(notification.type) &&
-    notification.postId
-  ) {
-    const search = notification.commentId ? '?target=comments' : '';
-    return `/posts/${encodeURIComponent(notification.postId)}${search}`;
-  }
-
-  if (notification.type === 'follow' && notification.actor?.handle) {
-    return `/profile/${encodeURIComponent(notification.actor.handle)}`;
-  }
-
-  if (notification.type === 'direct_message' && notification.conversationId) {
-    const search = new URLSearchParams({
-      conversationId: notification.conversationId,
-    });
-
-    if (notification.messageId) {
-      search.set('messageId', notification.messageId);
-    }
-
-    return `/messages?${search.toString()}`;
-  }
-
-  if (notification.type.startsWith('mentoring_')) {
-    const search = new URLSearchParams();
-
-    if (notification.mentoringApplicationId) {
-      search.set('applicationId', notification.mentoringApplicationId);
-    }
-
-    if (notification.mentoringReviewId) {
-      search.set('reviewId', notification.mentoringReviewId);
-    }
-
-    const query = search.toString();
-    return query ? `/mentoring?${query}` : '/mentoring';
-  }
-
-  return null;
 }
 
 function mergeNotifications(current: NotificationRecord[], incoming: NotificationRecord[]) {
-  const seen = new Set(current.map((notification) => notification.notificationId));
-  return [...current, ...incoming.filter((notification) => !seen.has(notification.notificationId))];
+  const seen = new Set<string>();
+  return [...current, ...incoming].filter((notification) => {
+    if (seen.has(notification.notificationId)) return false;
+    seen.add(notification.notificationId);
+    return true;
+  });
 }
 
 export function NotificationPanel({ onClose, onUnreadCountChange }: NotificationPanelProps) {
@@ -142,6 +82,8 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const firstPageAbortRef = useRef<AbortController | null>(null);
+  const loadMoreAbortRef = useRef<AbortController | null>(null);
 
   const syncUnreadCount = async () => {
     const count = await fetchUnreadNotificationCount();
@@ -149,66 +91,87 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
     onUnreadCountChange?.(count);
   };
 
-  useEffect(() => {
-    let cancelled = false;
+  const loadFirstPage = useCallback(async (background = false) => {
+    if (background && firstPageAbortRef.current) return;
+
+    firstPageAbortRef.current?.abort();
+    loadMoreAbortRef.current?.abort();
+    loadMoreAbortRef.current = null;
+    setLoadingMore(false);
     const controller = new AbortController();
+    firstPageAbortRef.current = controller;
 
-    const loadInitialNotifications = async () => {
-      try {
+    try {
+      if (!background) {
         setLoading(true);
-        setError(null);
-        const [page, count] = await Promise.all([
-          fetchNotifications(null, PAGE_SIZE, { signal: controller.signal }),
-          fetchUnreadNotificationCount({ signal: controller.signal }),
-        ]);
-
-        if (cancelled) {
-          return;
-        }
-
-        setNotifications(page.items);
-        setNextCursor(page.nextCursor);
-        setHasNext(Boolean(page.hasNext && page.nextCursor));
-        setUnreadCount(count);
-        onUnreadCountChange?.(count);
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-          return;
-        }
-
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '알림을 불러오지 못했습니다.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
       }
-    };
+      setError(null);
+      const [page, count] = await Promise.all([
+        fetchNotifications(null, PAGE_SIZE, { signal: controller.signal }),
+        fetchUnreadNotificationCount({ signal: controller.signal }),
+      ]);
 
-    void loadInitialNotifications();
+      if (controller.signal.aborted) return;
+
+      setNotifications(mergeNotifications([], page.items));
+      setNextCursor(page.nextCursor);
+      setHasNext(Boolean(page.hasNext && page.nextCursor));
+      setUnreadCount(count);
+      onUnreadCountChange?.(count);
+    } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
+
+      if (!background) {
+        setError(loadError instanceof Error ? loadError.message : '알림을 불러오지 못했습니다.');
+      }
+    } finally {
+      if (firstPageAbortRef.current === controller) {
+        firstPageAbortRef.current = null;
+        setLoading(false);
+      }
+    }
+  }, [onUnreadCountChange]);
+
+  useEffect(() => {
+    void loadFirstPage();
+
+    const unsubscribe = subscribeToNotificationInvalidation(() => {
+      void loadFirstPage(true);
+    });
+
 
     return () => {
-      cancelled = true;
-      controller.abort();
+      unsubscribe();
+      firstPageAbortRef.current?.abort();
+      firstPageAbortRef.current = null;
+      loadMoreAbortRef.current?.abort();
+      loadMoreAbortRef.current = null;
     };
-  }, [onUnreadCountChange]);
+  }, [loadFirstPage]);
 
   const loadMore = async () => {
     if (!nextCursor || loadingMore) {
       return;
     }
 
+    const controller = new AbortController();
+    loadMoreAbortRef.current = controller;
+
     try {
       setLoadingMore(true);
-      const page = await fetchNotifications(nextCursor, PAGE_SIZE);
+      const page = await fetchNotifications(nextCursor, PAGE_SIZE, { signal: controller.signal });
+      if (controller.signal.aborted) return;
       setNotifications((current) => mergeNotifications(current, page.items));
       setNextCursor(page.nextCursor);
       setHasNext(Boolean(page.hasNext && page.nextCursor));
     } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
       alert(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
     } finally {
-      setLoadingMore(false);
+      if (loadMoreAbortRef.current === controller) {
+        loadMoreAbortRef.current = null;
+        setLoadingMore(false);
+      }
     }
   };
 
@@ -247,7 +210,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
   };
 
   const handleNotificationClick = async (notification: NotificationRecord) => {
-    const href = getNotificationHref(notification);
+    const href = getNotificationPresentation(notification).href;
 
     try {
       await markAsRead(notification);
@@ -328,7 +291,8 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
           ) : (
             notifications.map((notification) => {
               const actorName = notification.actor?.nickname ?? 'GamerIN';
-              const href = getNotificationHref(notification);
+              const presentation = getNotificationPresentation(notification);
+              const href = presentation.href;
               const pending = pendingReadId === notification.notificationId;
 
               return (
@@ -363,14 +327,14 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium leading-snug text-zinc-700 dark:text-zinc-200">
-                      {getNotificationMessage(notification)}
+                      {presentation.message}
                     </p>
                     <p className="mt-1 text-[11px] font-bold text-zinc-400">
                       {formatRelativeTime(notification.createdAt)}
                     </p>
                   </div>
 
-                  <div className="shrink-0 self-center">{getNotificationIcon(notification.type)}</div>
+                  <div className="shrink-0 self-center">{getNotificationIcon(presentation.iconKind)}</div>
                 </button>
               );
             })

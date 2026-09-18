@@ -48,9 +48,9 @@ export interface NotificationActor {
   verifiedBadge: boolean;
 }
 
-export interface NotificationRecord {
+export interface NotificationRecord<TType = NotificationType> {
   notificationId: string;
-  type: NotificationType;
+  type: TType;
   actor: NotificationActor | null;
   postId: string | null;
   commentId: string | null;
