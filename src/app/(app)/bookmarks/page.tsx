@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
@@ -53,6 +53,8 @@ export default function BookmarksPage() {
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
   const [collectionCountOverrides, setCollectionCountOverrides] = useState<Record<string, number>>({});
+  const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
+  const collectionCountSyncBaseRef = useRef(collections);
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
 
   const upsertBookmark = useCallback((post: PostRecord) => {
@@ -136,6 +138,18 @@ export default function BookmarksPage() {
     () => collections.find((collection) => collection.collectionId === selectedCollectionId),
     [collections, selectedCollectionId],
   );
+
+  useEffect(() => {
+    if (
+      !collectionCountSyncPending ||
+      collections === collectionCountSyncBaseRef.current
+    ) {
+      return;
+    }
+
+    setCollectionCountOverrides({});
+    setCollectionCountSyncPending(false);
+  }, [collectionCountSyncPending, collections]);
 
   const handleLoadMore = async () => {
     if (!hasNext || !nextCursor || loadingMore) {
@@ -351,7 +365,7 @@ export default function BookmarksPage() {
                     {collection.name}
                   </strong>
                   <small className="mt-1 block text-xs font-bold opacity-60">
-                    {displayCount}개 게시물
+                    {collectionCountSyncPending ? '동기화 중' : `${displayCount}개 게시물`}
                   </small>
                 </span>
               </button>
@@ -448,6 +462,8 @@ export default function BookmarksPage() {
                   }}
                   onBookmarkSuccess={(changedPost, bookmarked) => {
                     if (!bookmarked) {
+                      collectionCountSyncBaseRef.current = collections;
+                      setCollectionCountSyncPending(true);
                       removeBookmark(changedPost.postId);
                     }
                   }}
