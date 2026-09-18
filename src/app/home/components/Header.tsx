@@ -19,6 +19,7 @@ export function Header() {
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadUnreadCount = async () => {
       if (!user) {
@@ -27,11 +28,15 @@ export function Header() {
       }
 
       try {
-        const count = await fetchUnreadNotificationCount();
+        const count = await fetchUnreadNotificationCount({ signal: controller.signal });
         if (!cancelled) {
           setNotificationUnreadCount(count);
         }
-      } catch {
+      } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setNotificationUnreadCount(0);
         }
@@ -42,6 +47,7 @@ export function Header() {
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [user]);
 

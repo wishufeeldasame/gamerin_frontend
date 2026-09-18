@@ -1,4 +1,10 @@
-import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import {
+  assertCurrentAuthGeneration,
+  clearStoredAuth,
+  ensureAccessToken,
+  getAuthGeneration,
+  refreshAccessToken,
+} from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 import type { CursorPage } from '@/lib/feed-api';
 
@@ -13,6 +19,10 @@ type ApiEnvelope<T> = {
 type RequestOptions = Omit<RequestInit, 'headers'> & {
   headers?: Record<string, string>;
 };
+
+interface NotificationRequestOptions {
+  signal?: AbortSignal;
+}
 
 export type NotificationType =
   | 'like'
@@ -123,20 +133,27 @@ async function notificationRequest<T>(path: string, options: RequestOptions = {}
     return { response, payload };
   };
 
-  let accessToken = await ensureAccessToken();
+  const requestGeneration = getAuthGeneration();
+  let accessToken = await ensureAccessToken(requestGeneration);
+  assertCurrentAuthGeneration(requestGeneration);
+
   if (!accessToken) {
     throw createAuthError();
   }
 
   let result = await send(accessToken);
+  assertCurrentAuthGeneration(requestGeneration);
 
   if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
+    accessToken = await refreshAccessToken(requestGeneration);
+    assertCurrentAuthGeneration(requestGeneration);
+
     if (!accessToken) {
       throw createAuthError();
     }
 
     result = await send(accessToken);
+    assertCurrentAuthGeneration(requestGeneration);
   }
 
   if (!result.response.ok) {
@@ -151,7 +168,11 @@ async function notificationRequest<T>(path: string, options: RequestOptions = {}
   return (result.payload as ApiEnvelope<T>).data;
 }
 
-export async function fetchNotifications(cursor?: string | null, size = 20) {
+export async function fetchNotifications(
+  cursor?: string | null,
+  size = 20,
+  options: NotificationRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -162,6 +183,7 @@ export async function fetchNotifications(cursor?: string | null, size = 20) {
 
   const page = await notificationRequest<CursorPage<NotificationRecord>>(
     `/api/v1/notifications?${search.toString()}`,
+    { signal: options.signal },
   );
 
   return {
@@ -171,8 +193,10 @@ export async function fetchNotifications(cursor?: string | null, size = 20) {
   };
 }
 
-export async function fetchUnreadNotificationCount() {
-  const data = await notificationRequest<UnreadNotificationCount>('/api/v1/notifications/unread-count');
+export async function fetchUnreadNotificationCount(options: NotificationRequestOptions = {}) {
+  const data = await notificationRequest<UnreadNotificationCount>('/api/v1/notifications/unread-count', {
+    signal: options.signal,
+  });
   return Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0;
 }
 

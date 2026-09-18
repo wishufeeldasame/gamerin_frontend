@@ -151,14 +151,15 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
 
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
 
     const loadInitialNotifications = async () => {
       try {
         setLoading(true);
         setError(null);
         const [page, count] = await Promise.all([
-          fetchNotifications(null, PAGE_SIZE),
-          fetchUnreadNotificationCount(),
+          fetchNotifications(null, PAGE_SIZE, { signal: controller.signal }),
+          fetchUnreadNotificationCount({ signal: controller.signal }),
         ]);
 
         if (cancelled) {
@@ -167,10 +168,14 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
 
         setNotifications(page.items);
         setNextCursor(page.nextCursor);
-        setHasNext(page.hasNext);
+        setHasNext(Boolean(page.hasNext && page.nextCursor));
         setUnreadCount(count);
         onUnreadCountChange?.(count);
       } catch (loadError) {
+        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+          return;
+        }
+
         if (!cancelled) {
           setError(loadError instanceof Error ? loadError.message : '알림을 불러오지 못했습니다.');
         }
@@ -185,6 +190,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
 
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [onUnreadCountChange]);
 
@@ -198,7 +204,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       const page = await fetchNotifications(nextCursor, PAGE_SIZE);
       setNotifications((current) => mergeNotifications(current, page.items));
       setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
+      setHasNext(Boolean(page.hasNext && page.nextCursor));
     } catch (loadError) {
       alert(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
     } finally {
@@ -225,7 +231,6 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
 
     try {
       await markNotificationRead(notification.notificationId);
-      await syncUnreadCount();
     } catch (readError) {
       setNotifications((current) =>
         current.map((item) =>
@@ -237,6 +242,8 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
     } finally {
       setPendingReadId(null);
     }
+
+    await syncUnreadCount().catch(() => undefined);
   };
 
   const handleNotificationClick = async (notification: NotificationRecord) => {
@@ -268,7 +275,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
       setUnreadCount(0);
       onUnreadCountChange?.(0);
-      await syncUnreadCount();
+      await syncUnreadCount().catch(() => undefined);
     } catch (markAllError) {
       alert(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
     } finally {
