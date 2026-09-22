@@ -17,6 +17,7 @@ export default function OAuthSuccessPage() {
 
     useEffect(() => {
         let cancelled = false;
+        let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 
         const fetchTokens = async () => {
             try {
@@ -85,8 +86,9 @@ export default function OAuthSuccessPage() {
                 if (cancelled) return;
                 console.error(err);
                 await logoutAuthSession();
+                if (cancelled) return;
                 setError(err instanceof Error ? err.message : '로그인 처리 중 오류가 발생했습니다.');
-                setTimeout(() => {
+                redirectTimer = setTimeout(() => {
                     router.replace('/login');
                 }, 3000);
             }
@@ -96,6 +98,9 @@ export default function OAuthSuccessPage() {
 
         return () => {
             cancelled = true;
+            if (redirectTimer !== undefined) {
+                clearTimeout(redirectTimer);
+            }
         };
     }, [login, router]);
 
@@ -111,8 +116,7 @@ export default function OAuthSuccessPage() {
                     </>
                 ) : (
                     <>
-                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200
-  border-t-black" />
+                        <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-black" />
                         <h1 className="text-xl font-bold">로그인 처리 중</h1>
                         <p className="text-zinc-500">안전하게 로그인 세션을 설정하고 있습니다. 잠시만
                             기다려주세요...</p>

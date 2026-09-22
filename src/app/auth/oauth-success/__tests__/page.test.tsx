@@ -86,6 +86,68 @@ describe('OAuthSuccessPage', () => {
     expect(router.replace).toHaveBeenCalledWith('/login');
   });
 
+  it('cancels the login redirect when the failure screen unmounts', async () => {
+    vi.useFakeTimers();
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(500, {
+        success: false,
+        message: 'server error',
+      }),
+    );
+
+    const { unmount } = render(<OAuthSuccessPage />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(screen.getByRole('heading', { name: '오류 발생' })).toBeInTheDocument();
+
+    unmount();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('does not schedule a redirect when unmounted while clearing the session', async () => {
+    let resolveLogout: (() => void) | undefined;
+    authStore.logoutAuthSession.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveLogout = resolve;
+        }),
+    );
+    vi.mocked(fetch).mockResolvedValueOnce(
+      jsonResponse(500, {
+        success: false,
+        message: 'server error',
+      }),
+    );
+
+    const { unmount } = render(<OAuthSuccessPage />);
+
+    await waitFor(() => {
+      expect(authStore.logoutAuthSession).toHaveBeenCalledTimes(1);
+    });
+    expect(resolveLogout).toBeTypeOf('function');
+
+    vi.useFakeTimers();
+    unmount();
+
+    await act(async () => {
+      resolveLogout?.();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
   it('stores the access token, logs in, and redirects home on success', async () => {
     vi.mocked(fetch)
       .mockResolvedValueOnce(
