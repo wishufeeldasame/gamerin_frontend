@@ -33,7 +33,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="주요 메뉴"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-neutral-800 dark:bg-neutral-900"
+      className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-neutral-800 dark:bg-neutral-900"
     >
       <ul className="grid h-16 grid-cols-5">
         {links.map((item) => (
