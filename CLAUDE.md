@@ -112,7 +112,7 @@
 ### 현재 API 모듈과 base URL 처리
 
 - 도메인별 호출은 `src/lib/feed-api.ts`, `message-api.ts`, `mentoring-api.ts`, `mileage-api.ts`, `report-api.ts`, `game-stats-api.ts`, `community-search-api.ts`, `notification-api.ts`, `user-settings.ts` 등 기존 모듈을 먼저 확인한다.
-- API base URL은 `src/lib/api-base.ts`의 `getApiBaseUrl()`로 통일되어 있다. 모듈 로드·렌더 시점 상수로 고정하지 않고 요청할 때 호출한다. `NEXT_PUBLIC_API_BASE_URL` 직접 참조는 `api-base.ts`와 `next.config.ts`에만 둔다.
+- API base URL은 `src/lib/api-base.ts`의 `getApiBaseUrl()`로 통일되어 있다. 모듈 로드·렌더 시점 상수로 고정하지 않고 요청할 때 호출한다. 앱 코드에서 `NEXT_PUBLIC_API_BASE_URL` 직접 참조는 `api-base.ts`와 `next.config.ts`에만 둔다(`Dockerfile`의 build arg는 별개).
 - `src/lib/api-base.ts`의 `getApiBaseUrl()`은 설정값이 있으면 앞뒤 공백과 마지막 슬래시를 제거한다.
 - 설정값이 없으면 서버에서는 빈 문자열을 반환한다.
 - 브라우저가 localhost/127.0.0.1의 3000 포트라면 같은 프로토콜·호스트의 8080 주소를 사용하고, 그 외에는 빈 문자열을 반환한다.

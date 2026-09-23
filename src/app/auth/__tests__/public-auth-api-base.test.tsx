@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ReactElement } from 'react';
+import { json } from '@/test/fetch-routes';
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const auth = vi.hoisted(() => ({ logout: vi.fn() }));
@@ -69,10 +70,8 @@ const pages: {
 ];
 
 beforeEach(() => {
-  vi.stubGlobal('fetch', vi.fn(async () => new Response(
-    JSON.stringify({ success: true, data: { maskedHandle: 'de***1', createdAt: '2026-09-23' } }),
-    { status: 200, headers: { 'Content-Type': 'application/json' } },
-  )));
+  vi.stubGlobal('fetch', vi.fn(async () =>
+    json(200, { success: true, data: { maskedHandle: 'de***1', createdAt: '2026-09-23' } })));
 });
 
 afterEach(() => {
