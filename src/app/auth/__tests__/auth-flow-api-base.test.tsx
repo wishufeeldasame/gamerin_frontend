@@ -53,6 +53,33 @@ describe('인증 흐름 화면의 API 주소', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/login`, expect.anything()));
   });
 
+  it('회원가입은 생년월일 없이 다음 단계로 가고 요청 시점의 API 주소로 보낸다', async () => {
+    render(<LoginPage />);
+    applyRequestTimeApi();
+
+    fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
+    fireEvent.change(screen.getByPlaceholderText('이름'), { target: { value: '데모' } });
+    fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo@gamerin.test' } });
+    expect(screen.queryByText('생년월일')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+
+    fireEvent.change(screen.getByPlaceholderText('아이디 (영문, 숫자, _ 사용 가능)'), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호 (최소 8자)'), { target: { value: 'abcd123!' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
+    fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/signup`, expect.anything()));
+    expect(JSON.parse(String(vi.mocked(fetch).mock.calls[0][1]?.body))).toEqual({
+      handle: 'demo01',
+      nickname: '데모',
+      email: 'demo@gamerin.test',
+      password: 'abcd123!',
+      passwordConfirm: 'abcd123!',
+      agreedToTerms: true,
+      agreedToPrivacy: true,
+    });
+  });
+
   it('OAuth 성공 화면은 마운트 시점의 API 주소로 refresh한다', async () => {
     applyRequestTimeApi();
     render(<OAuthSuccessPage />);
