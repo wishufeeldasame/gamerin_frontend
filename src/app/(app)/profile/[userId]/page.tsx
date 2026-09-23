@@ -1003,7 +1003,7 @@ export default function ProfilePage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
       </div>
 
-      <div className="px-8">
+      <div className="px-4 md:px-8">
         <div className="relative mb-8 flex items-end justify-between -mt-16">
           <div className="relative">
             <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
@@ -1146,7 +1146,7 @@ export default function ProfilePage() {
             </div>
           ) : null}
 
-          <div className="flex gap-8 pt-2">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 md:gap-8">
             <button
               type="button"
               onClick={() => openFollowList('followers')}
@@ -1175,7 +1175,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="sticky top-16 z-10 mt-12 flex gap-10 border-b border-zinc-100 bg-white px-8">
+      <div className="sticky top-16 z-10 mt-12 flex gap-6 border-b border-zinc-100 bg-white px-4 md:gap-10 md:px-8">
         {tabs.map((tab) => (
           <button
             key={tab.name}
@@ -1193,11 +1193,11 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      <div className="px-8 pt-10">
+      <div className="px-4 pt-8 md:px-8 md:pt-10">
         {activeTab === 'stats' ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-3xl font-black text-black">Verified Stats</h2>
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black text-black md:text-3xl">Verified Stats</h2>
 
               {isOwnProfile ? (
                 <div className="flex items-center gap-3">
@@ -1233,9 +1233,9 @@ export default function ProfilePage() {
                     key={entry.gameName}
                     className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-zinc-300" />
-                      <div>
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="h-12 w-12 shrink-0 rounded-xl bg-zinc-300" />
+                      <div className="min-w-0">
                         <p className="text-xl font-black text-black">{entry.gameName}</p>
                         {entry.detail ? (
                           <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
@@ -1244,8 +1244,8 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-right">
-                      <p className="text-sm font-black uppercase tracking-widest text-zinc-400">Live sync</p>
+                    <div className="flex shrink-0 items-center gap-2 text-right">
+                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">Live sync</p>
                       {isOwnProfile && entry.disconnectGameName ? (
                         <button
                           type="button"
