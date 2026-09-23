@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   fetchUnreadNotificationCount: vi.fn(),
   logout: vi.fn(),
   push: vi.fn(),
+  pathname: '/home',
   user: {
     id: 'user-1',
     nickname: '테스터',
@@ -27,6 +28,7 @@ vi.mock('@/hooks/useVisiblePolling', () => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mocks.push }),
+  usePathname: () => mocks.pathname,
 }));
 
 vi.mock('../NotificationPanel', () => ({
@@ -90,6 +92,7 @@ describe('Header mobile search', () => {
     mocks.fetchUnreadNotificationCount.mockReset();
     mocks.fetchUnreadNotificationCount.mockResolvedValue(0);
     mocks.push.mockReset();
+    mocks.pathname = '/home';
   });
 
   it('opens the search field with the toggle, focuses it, and closes it after searching', async () => {
@@ -116,6 +119,22 @@ describe('Header mobile search', () => {
     fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
     fireEvent.keyDown(screen.getByRole('textbox', { name: '통합 검색' }), { key: 'Escape' });
 
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('closes the search field when the route changes without searching', () => {
+    const view = render(<Header />);
+
+    fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
+    expect(screen.getByRole('button', { name: '검색 닫기' })).toBeInTheDocument();
+
+    mocks.pathname = '/bookmarks';
+    view.rerender(<Header />);
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
+
+    // 검색창을 열었던 페이지로 돌아와도 다시 열리지 않는다.
+    mocks.pathname = '/home';
+    view.rerender(<Header />);
     expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
   });
 });

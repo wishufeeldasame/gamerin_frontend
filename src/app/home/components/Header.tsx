@@ -5,7 +5,7 @@ import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
 import { fetchUnreadNotificationCount } from "@/lib/notification-api";
 import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
@@ -18,10 +18,17 @@ export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationOpen, setNotificationOpen] = useState(false);
   // md 미만에서는 검색창을 숨겨 두고 돋보기 버튼으로 헤더 아래에 펼친다.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  // 탭바 등으로 페이지를 옮기면 펼친 검색창이 새 페이지를 가리지 않게 닫는다.
+  const [searchPathname, setSearchPathname] = useState(pathname);
+  if (searchPathname !== pathname) {
+    setSearchPathname(pathname);
+    setMobileSearchOpen(false);
+  }
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const unreadRequestRef = useRef<Promise<void> | null>(null);
