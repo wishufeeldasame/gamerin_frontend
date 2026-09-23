@@ -1,9 +1,10 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
   fetchUnreadNotificationCount: vi.fn(),
   logout: vi.fn(),
+  push: vi.fn(),
   user: {
     id: 'user-1',
     nickname: '테스터',
@@ -25,7 +26,7 @@ vi.mock('@/hooks/useVisiblePolling', () => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: mocks.push }),
 }));
 
 vi.mock('../NotificationPanel', () => ({
@@ -81,5 +82,40 @@ describe('Header notification freshness', () => {
 
     await waitFor(() => expect(firstSignal?.aborted).toBe(true));
     expect(await screen.findByText('1')).toBeInTheDocument();
+  });
+});
+
+describe('Header mobile search', () => {
+  beforeEach(() => {
+    mocks.fetchUnreadNotificationCount.mockReset();
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(0);
+    mocks.push.mockReset();
+  });
+
+  it('opens the search field with the toggle, focuses it, and closes it after searching', async () => {
+    render(<Header />);
+
+    const toggle = screen.getByRole('button', { name: '검색 열기' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+    fireEvent.click(toggle);
+    const input = screen.getByRole('textbox', { name: '통합 검색' });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(screen.getByRole('button', { name: '검색 닫기' })).toHaveAttribute('aria-expanded', 'true');
+
+    fireEvent.change(input, { target: { value: ' 발로란트 ' } });
+    fireEvent.submit(input);
+
+    expect(mocks.push).toHaveBeenCalledWith('/search?q=%EB%B0%9C%EB%A1%9C%EB%9E%80%ED%8A%B8');
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('closes the search field with Escape', () => {
+    render(<Header />);
+
+    fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
+    fireEvent.keyDown(screen.getByRole('textbox', { name: '통합 검색' }), { key: 'Escape' });
+
+    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
   });
 });
