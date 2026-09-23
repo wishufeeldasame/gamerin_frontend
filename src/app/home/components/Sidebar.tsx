@@ -14,20 +14,59 @@ const menuItems = [
   { icon: User, label: '프로필', href: '/profile' },
 ];
 
-export function Sidebar() {
+// Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 메뉴·활성 규칙을 쓴다.
+function useMenuLinks() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
+
+  return menuItems.map((item) => {
+    const href = item.href === '/profile' ? profileHref : item.href;
+    const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
+    return { ...item, href, isActive };
+  });
+}
+
+export function MobileTabBar() {
+  const links = useMenuLinks();
+
+  return (
+    <nav
+      aria-label="주요 메뉴"
+      className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-neutral-800 dark:bg-neutral-900"
+    >
+      <ul className="grid h-16 grid-cols-5">
+        {links.map((item) => (
+          <li key={item.label}>
+            <Link
+              href={item.href}
+              aria-current={item.isActive ? 'page' : undefined}
+              className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-black ${
+                item.isActive ? 'text-zinc-950 dark:text-[#f5b93d]' : 'text-zinc-400 dark:text-zinc-500'
+              }`}
+            >
+              <item.icon size={22} strokeWidth={item.isActive ? 3 : 2} />
+              {item.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+export function Sidebar() {
+  const { user, logout } = useAuth();
+  const links = useMenuLinks();
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">
       <nav className="space-y-2">
-        {menuItems.map((item) => {
-          const href = item.href === '/profile' ? profileHref : item.href;
-          const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
+        {links.map((item) => {
+          const { href, isActive } = item;
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={href}
               className={`group flex items-center gap-4 rounded-2xl px-4 py-3 font-black transition-all ${
                 isActive

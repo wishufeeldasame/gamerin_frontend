@@ -5,6 +5,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* (app) 레이아웃의 모바일 하단 탭바(MobileTabBar) 높이. lg 이상에서는 탭바가 없다. */
+  --tab-bar-height: calc(4rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --tab-bar-height: 0px;
+  }
 }
 
 @theme inline {
@@ -20,6 +28,8 @@
 }
 
 body {
+  /* viewport-fit=cover에서 가로 모드 노치 영역을 피한다. 고정 헤더·탭바는 각자 같은 여백을 준다. */
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;

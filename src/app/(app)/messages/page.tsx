@@ -1318,7 +1318,7 @@ export default function MessagesPage() {
 
   if (!isAuthReady) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-white">
+      <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] items-center justify-center bg-white">
         <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
           <Loader2 size={18} className="animate-spin" />
           메시지 화면을 불러오는 중...
@@ -1328,7 +1328,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-white">
+    <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] overflow-hidden bg-white">
       <section
         className={`w-full flex-col border-r border-zinc-100 bg-white md:flex md:w-[380px] ${
           mobileView === 'chat' ? 'hidden' : 'flex'

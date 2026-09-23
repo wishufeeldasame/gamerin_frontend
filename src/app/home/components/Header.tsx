@@ -102,7 +102,7 @@ export function Header() {
   };
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 border-b border-[#d69a1f] bg-[#f5b93d] dark:border-neutral-800 dark:bg-neutral-900">
+    <header className="fixed inset-x-0 top-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-b border-[#d69a1f] bg-[#f5b93d] dark:border-neutral-800 dark:bg-neutral-900">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-4 px-6 lg:px-6">
         {/* 로고 영역 */}
         <div className="min-w-0 flex-1 lg:max-w-[240px]">
