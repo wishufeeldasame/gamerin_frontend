@@ -118,14 +118,14 @@
 
 ### 현재 API 모듈과 base URL 처리
 
-- 도메인별 호출은 `src/lib/feed-api.ts`, `message-api.ts`, `mentoring-api.ts`, `mileage-api.ts`, `report-api.ts`, `game-stats-api.ts`, `community-search-api.ts`, `user-settings.ts` 등 기존 모듈을 먼저 확인한다.
+- 도메인별 호출은 `src/lib/feed-api.ts`, `message-api.ts`, `mentoring-api.ts`, `mileage-api.ts`, `report-api.ts`, `game-stats-api.ts`, `community-search-api.ts`, `notification-api.ts`, `user-settings.ts` 등 기존 모듈을 먼저 확인한다.
 - API 주소 처리는 아직 완전히 통일되어 있지 않다.
 - `src/lib/api-base.ts`의 `getApiBaseUrl()`은 설정값이 있으면 앞뒤 공백과 마지막 슬래시를 제거한다.
 - 설정값이 없으면 서버에서는 빈 문자열을 반환한다.
 - 브라우저가 localhost/127.0.0.1의 3000 포트라면 같은 프로토콜·호스트의 8080 주소를 사용하고, 그 외에는 빈 문자열을 반환한다.
 - 인증이 필요한 요청은 `src/lib/api-client.ts`의 `apiRequest()`/`apiRequestBlob()`을 사용하고, 요청할 때 `getApiBaseUrl()`로 주소를 얻는다. 도메인 모듈은 엔드포인트 함수와 도메인 오류 변환(`toError`)만 둔다.
 - 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
-- `community-search-api.ts`는 아직 자체 래퍼를 사용한다(#56 (b) 단계). 인증 화면 일부(`find-id`, `auth/forgot-password`, `auth/reset-password`)는 환경변수 미설정 시 `http://localhost:8080`을 기본값으로 쓰므로(#57) 한쪽만 바꿔 전체에 적용됐다고 가정하지 않는다.
+- 인증 화면 일부(`find-id`, `auth/forgot-password`, `auth/reset-password`)는 환경변수 미설정 시 `http://localhost:8080`을 기본값으로 쓰므로(#57) 한쪽만 바꿔 전체에 적용됐다고 가정하지 않는다.
 
 ### SSE, 첨부, 이미지
 

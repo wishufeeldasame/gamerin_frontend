@@ -422,22 +422,3 @@ export async function refreshAccessTokenResult(
 
   return promise;
 }
-
-/** 이전 호환용. 거절이면 세션이 종료되고, 일시 장애면 세션을 유지한 채 null을 반환한다. */
-export async function refreshAccessToken(expectedGeneration = authGeneration) {
-  const result = await refreshAccessTokenResult(expectedGeneration);
-  return result.status === 'refreshed' ? result.accessToken : null;
-}
-
-export async function ensureAccessToken(expectedGeneration = authGeneration) {
-  if (!isCurrentAuthGeneration(expectedGeneration)) {
-    return null;
-  }
-
-  const token = getAccessToken();
-  if (token) {
-    return token;
-  }
-
-  return refreshAccessToken(expectedGeneration);
-}

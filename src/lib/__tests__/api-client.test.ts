@@ -130,11 +130,11 @@ describe('일시 장애에서 세션 유지', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('이전 호환 refreshAccessToken도 일시 장애에서 인증을 지우지 않는다', async () => {
+  it('refreshAccessTokenResult도 일시 장애에서 인증을 지우지 않는다', async () => {
     api.route('/api/v1/auth/refresh', () => json(503, {}));
     const generation = store.getAuthGeneration();
 
-    await expect(store.refreshAccessToken()).resolves.toBeNull();
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'failed', httpStatus: 503 });
 
     expect(store.getAuthGeneration()).toBe(generation);
     expect(store.getAccessToken()).toBe('token-a');
@@ -242,7 +242,7 @@ describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
     });
     logout.resolve(new Response(null, { status: 204 }));
     await logoutRequest;
-    await expect(store.refreshAccessToken()).resolves.toBeNull();
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected' });
 
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
     expect(api.count('/api/v1/auth/logout')).toBe(1);
