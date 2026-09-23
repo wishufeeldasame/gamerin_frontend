@@ -5,6 +5,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* (app) 레이아웃의 모바일 하단 탭바(MobileTabBar) 높이. lg 이상에서는 탭바가 없다. */
+  --tab-bar-height: calc(4rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 64rem) {
+  :root {
+    --tab-bar-height: 0px;
+  }
 }
 
 @theme inline {

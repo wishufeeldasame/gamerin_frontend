@@ -4,7 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { Header } from '@/app/home/components/Header';
-import { Sidebar } from '@/app/home/components/Sidebar';
+import { MobileTabBar, Sidebar } from '@/app/home/components/Sidebar';
 
 export default function AppLayout({
   children,
@@ -35,8 +35,10 @@ export default function AppLayout({
           <Sidebar />
         </aside>
 
-        <main className="min-w-0 flex-1 min-h-screen">{children}</main>
+        <main className="min-w-0 flex-1 min-h-[calc(100dvh-4rem)] pb-[var(--tab-bar-height)]">{children}</main>
       </div>
+
+      <MobileTabBar />
     </div>
   );
 }
