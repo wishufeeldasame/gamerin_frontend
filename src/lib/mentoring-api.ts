@@ -1,6 +1,5 @@
-import { ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { ApiError, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const MENTORING_BASE = '/api/v1/mentoring';
 
 export type MentorStatus = 'ACTIVE' | 'INACTIVE' | string;
@@ -118,8 +117,7 @@ export interface MentoringProgramUpdateRequest {
   tags: string[];
 }
 
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
+type RequestOptions = ApiRequestOptions & {
   authRequired?: boolean;
 };
 
@@ -130,12 +128,9 @@ export class MentoringAuthError extends Error {
   }
 }
 
-export class MentoringApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number
-  ) {
-    super(message);
+export class MentoringApiError extends ApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
     this.name = 'MentoringApiError';
   }
 }
@@ -155,89 +150,32 @@ export function isMentoringNotFoundError(error: unknown): error is MentoringApiE
   return error instanceof MentoringApiError && error.status === 404;
 }
 
-async function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+// authRequired: false는 미리 refresh하지 않고 토큰 없이도 보낸다는 뜻일 뿐, 서버가 공개로 허용한다는 뜻은 아니다.
+// backend SecurityConfig에서 /api/v1/mentoring/** 는 모두 인증이 필요하다.
+function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { authRequired = true, ...fetchOptions } = options;
 
-  const send = async (accessToken?: string | null) => {
-    const headers = new Headers(options.headers);
+  return apiRequest<T>(
+    path,
+    {
+      authRequired,
+      envelope: 'optional',
+      toError: ({ reason, status, message }) => {
+        if (reason === 'http' && status === 404) {
+          return new MentoringApiError(message ?? 'Mentoring resource was not found.', status);
+        }
 
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
-    }
+        if (reason === 'unauthenticated' || (reason === 'http' && status === 401)) {
+          return authRequired
+            ? new MentoringAuthError()
+            : new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        }
 
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...fetchOptions,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | T | null;
-    return { response, payload };
-  };
-
-  let accessToken = authRequired
-    ? await ensureAccessToken()
-    : getAccessToken();
-
-  if (!accessToken && authRequired) {
-    throw new MentoringAuthError();
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    const refreshedToken = await refreshAccessToken();
-
-    if (!refreshedToken) {
-      if (authRequired) {
-        throw new MentoringAuthError();
-      }
-    } else {
-      accessToken = refreshedToken;
-      result = await send(accessToken);
-
-      if (!authRequired && result.response.status === 401) {
-        result = await send(null);
-      }
-    }
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 404) {
-      const message =
-        result.payload &&
-        typeof result.payload === 'object' &&
-        'message' in result.payload &&
-        typeof result.payload.message === 'string'
-          ? result.payload.message
-          : 'Mentoring resource was not found.';
-      throw new MentoringApiError(message, result.response.status);
-    }
-
-    if (result.response.status === 401) {
-      if (!authRequired) {
-        throw new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-      }
-
-      throw new MentoringAuthError();
-    }
-
-    const message =
-      result.payload && typeof result.payload === 'object' && 'message' in result.payload
-        ? result.payload.message
-        : null;
-    throw new Error(message || '멘토링 요청 처리에 실패했습니다.');
-  }
-
-  if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
-    return (result.payload as ApiEnvelope<T>).data as T;
-  }
-
-  return result.payload as T;
+        return new Error(message || '멘토링 요청 처리에 실패했습니다.');
+      },
+    },
+    fetchOptions,
+  );
 }
 
 export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
