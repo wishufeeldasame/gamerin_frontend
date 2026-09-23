@@ -1,5 +1,6 @@
 import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
+import { isApiOriginUrl, toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   type ApiClientConfig,
   type ApiRequestOptions,
@@ -89,20 +90,12 @@ export type MessageRealtimeEvent = {
   messageId: string;
 };
 
-function normalizeUrl(url: string) {
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
-  return `${getApiBaseUrl()}${url.startsWith('/') ? url : `/${url}`}`;
-}
-
 function toAttachment(payload: AttachmentPayload): ChatAttachment {
   return {
     id: payload.id,
     type: payload.type,
     name: payload.name,
-    url: normalizeUrl(payload.url),
+    url: toAbsoluteAssetUrl(payload.url) ?? payload.url,
   };
 }
 
@@ -145,8 +138,27 @@ function messageRequest<T>(path: string, options: ApiRequestOptions = {}): Promi
   return apiRequest<T>(`${MESSAGE_BASE}${path}`, MESSAGE_CLIENT, options);
 }
 
-export function fetchMessageAttachmentBlob(url: string) {
-  return apiRequestBlob(url, MESSAGE_ATTACHMENT_CLIENT);
+export async function fetchMessageAttachmentBlob(url: string) {
+  const attachmentUrl = toAbsoluteAssetUrl(url);
+  if (!attachmentUrl) {
+    throw new Error('Message attachment request failed.');
+  }
+
+  if (isApiOriginUrl(attachmentUrl)) {
+    return apiRequestBlob(attachmentUrl, MESSAGE_ATTACHMENT_CLIENT);
+  }
+
+  // API origin이 아닌 주소에는 토큰과 쿠키를 보내지 않고, 실패해도 세션을 갱신·종료하지 않는다.
+  const generation = getAuthGeneration();
+  const response = await fetch(attachmentUrl, { credentials: 'omit' }).catch(() => null);
+  assertCurrentAuthGeneration(generation);
+  if (!response?.ok) {
+    throw new Error('Message attachment request failed.');
+  }
+
+  const blob = await response.blob();
+  assertCurrentAuthGeneration(generation);
+  return blob;
 }
 
 export function isMessageAuthError(error: unknown) {

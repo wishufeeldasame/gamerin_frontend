@@ -116,6 +116,62 @@ describe('DM 첨부', () => {
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
   });
+
+  it('백엔드가 준 상대경로는 API base URL로 바꿔 인증 요청한다', async () => {
+    api.route('/api/v1/messages/attachments/a-1', () => new Response('bytes'));
+
+    const blob = await message.fetchMessageAttachmentBlob('/api/v1/messages/attachments/a-1');
+
+    await expect(blob.text()).resolves.toBe('bytes');
+    expect(api.paths()).toEqual(['/api/v1/messages/attachments/a-1']);
+    expect(api.authorization(0)).toBe('Bearer token-a');
+    expect(api.init(0)).toMatchObject({ credentials: 'include' });
+  });
+
+  describe('다른 origin', () => {
+    const EXTERNAL = 'https://cdn.test/a.png';
+
+    it('토큰과 쿠키 없이 받고 blob을 반환한다', async () => {
+      api.route(EXTERNAL, () => new Response('external-bytes'));
+
+      const blob = await message.fetchMessageAttachmentBlob(` ${EXTERNAL} `);
+
+      await expect(blob.text()).resolves.toBe('external-bytes');
+      expect(api.authorization(0)).toBeNull();
+      expect(api.init(0)).toMatchObject({ credentials: 'omit' });
+    });
+
+    it('//host 주소도 다른 origin이면 토큰을 보내지 않는다', async () => {
+      api.route('http://cdn.test/a.png', () => new Response('x'));
+
+      await message.fetchMessageAttachmentBlob('//cdn.test/a.png');
+
+      expect(api.authorization(0)).toBeNull();
+      expect(api.init(0)).toMatchObject({ credentials: 'omit' });
+    });
+
+    it('401·네트워크 실패는 첨부 실패로 끝나고 refresh나 로그아웃을 하지 않는다', async () => {
+      api.route(EXTERNAL, () => json(401, {}), () => Promise.reject(new TypeError('Failed to fetch')));
+
+      for (let i = 0; i < 2; i += 1) {
+        await expect(message.fetchMessageAttachmentBlob(EXTERNAL)).rejects.toThrow('Message attachment request failed.');
+      }
+      expect(api.paths()).toEqual([EXTERNAL, EXTERNAL]);
+      expect(store.getAccessToken()).toBe('token-a');
+    });
+
+    it('사용자 전환 뒤 도착한 응답은 AbortError로 버린다', async () => {
+      const late = deferred<Response>();
+      api.route(EXTERNAL, () => late.promise);
+
+      const request = message.fetchMessageAttachmentBlob(EXTERNAL);
+      await flush();
+      store.setAccessToken('token-new-user');
+      late.resolve(new Response('old-user-bytes'));
+
+      await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    });
+  });
 });
 
 describe('SSE 연결 준비', () => {

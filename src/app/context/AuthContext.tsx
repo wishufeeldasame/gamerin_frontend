@@ -1,7 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { ApiError, apiRequest } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 import {
@@ -15,8 +15,6 @@ import {
   refreshAccessTokenResult,
 } from '@/lib/auth-store';
 import { isBlockedAccountStatus } from '@/lib/auth-session-policy';
-
-const API_BASE = getApiBaseUrl();
 
 // 유저 데이터 타입 (필요한 정보를 추가하세요)
 interface User {
@@ -44,28 +42,6 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-function normalizeProfileImageUrl(value: unknown) {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const url = value.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-}
-
 function normalizeStoredUser(userData: User) {
   const safeUser = { ...userData } as User & {
     profileImageUrl?: unknown;
@@ -73,7 +49,7 @@ function normalizeStoredUser(userData: User) {
   };
 
   delete safeUser.coverImageUrl;
-  safeUser.profileImageUrl = normalizeProfileImageUrl(safeUser.profileImageUrl);
+  safeUser.profileImageUrl = toAbsoluteAssetUrl(safeUser.profileImageUrl);
 
   return safeUser as User;
 }
