@@ -288,6 +288,31 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(2);
   });
 
+  it('로그인 화면이 기다리는 로그아웃 완료는 이어지는 서버 로그아웃까지 포함한다', async () => {
+    const firstLogout = deferred<Response>();
+    const secondLogout = deferred<Response>();
+    api.route('/api/v1/auth/logout', () => firstLogout.promise, () => secondLogout.promise);
+    void store.logoutAuthSession({ notify: false });
+    store.setAccessToken('token-new-login');
+    void store.logoutAuthSession({ notify: false });
+
+    let completed = false;
+    void store.waitForLogoutCompletion().then(() => {
+      completed = true;
+    });
+
+    firstLogout.resolve(new Response(null, { status: 204 }));
+    await flush();
+    expect(api.count('/api/v1/auth/logout')).toBe(2);
+    expect(completed).toBe(false);
+    expect(store.isLogoutInProgress()).toBe(true);
+
+    secondLogout.resolve(new Response(null, { status: 204 }));
+    await flush();
+    expect(completed).toBe(true);
+    expect(store.isLogoutInProgress()).toBe(false);
+  });
+
   it('이전 로그아웃이 끝나기 전에 또 로그인했으면 이어지는 서버 로그아웃을 보내지 않는다', async () => {
     const firstLogout = deferred<Response>();
     api.route('/api/v1/auth/logout', () => firstLogout.promise);

@@ -255,24 +255,16 @@ export function clearStoredAuth({
 }
 
 export function logoutAuthSession(options: ClearStoredAuthOptions = {}): Promise<void> {
-  if (logoutRequest) {
-    if (authGeneration === loggedOutGeneration) return logoutRequest;
+  if (logoutRequest && authGeneration === loggedOutGeneration) return logoutRequest;
 
-    // 이전 로그아웃 요청이 끝나기 전에 새로 로그인했다. 새 세션도 즉시 지우고,
-    // 서버 로그아웃은 이전 요청이 끝난 뒤 그사이 다시 로그인하지 않았을 때만 보낸다.
-    clearStoredAuth(options);
-    const clearedGeneration = authGeneration;
-    loggedOutGeneration = clearedGeneration;
-    return logoutRequest.then(() => (
-      authGeneration === clearedGeneration ? logoutAuthSession(options) : undefined
-    ));
-  }
-
+  // 이전 로그아웃 요청이 끝나기 전에 새로 로그인한 세션이면, 로컬 인증은 즉시 지우고 서버 로그아웃은
+  // 이전 요청이 끝난 뒤 이어서 보낸다. 새 요청이 logoutRequest가 되므로 waitForLogoutCompletion()은
+  // 연쇄 전체를 기다리고, 로그아웃 진행 상태와 완료 알림은 마지막 요청만 해제한다.
+  const previousRequest = logoutRequest;
   const accessToken = getAccessToken();
   const headers = new Headers();
   const syncId = createSyncId();
   const requestId = ++logoutRequestId;
-  const controller = new AbortController();
 
   if (accessToken) {
     headers.set('Authorization', `Bearer ${accessToken}`);
@@ -285,33 +277,42 @@ export function logoutAuthSession(options: ClearStoredAuthOptions = {}): Promise
     expiresAt: Date.now() + LOGOUT_SYNC_TTL_MS,
   });
   clearStoredAuth({ ...options, broadcast: false });
-  loggedOutGeneration = authGeneration;
-
-  const timeoutId = typeof window !== 'undefined'
-    ? window.setTimeout(() => controller.abort(), LOGOUT_REQUEST_TIMEOUT_MS)
-    : null;
+  const clearedGeneration = authGeneration;
+  loggedOutGeneration = clearedGeneration;
 
   const request = (async () => {
+    if (previousRequest) await previousRequest;
+
+    const controller = new AbortController();
+    const timeoutId = typeof window !== 'undefined'
+      ? window.setTimeout(() => controller.abort(), LOGOUT_REQUEST_TIMEOUT_MS)
+      : null;
+
     try {
-      await fetch(`${getApiBaseUrl()}/api/v1/auth/logout`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        signal: controller.signal,
-      });
+      // 이전 요청을 기다리는 동안 다시 로그인했다면 새 세션의 refresh cookie를 지우지 않도록 보내지 않는다.
+      if (authGeneration === clearedGeneration) {
+        await fetch(`${getApiBaseUrl()}/api/v1/auth/logout`, {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+          signal: controller.signal,
+        });
+      }
     } catch {
       // Local authentication is already cleared even if the server is unavailable.
     } finally {
       if (timeoutId !== null && typeof window !== 'undefined') {
         window.clearTimeout(timeoutId);
       }
-      if (logoutRequestId === requestId) logoutRequest = null;
-      setLogoutInProgress(false);
-      broadcastAuthSync({
-        type: 'logout-complete',
-        id: syncId,
-        expiresAt: Date.now() + LOGOUT_SYNC_TTL_MS,
-      });
+      if (logoutRequestId === requestId) {
+        logoutRequest = null;
+        setLogoutInProgress(false);
+        broadcastAuthSync({
+          type: 'logout-complete',
+          id: syncId,
+          expiresAt: Date.now() + LOGOUT_SYNC_TTL_MS,
+        });
+      }
     }
   })();
 
