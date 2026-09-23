@@ -508,12 +508,13 @@ npm run dev
 
 * **26/09/18** 전준범
 
-  > [B-2] OAuth 인증 처리 화면에서 줄바꿈으로 분리되어 적용되지 않던 `font-sans`와 `justify-center` Tailwind 클래스를 정상 클래스 단위로 복구
-  > 로딩 화면의 기본 sans 글꼴과 인증 실패 화면의 오류 아이콘 중앙 정렬이 정상 적용되도록 실제 UI 결함만 최소 수정
-  > 정상 클래스인 `border-zinc-200`, `border-t-black`과 기존 안내·오류 문구는 변경하지 않고, 로그인 화면의 개발 단계 경고 배너도 복원하지 않음
-  > refresh 요청, access token 저장, `login()`, `logoutAuthSession()`, `/auth/me`, 차단 계정 처리, 성공 시 `/home` 이동과 실패 후 3초 뒤 `/login` 이동 등 기존 인증 로직 유지
-  > OAuth 로딩·실패·성공 상태 테스트를 추가하여 필요한 클래스 적용, 실패 시 세션 정리와 fake timer 기반 로그인 이동, 성공 시 토큰 저장·로그인·홈 이동을 검증
-  > 백엔드, API 계약, 인증 정책과 `AuthContext` 등 인증 공통 모듈은 변경하지 않고 OAuth 화면과 회귀 테스트 범위로 작업을 제한
-  > 검증: B-2 관련 테스트 3건, 전체 단위 테스트 73건, `npm run lint`, `npm run build`, `git diff --check` 통과
+  > [B-2] OAuth 인증 처리 화면의 `font-sans`, `justify-center`, 로딩 스피너 Tailwind 클래스를 줄바꿈 없이 정상 클래스 단위로 정리
+  > 오류 후 `/login`으로 이동하는 타이머 id를 effect 내부에 보관하고 cleanup에서 해제하여 다른 화면으로 이동한 뒤 예약된 redirect가 실행되지 않도록 수정
+  > `logoutAuthSession()` 대기 중 화면이 unmount되는 경우를 고려해 완료 후 취소 상태를 다시 확인하고, 취소됐다면 상태 변경과 타이머 생성을 중단
+  > 커밋 `6629d3d`에서 추가됐던 로그인 화면의 개발 단계 경고 배너와 원문 스타일을 복원
+  > refresh 요청, access token 저장, `login()`, `/auth/me`, 차단 계정 처리, 성공 시 `/home` 이동과 오류 화면 유지 시 3초 뒤 `/login` 이동은 기존대로 유지
+  > `console.error(err)`, 백엔드, API 계약, 인증 정책과 `AuthContext` 등 인증 공통 모듈은 변경하지 않고 OAuth 화면·로그인 배너·회귀 테스트 범위로 작업을 제한
+  > OAuth 로딩·실패·성공과 타이머 cleanup, 세션 정리 중 unmount, 로그인 경고 배너를 검증하는 B-2 관련 테스트 6건 구성
+  > 검증: B-2 관련 테스트 6건, 전체 단위 테스트 76건, `npm test`, `npm run lint`, `npm run build`, `git diff --check` 통과
 
-  > 요약 : OAuth 인증 처리 화면의 깨진 Tailwind 클래스를 복구하고, 기존 성공·실패 인증 흐름을 회귀 테스트로 보장
+  > 요약 : OAuth 인증 처리 화면의 깨진 Tailwind 클래스를 복구하고 redirect 타이머를 정리하며, 로그인 개발 단계 경고 배너를 복원
