@@ -1,11 +1,11 @@
 'use client';
 
-import { Bell, MessageSquare, Search, LogOut } from "lucide-react";
+import { Bell, MessageSquare, Search, LogOut, X } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
 import { fetchUnreadNotificationCount } from "@/lib/notification-api";
 import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
@@ -18,8 +18,18 @@ export function Header() {
   // 2. 전역 상태에서 유저 정보와 로그아웃 함수 가져오기
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
   const [notificationOpen, setNotificationOpen] = useState(false);
+  // md 미만에서는 검색창을 숨겨 두고 돋보기 버튼으로 헤더 아래에 펼친다.
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  // 탭바 등으로 페이지를 옮기면 펼친 검색창이 새 페이지를 가리지 않게 닫는다.
+  const [searchPathname, setSearchPathname] = useState(pathname);
+  if (searchPathname !== pathname) {
+    setSearchPathname(pathname);
+    setMobileSearchOpen(false);
+  }
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [notificationUnreadCount, setNotificationUnreadCount] = useState(0);
   const unreadRequestRef = useRef<Promise<void> | null>(null);
   const unreadAbortControllerRef = useRef<AbortController | null>(null);
@@ -99,16 +109,23 @@ export function Header() {
     }
 
     router.push(`/search?q=${encodeURIComponent(keyword)}`);
+    setMobileSearchOpen(false);
   };
+
+  useEffect(() => {
+    if (mobileSearchOpen) {
+      searchInputRef.current?.focus();
+    }
+  }, [mobileSearchOpen]);
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-b border-[#d69a1f] bg-[#f5b93d] dark:border-neutral-800 dark:bg-neutral-900">
-      <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-4 px-6 lg:px-6">
+      <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-4 sm:px-6">
         {/* 로고 영역 */}
         <div className="min-w-0 flex-1 lg:max-w-[240px]">
           <Link
             href="/home"
-            className="text-[2.05rem] font-semibold leading-none text-white dark:text-[#f5b93d]"
+            className="text-[1.6rem] font-semibold leading-none text-white sm:text-[2.05rem] dark:text-[#f5b93d]"
             style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
           >
             GamerIN
@@ -116,7 +133,13 @@ export function Header() {
         </div>
 
         {/* 검색 영역 */}
-        <div className="hidden flex-1 justify-start md:flex">
+        <div
+          className={`${
+            mobileSearchOpen
+              ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900'
+              : 'hidden'
+          } flex-1 justify-start md:static md:flex md:border-0 md:bg-transparent md:p-0 md:dark:bg-transparent`}
+        >
           <form
             onSubmit={handleSearchSubmit}
             role="search"
@@ -126,7 +149,13 @@ export function Header() {
             <input
               type="text"
               value={searchQuery}
+              ref={searchInputRef}
               onChange={(event) => setSearchQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  setMobileSearchOpen(false);
+                }
+              }}
               placeholder="게임, 플레이어, 게시글 검색..."
               aria-label="통합 검색"
               className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:text-zinc-400"
@@ -135,10 +164,19 @@ export function Header() {
         </div>
 
         {/* 오른쪽 유저 액션 영역 */}
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-3 lg:max-w-md">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3 lg:max-w-md">
           {user ? (
             /* A. 로그인 상태: 알림, 메시지, 유저 아바타, 로그아웃 */
             <>
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen((current) => !current)}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 md:hidden dark:text-zinc-200 dark:hover:bg-white/10"
+                aria-label={mobileSearchOpen ? "검색 닫기" : "검색 열기"}
+                aria-expanded={mobileSearchOpen}
+              >
+                {mobileSearchOpen ? <X size={18} strokeWidth={2.1} /> : <Search size={18} strokeWidth={2.1} />}
+              </button>
               <button
                 type="button"
                 onClick={() => setNotificationOpen((current) => !current)}
@@ -167,7 +205,7 @@ export function Header() {
                 <MessageSquare size={18} strokeWidth={2.1} />
               </Link>
               
-              <div className="flex items-center gap-3 ml-2 pl-3 border-l border-black/10 dark:border-white/10">
+              <div className="ml-1 flex items-center gap-2 border-l border-black/10 pl-2 sm:ml-2 sm:gap-3 sm:pl-3 dark:border-white/10">
                 <div className="hidden lg:block text-right">
                    <p className="text-[11px] font-black text-black leading-none uppercase tracking-tighter dark:text-zinc-100">
                      {user.nickname}
