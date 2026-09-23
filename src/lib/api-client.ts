@@ -149,7 +149,11 @@ async function sendAuthorized(
   let result = await send(accessToken);
 
   if (result.response.status === 401) {
-    result = await send(await session.refresh());
+    // 같은 세대의 다른 요청이 그사이 토큰을 갱신했으면 refresh를 다시 하지 않고 그 토큰으로 재시도한다.
+    const currentToken = getAccessToken();
+    result = await send(
+      currentToken && currentToken !== accessToken ? currentToken : await session.refresh(),
+    );
   }
 
   if (result.response.status === 401) {

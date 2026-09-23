@@ -160,6 +160,22 @@ describe('동시 요청', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(1);
   });
 
+  it('다른 요청의 refresh가 끝난 뒤 옛 토큰의 401이 늦게 오면 refresh 없이 갱신된 토큰으로 재시도한다', async () => {
+    const lateFirst = deferred<Response>();
+    api.route('/api/v1/a', () => json(401, {}), () => json(200, { data: 'a' }));
+    api.route('/api/v1/b', () => lateFirst.promise, () => json(200, { data: 'b' }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+
+    const second = client.apiRequest('/api/v1/b', config);
+    await expect(client.apiRequest('/api/v1/a', config)).resolves.toBe('a');
+    lateFirst.resolve(json(401, {}));
+
+    await expect(second).resolves.toBe('b');
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    const retryIndex = api.paths().lastIndexOf('/api/v1/b');
+    expect(api.authorization(retryIndex)).toBe('Bearer token-b');
+  });
+
   it('둘 다 최종 401이면 로그아웃은 한 번이고 뒤의 요청도 인증 오류를 받는다', async () => {
     const lateRetry = deferred<Response>();
     api.route('/api/v1/a', () => json(401, {}), () => json(401, {}));
