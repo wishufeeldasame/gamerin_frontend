@@ -1427,14 +1427,14 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
+        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-8 py-5 backdrop-blur-md">
-              <div className="flex items-center gap-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5">
+              <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
@@ -1454,12 +1454,12 @@ export default function MessagesPage() {
                     <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-4 border-white bg-green-500" />
                   ) : null}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-lg font-black leading-none tracking-tight text-black">
+                    <p className="truncate text-lg font-black leading-none tracking-tight text-black">
                       {activeConversation.recipient.name}
                     </p>
-                    <ShieldCheck size={16} className="text-blue-500" />
+                    <ShieldCheck size={16} className="shrink-0 text-blue-500" />
                   </div>
                   <p
                     className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
@@ -1496,7 +1496,7 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {hasNextMessages ? (
                 <div className="mb-6 flex justify-center">
                   <button
@@ -1567,7 +1567,7 @@ export default function MessagesPage() {
               <div ref={messageEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">
+            <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-3 md:p-6">
               {composerError ? (
                 <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
                   <CircleAlert size={16} className="shrink-0" />
@@ -1683,7 +1683,7 @@ export default function MessagesPage() {
                   maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
-                  className="flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
+                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
                 />
                 <span
                   className={`shrink-0 text-xs font-bold ${
