@@ -27,6 +27,7 @@
 - Git 명령은 대상 저장소에서 실행한다. `capstone/`처럼 여러 저장소를 모아 둔 상위 디렉토리를 하나의 Git 저장소로 취급하지 않는다.
 - commit, push, merge, rebase, reset, `checkout --`, 변경 폐기 및 대량 삭제는 사용자 승인 후 수행한다.
 - 컨테이너 기동·중지·재시작(`docker compose --env-file .env up -d`, `stop`, `restart` 등)은 승인 없이 수행할 수 있다. 전후 상태를 `ps`로 확인하고, 변경한 컨테이너와 이유를 완료 보고에 명시한다.
+- 데모 계정을 통한 로그인·로그아웃은 승인 없이 수행할 수 있다.
 - DB 초기화·복원, 볼륨·데이터 디렉토리 삭제(`down -v` 포함), 배포 스크립트 실행과 실제 배포 등 그 밖의 런타임 상태 변경은 사용자 승인 후 수행한다.
 - DB 복원 전에는 대상 DB, 최신 백업과 복원 파일을 확인한다.
 
@@ -111,13 +112,14 @@
 ### 현재 API 모듈과 base URL 처리
 
 - 도메인별 호출은 `src/lib/feed-api.ts`, `message-api.ts`, `mentoring-api.ts`, `mileage-api.ts`, `report-api.ts`, `game-stats-api.ts`, `community-search-api.ts`, `notification-api.ts`, `user-settings.ts` 등 기존 모듈을 먼저 확인한다.
-- API 주소 처리는 아직 완전히 통일되어 있지 않다.
+- API base URL은 `src/lib/api-base.ts`의 `getApiBaseUrl()`로 통일되어 있다. 모듈 로드·렌더 시점 상수로 고정하지 않고 요청할 때 호출한다. `NEXT_PUBLIC_API_BASE_URL` 직접 참조는 `api-base.ts`와 `next.config.ts`에만 둔다.
 - `src/lib/api-base.ts`의 `getApiBaseUrl()`은 설정값이 있으면 앞뒤 공백과 마지막 슬래시를 제거한다.
 - 설정값이 없으면 서버에서는 빈 문자열을 반환한다.
 - 브라우저가 localhost/127.0.0.1의 3000 포트라면 같은 프로토콜·호스트의 8080 주소를 사용하고, 그 외에는 빈 문자열을 반환한다.
 - 인증이 필요한 요청은 `src/lib/api-client.ts`의 `apiRequest()`/`apiRequestBlob()`을 사용하고, 요청할 때 `getApiBaseUrl()`로 주소를 얻는다. 도메인 모듈은 엔드포인트 함수와 도메인 오류 변환(`toError`)만 둔다.
 - 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
-- 인증 화면 일부(`find-id`, `auth/forgot-password`, `auth/reset-password`)는 환경변수 미설정 시 `http://localhost:8080`을 기본값으로 쓰므로(#57) 한쪽만 바꿔 전체에 적용됐다고 가정하지 않는다.
+- 토큰이 필요 없는 공개 인증 화면(`find-id`, `auth/forgot-password`, `auth/reset-password`)은 `apiRequest()`가 아닌 `fetch`로 제출 시점의 `${getApiBaseUrl()}/api/v1/auth/...`를 호출한다.
+- 응답의 이미지·첨부 URL 정규화는 아직 모듈마다 따로 구현되어 있다(`feed-api.ts`, `community-search-api.ts`, `notification-api.ts`, `message-api.ts`, `AuthContext.tsx`, #58). 한 곳만 바꿔 전체에 적용됐다고 가정하지 않는다.
 
 ### SSE, 첨부, 이미지
 
