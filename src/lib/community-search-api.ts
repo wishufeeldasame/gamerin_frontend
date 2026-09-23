@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/api-base';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import {
   type CursorPage,
@@ -66,24 +66,6 @@ const COMMUNITY_CLIENT: ApiClientConfig = {
       : new Error(message ?? 'Community search request failed.'),
 };
 
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${getApiBaseUrl()}/${url.replace(/^\//, '')}`;
-}
-
 function toNumber(value: unknown) {
   const numericValue = Number(value);
   return Number.isFinite(numericValue) ? numericValue : 0;
@@ -102,7 +84,7 @@ function normalizeUserProfile(profile: SimpleUserProfileResponse): SimpleUserPro
     handle: profile.handle,
     nickname: profile.nickname,
     bio: profile.bio ?? null,
-    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     verifiedBadge: Boolean(profile.verifiedBadge),
   };
 }

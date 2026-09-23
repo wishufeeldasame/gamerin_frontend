@@ -16,7 +16,9 @@ import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-se
 import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = getApiBaseUrl();
+// 백엔드 회원가입 API(SignUpRequest)에 생년월일 필드가 없어 입력을 숨기고 검증에서 뺀다.
+// 계약이 생기면 true로 바꾸고 회원가입 요청 본문에 추가한다.
+const BIRTH_DATE_ENABLED = false;
 
 export default function LoginPage() {
   const router = useRouter();
@@ -45,9 +47,7 @@ export default function LoginPage() {
   const isStep1Valid = Boolean(
     signupName.trim() &&
       emailRegex.test(signupEmail) &&
-      birthMonth &&
-      birthDay &&
-      birthYear
+      (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear))
   );
   const isStep2Valid =
     signupId.length >= 4 &&
@@ -77,7 +77,7 @@ export default function LoginPage() {
     if (!isStep2Valid) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -116,7 +116,7 @@ export default function LoginPage() {
 
     try {
       await waitForLogoutCompletion();
-      const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -166,7 +166,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/oauth2/authorization/google`;
+    window.location.href = `${getApiBaseUrl()}/oauth2/authorization/google`;
   };
 
   useEffect(() => {
@@ -338,6 +338,7 @@ export default function LoginPage() {
                     className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
                   />
                 </div>
+                {BIRTH_DATE_ENABLED ? (
                 <div className="mb-3">
                   <h3 className="mb-2 text-lg font-bold text-black">생년월일</h3>
                   <p className="mb-5 text-sm leading-6 text-gray-500">
@@ -385,6 +386,7 @@ export default function LoginPage() {
                     </select>
                   </div>
                 </div>
+                ) : null}
                 <button
                   type="button"
                   onClick={handleNextStep}

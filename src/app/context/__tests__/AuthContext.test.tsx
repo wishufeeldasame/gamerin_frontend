@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const authStore = vi.hoisted(() => ({
@@ -145,6 +145,30 @@ describe('AuthProvider session clearing', () => {
 
       expect(await screen.findByText('서버닉네임')).toBeInTheDocument();
       expect(apiClient.apiRequest).toHaveBeenCalledWith('/api/v1/auth/me', expect.anything());
+    });
+
+    it('저장 사용자의 프로필 이미지 상대경로를 복원 시점의 API 주소로 바꾸고 커버 이미지는 버린다', async () => {
+      vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', ' https://api.gamerin.test/ ');
+      onTestFinished(() => {
+        vi.unstubAllEnvs();
+      });
+      window.localStorage.setItem(authStore.AUTH_USER_KEY, JSON.stringify({
+        ...savedUser,
+        profileImageUrl: ' /uploads/p.png ',
+        coverImageUrl: '/uploads/c.png',
+      }));
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({
+        status: 'refreshed',
+        accessToken: 'token',
+      } as never);
+      apiClient.apiRequest.mockResolvedValueOnce({ userId: 'user-id', handle: 'user', nickname: '서버닉네임' });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      expect(await screen.findByText('서버닉네임')).toBeInTheDocument();
+
+      const stored = JSON.parse(window.localStorage.getItem(authStore.AUTH_USER_KEY) ?? '{}');
+      expect(stored.profileImageUrl).toBe('https://api.gamerin.test/uploads/p.png');
+      expect(stored).not.toHaveProperty('coverImageUrl');
     });
 
     it('차단 상태의 계정이면 세션을 종료한다', async () => {

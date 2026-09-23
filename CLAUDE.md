@@ -119,13 +119,14 @@
 - 인증이 필요한 요청은 `src/lib/api-client.ts`의 `apiRequest()`/`apiRequestBlob()`을 사용하고, 요청할 때 `getApiBaseUrl()`로 주소를 얻는다. 도메인 모듈은 엔드포인트 함수와 도메인 오류 변환(`toError`)만 둔다.
 - 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
 - 토큰이 필요 없는 공개 인증 화면(`find-id`, `auth/forgot-password`, `auth/reset-password`)은 `apiRequest()`가 아닌 `fetch`로 제출 시점의 `${getApiBaseUrl()}/api/v1/auth/...`를 호출한다.
-- 응답의 이미지·첨부 URL 정규화는 아직 모듈마다 따로 구현되어 있다(`feed-api.ts`, `community-search-api.ts`, `notification-api.ts`, `message-api.ts`, `AuthContext.tsx`, #58). 한 곳만 바꿔 전체에 적용됐다고 가정하지 않는다.
+- 응답의 이미지·첨부 URL은 `src/lib/asset-url.ts`의 `toAbsoluteAssetUrl()`로 정규화한다. 상대경로에는 요청 시점의 `getApiBaseUrl()`을 붙이고 http(s)·blob·data 주소는 유지한다. 모듈별 정규화 함수를 새로 만들지 않는다.
 
 ### SSE, 첨부, 이미지
 
 - `message-api.ts`의 SSE는 `/api/v1/messages/stream-token` 발급 후 쿠키를 포함한 `EventSource`를 사용한다.
 - 메시지 상태는 `message-store.ts`와 함께 확인한다.
 - DM 첨부 접근은 공개 `/uploads` URL이 아니라 `Authorization` 헤더를 사용하는 인증 fetch 후 object URL로 렌더링하는 흐름을 유지한다.
+- 인증 정보는 `isApiOriginUrl()`이 true인 주소(경로만 있는 상대경로 또는 API origin)에만 보낸다. 다른 origin의 첨부는 토큰·쿠키 없이 받고, 실패해도 세션을 갱신·종료하지 않는다.
 - 프로필 이미지 압축은 `src/lib/profile-image-compression.ts`를 확인한다.
 - 업로드 형식·크기 변경은 서버 검증과 함께 확인한다.
 - `next/image`를 사용한다.

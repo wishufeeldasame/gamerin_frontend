@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/api-base';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   ApiError,
   type ApiClientConfig,
@@ -175,34 +175,16 @@ function toNumber(value: unknown) {
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
-    mediaUrl: normalizeAssetUrl(media.mediaUrl) ?? media.mediaUrl,
-    thumbnailUrl: normalizeAssetUrl(media.thumbnailUrl),
+    mediaUrl: toAbsoluteAssetUrl(media.mediaUrl) ?? media.mediaUrl,
+    thumbnailUrl: toAbsoluteAssetUrl(media.thumbnailUrl),
     sortOrder: toNumber(media.sortOrder),
   };
-}
-
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${getApiBaseUrl()}/${url.replace(/^\//, '')}`;
 }
 
 export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
-    authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
+    authorProfileImageUrl: toAbsoluteAssetUrl(post.authorProfileImageUrl),
     content: post.content ?? null,
     media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
     likes: toNumber(post.likes),
@@ -228,8 +210,8 @@ export function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item
 function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
   return {
     ...profile,
-    coverImageUrl: normalizeAssetUrl(profile.coverImageUrl),
-    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
+    coverImageUrl: toAbsoluteAssetUrl(profile.coverImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
   };
 }
@@ -237,14 +219,14 @@ function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
 function normalizeProfileImageUpload(response: ProfileImageUploadResponse): ProfileImageUploadResponse {
   return {
     ...response,
-    imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
+    imageUrl: toAbsoluteAssetUrl(response.imageUrl) ?? response.imageUrl,
   };
 }
 
 function normalizeBookmarkCollection(collection: BookmarkCollection): BookmarkCollection {
   return {
     ...collection,
-    coverImageUrl: normalizeAssetUrl(collection.coverImageUrl),
+    coverImageUrl: toAbsoluteAssetUrl(collection.coverImageUrl),
     bookmarkCount: toNumber(collection.bookmarkCount),
     containsPost: Boolean(collection.containsPost),
   };

@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from '@/lib/api-base';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { CursorPage } from '@/lib/feed-api';
 
@@ -59,24 +59,6 @@ const NOTIFICATION_CLIENT: ApiClientConfig = {
       : new Error(message ?? 'Notification request failed.'),
 };
 
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${getApiBaseUrl()}/${url.replace(/^\//, '')}`;
-}
-
 function normalizeActor(actor: NotificationActor | null): NotificationActor | null {
   if (!actor) {
     return null;
@@ -84,7 +66,7 @@ function normalizeActor(actor: NotificationActor | null): NotificationActor | nu
 
   return {
     ...actor,
-    profileImageUrl: normalizeAssetUrl(actor.profileImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(actor.profileImageUrl),
     verifiedBadge: Boolean(actor.verifiedBadge),
   };
 }
