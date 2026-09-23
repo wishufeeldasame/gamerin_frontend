@@ -6,6 +6,7 @@ import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
+import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import {
   CommentRecord,
   PostRecord,
@@ -42,6 +43,7 @@ interface PostDetailProps {
 
 export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated, onPostDeleted }: PostDetailProps) {
   const { user } = useAuth();
+  const { refreshCollections } = useBookmarkCollections();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const scrolledToCommentsRef = useRef(false);
   const [post, setPost] = useState<PostRecord | null>(null);
@@ -269,6 +271,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
         await bookmarkPost(post.postId);
       } else {
         await unbookmarkPost(post.postId);
+        void refreshCollections().catch(() => undefined);
       }
       return true;
     } catch (bookmarkError) {
@@ -475,6 +478,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
               <button
                 type="button"
                 onClick={() => setCollectionModalOpen(true)}
+                aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
                 disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
