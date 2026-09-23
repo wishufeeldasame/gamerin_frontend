@@ -1,24 +1,6 @@
-import {
-  assertCurrentAuthGeneration,
-  clearStoredAuth,
-  ensureAccessToken,
-  getAuthGeneration,
-  refreshAccessToken,
-} from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
+import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { CursorPage } from '@/lib/feed-api';
-
-const API_BASE = getApiBaseUrl();
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data: T;
-  message?: string;
-};
-
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
 
 interface NotificationRequestOptions {
   signal?: AbortSignal;
@@ -70,6 +52,13 @@ function createAuthError() {
   return new Error('Authentication is required or the token has expired.');
 }
 
+const NOTIFICATION_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) =>
+    reason === 'unauthenticated' || (reason === 'http' && status === 401)
+      ? createAuthError()
+      : new Error(message ?? 'Notification request failed.'),
+};
+
 function normalizeAssetUrl(value?: string | null) {
   const url = value?.trim();
   if (!url) {
@@ -85,7 +74,7 @@ function normalizeAssetUrl(value?: string | null) {
     return `${protocol}${url}`;
   }
 
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
+  return `${getApiBaseUrl()}/${url.replace(/^\//, '')}`;
 }
 
 function normalizeActor(actor: NotificationActor | null): NotificationActor | null {
@@ -114,58 +103,8 @@ function normalizeNotification(notification: NotificationRecord): NotificationRe
   };
 }
 
-async function notificationRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  const requestGeneration = getAuthGeneration();
-  let accessToken = await ensureAccessToken(requestGeneration);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (!accessToken) {
-    throw createAuthError();
-  }
-
-  let result = await send(accessToken);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken(requestGeneration);
-    assertCurrentAuthGeneration(requestGeneration);
-
-    if (!accessToken) {
-      throw createAuthError();
-    }
-
-    result = await send(accessToken);
-    assertCurrentAuthGeneration(requestGeneration);
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 401) {
-      clearStoredAuth();
-      throw createAuthError();
-    }
-
-    throw new Error(result.payload?.message ?? 'Notification request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function notificationRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, NOTIFICATION_CLIENT, options);
 }
 
 export async function fetchNotifications(
