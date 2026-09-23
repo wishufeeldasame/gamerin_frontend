@@ -151,6 +151,7 @@ function SearchPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const loadControllerRef = useRef<AbortController | null>(null);
+  const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   const activeTabLabel = useMemo(
     () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '전체',
@@ -168,8 +169,11 @@ function SearchPageContent() {
 
   const loadSearch = useCallback(async () => {
     loadControllerRef.current?.abort();
+    loadMoreControllerRef.current?.abort();
     const controller = new AbortController();
     loadControllerRef.current = controller;
+    loadMoreControllerRef.current = null;
+    setLoadingMore(false);
 
     setOverview(null);
     setAccounts([]);
@@ -196,12 +200,12 @@ function SearchPageContent() {
         const page = await fetchSearchAccounts(query, null, PAGE_SIZE, { signal: controller.signal });
         setAccounts(page.items);
         setAccountCursor(page.nextCursor);
-        setAccountHasNext(page.hasNext);
+        setAccountHasNext(Boolean(page.hasNext && page.nextCursor));
       } else if (activeTab === 'posts') {
         const page = await fetchSearchPosts(query, null, PAGE_SIZE, { signal: controller.signal });
         setPosts(page.items);
         setPostCursor(page.nextCursor);
-        setPostHasNext(page.hasNext);
+        setPostHasNext(Boolean(page.hasNext && page.nextCursor));
       } else {
         setHashtags(await fetchSearchHashtags(query, PAGE_SIZE, { signal: controller.signal }));
       }
@@ -223,17 +227,38 @@ function SearchPageContent() {
     void loadSearch();
     return () => {
       loadControllerRef.current?.abort();
+      loadMoreControllerRef.current?.abort();
     };
   }, [loadSearch]);
+
+  const updateLikeState = (postId: string, likedByMe: boolean) => {
+    setPosts((current) =>
+      current.map((item) =>
+        item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
+      ),
+    );
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: current.posts.items.map((item) =>
+                item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
+              ),
+            },
+          }
+        : current,
+    );
+  };
 
   const handleToggleLike = async (post: PostRecord) => {
     if (likeLoadingByPostId[post.postId]) {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => current.map((item) => (item.postId === post.postId ? optimistic : item)));
+    updateLikeState(post.postId, !post.likedByMe);
 
     try {
       if (post.likedByMe) {
@@ -242,7 +267,7 @@ function SearchPageContent() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) => current.map((item) => (item.postId === post.postId ? post : item)));
+      updateLikeState(post.postId, post.likedByMe);
       alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
@@ -271,30 +296,48 @@ function SearchPageContent() {
   };
 
   const loadMore = async () => {
-    if (loadingMore || !query) {
+    if (loadingMore || loadMoreControllerRef.current || !query) {
       return;
     }
 
+    const cursor = activeTab === 'accounts' ? accountCursor : activeTab === 'posts' ? postCursor : null;
+    if (!cursor) {
+      return;
+    }
+
+    const controller = new AbortController();
+    loadMoreControllerRef.current = controller;
+
     try {
       setLoadingMore(true);
-      if (activeTab === 'accounts' && accountCursor) {
-        const page = await fetchSearchAccounts(query, accountCursor, PAGE_SIZE);
-        setAccounts((current) => [...current, ...page.items]);
+      if (activeTab === 'accounts') {
+        const page = await fetchSearchAccounts(query, cursor, PAGE_SIZE, { signal: controller.signal });
+        setAccounts((current) => {
+          const seen = new Set(current.map((account) => account.userId));
+          return [...current, ...page.items.filter((account) => !seen.has(account.userId))];
+        });
         setAccountCursor(page.nextCursor);
-        setAccountHasNext(page.hasNext);
-      } else if (activeTab === 'posts' && postCursor) {
-        const page = await fetchSearchPosts(query, postCursor, PAGE_SIZE);
+        setAccountHasNext(Boolean(page.hasNext && page.nextCursor));
+      } else if (activeTab === 'posts') {
+        const page = await fetchSearchPosts(query, cursor, PAGE_SIZE, { signal: controller.signal });
         setPosts((current) => {
           const seen = new Set(current.map((post) => post.postId));
           return [...current, ...page.items.filter((post) => !seen.has(post.postId))];
         });
         setPostCursor(page.nextCursor);
-        setPostHasNext(page.hasNext);
+        setPostHasNext(Boolean(page.hasNext && page.nextCursor));
       }
     } catch (loadError) {
+      if (loadError instanceof DOMException && loadError.name === 'AbortError') {
+        return;
+      }
+
       alert(loadError instanceof Error ? loadError.message : '결과를 더 불러오지 못했습니다.');
     } finally {
-      setLoadingMore(false);
+      if (loadMoreControllerRef.current === controller) {
+        loadMoreControllerRef.current = null;
+        setLoadingMore(false);
+      }
     }
   };
 

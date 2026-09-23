@@ -1,5 +1,21 @@
 # GamerIN Frontend
 
+## 최근 작업 - 알림 프론트 연동
+
+* **26/08/18** 김서영
+
+  > 백엔드 알림 API 계약에 맞춰 프론트 알림 드롭다운과 상단 unread 배지를 실제 API 기반으로 전환
+  > `src/lib/notification-api.ts`를 추가하여 알림 목록, 읽지 않은 알림 개수, 개별 읽음, 전체 읽음 API 호출을 분리
+  > Header 알림 배지를 더미 값이 아닌 `GET /api/v1/notifications/unread-count` 응답 기준으로 표시
+  > 기존 더미 `NotificationPanel`을 API 연동 패널로 교체하고 커서 기반 더보기, 로딩, 오류, 빈 상태 UI를 추가
+  > 알림 클릭 시 개별 읽음 처리 후 타입별 경로로 이동하도록 처리
+  > 게시글/댓글/리포스트/멘션은 게시글 상세, 팔로우는 사용자 프로필, DM은 대화방, 멘토링 알림은 멘토링 화면으로 라우팅
+  > `actor`가 null이거나 참조 ID가 없는 알림도 화면이 깨지지 않도록 fallback 문구와 이동 방어 처리 적용
+  > 전체 읽음 처리 성공 시 목록 read 상태와 unread count를 즉시 갱신하고 서버 count를 재조회하도록 정리
+  > 검증: `git diff --check`, `npm.cmd run lint`, `npm.cmd run build` 통과
+
+  > 요약 : 알림 API client, Header unread 배지, 알림 드롭다운 목록/읽음/더보기/타입별 이동 기능을 백엔드 계약에 맞춰 연동
+
 ## 최근 작업 - 해시태그 및 통합 검색 프론트 연동
 
 * **26/09/03** 김신의
@@ -489,3 +505,16 @@ npm run dev
   > 검증: B-1 관련 테스트 7건, 전체 단위 테스트 70건, `npm run lint`, `npm run build` 통과
 
   > 요약 : 북마크 해제 성공 후 모음집을 서버 기준으로 재조회하고, 동기화 중 오래된 개수를 숨겨 게시글 상태와 모음집 개수가 일치하도록 수정
+
+* **26/09/18** 전준범
+
+  > [B-2] OAuth 인증 처리 화면의 `font-sans`, `justify-center`, 로딩 스피너 Tailwind 클래스를 줄바꿈 없이 정상 클래스 단위로 정리
+  > 오류 후 `/login`으로 이동하는 타이머 id를 effect 내부에 보관하고 cleanup에서 해제하여 다른 화면으로 이동한 뒤 예약된 redirect가 실행되지 않도록 수정
+  > `logoutAuthSession()` 대기 중 화면이 unmount되는 경우를 고려해 완료 후 취소 상태를 다시 확인하고, 취소됐다면 상태 변경과 타이머 생성을 중단
+  > 커밋 `6629d3d`에서 추가됐던 로그인 화면의 개발 단계 경고 배너와 원문 스타일을 복원
+  > refresh 요청, access token 저장, `login()`, `/auth/me`, 차단 계정 처리, 성공 시 `/home` 이동과 오류 화면 유지 시 3초 뒤 `/login` 이동은 기존대로 유지
+  > `console.error(err)`, 백엔드, API 계약, 인증 정책과 `AuthContext` 등 인증 공통 모듈은 변경하지 않고 OAuth 화면·로그인 배너·회귀 테스트 범위로 작업을 제한
+  > OAuth 로딩·실패·성공과 타이머 cleanup, 세션 정리 중 unmount, 로그인 경고 배너를 검증하는 B-2 관련 테스트 6건 구성
+  > 검증: B-2 관련 테스트 6건, 전체 단위 테스트 76건, `npm test`, `npm run lint`, `npm run build`, `git diff --check` 통과
+
+  > 요약 : OAuth 인증 처리 화면의 깨진 Tailwind 클래스를 복구하고 redirect 타이머를 정리하며, 로그인 개발 단계 경고 배너를 복원

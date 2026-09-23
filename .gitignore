@@ -48,10 +48,6 @@ next-env.d.ts
 # IDEs and editors
 .vscode/
 .idea/
-.codex
-
-AGENTS.md
-CLAUDE.md
 
 # Shared repository instructions
 !/AGENTS.md

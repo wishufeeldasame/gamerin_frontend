@@ -21,6 +21,14 @@
 - 기존 코드 스타일, 패키지 구조, 네이밍, API/응답 형식을 우선 유지한다.
 - 확인한 사실, 추정, 권장사항, 사용자 결정이 필요한 내용을 구분하고 미확인 사항은 `확인 필요`로 표시한다.
 
+## 멀티에이전트 사용
+
+- 서로 독립적인 하위 작업이 둘 이상이고 병렬 수행이 속도나 품질을 실질적으로 높일 때 `.codex/agents/`의 전문 서브에이전트에 위임한다.
+- 작거나 순차 의존적인 작업, 같은 파일을 동시에 수정해야 하는 작업은 메인 에이전트가 직접 처리한다.
+- 작업 성격에 맞춰 `nextjs-developer`, `react-specialist`, `typescript-pro`, `ui-designer`, `accessibility-tester`, `api-designer`, `dependency-manager`, `design-bridge`, `fullstack-developer`, `test-automator`를 선택한다.
+- 위임할 때 담당 범위와 파일 소유권, 완료 조건을 명확히 지정하고, 각 서브에이전트에 다른 작업자의 변경을 되돌리지 않도록 알린다.
+- 메인 에이전트는 결과를 통합하고 충돌과 중복을 정리하며, 최종 코드와 검증 결과에 책임을 진다.
+
 ## Git과 작업 안전
 
 - 이 디렉토리는 독립 Git 저장소다. 작업 시작 시 이 저장소 루트에서 `git status --short --branch`를 확인하고 기존 사용자 변경을 보존한다.
