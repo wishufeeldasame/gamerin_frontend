@@ -8,8 +8,6 @@ import { logoutAuthSession } from '@/lib/auth-store';
 import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse, isBlockedAccountStatus } from '@/lib/auth-session-policy';
 import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = getApiBaseUrl();
-
 export default function OAuthSuccessPage() {
     const router = useRouter();
     const { login } = useAuth();
@@ -22,7 +20,7 @@ export default function OAuthSuccessPage() {
         const fetchTokens = async () => {
             try {
                 // 1. HttpOnly refresh_token 쿠키를 사용하여 새로운 accessToken 요청
-                const response = await fetch(`${API_BASE}/api/v1/auth/refresh`, {
+                const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/refresh`, {
                     method: 'POST',
                     credentials: 'include',
                 });
@@ -48,7 +46,7 @@ export default function OAuthSuccessPage() {
                 setAccessToken(nextToken);
 
                 // 3. 내 사용자 정보 가져오기
-                const meResponse = await fetch(`${API_BASE}/api/v1/auth/me`, {
+                const meResponse = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
                     headers: {
                         Authorization: `Bearer ${nextToken}`,
                     },

@@ -16,7 +16,6 @@ import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-se
 import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const API_BASE = getApiBaseUrl();
 
 export default function LoginPage() {
   const router = useRouter();
@@ -77,7 +76,7 @@ export default function LoginPage() {
     if (!isStep2Valid) return;
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/signup`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -116,7 +115,7 @@ export default function LoginPage() {
 
     try {
       await waitForLogoutCompletion();
-      const response = await fetch(`${API_BASE}/api/v1/auth/login`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -166,7 +165,7 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = () => {
-    window.location.href = `${API_BASE}/oauth2/authorization/google`;
+    window.location.href = `${getApiBaseUrl()}/oauth2/authorization/google`;
   };
 
   useEffect(() => {

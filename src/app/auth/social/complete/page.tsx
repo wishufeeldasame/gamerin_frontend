@@ -8,7 +8,6 @@ import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 
-const API_BASE = getApiBaseUrl();
 const handleRegex = /^[a-z0-9_]{3,20}$/;
 
 export default function SocialCompletePage() {
@@ -49,7 +48,7 @@ export default function SocialCompletePage() {
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/social-signup`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/social-signup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
