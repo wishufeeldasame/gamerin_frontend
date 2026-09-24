@@ -1,5 +1,13 @@
-import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
+import { isApiOriginUrl, toAbsoluteAssetUrl } from '@/lib/asset-url';
+import {
+  type ApiClientConfig,
+  type ApiRequestOptions,
+  apiRequest,
+  apiRequestBlob,
+  forceRefreshAccessToken,
+} from '@/lib/api-client';
 import { PostRecord } from '@/lib/feed-api';
 import {
   ChatAttachment,
@@ -11,22 +19,29 @@ import {
   sortConversationsByUpdatedAt,
 } from '@/lib/message-store';
 
-const API_BASE = getApiBaseUrl();
-const MESSAGE_BASE = `${API_BASE}/api/v1/messages`;
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data: T;
-  message?: string;
-};
-
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
+const MESSAGE_BASE = '/api/v1/messages';
 
 function createMessageAuthError() {
   return new Error('Authentication is required or the token has expired.');
 }
+
+function isAuthFailure({ reason, status }: { reason: string; status: number }) {
+  return reason === 'unauthenticated' || (reason === 'http' && status === 401);
+}
+
+const MESSAGE_CLIENT: ApiClientConfig = {
+  toError: (failure) =>
+    isAuthFailure(failure)
+      ? createMessageAuthError()
+      : new Error(failure.message ?? 'Message request failed.'),
+};
+
+const MESSAGE_ATTACHMENT_CLIENT: ApiClientConfig = {
+  toError: (failure) =>
+    isAuthFailure(failure)
+      ? createMessageAuthError()
+      : new Error('Message attachment request failed.'),
+};
 
 type ConversationPayload = {
   id: string;
@@ -75,20 +90,12 @@ export type MessageRealtimeEvent = {
   messageId: string;
 };
 
-function normalizeUrl(url: string) {
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
-  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
-}
-
 function toAttachment(payload: AttachmentPayload): ChatAttachment {
   return {
     id: payload.id,
     type: payload.type,
     name: payload.name,
-    url: normalizeUrl(payload.url),
+    url: toAbsoluteAssetUrl(payload.url) ?? payload.url,
   };
 }
 
@@ -127,86 +134,31 @@ function toConversation(payload: ConversationPayload): Conversation {
   };
 }
 
-async function messageRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${MESSAGE_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw createMessageAuthError();
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
-    if (!accessToken) {
-      throw createMessageAuthError();
-    }
-
-    result = await send(accessToken);
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 401) {
-      clearStoredAuth();
-      throw createMessageAuthError();
-    }
-
-    throw new Error(result.payload?.message ?? 'Message request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function messageRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(`${MESSAGE_BASE}${path}`, MESSAGE_CLIENT, options);
 }
 
 export async function fetchMessageAttachmentBlob(url: string) {
-  const send = async (accessToken: string) =>
-    fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      credentials: 'include',
-    });
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw createMessageAuthError();
-  }
-
-  let response = await send(accessToken);
-
-  if (response.status === 401) {
-    accessToken = await refreshAccessToken();
-    if (!accessToken) {
-      throw createMessageAuthError();
-    }
-    response = await send(accessToken);
-  }
-
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearStoredAuth();
-      throw createMessageAuthError();
-    }
+  const attachmentUrl = toAbsoluteAssetUrl(url);
+  if (!attachmentUrl) {
     throw new Error('Message attachment request failed.');
   }
 
-  return response.blob();
+  if (isApiOriginUrl(attachmentUrl)) {
+    return apiRequestBlob(attachmentUrl, MESSAGE_ATTACHMENT_CLIENT);
+  }
+
+  // API origin이 아닌 주소에는 토큰과 쿠키를 보내지 않고, 실패해도 세션을 갱신·종료하지 않는다.
+  const generation = getAuthGeneration();
+  const response = await fetch(attachmentUrl, { credentials: 'omit' }).catch(() => null);
+  assertCurrentAuthGeneration(generation);
+  if (!response?.ok) {
+    throw new Error('Message attachment request failed.');
+  }
+
+  const blob = await response.blob();
+  assertCurrentAuthGeneration(generation);
+  return blob;
 }
 
 export function isMessageAuthError(error: unknown) {
@@ -227,15 +179,19 @@ export async function fetchConversationList() {
 }
 
 export async function openMessageEventSource(options: { forceRefresh?: boolean } = {}) {
+  const generation = getAuthGeneration();
+
   if (options.forceRefresh) {
-    await refreshAccessToken();
+    await forceRefreshAccessToken(MESSAGE_CLIENT);
   }
 
   await messageRequest<{ expiresAt: string }>('/stream-token', {
     method: 'POST',
   });
 
-  return new EventSource(`${MESSAGE_BASE}/stream`, { withCredentials: true });
+  // 강제 refresh와 stream-token 발급 사이에 사용자가 바뀌었으면 이전 사용자의 연결을 시작하지 않는다.
+  assertCurrentAuthGeneration(generation);
+  return new EventSource(`${getApiBaseUrl()}${MESSAGE_BASE}/stream`, { withCredentials: true });
 }
 
 export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {

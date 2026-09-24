@@ -1,13 +1,12 @@
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
-  assertCurrentAuthGeneration,
-  ensureAccessToken,
-  getAuthGeneration,
-  refreshAccessToken,
-} from '@/lib/auth-store';
+  ApiError,
+  type ApiClientConfig,
+  type ApiRequestOptions,
+  apiRequest as sendApiRequest,
+} from '@/lib/api-client';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
 import type { BookmarkCollection } from '@/types/bookmark';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -176,34 +175,16 @@ function toNumber(value: unknown) {
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
-    mediaUrl: normalizeAssetUrl(media.mediaUrl) ?? media.mediaUrl,
-    thumbnailUrl: normalizeAssetUrl(media.thumbnailUrl),
+    mediaUrl: toAbsoluteAssetUrl(media.mediaUrl) ?? media.mediaUrl,
+    thumbnailUrl: toAbsoluteAssetUrl(media.thumbnailUrl),
     sortOrder: toNumber(media.sortOrder),
   };
-}
-
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
 }
 
 export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
-    authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
+    authorProfileImageUrl: toAbsoluteAssetUrl(post.authorProfileImageUrl),
     content: post.content ?? null,
     media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
     likes: toNumber(post.likes),
@@ -229,8 +210,8 @@ export function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item
 function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
   return {
     ...profile,
-    coverImageUrl: normalizeAssetUrl(profile.coverImageUrl),
-    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
+    coverImageUrl: toAbsoluteAssetUrl(profile.coverImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
   };
 }
@@ -238,14 +219,14 @@ function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
 function normalizeProfileImageUpload(response: ProfileImageUploadResponse): ProfileImageUploadResponse {
   return {
     ...response,
-    imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
+    imageUrl: toAbsoluteAssetUrl(response.imageUrl) ?? response.imageUrl,
   };
 }
 
 function normalizeBookmarkCollection(collection: BookmarkCollection): BookmarkCollection {
   return {
     ...collection,
-    coverImageUrl: normalizeAssetUrl(collection.coverImageUrl),
+    coverImageUrl: toAbsoluteAssetUrl(collection.coverImageUrl),
     bookmarkCount: toNumber(collection.bookmarkCount),
     containsPost: Boolean(collection.containsPost),
   };
@@ -262,62 +243,21 @@ function normalizeBookmarkCollectionPostState(
   };
 }
 
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
-
 interface FeedRequestOptions {
   signal?: AbortSignal;
 }
 
-async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
+const FEED_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) => new ApiError(
+    reason === 'unauthenticated'
+      ? '로그인이 필요하거나 인증이 만료되었습니다.'
+      : message ?? 'Request failed.',
+    status,
+  ),
+};
 
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  const requestGeneration = getAuthGeneration();
-  let accessToken = await ensureAccessToken(requestGeneration);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (!accessToken) {
-    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
-  }
-
-  let result = await send(accessToken);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken(requestGeneration);
-    assertCurrentAuthGeneration(requestGeneration);
-
-    if (!accessToken) {
-      throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
-    }
-
-    result = await send(accessToken);
-    assertCurrentAuthGeneration(requestGeneration);
-  }
-
-  if (!result.response.ok) {
-    throw new Error(result.payload?.message ?? 'Request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return sendApiRequest<T>(path, FEED_CLIENT, options);
 }
 
 export function formatRelativeTime(createdAt: string) {

@@ -1,30 +1,6 @@
-import {
-  assertCurrentAuthGeneration,
-  ensureAccessToken,
-  getAuthGeneration,
-  refreshAccessToken,
-  logoutAuthSession,
-} from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 
-const API_BASE = getApiBaseUrl();
-import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
 const REPORTS_BASE = '/api/v1/reports';
-
-interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-interface ErrorEnvelope {
-  success?: boolean;
-  message?: string;
-}
-
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
 
 export type ReportTargetType = 'POST' | 'COMMENT' | 'USER' | 'MENTORING' | 'MESSAGE';
 
@@ -67,79 +43,26 @@ export interface CreatedReport {
   updatedAt: string;
 }
 
-export class ReportApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number,
-  ) {
-    super(message);
+export class ReportApiError extends ApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
     this.name = 'ReportApiError';
   }
 }
 
-async function reportRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
+const REPORT_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) => new ReportApiError(
+    reason === 'unauthenticated'
+      ? '로그인이 필요하거나 인증이 만료되었습니다.'
+      : reason === 'invalid-response'
+        ? '신고 API 응답 형식이 올바르지 않습니다.'
+        : message ?? '신고 요청 처리에 실패했습니다.',
+    status,
+  ),
+};
 
-    if (options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-    const payload = (await response.json().catch(() => null)) as
-      | ApiEnvelope<T>
-      | ErrorEnvelope
-      | null;
-
-    return { response, payload };
-  };
-
-  const requestGeneration = getAuthGeneration();
-  let accessToken = await ensureAccessToken(requestGeneration);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (!accessToken) {
-    throw new ReportApiError('로그인이 필요하거나 인증이 만료되었습니다.', 401);
-  }
-
-
-  let result = await send(accessToken);
-  assertCurrentAuthGeneration(requestGeneration);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken(requestGeneration);
-    assertCurrentAuthGeneration(requestGeneration);
-
-    if (!accessToken) {
-      throw new ReportApiError('로그인이 필요하거나 인증이 만료되었습니다.', 401);
-    }
-
-    result = await send(accessToken);
-    assertCurrentAuthGeneration(requestGeneration);
-  }
-
-  if (!result.response.ok) {
-    if (isBlockedAccountResponse(result.response.status, result.payload as never)) {
-      await logoutAuthSession();
-      throw new ReportApiError(BLOCKED_ACCOUNT_MESSAGE, result.response.status);
-    }
-
-    throw new ReportApiError(
-      result.payload?.message ?? '신고 요청 처리에 실패했습니다.',
-      result.response.status,
-    );
-  }
-
-  if (!result.payload || !('data' in result.payload)) {
-    throw new ReportApiError('신고 API 응답 형식이 올바르지 않습니다.', result.response.status);
-  }
-
-  return result.payload.data;
+function reportRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, REPORT_CLIENT, options);
 }
 
 export function fetchReportReasons(signal?: AbortSignal) {

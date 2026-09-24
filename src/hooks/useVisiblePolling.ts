@@ -35,11 +35,13 @@ export function useVisiblePolling(
 
     const intervalId = window.setInterval(run, intervalMs);
     window.addEventListener('focus', run);
+    window.addEventListener('online', run);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.clearInterval(intervalId);
       window.removeEventListener('focus', run);
+      window.removeEventListener('online', run);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [enabled, intervalMs]);

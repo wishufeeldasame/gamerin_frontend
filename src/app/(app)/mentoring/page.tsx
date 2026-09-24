@@ -15,7 +15,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { createConversation } from '@/lib/message-api';
@@ -72,6 +72,7 @@ type ProgramForm = {
 
 const mentoringGames = ['전체', 'PUBG', 'League of Legends', 'Valorant', 'Overwatch', 'CS2', 'Other'];
 const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
+const DEEP_LINK_HIGHLIGHT_DURATION = 2200;
 
 const defaultProgramForm: ProgramForm = {
   gameName: 'PUBG',
@@ -102,6 +103,10 @@ const paymentLabel: Record<PaymentStatus, string> = {
 
 function normalizeId(value?: string | null) {
   return value?.toLowerCase() ?? '';
+}
+
+function deepLinkElementId(type: 'application' | 'review', id: string) {
+  return `mentoring-${type}-${encodeURIComponent(id)}`;
 }
 
 function formatMileage(value: number) {
@@ -251,8 +256,12 @@ function isDuplicateReviewError(error: unknown) {
 
 export default function MentoringPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, logout, isAuthReady } = useAuth();
   const currentUserId = user?.id ?? '';
+  const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
+  const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
+  const requestedMineTab = searchParams.get('tab') === 'mine';
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
   const [gameFilter, setGameFilter] = useState('전체');
@@ -277,6 +286,7 @@ export default function MentoringPage() {
 
   const [menteeApplications, setMenteeApplications] = useState<MentoringApplicationResponse[]>([]);
   const [mentorApplications, setMentorApplications] = useState<MentoringApplicationResponse[]>([]);
+  const [applicationsLoaded, setApplicationsLoaded] = useState(false);
   const [mileageBalance, setMileageBalance] = useState(0);
   const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
   const [mileagePage, setMileagePage] = useState<MileagePageResponse<MileageTransactionResponse> | null>(null);
@@ -288,6 +298,9 @@ export default function MentoringPage() {
   const [reviewContent, setReviewContent] = useState('');
   const [mentorReviews, setMentorReviews] = useState<MentoringReviewResponse[]>([]);
   const [mentorReviewsLoading, setMentorReviewsLoading] = useState(false);
+  const [mentorProgramDataLoaded, setMentorProgramDataLoaded] = useState(false);
+  const [highlightedApplicationId, setHighlightedApplicationId] = useState<string | null>(null);
+  const [highlightedReviewId, setHighlightedReviewId] = useState<string | null>(null);
 
   const [notice, setNotice] = useState('');
   const [bannerType, setBannerType] = useState<MentoringBannerType>(null);
@@ -488,9 +501,12 @@ export default function MentoringPage() {
   }, [currentUserId]);
 
   const loadApplications = useCallback(async () => {
+    setApplicationsLoaded(false);
+
     if (!currentUserId) {
       setMenteeApplications([]);
       setMentorApplications([]);
+      setApplicationsLoaded(true);
       return;
     }
 
@@ -507,12 +523,14 @@ export default function MentoringPage() {
       showError(authFailure.reason);
       setMenteeApplications([]);
       setMentorApplications([]);
+      setApplicationsLoaded(true);
       return;
     }
 
     const nextMenteeApplications = menteeResult.status === 'fulfilled' ? menteeResult.value.content : [];
     setMenteeApplications(nextMenteeApplications);
     setMentorApplications(mentorResult.status === 'fulfilled' ? mentorResult.value.content : []);
+    setApplicationsLoaded(true);
   }, [currentUserId, showError]);
 
   const loadMileageData = useCallback(async () => {
@@ -545,6 +563,19 @@ export default function MentoringPage() {
   }, [currentUserId, showError]);
 
   useEffect(() => {
+    setHighlightedApplicationId(null);
+    setHighlightedReviewId(null);
+    setSelectedOwnedProgramId(null);
+
+    if (requestedReviewId) {
+      setActiveTab('programs');
+      return;
+    }
+
+    setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
+  }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
+
+  useEffect(() => {
     if (activeTab === 'find') {
       void loadPrograms();
     }
@@ -572,8 +603,21 @@ export default function MentoringPage() {
 
   useEffect(() => {
     if (activeTab === 'programs' && isAuthReady && currentUserId) {
-      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews()]);
+      let cancelled = false;
+      setMentorProgramDataLoaded(false);
+
+      void Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadMentorReviews()]).finally(() => {
+        if (!cancelled) {
+          setMentorProgramDataLoaded(true);
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
+
+    setMentorProgramDataLoaded(false);
   }, [
     activeTab,
     currentUserId,
@@ -599,6 +643,87 @@ export default function MentoringPage() {
       current && ownedPrograms.some((program) => program.id === current) ? current : null
     );
   }, [ownedPrograms]);
+
+  useEffect(() => {
+    if (!requestedApplicationId || activeTab !== 'mine' || !applicationsLoaded) {
+      return;
+    }
+
+    const application = [...menteeApplications, ...mentorApplications].find(
+      (item) => item.id === requestedApplicationId
+    );
+
+    if (!application) {
+      setHighlightedApplicationId(null);
+      setActiveTab('find');
+      return;
+    }
+
+    setHighlightedApplicationId(application.id);
+  }, [
+    activeTab,
+    applicationsLoaded,
+    menteeApplications,
+    mentorApplications,
+    requestedApplicationId,
+  ]);
+
+  useEffect(() => {
+    if (!requestedReviewId || activeTab !== 'programs' || !mentorProgramDataLoaded) {
+      return;
+    }
+
+    const review = mentorReviews.find((item) => item.id === requestedReviewId);
+    const program = review ? ownedPrograms.find((item) => item.id === review.programId) : null;
+
+    if (!review || !program) {
+      setSelectedOwnedProgramId(null);
+      setHighlightedReviewId(null);
+      setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
+      return;
+    }
+
+    setSelectedOwnedProgramId(program.id);
+    setHighlightedReviewId(review.id);
+  }, [
+    activeTab,
+    mentorProgramDataLoaded,
+    mentorReviews,
+    ownedPrograms,
+    requestedApplicationId,
+    requestedMineTab,
+    requestedReviewId,
+  ]);
+
+  useEffect(() => {
+    const target = highlightedReviewId
+      ? { type: 'review' as const, id: highlightedReviewId }
+      : highlightedApplicationId
+        ? { type: 'application' as const, id: highlightedApplicationId }
+        : null;
+
+    if (!target) {
+      return;
+    }
+
+    const scrollTimer = window.setTimeout(() => {
+      document
+        .getElementById(deepLinkElementId(target.type, target.id))
+        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 0);
+    const highlightTimer = window.setTimeout(() => {
+      if (target.type === 'review') {
+        setHighlightedReviewId(null);
+      } else {
+        setHighlightedApplicationId(null);
+      }
+    }, DEEP_LINK_HIGHLIGHT_DURATION);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(highlightTimer);
+    };
+  }, [highlightedApplicationId, highlightedReviewId]);
 
   const changeTab = (tab: MentoringTab) => {
     setActiveTab(tab);
@@ -1173,6 +1298,7 @@ export default function MentoringPage() {
                 title="내가 신청한 멘토링"
                 role="mentee"
                 applications={menteeApplications}
+                highlightedApplicationId={highlightedApplicationId}
                 pendingAction={pendingAction}
                 onChat={(application) => handleOpenChat(application, 'mentee')}
                 onCancel={(id) => runApplicationAction(id, 'cancel')}
@@ -1184,6 +1310,7 @@ export default function MentoringPage() {
                 title="받은 멘토링 요청"
                 role="mentor"
                 applications={mentorApplications}
+                highlightedApplicationId={highlightedApplicationId}
                 pendingAction={pendingAction}
                 onChat={(application) => handleOpenChat(application, 'mentor')}
                 onAccept={(id) => runApplicationAction(id, 'accept')}
@@ -1761,7 +1888,15 @@ export default function MentoringPage() {
                 ) : mentorReviews.length > 0 ? (
                   <div className="mt-5 space-y-3">
                     {mentorReviews.map((review) => (
-                      <article key={review.id} className="rounded-xl border border-zinc-100 p-4">
+                      <article
+                        key={review.id}
+                        id={deepLinkElementId('review', review.id)}
+                        className={`rounded-xl border p-4 transition-colors ${
+                          highlightedReviewId === review.id
+                            ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
+                            : 'border-zinc-100 dark:border-neutral-800'
+                        }`}
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-black text-black">{review.menteeNickname}</p>
@@ -1879,6 +2014,7 @@ function ApplicationList({
   title,
   role,
   applications,
+  highlightedApplicationId,
   pendingAction,
   onChat,
   onAccept,
@@ -1893,6 +2029,7 @@ function ApplicationList({
   title: string;
   role: 'mentor' | 'mentee';
   applications: MentoringApplicationResponse[];
+  highlightedApplicationId: string | null;
   pendingAction: string;
   onChat?: (application: MentoringApplicationResponse) => void;
   onAccept?: (id: string) => void;
@@ -1914,6 +2051,7 @@ function ApplicationList({
               key={application.id}
               application={application}
               role={role}
+              highlighted={highlightedApplicationId === application.id}
               pendingAction={pendingAction}
               onChat={() => onChat?.(application)}
               onAccept={() => onAccept?.(application.id)}
@@ -1939,6 +2077,7 @@ function ApplicationList({
 function ApplicationCard({
   application,
   role,
+  highlighted,
   pendingAction,
   onChat,
   onAccept,
@@ -1952,6 +2091,7 @@ function ApplicationCard({
 }: {
   application: MentoringApplicationResponse;
   role: 'mentor' | 'mentee';
+  highlighted: boolean;
   pendingAction: string;
   onChat?: () => void;
   onAccept?: () => void;
@@ -1968,7 +2108,14 @@ function ApplicationCard({
   const chatEnabled = canOpenMentoringChat(application.status);
 
   return (
-    <article className="rounded-xl border border-zinc-100 p-4">
+    <article
+      id={deepLinkElementId('application', application.id)}
+      className={`rounded-xl border p-4 transition-colors ${
+        highlighted
+          ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
+          : 'border-zinc-100 dark:border-neutral-800'
+      }`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <h3 className="truncate font-black text-black">{application.programTitle}</h3>

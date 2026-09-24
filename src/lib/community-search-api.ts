@@ -1,23 +1,11 @@
-import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
+import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import {
   type CursorPage,
   type PostRecord,
   normalizeCursorPage,
   normalizePostRecord,
 } from '@/lib/feed-api';
-
-const API_BASE = getApiBaseUrl();
-
-type ApiEnvelope<T> = {
-  success: boolean;
-  data: T;
-  message?: string;
-};
-
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
 
 type SearchRequestOptions = {
   signal?: AbortSignal;
@@ -39,6 +27,15 @@ export interface SimpleUserProfile {
   isFollowing?: boolean;
 }
 
+interface SimpleUserProfileResponse {
+  id: string;
+  handle: string;
+  nickname: string;
+  bio?: string | null;
+  profileImageUrl: string | null;
+  verifiedBadge: boolean;
+}
+
 export interface SearchSection<T> {
   items: T[];
   hasMore: boolean;
@@ -51,27 +48,23 @@ export interface SearchOverview {
   hashtags: SearchSection<HashtagSummary>;
 }
 
+interface SearchOverviewResponse {
+  query: string;
+  accounts: SearchSection<SimpleUserProfileResponse>;
+  posts: SearchSection<PostRecord>;
+  hashtags: SearchSection<HashtagSummary>;
+}
+
 function createAuthError() {
   return new Error('Authentication is required or the token has expired.');
 }
 
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-}
+const COMMUNITY_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) =>
+    reason === 'unauthenticated' || (reason === 'http' && status === 401)
+      ? createAuthError()
+      : new Error(message ?? 'Community search request failed.'),
+};
 
 function toNumber(value: unknown) {
   const numericValue = Number(value);
@@ -85,60 +78,19 @@ function normalizeHashtag(hashtag: HashtagSummary): HashtagSummary {
   };
 }
 
-function normalizeUserProfile(profile: SimpleUserProfile): SimpleUserProfile {
+function normalizeUserProfile(profile: SimpleUserProfileResponse): SimpleUserProfile {
   return {
-    ...profile,
+    userId: profile.id,
+    handle: profile.handle,
+    nickname: profile.nickname,
     bio: profile.bio ?? null,
-    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     verifiedBadge: Boolean(profile.verifiedBadge),
   };
 }
 
-async function communityRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw createAuthError();
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
-    if (!accessToken) {
-      throw createAuthError();
-    }
-
-    result = await send(accessToken);
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 401) {
-      clearStoredAuth();
-      throw createAuthError();
-    }
-
-    throw new Error(result.payload?.message ?? 'Community search request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function communityRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, COMMUNITY_CLIENT, options);
 }
 
 function appendQuery(search: URLSearchParams, query: string) {
@@ -186,7 +138,7 @@ export async function fetchSearchOverview(query: string, size = 5, options: Sear
   });
   appendQuery(search, query);
 
-  const overview = await communityRequest<SearchOverview>(`/api/v1/search?${search.toString()}`, {
+  const overview = await communityRequest<SearchOverviewResponse>(`/api/v1/search?${search.toString()}`, {
     signal: options.signal,
   });
   return {
@@ -227,13 +179,17 @@ export async function fetchSearchAccounts(
     search.set('cursor', cursor);
   }
 
-  const page = await communityRequest<CursorPage<SimpleUserProfile>>(
+  const page = await communityRequest<CursorPage<SimpleUserProfileResponse>>(
     `/api/v1/search/accounts?${search.toString()}`,
     {
       signal: options.signal,
     },
   );
-  return normalizeCursorPage(page, normalizeUserProfile);
+  return {
+    items: Array.isArray(page.items) ? page.items.map(normalizeUserProfile) : [],
+    nextCursor: page.nextCursor ?? null,
+    hasNext: Boolean(page.hasNext),
+  } satisfies CursorPage<SimpleUserProfile>;
 }
 
 export async function fetchSearchPosts(

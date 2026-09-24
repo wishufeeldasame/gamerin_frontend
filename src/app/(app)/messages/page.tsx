@@ -47,6 +47,7 @@ import {
   getInitials,
   mergeMessages,
 } from '@/lib/message-store';
+import { invalidateNotifications } from '@/lib/notification-sync';
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -561,6 +562,8 @@ export default function MessagesPage() {
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const messageElementRefs = useRef(new Map<string, HTMLDivElement>());
+  const handledMessageDeepLinkRef = useRef('');
   const activeConversationIdRef = useRef('');
   const attachmentsRef = useRef<DraftAttachment[]>([]);
 
@@ -587,12 +590,17 @@ export default function MessagesPage() {
   const [, setIsAuthError] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
+  const requestedMessageId = searchParams.get('messageId') ?? '';
   const requestedRecipientHandle = searchParams.get('recipient') ?? '';
   const requestedRecipientRef = useRef('');
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
-  const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
+  const activeMessages = useMemo(
+    () => (activeConversationId ? messagesByConversation[activeConversationId] ?? [] : []),
+    [activeConversationId, messagesByConversation],
+  );
   const latestMessageId = activeMessages.at(-1)?.id ?? '';
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
@@ -603,8 +611,49 @@ export default function MessagesPage() {
   useLayoutEffect(() => {
     if (!activeConversationId || !latestMessageId) return;
 
+    const requestedDeepLinkKey = `${requestedConversationId}:${requestedMessageId}`;
+    if (
+      handledMessageDeepLinkRef.current &&
+      handledMessageDeepLinkRef.current !== requestedDeepLinkKey
+    ) {
+      setHighlightedMessageId(null);
+    }
+
+    const requestedMessageIsLoaded =
+      activeConversationId === requestedConversationId &&
+      requestedMessageId &&
+      activeMessages.some((message) => message.id === requestedMessageId);
+    if (requestedMessageIsLoaded) return;
+
     messageEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [activeConversationId, latestMessageId]);
+  }, [activeConversationId, activeMessages, latestMessageId, requestedConversationId, requestedMessageId]);
+
+  useLayoutEffect(() => {
+    if (
+      !requestedConversationId ||
+      !requestedMessageId ||
+      activeConversationId !== requestedConversationId
+    ) {
+      return;
+    }
+
+    const deepLinkKey = `${requestedConversationId}:${requestedMessageId}`;
+    if (handledMessageDeepLinkRef.current === deepLinkKey) return;
+
+    const messageElement = messageElementRefs.current.get(requestedMessageId);
+    if (!messageElement) return;
+
+    handledMessageDeepLinkRef.current = deepLinkKey;
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedMessageId(requestedMessageId);
+  }, [activeConversationId, activeMessages, requestedConversationId, requestedMessageId]);
+
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId]);
 
   const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
     for (const target of targets) {
@@ -809,6 +858,7 @@ export default function MessagesPage() {
             conversation.id === activeConversation.id ? { ...conversation, unreadCount: 0 } : conversation
           )
         );
+        invalidateNotifications('conversation-read');
       } catch (error) {
         if (isMessageAuthError(error)) {
           setIsAuthError(true);
@@ -861,6 +911,7 @@ export default function MessagesPage() {
 
         nextEventSource.addEventListener('message-created', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
+          invalidateNotifications('message-created');
           const realtimeMessage = realtimeEvent.message;
           if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
             setMessagesByConversation((current) => ({
@@ -1469,21 +1520,37 @@ export default function MessagesPage() {
               ) : activeMessages.length > 0 ? (
                 <div className="space-y-6">
                   {activeMessages.map((chatMessage) => (
-                    <MessageBubble
+                    <div
                       key={chatMessage.id}
-                      chatMessage={chatMessage}
-                      mine={chatMessage.senderId === 'me'}
-                      recipientName={activeConversation.recipient.name}
-                      recipientImageUrl={activeConversation.recipient.profileImageUrl}
-                      isActionOpen={messageActionId === chatMessage.id}
-                      actionLoading={messageActionLoading}
-                      onToggleAction={() =>
-                        setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
-                      }
-                      onDelete={() => void handleDeleteMessage(chatMessage.id)}
-                      onOpenPost={handleOpenPost}
-                      onOpenImage={handleOpenImage}
-                    />
+                      ref={(element) => {
+                        if (element) {
+                          messageElementRefs.current.set(chatMessage.id, element);
+                        } else {
+                          messageElementRefs.current.delete(chatMessage.id);
+                        }
+                      }}
+                      data-message-id={chatMessage.id}
+                      className={`rounded-[32px] transition-[box-shadow,background-color] duration-500 ${
+                        highlightedMessageId === chatMessage.id
+                          ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
+                          : ''
+                      }`}
+                    >
+                      <MessageBubble
+                        chatMessage={chatMessage}
+                        mine={chatMessage.senderId === 'me'}
+                        recipientName={activeConversation.recipient.name}
+                        recipientImageUrl={activeConversation.recipient.profileImageUrl}
+                        isActionOpen={messageActionId === chatMessage.id}
+                        actionLoading={messageActionLoading}
+                        onToggleAction={() =>
+                          setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
+                        }
+                        onDelete={() => void handleDeleteMessage(chatMessage.id)}
+                        onOpenPost={handleOpenPost}
+                        onOpenImage={handleOpenImage}
+                      />
+                    </div>
                   ))}
                 </div>
               ) : (

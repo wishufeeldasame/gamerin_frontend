@@ -37,15 +37,24 @@ interface PostDetailProps {
   postId: string;
   onBack: () => void;
   initialScrollTarget?: 'comments';
+  initialCommentId?: string;
   onPostUpdated?: (post: PostRecord) => void;
   onPostDeleted?: (postId: string) => void;
 }
 
-export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated, onPostDeleted }: PostDetailProps) {
+export function PostDetail({
+  postId,
+  onBack,
+  initialScrollTarget,
+  initialCommentId,
+  onPostUpdated,
+  onPostDeleted,
+}: PostDetailProps) {
   const { user } = useAuth();
   const { refreshCollections } = useBookmarkCollections();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
-  const scrolledToCommentsRef = useRef(false);
+  const commentRefs = useRef(new Map<string, HTMLDivElement>());
+  const handledScrollKeyRef = useRef<string | null>(null);
   const [post, setPost] = useState<PostRecord | null>(null);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
@@ -65,21 +74,43 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
   const [bookmarked, setBookmarked] = useState(false);
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const loadedPostId = post?.postId;
 
   useEffect(() => {
-    scrolledToCommentsRef.current = false;
-  }, [postId, initialScrollTarget]);
-
-  useEffect(() => {
-    if (loading || !post || initialScrollTarget !== 'comments' || scrolledToCommentsRef.current) {
+    const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
+    if (loading || loadedPostId !== postId) {
       return;
     }
 
-    scrolledToCommentsRef.current = true;
-    window.requestAnimationFrame(() => {
-      commentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (!initialCommentId && initialScrollTarget !== 'comments') {
+      handledScrollKeyRef.current = null;
+      return;
+    }
+
+    if (handledScrollKeyRef.current === scrollKey) {
+      return;
+    }
+
+    const matchedComment = initialCommentId ? commentRefs.current.get(initialCommentId) : undefined;
+    let highlightTimeout: number | undefined;
+    const animationFrame = window.requestAnimationFrame(() => {
+      handledScrollKeyRef.current = scrollKey;
+      (matchedComment ?? commentsSectionRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      if (matchedComment && initialCommentId) {
+        setHighlightedCommentId(initialCommentId);
+        highlightTimeout = window.setTimeout(() => setHighlightedCommentId(null), 2000);
+      }
     });
-  }, [initialScrollTarget, loading, post]);
+
+    return () => {
+      window.cancelAnimationFrame(animationFrame);
+      if (highlightTimeout !== undefined) {
+        window.clearTimeout(highlightTimeout);
+      }
+    };
+  }, [initialCommentId, initialScrollTarget, loadedPostId, loading, postId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -497,7 +528,7 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
             </button>
           </div>
 
-          <div ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
+          <div id="comments" ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
             <div className="flex gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
                 ME
@@ -533,7 +564,22 @@ export function PostDetail({ postId, onBack, initialScrollTarget, onPostUpdated,
                 <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
               ) : (
                 comments.map((comment) => (
-                  <div key={comment.commentId} className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+                  <div
+                    key={comment.commentId}
+                    ref={(element) => {
+                      if (element) {
+                        commentRefs.current.set(comment.commentId, element);
+                      } else {
+                        commentRefs.current.delete(comment.commentId);
+                      }
+                    }}
+                    data-comment-id={comment.commentId}
+                    className={`scroll-mt-24 rounded-2xl border p-4 transition-colors duration-500 ${
+                      initialCommentId === comment.commentId && highlightedCommentId === comment.commentId
+                        ? 'border-sky-300 bg-sky-50 dark:border-sky-500 dark:bg-sky-500/10'
+                        : 'border-zinc-100 bg-zinc-50 dark:border-neutral-800 dark:bg-neutral-900'
+                    }`}
+                  >
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-black text-black">{comment.author}</span>

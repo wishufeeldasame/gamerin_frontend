@@ -59,4 +59,16 @@ describe('useVisiblePolling', () => {
     await act(() => vi.advanceTimersByTimeAsync(30_000));
     expect(callback).toHaveBeenCalledTimes(2);
   });
+
+  it('runs when the window regains focus or reconnects', async () => {
+    const callback = vi.fn();
+    render(<PollingHarness callback={callback} />);
+
+    act(() => window.dispatchEvent(new Event('focus')));
+    await act(async () => undefined);
+    act(() => window.dispatchEvent(new Event('online')));
+    await act(async () => undefined);
+
+    expect(callback).toHaveBeenCalledTimes(2);
+  });
 });

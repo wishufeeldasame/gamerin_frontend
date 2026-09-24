@@ -13,9 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
+import { getApiBaseUrl } from '@/lib/api-base';
 
 const PASSWORD_RULE =
   /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
@@ -84,7 +82,7 @@ function ResetPasswordPageContent() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/reset-password`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/reset-password`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

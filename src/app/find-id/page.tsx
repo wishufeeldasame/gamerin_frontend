@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search, ChevronLeft, AlertCircle } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api-base';
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -12,9 +13,6 @@ export default function FindIdPage() {
   const [email, setEmail] = useState('');
   const [errorType, setErrorType] = useState<'none' | 'invalid' | 'notFound'>('none');
   const router = useRouter();
-  
-  const API_BASE =
-    process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,7 +26,7 @@ export default function FindIdPage() {
     }
 
     try {
-      const response = await fetch(`${API_BASE}/api/v1/auth/find-id`, {
+      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/find-id`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
