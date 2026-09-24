@@ -183,7 +183,7 @@ export default function SaveToCollectionModal({
   };
 
   const handleRemoveAllBookmarks = async () => {
-    if (pendingCollectionId || !onBookmarkStateChange) {
+    if (loadingCollections || pendingCollectionId || !onBookmarkStateChange) {
       return;
     }
 
@@ -292,7 +292,7 @@ export default function SaveToCollectionModal({
             <button
               type="button"
               onClick={() => void handleRemoveAllBookmarks()}
-              disabled={pendingCollectionId !== null}
+              disabled={loadingCollections || pendingCollectionId !== null}
               className="mb-3 w-full rounded-md border border-red-100 px-4 py-2 text-sm font-bold text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-950/60 dark:hover:bg-red-950/30"
             >
               {pendingCollectionId === 'all' ? '해제 중...' : '전체 북마크 해제'}
