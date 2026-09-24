@@ -6,7 +6,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
-import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
+import { PostRecord, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 
 type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
@@ -85,12 +86,8 @@ export default function HomePage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-
-    setPosts((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
-    );
+    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
 
     try {
       if (post.likedByMe) {
@@ -99,9 +96,7 @@ export default function HomePage() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
+      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setLikeLoadingByPostId((current) => {

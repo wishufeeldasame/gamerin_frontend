@@ -5,10 +5,17 @@ import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 const api = vi.hoisted(() => ({
   fetchPostComments: vi.fn(),
   fetchPostDetail: vi.fn(),
+  refreshCollections: vi.fn(),
 }));
 
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
+}));
+
+vi.mock('@/app/context/BookmarkCollectionContext', () => ({
+  useBookmarkCollections: () => ({
+    refreshCollections: api.refreshCollections,
+  }),
 }));
 
 vi.mock('@/lib/feed-api', async (importOriginal) => {
