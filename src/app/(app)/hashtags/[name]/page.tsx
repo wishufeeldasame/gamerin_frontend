@@ -9,8 +9,8 @@ import {
   type PostRecord,
   likePost,
   unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 
 const HASHTAG_PAGE_SIZE = 20;
 
@@ -106,9 +106,8 @@ export default function HashtagPostsPage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => current.map((item) => (item.postId === post.postId ? optimistic : item)));
+    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
 
     try {
       if (post.likedByMe) {
@@ -117,7 +116,7 @@ export default function HashtagPostsPage() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) => current.map((item) => (item.postId === post.postId ? post : item)));
+      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
       alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {

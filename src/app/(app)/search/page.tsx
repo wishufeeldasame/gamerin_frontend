@@ -20,8 +20,8 @@ import {
   getInitials,
   likePost,
   unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -232,20 +232,14 @@ function SearchPageContent() {
   }, [loadSearch]);
 
   const updateLikeState = (postId: string, likedByMe: boolean) => {
-    setPosts((current) =>
-      current.map((item) =>
-        item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
-      ),
-    );
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
     setOverview((current) =>
       current
         ? {
             ...current,
             posts: {
               ...current.posts,
-              items: current.posts.items.map((item) =>
-                item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
-              ),
+              items: updatePostsLikeState(current.posts.items, postId, likedByMe),
             },
           }
         : current,
