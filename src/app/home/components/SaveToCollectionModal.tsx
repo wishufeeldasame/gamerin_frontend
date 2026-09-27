@@ -24,10 +24,11 @@ export default function SaveToCollectionModal({
   onBookmarkStateChange,
 }: SaveToCollectionModalProps) {
   const titleId = useId();
-  const initializedPostIdRef = useRef<string | null>(null);
+  const collectionRequestIdRef = useRef(0);
   const {
     createCollection,
     fetchCollectionsForPost,
+    refreshCollections,
     addBookmarkToCollection,
     removeBookmarkFromCollection,
   } = useBookmarkCollections();
@@ -55,33 +56,50 @@ export default function SaveToCollectionModal({
   }, [isOpen, onClose]);
 
   useEffect(() => {
+    if (isOpen) {
+      setIsPostBookmarked(isBookmarked);
+    }
+  }, [isBookmarked, isOpen]);
+
+  useEffect(() => {
+    const requestId = ++collectionRequestIdRef.current;
     if (!isOpen) {
-      initializedPostIdRef.current = null;
       return;
     }
 
-    setIsPostBookmarked(isBookmarked);
-
-    if (initializedPostIdRef.current === postId) {
-      return;
-    }
-
-    initializedPostIdRef.current = postId;
+    let cancelled = false;
+    const isCurrentRequest = () =>
+      !cancelled && collectionRequestIdRef.current === requestId;
 
     const loadCollections = async () => {
       try {
         setLoadingCollections(true);
         setError('');
-        setCollections(await fetchCollectionsForPost(postId));
+        const nextCollections = await fetchCollectionsForPost(postId);
+        if (isCurrentRequest()) {
+          setCollections(nextCollections);
+        }
       } catch (loadError) {
-        setError(loadError instanceof Error ? loadError.message : '모음집을 불러오지 못했습니다.');
+        if (isCurrentRequest()) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : '모음집을 불러오지 못했습니다.',
+          );
+        }
       } finally {
-        setLoadingCollections(false);
+        if (isCurrentRequest()) {
+          setLoadingCollections(false);
+        }
       }
     };
 
     void loadCollections();
-  }, [fetchCollectionsForPost, isBookmarked, isOpen, postId]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchCollectionsForPost, isOpen, postId]);
 
   if (!isOpen) {
     return null;
@@ -117,6 +135,17 @@ export default function SaveToCollectionModal({
     }
   };
 
+  const completeBookmarkRemoval = () => {
+    setCollections((current) =>
+      current.map((collection) => ({
+        ...collection,
+        containsPost: false,
+      })),
+    );
+    setIsPostBookmarked(false);
+    void refreshCollections();
+  };
+
   const handleCollectionChange = async (collectionId: string, isChecked: boolean) => {
     if (pendingCollectionId) {
       return;
@@ -135,13 +164,7 @@ export default function SaveToCollectionModal({
             return;
           }
 
-          setIsPostBookmarked(false);
-          setCollections((current) =>
-            current.map((collection) => ({
-              ...collection,
-              containsPost: false,
-            })),
-          );
+          completeBookmarkRemoval();
           return;
         }
 
@@ -183,7 +206,7 @@ export default function SaveToCollectionModal({
   };
 
   const handleRemoveAllBookmarks = async () => {
-    if (loadingCollections || pendingCollectionId || !onBookmarkStateChange) {
+    if (pendingCollectionId || !onBookmarkStateChange) {
       return;
     }
 
@@ -197,13 +220,7 @@ export default function SaveToCollectionModal({
         return;
       }
 
-      setCollections((current) =>
-        current.map((collection) => ({
-          ...collection,
-          containsPost: false,
-        })),
-      );
-      setIsPostBookmarked(false);
+      completeBookmarkRemoval();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : '북마크를 해제할 수 없습니다.');
     } finally {
