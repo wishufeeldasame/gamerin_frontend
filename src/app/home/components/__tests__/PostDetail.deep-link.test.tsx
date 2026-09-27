@@ -11,6 +11,12 @@ vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
 }));
 
+vi.mock('@/app/context/BookmarkCollectionContext', () => ({
+  useBookmarkCollections: () => ({
+    refreshCollections: vi.fn(),
+  }),
+}));
+
 vi.mock('@/lib/feed-api', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/feed-api')>();
   return {
