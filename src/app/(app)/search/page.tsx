@@ -248,6 +248,21 @@ function SearchPageContent() {
     );
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((post) => post.postId !== postId));
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: current.posts.items.filter((post) => post.postId !== postId),
+            },
+          }
+        : current,
+    );
+  };
+
   const handleToggleLike = async (post: PostRecord) => {
     if (likeLoadingByPostId[post.postId]) {
       return;
@@ -334,6 +349,7 @@ function SearchPageContent() {
           onShare={handlePostUpdated}
           onRepostChange={handlePostUpdated}
           onBookmarkChange={handlePostUpdated}
+          onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
         />
       ))}
     </div>
