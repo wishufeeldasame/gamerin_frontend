@@ -60,16 +60,31 @@ const post: PostRecord = {
   createdAt: '2026-09-17T00:00:00Z',
 };
 
-function collection(bookmarkCount: number, containsPost?: boolean): BookmarkCollection {
+function collection(
+  bookmarkCount: number,
+  containsPost?: boolean,
+  collectionId = 'collection-a',
+): BookmarkCollection {
   return {
-    collectionId: 'collection-a',
-    name: '모음집 A',
+    collectionId,
+    name: collectionId === 'collection-a' ? '모음집 A' : '모음집 B',
     coverImageUrl: null,
     bookmarkCount,
     containsPost,
     createdAt: '2026-09-17T00:00:00Z',
     updatedAt: '2026-09-17T00:00:00Z',
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+
+  return { promise, reject, resolve };
 }
 
 function ContextState() {
@@ -92,8 +107,8 @@ function renderIntegratedScreens() {
   );
 }
 
-function collectionButton() {
-  return screen.getByRole('button', { name: /모음집 A/ });
+function collectionButton(name = 'A') {
+  return screen.getByRole('button', { name: new RegExp(`모음집 ${name}`) });
 }
 
 async function openCollectionModal() {
@@ -122,11 +137,12 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
   it.each([
     ['전체 북마크 해제', 'all'],
     ['마지막 컬렉션 체크 해제', 'last'],
-  ])('%s 후 실제 /bookmarks 개수를 3에서 2로 바꾸고 한 번만 재조회한다', async (_name, action) => {
+  ])('%s 후 재조회가 끝날 때까지 입력을 잠그고 실제 개수를 갱신한다', async (_name, action) => {
+    const refresh = deferred<BookmarkCollection[]>();
     api.fetchBookmarkCollections
       .mockResolvedValueOnce([collection(3)])
       .mockResolvedValueOnce([collection(3, true)])
-      .mockResolvedValueOnce([collection(2)]);
+      .mockReturnValueOnce(refresh.promise);
     renderIntegratedScreens();
     await openCollectionModal();
     fireEvent.click(
@@ -136,21 +152,40 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     );
     await waitFor(() => {
       expect(api.unbookmarkPost).toHaveBeenCalledOnce();
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(globalCollectionReads()).toHaveLength(2);
       expect(screen.getByRole('button', { name: '북마크 저장' })).toBeInTheDocument();
+    });
+    const collectionCheckbox = screen.getByRole('checkbox', { name: '모음집 A' });
+    expect(collectionCheckbox).not.toBeChecked();
+    expect(collectionCheckbox).toBeDisabled();
+
+    fireEvent.click(collectionCheckbox);
+    expect(api.addPostToBookmarkCollection).not.toHaveBeenCalled();
+
+    await act(async () => {
+      refresh.resolve([collection(2)]);
+      await refresh.promise;
+    });
+
+    await waitFor(() => {
+      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(collectionCheckbox).toBeEnabled();
     });
     expect(globalCollectionReads()).toHaveLength(2);
   });
 
-  it('나중에 성공한 추가 결과를 오래된 해제 후 재조회가 덮지 않는다', async () => {
-    let resolveStaleRefresh!: (value: BookmarkCollection[]) => void;
-    const staleRefresh = new Promise<BookmarkCollection[]>((resolve) => {
-      resolveStaleRefresh = resolve;
-    });
+  it('전체 해제 재조회 후 한 컬렉션을 다시 추가해도 다른 컬렉션 개수를 유지한다', async () => {
+    const refresh = deferred<BookmarkCollection[]>();
     api.fetchBookmarkCollections
-      .mockResolvedValueOnce([collection(3)])
-      .mockResolvedValueOnce([collection(3, true)])
-      .mockReturnValueOnce(staleRefresh);
+      .mockResolvedValueOnce([
+        collection(3),
+        collection(5, undefined, 'collection-b'),
+      ])
+      .mockResolvedValueOnce([
+        collection(3, true),
+        collection(5, true, 'collection-b'),
+      ])
+      .mockReturnValueOnce(refresh.promise);
     api.addPostToBookmarkCollection.mockResolvedValue({
       postId: 'post-1',
       bookmarkedByMe: true,
@@ -164,16 +199,31 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       expect(globalCollectionReads()).toHaveLength(2);
       expect(screen.getByRole('checkbox', { name: '모음집 A' })).not.toBeChecked();
     });
-    fireEvent.click(screen.getByRole('checkbox', { name: '모음집 A' }));
+    const collectionACheckbox = screen.getByRole('checkbox', { name: '모음집 A' });
+    expect(collectionACheckbox).toBeDisabled();
+    fireEvent.click(collectionACheckbox);
+    expect(api.addPostToBookmarkCollection).not.toHaveBeenCalled();
+
+    await act(async () => {
+      refresh.resolve([
+        collection(2),
+        collection(4, undefined, 'collection-b'),
+      ]);
+      await refresh.promise;
+    });
+
+    await waitFor(() => {
+      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
+      expect(collectionACheckbox).toBeEnabled();
+    });
+
+    fireEvent.click(collectionACheckbox);
     await waitFor(() => {
       expect(api.addPostToBookmarkCollection).toHaveBeenCalledWith('collection-a', 'post-1');
       expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
     });
-    await act(async () => {
-      resolveStaleRefresh([collection(2)]);
-      await staleRefresh;
-    });
-    expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
     });
@@ -193,6 +243,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       expect(screen.getByRole('button', { name: '북마크 저장' })).toBeInTheDocument();
       expect(screen.getByLabelText('컬렉션 오류')).toHaveTextContent('refresh failed');
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
+      expect(screen.getByRole('checkbox', { name: '모음집 A' })).toBeEnabled();
     });
     expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
     expect(window.alert).not.toHaveBeenCalled();

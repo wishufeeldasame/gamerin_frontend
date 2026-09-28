@@ -135,7 +135,7 @@ export default function SaveToCollectionModal({
     }
   };
 
-  const completeBookmarkRemoval = () => {
+  const completeBookmarkRemoval = async () => {
     setCollections((current) =>
       current.map((collection) => ({
         ...collection,
@@ -143,7 +143,7 @@ export default function SaveToCollectionModal({
       })),
     );
     setIsPostBookmarked(false);
-    void refreshCollections();
+    await refreshCollections();
   };
 
   const handleCollectionChange = async (collectionId: string, isChecked: boolean) => {
@@ -164,7 +164,7 @@ export default function SaveToCollectionModal({
             return;
           }
 
-          completeBookmarkRemoval();
+          await completeBookmarkRemoval();
           return;
         }
 
@@ -220,7 +220,7 @@ export default function SaveToCollectionModal({
         return;
       }
 
-      completeBookmarkRemoval();
+      await completeBookmarkRemoval();
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : '북마크를 해제할 수 없습니다.');
     } finally {
