@@ -231,53 +231,6 @@ function SearchPageContent() {
     };
   }, [loadSearch]);
 
-  const updateLikeState = (postId: string, likedByMe: boolean) => {
-    setPosts((current) =>
-      current.map((item) =>
-        item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
-      ),
-    );
-    setOverview((current) =>
-      current
-        ? {
-            ...current,
-            posts: {
-              ...current.posts,
-              items: current.posts.items.map((item) =>
-                item.postId === postId ? updatePostLikeState(item, likedByMe) : item,
-              ),
-            },
-          }
-        : current,
-    );
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
-
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    updateLikeState(post.postId, !post.likedByMe);
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      updateLikeState(post.postId, post.likedByMe);
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
-  };
-
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
     setOverview((current) =>
@@ -293,6 +246,33 @@ function SearchPageContent() {
           }
         : current,
     );
+  };
+
+  const handleToggleLike = async (post: PostRecord) => {
+    if (likeLoadingByPostId[post.postId]) {
+      return;
+    }
+
+    const optimistic = updatePostLikeState(post);
+    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
+    handlePostUpdated(optimistic);
+
+    try {
+      if (post.likedByMe) {
+        await unlikePost(post.postId);
+      } else {
+        await likePost(post.postId);
+      }
+    } catch (likeError) {
+      handlePostUpdated(post);
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+    } finally {
+      setLikeLoadingByPostId((current) => {
+        const next = { ...current };
+        delete next[post.postId];
+        return next;
+      });
+    }
   };
 
   const loadMore = async () => {
