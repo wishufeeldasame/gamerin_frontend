@@ -52,6 +52,7 @@ import {
   uploadProfileImage,
 } from '@/lib/feed-api';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
+import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 import {
   disconnectGameStats,
@@ -643,6 +644,18 @@ export default function ProfilePage() {
     setPosts((current) =>
       current.map((item) => (item.postId === updatedPost.postId ? updatedPost : item))
     );
+  };
+
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -1281,9 +1294,9 @@ export default function ProfilePage() {
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
-                  onRepostChange={handlePostUpdated}
+                  onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={handlePostUpdated}
+                  onBookmarkChange={handleBookmarkChanged}
                 />
               ))
             )}

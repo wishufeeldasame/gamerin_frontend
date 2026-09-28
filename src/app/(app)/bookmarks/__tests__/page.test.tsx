@@ -32,17 +32,29 @@ vi.mock('@/lib/feed-api', () => ({
   likePost: api.likePost,
   unlikePost: api.unlikePost,
   updatePostLikeState: (post: PostRecord) => post,
+  updatePostBookmarkState: (post: PostRecord, bookmarkedByMe: boolean) => ({
+    ...post,
+    bookmarkedByMe,
+  }),
 }));
 
 vi.mock('@/app/home/components/Post', () => ({
   Post: ({
     post,
     onBookmarkSuccess,
+    onBookmarkChange,
   }: {
     post: PostRecord;
     onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
+    onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
   }) => (
-    <div data-testid={'post-' + post.postId}>
+    <div
+      data-testid={'post-' + post.postId}
+      data-likes={String(post.likes)}
+      data-liked={String(post.likedByMe)}
+      data-reposted={String(post.isReposted)}
+      data-repost-count={String(post.repostCount)}
+    >
       <button
         type="button"
         onClick={() => onBookmarkSuccess?.(post, false)}
@@ -54,6 +66,23 @@ vi.mock('@/app/home/components/Post', () => ({
         onClick={() => onBookmarkSuccess?.(post, true)}
       >
         complete bookmark
+      </button>
+      <button
+        type="button"
+        onClick={() =>
+          onBookmarkChange?.(
+            {
+              ...post,
+              likes: 12,
+              likedByMe: false,
+              isReposted: false,
+              repostCount: 4,
+            },
+            true,
+          )
+        }
+      >
+        rollback bookmark
       </button>
     </div>
   ),
@@ -198,5 +227,38 @@ describe('BookmarksPage collection count synchronization', () => {
     expect(
       within(getCollectionButton('모음집 A')).getByText('1개 게시물'),
     ).toBeInTheDocument();
+  });
+
+  it('keeps newer like and repost fields when bookmark rollback uses a stale post', async () => {
+    const latestPost: PostRecord = {
+      ...post,
+      likes: 13,
+      likedByMe: true,
+      isReposted: true,
+      repostCount: 5,
+    };
+    const pageWithLatestPost = {
+      items: [latestPost],
+      nextCursor: null,
+      hasNext: false,
+    };
+    api.fetchCollectionBookmarks.mockResolvedValue(pageWithLatestPost);
+    api.fetchMyBookmarks.mockResolvedValue(pageWithLatestPost);
+
+    render(<BookmarksPage />);
+    const renderedPost = await screen.findByTestId('post-post-1');
+
+    fireEvent.click(
+      within(renderedPost).getByRole('button', {
+        name: 'rollback bookmark',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(renderedPost).toHaveAttribute('data-likes', '13');
+      expect(renderedPost).toHaveAttribute('data-liked', 'true');
+      expect(renderedPost).toHaveAttribute('data-reposted', 'true');
+      expect(renderedPost).toHaveAttribute('data-repost-count', '5');
+    });
   });
 });
