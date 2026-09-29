@@ -282,6 +282,94 @@ describe('PostDetail bookmark collection synchronization', () => {
     expect(mocks.refreshCollections).not.toHaveBeenCalled();
   });
 
+  it('rolls back only like fields when bookmark and repost change while like is pending', async () => {
+    let rejectLike!: (reason?: unknown) => void;
+    const onPostUpdated = vi.fn();
+    const postWithConcurrentState: PostRecord = {
+      ...bookmarkedPost,
+      likes: 12,
+      repostCount: 5,
+      savedCollectionIds: ['collection-a'],
+    };
+
+    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
+    mocks.likePost.mockReturnValue(
+      new Promise<void>((_resolve, reject) => {
+        rejectLike = reject;
+      }),
+    );
+    mocks.repostPost.mockResolvedValue({
+      postId: 'post-1',
+      isReposted: true,
+      repostCount: 6,
+    });
+
+    render(
+      <PostDetail
+        postId={'post-1'}
+        onBack={vi.fn()}
+        onPostUpdated={onPostUpdated}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', { name: '12' }));
+    await waitFor(() => {
+      expect(mocks.likePost).toHaveBeenCalledWith('post-1');
+      expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL }));
+    await screen.findByRole('dialog');
+    await screen.findByRole('checkbox', { name: COLLECTION_NAME });
+    fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
+
+    await waitFor(() => {
+      expect(mocks.unbookmarkPost).toHaveBeenCalledWith('post-1');
+      expect(mocks.refreshCollections).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getByRole('button', { name: BOOKMARK_SAVE_LABEL }),
+      ).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '모달 닫기' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '리포스트' }));
+    await waitFor(() => {
+      expect(mocks.repostPost).toHaveBeenCalledWith('post-1');
+      expect(
+        screen.getByRole('button', { name: '리포스트 취소' }),
+      ).toHaveTextContent('6');
+    });
+
+    await act(async () => {
+      rejectLike(new Error('like failed'));
+    });
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('like failed');
+      expect(screen.getByRole('button', { name: '12' })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: BOOKMARK_SAVE_LABEL }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: '리포스트 취소' }),
+      ).toHaveTextContent('6');
+    });
+
+    const rollbackPost = onPostUpdated.mock.calls.at(-1)?.[0] as PostRecord;
+    expect(rollbackPost).toMatchObject({
+      likedByMe: false,
+      likes: 12,
+      bookmarkedByMe: false,
+      isReposted: true,
+      repostCount: 6,
+    });
+  });
+
   it('keeps bookmark rollback and a later repost success when responses finish out of order', async () => {
     let rejectDelete!: (reason?: unknown) => void;
     let resolveRepost!: (value: {
