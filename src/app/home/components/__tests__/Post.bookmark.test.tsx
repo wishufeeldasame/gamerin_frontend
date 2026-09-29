@@ -5,18 +5,11 @@ import type { PostRecord } from '@/lib/feed-api';
 const mocks = vi.hoisted(() => ({
   bookmarkPost: vi.fn(),
   deletePost: vi.fn(),
-  refreshCollections: vi.fn(),
   unbookmarkPost: vi.fn(),
 }));
 
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
-}));
-
-vi.mock('@/app/context/BookmarkCollectionContext', () => ({
-  useBookmarkCollections: () => ({
-    refreshCollections: mocks.refreshCollections,
-  }),
 }));
 
 vi.mock('@/lib/feed-api', () => ({
@@ -112,26 +105,19 @@ describe('Post bookmark collection synchronization', () => {
   beforeEach(() => {
     mocks.bookmarkPost.mockReset();
     mocks.deletePost.mockReset();
-    mocks.refreshCollections.mockReset();
     mocks.unbookmarkPost.mockReset();
     mocks.bookmarkPost.mockResolvedValue(undefined);
-    mocks.refreshCollections.mockResolvedValue(undefined);
     mocks.unbookmarkPost.mockResolvedValue(undefined);
     vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
-  it('runs delete, success handling, and collection refresh in order', async () => {
+  it('runs delete before notifying the parent of a successful unbookmark', async () => {
     const calls: string[] = [];
     const onBookmarkSuccess = vi.fn(() => calls.push('success'));
 
     mocks.unbookmarkPost.mockImplementation(async () => {
       calls.push('delete');
     });
-    mocks.refreshCollections.mockImplementation(() => {
-      calls.push('refresh');
-      return Promise.resolve();
-    });
-
     render(
       <Post
         post={bookmarkedPost}
@@ -143,9 +129,9 @@ describe('Post bookmark collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: 'mock unbookmark' }));
 
     await waitFor(() => {
-      expect(mocks.refreshCollections).toHaveBeenCalledTimes(1);
+      expect(onBookmarkSuccess).toHaveBeenCalledTimes(1);
     });
-    expect(calls).toEqual(['delete', 'success', 'refresh']);
+    expect(calls).toEqual(['delete', 'success']);
   });
 
   it('rolls back only when the delete request fails', async () => {
@@ -171,44 +157,12 @@ describe('Post bookmark collection synchronization', () => {
     expect(onBookmarkChange.mock.calls[0][1]).toBe(false);
     expect(onBookmarkChange.mock.calls[1][1]).toBe(true);
     expect(onBookmarkSuccess).not.toHaveBeenCalled();
-    expect(mocks.refreshCollections).not.toHaveBeenCalled();
     expect(
       screen.getByRole('button', { name: '북마크 해제' }),
     ).toBeInTheDocument();
   });
 
-  it('keeps the successful delete when collection refresh rejects', async () => {
-    const onBookmarkChange = vi.fn();
-    const onBookmarkSuccess = vi.fn();
-    mocks.refreshCollections.mockRejectedValue(new Error('refresh failed'));
-
-    render(
-      <Post
-        post={bookmarkedPost}
-        onBookmarkChange={onBookmarkChange}
-        onBookmarkSuccess={onBookmarkSuccess}
-      />,
-    );
-
-    openBookmarkModal(true);
-    fireEvent.click(screen.getByRole('button', { name: 'mock unbookmark' }));
-
-    await waitFor(() => {
-      expect(mocks.refreshCollections).toHaveBeenCalledTimes(1);
-    });
-    await Promise.resolve();
-
-    expect(onBookmarkChange).toHaveBeenCalledTimes(1);
-    expect(onBookmarkChange.mock.calls[0][1]).toBe(false);
-    expect(onBookmarkSuccess).toHaveBeenCalledTimes(1);
-    expect(onBookmarkSuccess.mock.calls[0][1]).toBe(false);
-    expect(window.alert).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole('button', { name: '북마크 저장' }),
-    ).toBeInTheDocument();
-  });
-
-  it('does not refresh collections after adding a bookmark', async () => {
+  it('notifies the parent after adding a bookmark', async () => {
     const onBookmarkSuccess = vi.fn();
     render(
       <Post
@@ -224,10 +178,9 @@ describe('Post bookmark collection synchronization', () => {
       expect(mocks.bookmarkPost).toHaveBeenCalledWith('post-1');
     });
     expect(onBookmarkSuccess).toHaveBeenCalledTimes(1);
-    expect(mocks.refreshCollections).not.toHaveBeenCalled();
   });
 
-  it('preserves the skipRequest path without API calls or refreshes', async () => {
+  it('preserves the skipRequest path without API calls', async () => {
     const onBookmarkSuccess = vi.fn();
     render(
       <Post
@@ -246,6 +199,5 @@ describe('Post bookmark collection synchronization', () => {
     });
     expect(mocks.bookmarkPost).not.toHaveBeenCalled();
     expect(mocks.unbookmarkPost).not.toHaveBeenCalled();
-    expect(mocks.refreshCollections).not.toHaveBeenCalled();
   });
 });

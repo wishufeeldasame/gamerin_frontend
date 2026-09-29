@@ -128,7 +128,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-[28px] bg-white shadow-2xl">
+      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <div>
             <h2 className="text-xl font-black text-black">게시글 공유</h2>
@@ -144,7 +144,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
           </button>
         </div>
 
-        <div className="space-y-5 p-6">
+        <div className="min-h-0 space-y-5 overflow-y-auto p-6">
           <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
             <div className="mb-3 flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white">

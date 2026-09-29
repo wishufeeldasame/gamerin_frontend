@@ -32,6 +32,7 @@ interface BookmarkCollectionContextValue {
 
 const BookmarkCollectionContext = createContext<BookmarkCollectionContextValue | null>(null);
 const EMPTY_COLLECTIONS: BookmarkCollection[] = [];
+const MAX_COLLECTION_READ_ATTEMPTS = 3;
 
 type OwnedCollections = {
   ownerId: string | null;
@@ -86,6 +87,9 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
   const activeUserIdRef = useRef<string | null>(authenticatedUserId);
   const authGenerationRef = useRef(0);
   const refreshRequestIdRef = useRef(0);
+  const collectionsReadSequenceRef = useRef(0);
+  const collectionsRevisionRef = useRef(0);
+  const collectionMutationQueuesRef = useRef(new Map<string, Promise<void>>());
   const collections =
     ownedCollections.ownerId === authenticatedUserId
       ? ownedCollections.items
@@ -95,6 +99,9 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
     activeUserIdRef.current = authenticatedUserId;
     authGenerationRef.current += 1;
     refreshRequestIdRef.current += 1;
+    collectionsReadSequenceRef.current += 1;
+    collectionsRevisionRef.current += 1;
+    collectionMutationQueuesRef.current.clear();
     setOwnedCollections({
       ownerId: authenticatedUserId,
       items: [],
@@ -112,8 +119,10 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
 
   const refreshCollections = useCallback(async () => {
     const requestId = ++refreshRequestIdRef.current;
+    const readSequence = ++collectionsReadSequenceRef.current;
     const requestedUserId = authenticatedUserId;
     const requestedGeneration = authGenerationRef.current;
+    const requestedRevision = collectionsRevisionRef.current;
 
     if (!requestedUserId) {
       setOwnedCollections({
@@ -132,6 +141,8 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
 
       if (
         requestId !== refreshRequestIdRef.current ||
+        readSequence !== collectionsReadSequenceRef.current ||
+        requestedRevision !== collectionsRevisionRef.current ||
         !isCurrentAuthRequest(requestedUserId, requestedGeneration)
       ) {
         return;
@@ -144,16 +155,14 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
     } catch (loadError) {
       if (
         requestId !== refreshRequestIdRef.current ||
+        requestedRevision !== collectionsRevisionRef.current ||
+        readSequence !== collectionsReadSequenceRef.current ||
         !isCurrentAuthRequest(requestedUserId, requestedGeneration)
       ) {
         return;
       }
 
       setError(loadError instanceof Error ? loadError.message : '모음집을 불러오지 못했습니다.');
-      setOwnedCollections({
-        ownerId: requestedUserId,
-        items: [],
-      });
     } finally {
       if (
         requestId === refreshRequestIdRef.current &&
@@ -173,20 +182,77 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
   }, [refreshCollections]);
 
   const fetchCollectionsForPost = useCallback(async (postId: string) => {
+    const readSequence = ++collectionsReadSequenceRef.current;
     const requestedUserId = authenticatedUserId;
     const requestedGeneration = authGenerationRef.current;
-    const nextCollections = await fetchBookmarkCollections(postId);
 
-    if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
-      throw createStaleAuthRequestError();
+    for (
+      let attempt = 0;
+      attempt < MAX_COLLECTION_READ_ATTEMPTS;
+      attempt += 1
+    ) {
+      const readSequenceAtAttemptStart = collectionsReadSequenceRef.current;
+      const requestedRevision = collectionsRevisionRef.current;
+
+      try {
+        const nextCollections = await fetchBookmarkCollections(postId);
+
+        if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+          throw createStaleAuthRequestError();
+        }
+
+        if (
+          requestedRevision !== collectionsRevisionRef.current ||
+          readSequenceAtAttemptStart !== collectionsReadSequenceRef.current
+        ) {
+          continue;
+        }
+
+        if (readSequence === collectionsReadSequenceRef.current) {
+          setError(null);
+          setOwnedCollections({
+            ownerId: requestedUserId,
+            items: nextCollections.map(withoutPostContainment),
+          });
+        }
+        return nextCollections;
+      } catch (loadError) {
+        if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+          throw createStaleAuthRequestError();
+        }
+
+        if (
+          requestedRevision !== collectionsRevisionRef.current ||
+          readSequenceAtAttemptStart !== collectionsReadSequenceRef.current
+        ) {
+          continue;
+        }
+
+        throw loadError;
+      }
     }
 
-    setOwnedCollections({
-      ownerId: requestedUserId,
-      items: nextCollections.map(withoutPostContainment),
-    });
-    return nextCollections;
+    throw new Error('모음집 상태가 계속 변경되어 불러오지 못했습니다. 다시 시도해 주세요.');
   }, [authenticatedUserId, isCurrentAuthRequest]);
+
+  const enqueueCollectionMutation = useCallback(
+    <T,>(collectionId: string, operation: () => Promise<T>): Promise<T> => {
+      const previous = collectionMutationQueuesRef.current.get(collectionId) ?? Promise.resolve();
+      const next = previous.catch(() => undefined).then(operation);
+      const tracked = next.then(
+        () => undefined,
+        () => undefined,
+      );
+
+      collectionMutationQueuesRef.current.set(collectionId, tracked);
+      return next.finally(() => {
+        if (collectionMutationQueuesRef.current.get(collectionId) === tracked) {
+          collectionMutationQueuesRef.current.delete(collectionId);
+        }
+      });
+    },
+    [],
+  );
 
   const createCollection = useCallback(async (name: string, initialPostId?: string | null) => {
     const requestedUserId = authenticatedUserId;
@@ -197,6 +263,7 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
       throw createStaleAuthRequestError();
     }
 
+    collectionsRevisionRef.current += 1;
     setOwnedCollections((current) => ({
       ownerId: requestedUserId,
       items:
@@ -210,38 +277,55 @@ export function BookmarkCollectionProvider({ children }: { children: ReactNode }
   const addBookmarkToCollection = useCallback(async (collectionId: string, postId: string) => {
     const requestedUserId = authenticatedUserId;
     const requestedGeneration = authGenerationRef.current;
-    const state = await addPostToBookmarkCollection(collectionId, postId);
+    return enqueueCollectionMutation(collectionId, async () => {
+      if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+        throw createStaleAuthRequestError();
+      }
 
-    if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
-      throw createStaleAuthRequestError();
-    }
+      const state = await addPostToBookmarkCollection(collectionId, postId);
 
-    setOwnedCollections((current) => ({
-      ownerId: requestedUserId,
-      items:
-        current.ownerId === requestedUserId
-          ? upsertCollection(current.items, state.collection)
-          : [state.collection],
-    }));
-  }, [authenticatedUserId, isCurrentAuthRequest]);
+      if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+        throw createStaleAuthRequestError();
+      }
 
-  const removeBookmarkFromCollection = useCallback(async (collectionId: string, postId: string) => {
+      collectionsRevisionRef.current += 1;
+      setOwnedCollections((current) => ({
+        ownerId: requestedUserId,
+        items:
+          current.ownerId === requestedUserId
+            ? upsertCollection(current.items, state.collection)
+            : [state.collection],
+      }));
+    });
+  }, [authenticatedUserId, enqueueCollectionMutation, isCurrentAuthRequest]);
+
+  const removeBookmarkFromCollection = useCallback(async (
+    collectionId: string,
+    postId: string,
+  ) => {
     const requestedUserId = authenticatedUserId;
     const requestedGeneration = authGenerationRef.current;
-    const state = await removePostFromBookmarkCollection(collectionId, postId);
+    return enqueueCollectionMutation(collectionId, async () => {
+      if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+        throw createStaleAuthRequestError();
+      }
 
-    if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
-      throw createStaleAuthRequestError();
-    }
+      const state = await removePostFromBookmarkCollection(collectionId, postId);
 
-    setOwnedCollections((current) => ({
-      ownerId: requestedUserId,
-      items:
-        current.ownerId === requestedUserId
-          ? upsertCollection(current.items, state.collection)
-          : [state.collection],
-    }));
-  }, [authenticatedUserId, isCurrentAuthRequest]);
+      if (!isCurrentAuthRequest(requestedUserId, requestedGeneration)) {
+        throw createStaleAuthRequestError();
+      }
+
+      collectionsRevisionRef.current += 1;
+      setOwnedCollections((current) => ({
+        ownerId: requestedUserId,
+        items:
+          current.ownerId === requestedUserId
+            ? upsertCollection(current.items, state.collection)
+            : [state.collection],
+      }));
+    });
+  }, [authenticatedUserId, enqueueCollectionMutation, isCurrentAuthRequest]);
 
   const value = useMemo(
     () => ({

@@ -60,7 +60,8 @@ const contentSecurityPolicy = [
   `connect-src ${Array.from(connectSources).join(" ")}`,
   "manifest-src 'self'",
   "worker-src 'self' blob:",
-  ...(isProduction ? ["upgrade-insecure-requests"] : []),
+  // 배포시 아래 주석 해제
+  // ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

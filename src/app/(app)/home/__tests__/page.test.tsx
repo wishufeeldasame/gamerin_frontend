@@ -76,8 +76,6 @@ vi.mock('@/app/home/components/Post', () => ({
           onBookmarkChange?.({
             ...post,
             bookmarkedByMe: true,
-            isSaved: true,
-            savedCollectionIds: ['collection-latest'],
           })
         }
       >
@@ -90,11 +88,6 @@ vi.mock('@/app/home/components/Post', () => ({
             ...post,
             isReposted: true,
             repostCount: 4,
-            reposterInfo: {
-              userId: 'reposter-1',
-              nickname: '리포스터',
-              repostedAt: '2026-09-24T00:00:00Z',
-            },
           })
         }
       >
@@ -174,8 +167,6 @@ describe('HomePage like rollback', () => {
     fireEvent.click(screen.getByRole('button', { name: 'update bookmark' }));
     await waitFor(() => {
       expect(renderedPost).toHaveAttribute('data-bookmarked', 'true');
-      expect(renderedPost).toHaveAttribute('data-saved', 'true');
-      expect(renderedPost).toHaveAttribute('data-collections', 'collection-latest');
     });
 
     fireEvent.click(screen.getByRole('button', { name: 'update repost' }));
@@ -193,8 +184,6 @@ describe('HomePage like rollback', () => {
       expect(renderedPost).toHaveAttribute('data-liked', 'false');
       expect(renderedPost).toHaveAttribute('data-likes', '7');
       expect(renderedPost).toHaveAttribute('data-bookmarked', 'true');
-      expect(renderedPost).toHaveAttribute('data-saved', 'true');
-      expect(renderedPost).toHaveAttribute('data-collections', 'collection-latest');
       expect(renderedPost).toHaveAttribute('data-reposted', 'true');
       expect(renderedPost).toHaveAttribute('data-repost-count', '4');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');

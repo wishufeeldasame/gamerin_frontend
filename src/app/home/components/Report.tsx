@@ -154,7 +154,7 @@ export function ReportContentModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-content-title"
-        className="max-h-[90vh] w-full max-w-xl overflow-hidden rounded-[22px] bg-white shadow-2xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-hidden rounded-[22px] bg-white shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <h2 id="report-content-title" className="text-xl font-black text-black">
@@ -170,7 +170,7 @@ export function ReportContentModal({
           </button>
         </header>
 
-        <div className="max-h-[calc(90vh-150px)] space-y-5 overflow-y-auto px-6 py-5">
+        <div className="max-h-[calc(100dvh-2rem-150px)] space-y-5 overflow-y-auto px-6 py-5">
           <section>
             <p className="mb-3 text-xs font-black text-zinc-400">신고 대상</p>
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">

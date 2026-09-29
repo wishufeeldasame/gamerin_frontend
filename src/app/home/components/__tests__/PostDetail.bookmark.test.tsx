@@ -63,9 +63,9 @@ vi.mock('@/lib/feed-api', () => ({
 
 import { PostDetail } from '../PostDetail';
 
-const BOOKMARK_REMOVE_LABEL = '\uBD81\uB9C8\uD06C \uD574\uC81C';
-const BOOKMARK_SAVE_LABEL = '\uBD81\uB9C8\uD06C \uC800\uC7A5';
-const REMOVE_ALL_LABEL = '\uC804\uCCB4 \uBD81\uB9C8\uD06C \uD574\uC81C';
+const BOOKMARK_REMOVE_LABEL = '북마크 해제';
+const BOOKMARK_SAVE_LABEL = '북마크 저장';
+const REMOVE_ALL_LABEL = '전체 북마크 해제';
 const COLLECTION_NAME = 'Collection A';
 
 const bookmarkedPost: PostRecord = {
@@ -128,6 +128,7 @@ describe('PostDetail bookmark collection synchronization', () => {
 
     mocks.addBookmarkToCollection.mockResolvedValue(undefined);
     mocks.bookmarkPost.mockResolvedValue(undefined);
+    mocks.likePost.mockResolvedValue(undefined);
     mocks.fetchPostComments.mockResolvedValue([]);
     mocks.refreshCollections.mockResolvedValue(undefined);
     mocks.removeBookmarkFromCollection.mockResolvedValue(undefined);
@@ -135,7 +136,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
-  it('disables remove all until the initial collection request settles', async () => {
+  it('disables remove all while collections load, then sends one delete', async () => {
     let resolveCollections!: (collections: BookmarkCollection[]) => void;
     mocks.fetchPostDetail.mockResolvedValue(bookmarkedPost);
     mocks.fetchCollectionsForPost.mockReturnValue(
@@ -156,7 +157,6 @@ describe('PostDetail bookmark collection synchronization', () => {
       name: REMOVE_ALL_LABEL,
     });
     expect(removeAllButton).toBeDisabled();
-    fireEvent.click(removeAllButton);
     expect(mocks.unbookmarkPost).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -168,6 +168,7 @@ describe('PostDetail bookmark collection synchronization', () => {
 
     fireEvent.click(removeAllButton);
     await waitFor(() => {
+      expect(mocks.unbookmarkPost).toHaveBeenCalledTimes(1);
       expect(mocks.unbookmarkPost).toHaveBeenCalledWith('post-1');
       expect(mocks.refreshCollections).toHaveBeenCalledTimes(1);
     });
@@ -213,6 +214,151 @@ describe('PostDetail bookmark collection synchronization', () => {
     ).toBeInTheDocument();
   });
 
+
+  it('keeps a successful like when a pending bookmark delete fails', async () => {
+    let rejectDelete!: (reason?: unknown) => void;
+    const onPostUpdated = vi.fn();
+    const postWithConcurrentState: PostRecord = {
+      ...bookmarkedPost,
+      likes: 12,
+      savedCollectionIds: ['collection-a'],
+    };
+
+    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
+    mocks.unbookmarkPost.mockReturnValue(
+      new Promise<void>((_resolve, reject) => {
+        rejectDelete = reject;
+      }),
+    );
+
+    render(
+      <PostDetail
+        postId="post-1"
+        onBack={vi.fn()}
+        onPostUpdated={onPostUpdated}
+      />,
+    );
+
+    const bookmarkButton = await screen.findByRole('button', {
+      name: BOOKMARK_REMOVE_LABEL,
+    });
+    fireEvent.click(bookmarkButton);
+    await screen.findByRole('dialog');
+    await screen.findByRole('checkbox', {
+      name: COLLECTION_NAME,
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
+    await waitFor(() => {
+      expect(mocks.unbookmarkPost).toHaveBeenCalledWith('post-1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '12' }));
+    await waitFor(() => {
+      expect(mocks.likePost).toHaveBeenCalledWith('post-1');
+      expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      rejectDelete(new Error('delete failed'));
+    });
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('delete failed');
+    });
+    expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL }),
+    ).toBeInTheDocument();
+
+    const rollbackPost = onPostUpdated.mock.calls.at(-1)?.[0] as PostRecord;
+    expect(rollbackPost).toMatchObject({
+      likedByMe: true,
+      likes: 13,
+      bookmarkedByMe: true,
+      savedCollectionIds: ['collection-a'],
+    });
+    expect(mocks.refreshCollections).not.toHaveBeenCalled();
+  });
+
+  it('keeps bookmark rollback and a later repost success when responses finish out of order', async () => {
+    let rejectDelete!: (reason?: unknown) => void;
+    let resolveRepost!: (value: {
+      postId: string;
+      isReposted: boolean;
+      repostCount: number;
+    }) => void;
+    const onPostUpdated = vi.fn();
+    const postWithConcurrentState: PostRecord = {
+      ...bookmarkedPost,
+      repostCount: 5,
+      savedCollectionIds: ['collection-a'],
+    };
+
+    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
+    mocks.unbookmarkPost.mockReturnValue(
+      new Promise<void>((_resolve, reject) => {
+        rejectDelete = reject;
+      }),
+    );
+    mocks.repostPost.mockReturnValue(
+      new Promise((resolve) => {
+        resolveRepost = resolve;
+      }),
+    );
+
+    render(
+      <PostDetail
+        postId="post-1"
+        onBack={vi.fn()}
+        onPostUpdated={onPostUpdated}
+      />,
+    );
+
+    fireEvent.click(await screen.findByRole('button', {
+      name: BOOKMARK_REMOVE_LABEL,
+    }));
+    await screen.findByRole('dialog');
+    fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
+    await waitFor(() => {
+      expect(mocks.unbookmarkPost).toHaveBeenCalledWith('post-1');
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: '리포스트' }));
+    await waitFor(() => {
+      expect(mocks.repostPost).toHaveBeenCalledWith('post-1');
+    });
+
+    await act(async () => {
+      rejectDelete(new Error('delete failed'));
+    });
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('delete failed');
+    });
+
+    await act(async () => {
+      resolveRepost({
+        postId: 'post-1',
+        isReposted: true,
+        repostCount: 6,
+      });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '리포스트 취소' })).toBeInTheDocument();
+    });
+    const confirmedPost = onPostUpdated.mock.calls.at(-1)?.[0] as PostRecord;
+    expect(confirmedPost).toMatchObject({
+      bookmarkedByMe: true,
+      savedCollectionIds: ['collection-a'],
+      isReposted: true,
+      repostCount: 6,
+    });
+  });
+
   it('rolls back the detail state and leaves collections unchanged when delete fails', async () => {
     mocks.unbookmarkPost.mockRejectedValue(new Error('delete failed'));
 
@@ -225,21 +371,6 @@ describe('PostDetail bookmark collection synchronization', () => {
     expect(mocks.refreshCollections).not.toHaveBeenCalled();
     expect(
       screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL }),
-    ).toBeInTheDocument();
-  });
-
-  it('keeps the successful delete when refreshing collections fails', async () => {
-    mocks.refreshCollections.mockRejectedValue(new Error('refresh failed'));
-
-    await renderDetail();
-    fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
-
-    await waitFor(() => {
-      expect(mocks.refreshCollections).toHaveBeenCalledTimes(1);
-    });
-    expect(window.alert).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole('button', { name: BOOKMARK_SAVE_LABEL }),
     ).toBeInTheDocument();
   });
 

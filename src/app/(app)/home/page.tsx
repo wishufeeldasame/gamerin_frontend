@@ -7,7 +7,11 @@ import { PostComposer } from '@/app/home/components/PostComposer';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { PostRecord, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
-import { updatePostsLikeState } from '@/lib/post-mutations';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
@@ -112,9 +116,17 @@ export default function HomePage() {
       current.map((item) => (item.postId === updatedPost.postId ? updatedPost : item))
     );
   };
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
 
-  const handleBookmarkChanged = (updatedPost: PostRecord) => {
-    handlePostUpdated(updatedPost);
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -212,7 +224,7 @@ export default function HomePage() {
                     onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                     onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                     onShare={handlePostUpdated}
-                    onRepostChange={handlePostUpdated}
+                    onRepostChange={handleRepostChanged}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                     onBookmarkChange={handleBookmarkChanged}
                   />

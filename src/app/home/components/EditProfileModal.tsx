@@ -238,7 +238,7 @@ export function EditProfileModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
+          className="relative bg-white w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
         >
           <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20">
             <div className="flex items-center gap-4">
@@ -273,7 +273,7 @@ export function EditProfileModal({
                 <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl">
                   <Camera size={24} />
                 </div>
-                <span className="text-white text-[11px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
+                <span className="text-white text-[11px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity">
                   Change Cover
                 </span>
               </div>
@@ -306,7 +306,7 @@ export function EditProfileModal({
                   (formData.name || 'U').slice(0, 2).toUpperCase()
                 )}
               </div>
-              <div className="absolute inset-0 bg-black/40 rounded-[40px] opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border-4 border-white/0 group-hover:border-white/20">
+              <div className="absolute inset-0 bg-black/40 rounded-[40px] opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-all flex items-center justify-center border-4 border-white/0 group-hover:border-white/20">
                 <Camera className="w-8 h-8 text-white" />
               </div>
             </div>

@@ -71,8 +71,6 @@ vi.mock('@/app/home/components/Post', () => ({
           onBookmarkChange?.({
             ...post,
             bookmarkedByMe: true,
-            isSaved: true,
-            savedCollectionIds: ['collection-a'],
           })
         }
       >
@@ -85,11 +83,6 @@ vi.mock('@/app/home/components/Post', () => ({
             ...post,
             isReposted: true,
             repostCount: post.repostCount + 1,
-            reposterInfo: {
-              userId: 'viewer-1',
-              nickname: 'viewer',
-              repostedAt: '2026-09-24T00:00:01Z',
-            },
           })
         }
       >
@@ -199,11 +192,8 @@ describe('ProfilePage like rollback', () => {
       likedByMe: true,
       likes: 5,
       bookmarkedByMe: true,
-      isSaved: true,
-      savedCollectionIds: ['collection-a'],
       isReposted: true,
       repostCount: 1,
-      reposterInfo: { userId: 'viewer-1' },
     });
 
     await act(async () => {
@@ -216,11 +206,8 @@ describe('ProfilePage like rollback', () => {
         likedByMe: false,
         likes: 4,
         bookmarkedByMe: true,
-        isSaved: true,
-        savedCollectionIds: ['collection-a'],
         isReposted: true,
         repostCount: 1,
-        reposterInfo: { userId: 'viewer-1' },
       });
       expect(screen.getByRole('button', { name: 'toggle like' })).toBeEnabled();
     });

@@ -14,6 +14,7 @@ import {
 import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
+import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
 
 type PostDetailTarget = 'post' | 'comments';
 
@@ -70,6 +71,19 @@ export default function BookmarksPage() {
 
   const removeBookmark = useCallback((postId: string) => {
     setBookmarks((current) => current.filter((post) => post.postId !== postId));
+  }, []);
+
+  const handleBookmarkChanged = useCallback((changedPost: PostRecord, bookmarked = changedPost.bookmarkedByMe) => {
+    if (!bookmarked) {
+      return;
+    }
+
+    setBookmarks((current) => {
+      const exists = current.some((post) => post.postId === changedPost.postId);
+      return exists
+        ? updatePostsBookmarkState(current, changedPost.postId, true)
+        : [changedPost, ...current];
+    });
   }, []);
 
   const loadInitialBookmarks = useCallback(async (signal?: AbortSignal) => {
@@ -207,6 +221,17 @@ export default function BookmarksPage() {
     }
 
     removeBookmark(updatedPost.postId);
+  };
+
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setBookmarks((current) =>
+      updatePostsRepostState(
+        current,
+        updatedPost.postId,
+        updatedPost.isReposted,
+        updatedPost.repostCount,
+      ),
+    );
   };
 
   const handleToggleLike = async (post: PostRecord) => {
@@ -453,13 +478,9 @@ export default function BookmarksPage() {
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
-                  onRepostChange={handlePostUpdated}
+                  onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={(changedPost, bookmarked) => {
-                    if (bookmarked) {
-                      upsertBookmark(changedPost);
-                    }
-                  }}
+                  onBookmarkChange={handleBookmarkChanged}
                   onBookmarkSuccess={(changedPost, bookmarked) => {
                     if (!bookmarked) {
                       collectionCountSyncBaseRef.current = collections;

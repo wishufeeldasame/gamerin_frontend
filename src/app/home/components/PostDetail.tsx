@@ -6,7 +6,6 @@ import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import {
   CommentRecord,
   PostRecord,
@@ -51,11 +50,14 @@ export function PostDetail({
   onPostDeleted,
 }: PostDetailProps) {
   const { user } = useAuth();
-  const { refreshCollections } = useBookmarkCollections();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
   const handledScrollKeyRef = useRef<string | null>(null);
   const [post, setPost] = useState<PostRecord | null>(null);
+  const latestPostRef = useRef<PostRecord | null>(post);
+  useEffect(() => {
+    latestPostRef.current = post;
+  }, [post]);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
   const [reportComment, setReportComment] = useState<CommentRecord | null>(null);
@@ -128,6 +130,7 @@ export function PostDetail({
         if (!cancelled) {
           setPost(detail);
           setComments(commentList);
+          latestPostRef.current = detail;
           setBookmarked(detail.bookmarkedByMe);
         }
       } catch (loadError) {
@@ -157,21 +160,32 @@ export function PostDetail({
       return;
     }
 
-    const nextPost = updatePostLikeState(post);
+    const currentPost = latestPostRef.current ?? post;
+    const previousLikeState = {
+      likedByMe: currentPost.likedByMe,
+      likes: currentPost.likes,
+    };
+    const nextPost = updatePostLikeState(currentPost);
     setIsLikeLoading(true);
 
+    latestPostRef.current = nextPost;
     setPost(nextPost);
     onPostUpdated?.(nextPost);
 
     try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
+      if (currentPost.likedByMe) {
+        await unlikePost(currentPost.postId);
       } else {
-        await likePost(post.postId);
+        await likePost(currentPost.postId);
       }
     } catch (likeError) {
-      setPost(post);
-      onPostUpdated?.(post);
+      const latestPost = latestPostRef.current;
+      if (latestPost) {
+        const rollbackPost = { ...latestPost, ...previousLikeState };
+        latestPostRef.current = rollbackPost;
+        setPost(rollbackPost);
+        onPostUpdated?.(rollbackPost);
+      }
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setIsLikeLoading(false);
@@ -183,33 +197,51 @@ export function PostDetail({
       return;
     }
 
-    const previousPost = post;
+    const currentPost = latestPostRef.current ?? post;
+    const previousRepostState = {
+      isReposted: currentPost.isReposted,
+      repostCount: currentPost.repostCount,
+    };
     const optimisticPost = {
-      ...post,
-      isReposted: !post.isReposted,
-      repostCount: Math.max(0, post.repostCount + (post.isReposted ? -1 : 1)),
+      ...currentPost,
+      isReposted: !currentPost.isReposted,
+      repostCount: Math.max(
+        0,
+        currentPost.repostCount + (currentPost.isReposted ? -1 : 1),
+      ),
     };
 
     setIsRepostLoading(true);
     setRepostError(null);
+    latestPostRef.current = optimisticPost;
     setPost(optimisticPost);
     onPostUpdated?.(optimisticPost);
 
     try {
       const response = optimisticPost.isReposted
-        ? await repostPost(previousPost.postId)
-        : await unrepostPost(previousPost.postId);
+        ? await repostPost(currentPost.postId)
+        : await unrepostPost(currentPost.postId);
+      const latestPost = latestPostRef.current;
+      if (!latestPost) {
+        return;
+      }
       const confirmedPost = {
-        ...previousPost,
+        ...latestPost,
         isReposted: response.isReposted,
         repostCount: response.repostCount,
       };
 
+      latestPostRef.current = confirmedPost;
       setPost(confirmedPost);
       onPostUpdated?.(confirmedPost);
     } catch (toggleError) {
-      setPost(previousPost);
-      onPostUpdated?.(previousPost);
+      const latestPost = latestPostRef.current;
+      if (latestPost) {
+        const rollbackPost = { ...latestPost, ...previousRepostState };
+        latestPostRef.current = rollbackPost;
+        setPost(rollbackPost);
+        onPostUpdated?.(rollbackPost);
+      }
       const message = toggleError instanceof Error ? toggleError.message : 'Failed to update repost.';
       setRepostError(message);
       alert(message);
@@ -286,9 +318,12 @@ export function PostDetail({
       return true;
     }
 
-    const nextPost = updatePostBookmarkState(post, nextBookmarked);
+    const currentPost = latestPostRef.current ?? post;
+    const nextPost = updatePostBookmarkState(currentPost, nextBookmarked);
+    const previousBookmarked = currentPost.bookmarkedByMe;
 
     setBookmarked(nextBookmarked);
+    latestPostRef.current = nextPost;
     setPost(nextPost);
     onPostUpdated?.(nextPost);
 
@@ -299,16 +334,22 @@ export function PostDetail({
     try {
       setBookmarking(true);
       if (nextBookmarked) {
-        await bookmarkPost(post.postId);
+        await bookmarkPost(currentPost.postId);
       } else {
-        await unbookmarkPost(post.postId);
-        void refreshCollections().catch(() => undefined);
+        await unbookmarkPost(currentPost.postId);
       }
       return true;
     } catch (bookmarkError) {
-      setBookmarked(bookmarked);
-      setPost(post);
-      onPostUpdated?.(post);
+      const rollbackPost = latestPostRef.current
+        ? updatePostBookmarkState(latestPostRef.current, previousBookmarked)
+        : null;
+
+      setBookmarked(previousBookmarked);
+      if (rollbackPost) {
+        latestPostRef.current = rollbackPost;
+        setPost(rollbackPost);
+        onPostUpdated?.(rollbackPost);
+      }
       alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
       return false;
     } finally {

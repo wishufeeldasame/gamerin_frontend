@@ -45,7 +45,7 @@ export function MentorDetailModal({ mentor, onClose }: MentorDetailModalProps) {
           initial={{ scale: 0.9, opacity: 0, y: 30 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 30 }}
-          className="relative bg-white w-full max-w-4xl max-h-[90vh] rounded-[48px] overflow-hidden shadow-2xl flex flex-col md:flex-row"
+          className="relative bg-white w-full max-w-4xl max-h-[calc(100dvh-2rem)] rounded-[48px] overflow-hidden shadow-2xl flex flex-col md:flex-row"
         >
           {/* Left: Mentor Visual */}
           <div className="md:w-2/5 bg-black relative">

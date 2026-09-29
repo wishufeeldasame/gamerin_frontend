@@ -21,7 +21,11 @@ import {
   likePost,
   unlikePost,
 } from '@/lib/feed-api';
-import { updatePostsLikeState } from '@/lib/post-mutations';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -289,6 +293,48 @@ function SearchPageContent() {
     );
   };
 
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    const updateRepost = (posts: PostRecord[]) =>
+      updatePostsRepostState(
+        posts,
+        updatedPost.postId,
+        updatedPost.isReposted,
+        updatedPost.repostCount,
+      );
+
+    setPosts(updateRepost);
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: updateRepost(current.posts.items),
+            },
+          }
+        : current,
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: updatePostsBookmarkState(
+                current.posts.items,
+                updatedPost.postId,
+                bookmarked,
+              ),
+            },
+          }
+        : current,
+    );
+  };
+
   const loadMore = async () => {
     if (loadingMore || loadMoreControllerRef.current || !query) {
       return;
@@ -346,8 +392,8 @@ function SearchPageContent() {
           onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
           onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
           onShare={handlePostUpdated}
-          onRepostChange={handlePostUpdated}
-          onBookmarkChange={handlePostUpdated}
+          onRepostChange={handleRepostChanged}
+          onBookmarkChange={handleBookmarkChanged}
         />
       ))}
     </div>

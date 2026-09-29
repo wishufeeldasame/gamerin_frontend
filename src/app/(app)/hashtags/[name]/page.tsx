@@ -10,7 +10,11 @@ import {
   likePost,
   unlikePost,
 } from '@/lib/feed-api';
-import { updatePostsLikeState } from '@/lib/post-mutations';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 const HASHTAG_PAGE_SIZE = 20;
 
@@ -131,6 +135,18 @@ export default function HashtagPostsPage() {
     setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
   };
 
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+  };
+
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((post) => post.postId !== postId));
   };
@@ -174,8 +190,8 @@ export default function HashtagPostsPage() {
               onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
               onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
               onShare={handlePostUpdated}
-              onRepostChange={handlePostUpdated}
-              onBookmarkChange={handlePostUpdated}
+              onRepostChange={handleRepostChanged}
+              onBookmarkChange={handleBookmarkChanged}
               onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
             />
           ))}
