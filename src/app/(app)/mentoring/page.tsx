@@ -1591,7 +1591,7 @@ export default function MentoringPage() {
             }}
           >
             <div
-              className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               {detailLoading || !selectedProgram ? (
@@ -1810,7 +1810,7 @@ export default function MentoringPage() {
             onClick={() => setSelectedOwnedProgramId(null)}
           >
             <div
-              className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+              className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
               onClick={(event) => event.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-4">

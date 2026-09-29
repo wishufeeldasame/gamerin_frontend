@@ -241,7 +241,7 @@ export default function SaveToCollectionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="w-full max-w-md overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-neutral-900"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-neutral-900"
       >
         <header className="relative flex h-14 items-center justify-center border-b border-zinc-200 px-14 dark:border-neutral-700">
           <h2 id={titleId} className="text-base font-bold text-zinc-950 dark:text-zinc-100">
@@ -257,7 +257,7 @@ export default function SaveToCollectionModal({
           </button>
         </header>
 
-        <div className="max-h-80 overflow-y-auto py-2">
+        <div className="min-h-0 flex-1 overflow-y-auto py-2">
           {loadingCollections ? (
             <p className="px-5 py-10 text-center text-sm text-zinc-500">
               모음집을 불러오는 중...

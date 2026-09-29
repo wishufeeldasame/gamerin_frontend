@@ -360,7 +360,7 @@ function ImageLightbox({
         <img
           src={image.url}
           alt={image.name}
-          className="max-h-[88vh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
+          className="max-h-[88dvh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
         />
         <p className="mt-3 text-center text-sm font-bold text-white/80">{image.name}</p>
       </div>

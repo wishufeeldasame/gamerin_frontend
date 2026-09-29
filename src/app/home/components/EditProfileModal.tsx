@@ -238,7 +238,7 @@ export function EditProfileModal({
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
+          className="relative bg-white w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
         >
           <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20">
             <div className="flex items-center gap-4">

@@ -1437,7 +1437,7 @@ export default function ProfilePage() {
       ) : null}
       {followListType ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="max-h-[82vh] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
@@ -1457,7 +1457,7 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            <div className="max-h-[58vh] overflow-y-auto p-4">
+            <div className="max-h-[58dvh] overflow-y-auto p-4">
               {followListLoading ? (
                 <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
                   <Loader2 size={18} className="mr-2 animate-spin" />

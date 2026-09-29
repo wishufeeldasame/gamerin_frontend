@@ -273,7 +273,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
           </button>
         </div>
 
-        <div className="max-h-[450px] overflow-y-auto">
+        <div className="max-h-[calc(100dvh-13rem)] overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center gap-2 px-5 py-16 text-sm font-black text-zinc-400">
               <Loader2 size={18} className="animate-spin" />
