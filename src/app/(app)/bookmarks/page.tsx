@@ -9,12 +9,15 @@ import {
   fetchMyBookmarks,
   likePost,
   unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
 import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
-import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 type PostDetailTarget = 'post' | 'comments';
 
@@ -239,22 +242,22 @@ export default function BookmarksPage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
+    const previousLikedByMe = post.likedByMe;
+    const nextLikedByMe = !previousLikedByMe;
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-
     setBookmarks((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
+      updatePostsLikeState(current, post.postId, nextLikedByMe),
     );
 
     try {
-      if (post.likedByMe) {
+      if (previousLikedByMe) {
         await unlikePost(post.postId);
       } else {
         await likePost(post.postId);
       }
     } catch (likeError) {
       setBookmarks((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
+        updatePostsLikeState(current, post.postId, previousLikedByMe),
       );
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {

@@ -1,4 +1,17 @@
-import { type PostRecord, updatePostBookmarkState } from '@/lib/feed-api';
+import {
+  type PostRecord,
+  updatePostLikeState,
+} from '@/lib/feed-api';
+
+export function updatePostsLikeState(
+  posts: PostRecord[],
+  postId: string,
+  likedByMe: boolean,
+): PostRecord[] {
+  return posts.map((post) => (
+    post.postId === postId ? updatePostLikeState(post, likedByMe) : post
+  ));
+}
 
 export function updatePostsBookmarkState(
   posts: PostRecord[],
@@ -6,7 +19,7 @@ export function updatePostsBookmarkState(
   bookmarkedByMe: boolean,
 ): PostRecord[] {
   return posts.map((post) => (
-    post.postId === postId ? updatePostBookmarkState(post, bookmarkedByMe) : post
+    post.postId === postId ? { ...post, bookmarkedByMe } : post
   ));
 }
 

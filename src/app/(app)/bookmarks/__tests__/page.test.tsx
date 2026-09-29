@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -26,25 +26,30 @@ vi.mock('@/app/context/BookmarkCollectionContext', () => ({
   }),
 }));
 
-vi.mock('@/lib/feed-api', () => ({
-  fetchCollectionBookmarks: api.fetchCollectionBookmarks,
-  fetchMyBookmarks: api.fetchMyBookmarks,
-  likePost: api.likePost,
-  unlikePost: api.unlikePost,
-  updatePostLikeState: (post: PostRecord) => post,
-  updatePostBookmarkState: (post: PostRecord, bookmarkedByMe: boolean) => ({
-    ...post,
-    bookmarkedByMe,
-  }),
-}));
+vi.mock('@/lib/feed-api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/feed-api')>();
+  return {
+    ...actual,
+    fetchCollectionBookmarks: api.fetchCollectionBookmarks,
+    fetchMyBookmarks: api.fetchMyBookmarks,
+    likePost: api.likePost,
+    unlikePost: api.unlikePost,
+  };
+});
 
 vi.mock('@/app/home/components/Post', () => ({
   Post: ({
     post,
+    likeLoading,
+    onToggleLike,
+    onRepostChange,
     onBookmarkSuccess,
     onBookmarkChange,
   }: {
     post: PostRecord;
+    likeLoading?: boolean;
+    onToggleLike?: (post: PostRecord) => void;
+    onRepostChange?: (post: PostRecord) => void;
     onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
     onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
   }) => (
@@ -52,9 +57,30 @@ vi.mock('@/app/home/components/Post', () => ({
       data-testid={'post-' + post.postId}
       data-likes={String(post.likes)}
       data-liked={String(post.likedByMe)}
+      data-bookmarked={String(post.bookmarkedByMe)}
       data-reposted={String(post.isReposted)}
       data-repost-count={String(post.repostCount)}
+      data-like-loading={String(Boolean(likeLoading))}
     >
+      <button
+        type={'button'}
+        disabled={likeLoading}
+        onClick={() => onToggleLike?.(post)}
+      >
+        toggle like
+      </button>
+      <button
+        type={'button'}
+        onClick={() =>
+          onRepostChange?.({
+            ...post,
+            isReposted: true,
+            repostCount: post.repostCount + 1,
+          })
+        }
+      >
+        update repost
+      </button>
       <button
         type="button"
         onClick={() => onBookmarkSuccess?.(post, false)}
@@ -147,7 +173,17 @@ async function selectCollection(name: string) {
   });
 }
 
-describe('BookmarksPage collection count synchronization', () => {
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, resolve, reject };
+}
+
+describe('BookmarksPage state synchronization', () => {
   beforeEach(() => {
     api.fetchCollectionBookmarks.mockReset();
     api.fetchMyBookmarks.mockReset();
@@ -159,6 +195,7 @@ describe('BookmarksPage collection count synchronization', () => {
     api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
     api.likePost.mockResolvedValue(undefined);
     api.unlikePost.mockResolvedValue(undefined);
+    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('hides stale counts until refreshed collections replace the previous array', async () => {
@@ -260,5 +297,51 @@ describe('BookmarksPage collection count synchronization', () => {
       expect(renderedPost).toHaveAttribute('data-reposted', 'true');
       expect(renderedPost).toHaveAttribute('data-repost-count', '5');
     });
+  });
+
+  it('rolls back only like fields when repost changes while like is pending', async () => {
+    const likeRequest = deferred<void>();
+    api.likePost.mockReturnValue(likeRequest.promise);
+
+    render(<BookmarksPage />);
+    const renderedPost = await screen.findByTestId('post-post-1');
+    const likeButton = within(renderedPost).getByRole('button', {
+      name: 'toggle like',
+    });
+
+    fireEvent.click(likeButton);
+    await waitFor(() => {
+      expect(api.likePost).toHaveBeenCalledWith('post-1');
+      expect(renderedPost).toHaveAttribute('data-liked', 'true');
+      expect(renderedPost).toHaveAttribute('data-likes', '1');
+      expect(renderedPost).toHaveAttribute('data-like-loading', 'true');
+    });
+
+    fireEvent.click(likeButton);
+    expect(api.likePost).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(
+      within(renderedPost).getByRole('button', { name: 'update repost' }),
+    );
+    await waitFor(() => {
+      expect(renderedPost).toHaveAttribute('data-bookmarked', 'true');
+      expect(renderedPost).toHaveAttribute('data-reposted', 'true');
+      expect(renderedPost).toHaveAttribute('data-repost-count', '1');
+    });
+
+    await act(async () => {
+      likeRequest.reject(new Error('좋아요 요청 실패'));
+      await likeRequest.promise.catch(() => undefined);
+    });
+
+    await waitFor(() => {
+      expect(renderedPost).toHaveAttribute('data-liked', 'false');
+      expect(renderedPost).toHaveAttribute('data-likes', '0');
+      expect(renderedPost).toHaveAttribute('data-bookmarked', 'true');
+      expect(renderedPost).toHaveAttribute('data-reposted', 'true');
+      expect(renderedPost).toHaveAttribute('data-repost-count', '1');
+      expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
+    });
+    expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
   });
 });

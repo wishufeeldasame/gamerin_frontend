@@ -48,9 +48,9 @@ import {
   unfollowUser,
   updateMyProfile,
   unlikePost,
-  updatePostLikeState,
   uploadProfileImage,
 } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
@@ -668,12 +668,8 @@ export default function ProfilePage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-
-    setPosts((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
-    );
+    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
 
     try {
       if (post.likedByMe) {
@@ -682,9 +678,7 @@ export default function ProfilePage() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
+      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setLikeLoadingByPostId((current) => {
