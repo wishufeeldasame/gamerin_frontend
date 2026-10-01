@@ -95,14 +95,21 @@ export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser>
 }
 
 // 새로 만든 세션(generation)이 끝까지 확정되지 못하면 세션을 정리한다.
-// 사용자 전환·로그아웃(AbortError)과 refresh·api-client가 이미 종료한 세션은 다시 로그아웃하지 않는다.
+// - 사용자 전환·로그아웃(AbortError)과 refresh·api-client가 이미 종료한 세션은 다시 로그아웃하지 않는다.
+// - 세대가 바뀐 뒤 도착한 오래된 실패(네트워크 오류 등)는 새 세션을 지우지 않고 AbortError로 버린다.
 async function clearSessionOnFailure<T>(generation: number, run: () => Promise<T>): Promise<T> {
   try {
     return await run();
   } catch (error) {
-    if (!isAbortError(error) && !isExpiredAuthGeneration(generation)) {
-      await logoutAuthSession();
+    if (isAbortError(error) || isExpiredAuthGeneration(generation)) {
+      throw error;
     }
+
+    if (!isCurrentAuthGeneration(generation)) {
+      throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+    }
+
+    await logoutAuthSession();
     throw error;
   }
 }
@@ -183,7 +190,7 @@ export async function completeOAuthSession(): Promise<AuthUser> {
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();
 
-  return clearSessionOnFailure(generation, async () => {
+  const refreshed = await clearSessionOnFailure(generation, async () => {
     const result = await refreshAccessTokenResult(generation);
 
     if (result.status === 'stale') {
@@ -198,8 +205,11 @@ export async function completeOAuthSession(): Promise<AuthUser> {
       throw new Error('인증 세션 생성에 실패했습니다.');
     }
 
-    return fetchAuthUser();
+    return result;
   });
+
+  // refresh는 인증 세대를 올리지 않는다. 새 세션으로 확정해 같은 시점에 돌던 앱 시작 복원이 이 로그인을 덮어쓰지 못하게 한다.
+  return confirmAuthSession(refreshed.accessToken);
 }
 
 /**

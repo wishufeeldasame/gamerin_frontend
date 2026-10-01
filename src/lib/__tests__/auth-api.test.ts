@@ -133,6 +133,23 @@ describe('loginWithPassword', () => {
     expect(store.getAccessToken()).toBeNull();
   });
 
+  it('다른 로그인으로 세대가 바뀐 뒤 /me가 네트워크 오류로 실패해도 새 세션을 지우지 않고 AbortError로 버린다', async () => {
+    api.route('/api/v1/auth/login', loginOk);
+    let failMe!: (error: Error) => void;
+    api.route('/api/v1/auth/me', () => new Promise<Response>((_, reject) => {
+      failMe = reject;
+    }));
+
+    const pending = auth.loginWithPassword('demo', 'pw');
+    await vi.waitFor(() => expect(api.count('/api/v1/auth/me')).toBe(1));
+    store.setAccessToken('other-user-token');
+    failMe(new TypeError('Failed to fetch'));
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(store.getAccessToken()).toBe('other-user-token');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('/me가 차단 상태를 알려 주면 세션을 정리하고 차단 오류로 거절한다', async () => {
     api.route('/api/v1/auth/login', loginOk);
     api.route('/api/v1/auth/me', () => meOk({ status: 'SUSPENDED' }));
@@ -169,6 +186,17 @@ describe('completeOAuthSession', () => {
     expect(api.init(0)).toMatchObject({ method: 'POST', credentials: 'include' });
     expect(api.authorization(1)).toBe('Bearer token-r');
     expect(user).toMatchObject({ id: 'user-id', handle: 'demo', role: 'USER', status: 'ACTIVE', gameTier: 'Unranked' });
+  });
+
+  it('성공하면 인증 세대를 올려 같은 시점의 앱 시작 복원이 이 로그인을 덮어쓰지 못하게 한다', async () => {
+    const before = store.getAuthGeneration();
+    api.route('/api/v1/auth/refresh', refreshOk);
+    api.route('/api/v1/auth/me', () => meOk());
+
+    await auth.completeOAuthSession();
+
+    expect(store.isCurrentAuthGeneration(before)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-r');
   });
 
   it('refresh가 인증을 거절하면 세션을 한 번만 정리하고 실패한다', async () => {
