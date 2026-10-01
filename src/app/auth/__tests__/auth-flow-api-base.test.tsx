@@ -182,4 +182,22 @@ describe('인증 흐름 화면의 API 주소', () => {
       id: 'user-id', handle: 'demo_01', role: 'USER', status: 'ACTIVE', gameTier: 'Unranked',
     }));
   });
+
+  it('소셜 회원가입은 성공했지만 로그인 확인에 실패하면 재제출 대신 로그인 화면으로 안내한다', async () => {
+    jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      String(url).endsWith('/api/v1/auth/social-signup')
+        ? json(200, { success: true, data: { accessToken: 'token-s' } })
+        : json(503, { success: false, message: 'unavailable' }));
+    render(<SocialCompletePage />);
+
+    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
+    fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
+
+    expect(await screen.findByText(/가입은 완료되었지만 로그인 확인에 실패했습니다/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '회원가입 완료' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '로그인 화면으로 이동' })).toHaveAttribute('href', '/login');
+    expect(auth.login).not.toHaveBeenCalled();
+  });
 });

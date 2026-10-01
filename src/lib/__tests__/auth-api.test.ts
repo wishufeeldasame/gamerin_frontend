@@ -199,6 +199,38 @@ describe('completeOAuthSession', () => {
     expect(store.getAccessToken()).toBe('token-r');
   });
 
+  it('같은 시점의 호출은 한 작업으로 합쳐 refresh를 한 번만 보내고 같은 결과를 받는다(StrictMode)', async () => {
+    api.route('/api/v1/auth/refresh', refreshOk);
+    api.route('/api/v1/auth/me', () => meOk());
+
+    const [first, second] = await Promise.all([auth.completeOAuthSession(), auth.completeOAuthSession()]);
+
+    expect(second).toBe(first);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(api.count('/api/v1/auth/me')).toBe(1);
+  });
+
+  it('합쳐진 호출이 일시 장애로 실패해도 모든 호출이 AbortError가 아닌 같은 오류로 끝난다', async () => {
+    api.route('/api/v1/auth/refresh', () => json(503, {}));
+
+    const results = await Promise.allSettled([auth.completeOAuthSession(), auth.completeOAuthSession()]);
+
+    for (const result of results) {
+      expect(result).toMatchObject({ status: 'rejected', reason: { message: '인증 세션 생성에 실패했습니다.' } });
+    }
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+  });
+
+  it('작업이 끝나면 다음 호출은 새로 시작한다', async () => {
+    api.route('/api/v1/auth/refresh', refreshOk, refreshOk);
+    api.route('/api/v1/auth/me', () => meOk(), () => meOk());
+
+    await auth.completeOAuthSession();
+    await auth.completeOAuthSession();
+
+    expect(api.count('/api/v1/auth/refresh')).toBe(2);
+  });
+
   it('refresh가 인증을 거절하면 세션을 한 번만 정리하고 실패한다', async () => {
     api.route('/api/v1/auth/refresh', () => json(401, { success: false, message: 'expired' }));
 
@@ -272,11 +304,11 @@ describe('completeSocialSignup', () => {
     expect(api.count('/api/v1/auth/me')).toBe(0);
   });
 
-  it('/me가 실패하면 세션을 정리한다', async () => {
+  it('가입은 성공했지만 /me가 실패하면 세션을 정리하고 가입 완료 오류로 거절한다', async () => {
     api.route('/api/v1/auth/social-signup', signupOk);
     api.route('/api/v1/auth/me', () => json(500, { success: false, message: 'server error' }));
 
-    await expect(auth.completeSocialSignup(params)).rejects.toThrow('server error');
+    await expect(auth.completeSocialSignup(params)).rejects.toBeInstanceOf(auth.SignupCompletedError);
 
     expect(api.count('/api/v1/auth/logout')).toBe(1);
     expect(store.getAccessToken()).toBeNull();

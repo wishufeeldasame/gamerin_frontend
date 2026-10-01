@@ -34,6 +34,14 @@ export interface AuthUser {
 
 export const DEFAULT_GAME_TIER = 'Unranked';
 
+// 서버에서는 가입이 끝났지만(가입 토큰은 소진됨) 로그인 확인에 실패했다. 가입을 다시 시도할 수 없다.
+export class SignupCompletedError extends Error {
+  constructor() {
+    super('가입은 완료되었지만 로그인 확인에 실패했습니다. 로그인 화면에서 다시 로그인해주세요.');
+    this.name = 'SignupCompletedError';
+  }
+}
+
 export class BlockedAccountError extends Error {
   constructor() {
     super(BLOCKED_ACCOUNT_MESSAGE);
@@ -182,13 +190,36 @@ export async function completeSocialSignup(params: {
     throw new Error('로그인 정보가 올바르지 않습니다. 다시 시도해 주세요.');
   }
 
-  return confirmAuthSession(accessToken);
+  try {
+    return await confirmAuthSession(accessToken);
+  } catch (error) {
+    if (isAbortError(error) || error instanceof BlockedAccountError) throw error;
+    throw new SignupCompletedError();
+  }
 }
 
+// 같은 세대의 OAuth 완료 호출은 한 작업으로 합친다(StrictMode의 effect 재실행 등). 합치지 않으면 한 호출의 실패 정리가
+// 세대를 바꿔 다른 호출이 사용자 전환으로 오인해 AbortError로 끝난다.
+let oauthCompletion: { generation: number; promise: Promise<AuthUser> } | null = null;
+
 /** OAuth 로그인 뒤 HttpOnly refresh 쿠키로 토큰을 받고 `/auth/me`로 확정한 사용자를 반환한다. */
-export async function completeOAuthSession(): Promise<AuthUser> {
-  await waitForLogoutCompletion();
+export function completeOAuthSession(): Promise<AuthUser> {
   const generation = getAuthGeneration();
+  if (oauthCompletion?.generation === generation) {
+    return oauthCompletion.promise;
+  }
+
+  const promise = runOAuthSession(generation);
+  oauthCompletion = { generation, promise };
+  const clear = () => {
+    if (oauthCompletion?.promise === promise) oauthCompletion = null;
+  };
+  promise.then(clear, clear);
+  return promise;
+}
+
+async function runOAuthSession(generation: number): Promise<AuthUser> {
+  await waitForLogoutCompletion();
 
   const refreshed = await clearSessionOnFailure(generation, async () => {
     const result = await refreshAccessTokenResult(generation);
