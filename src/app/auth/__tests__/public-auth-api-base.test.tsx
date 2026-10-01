@@ -107,4 +107,17 @@ describe('공개 인증 화면의 API 주소', () => {
       '/find-id-result?maskedHandle=de***1&createdAt=2026-09-23',
     ));
   });
+
+  it('비밀번호 재설정은 규칙을 어긴 비밀번호를 제출 전에 막는다', () => {
+    const { container } = render(<ResetPasswordPage />);
+    const password = screen.getByPlaceholderText('새 비밀번호');
+
+    expect(password).toHaveAttribute('maxlength', '20');
+    fireEvent.change(password, { target: { value: 'abcdefgh1' } });
+    fireEvent.change(screen.getByPlaceholderText('새 비밀번호 확인'), { target: { value: 'abcdefgh1' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    expect(screen.getAllByText('비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다.').length).toBeGreaterThan(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });

@@ -4,7 +4,7 @@ import { ChevronDown, Eye, EyeOff, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -14,8 +14,16 @@ import {
 } from '@/lib/auth-store';
 import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
 import { getApiBaseUrl } from '@/lib/api-base';
+import {
+  HANDLE_MAX_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  PASSWORD_MAX_LENGTH,
+  validateEmail,
+  validateHandle,
+  validateNickname,
+  validatePassword,
+} from '@/lib/auth-validation';
 
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // 백엔드 회원가입 API(SignUpRequest)에 생년월일 필드가 없어 입력을 숨기고 검증에서 뺀다.
 // 계약이 생기면 true로 바꾸고 회원가입 요청 본문에 추가한다.
 const BIRTH_DATE_ENABLED = false;
@@ -43,16 +51,17 @@ export default function LoginPage() {
   const [signupPassword, setSignupPassword] = useState('');
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
 
-  const isPasswordLongEnough = signupPassword.length >= 8;
+  const nameError = validateNickname(signupName);
+  const emailError = validateEmail(signupEmail);
+  const handleError = validateHandle(signupId);
+  const passwordError = validatePassword(signupPassword);
   const isStep1Valid = Boolean(
-    signupName.trim() &&
-      emailRegex.test(signupEmail) &&
+    !nameError &&
+      !emailError &&
       (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear))
   );
   const isStep2Valid =
-    signupId.length >= 4 &&
-    signupPassword.length >= 8 &&
-    signupPassword === signupPasswordConfirm;
+    !handleError && !passwordError && signupPassword === signupPasswordConfirm;
 
   const resetSignup = () => {
     setShowSignupModal(false);
@@ -67,13 +76,15 @@ export default function LoginPage() {
     setSignupPasswordConfirm('');
   };
 
-  const handleNextStep = () => {
+  const handleNextStep = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (isStep1Valid) {
       setSignupStep(2);
     }
   };
 
-  const handleCompleteSignup = async () => {
+  const handleCompleteSignup = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
     if (!isStep2Valid) return;
 
     try {
@@ -105,7 +116,9 @@ export default function LoginPage() {
     }
   };
 
-  const handleLocalLogin = async () => {
+  const handleLocalLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (loginLoading || isLoggingOut) return;
     if (!loginHandle.trim() || !loginPassword.trim()) {
       setLoginError('아이디와 비밀번호를 입력해주세요.');
       return;
@@ -229,13 +242,17 @@ export default function LoginPage() {
             </button>
 
             {showIdLogin ? (
-              <motion.div
+              <motion.form
+                onSubmit={handleLocalLogin}
+                noValidate
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
                 className="mt-2 space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 shadow-sm sm:p-6"
               >
                 <input
                   type="text"
+                  name="username"
+                  autoComplete="username"
                   value={loginHandle}
                   onChange={(event) => setLoginHandle(event.target.value)}
                   placeholder="아이디"
@@ -244,6 +261,8 @@ export default function LoginPage() {
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
+                    name="password"
+                    autoComplete="current-password"
                     value={loginPassword}
                     onChange={(event) => setLoginPassword(event.target.value)}
                     placeholder="비밀번호"
@@ -260,14 +279,13 @@ export default function LoginPage() {
                 </div>
                 {loginError ? <p className="text-sm font-semibold text-red-500">{loginError}</p> : null}
                 <button
-                  type="button"
-                  onClick={handleLocalLogin}
+                  type="submit"
                   disabled={loginLoading || isLoggingOut}
                   className="h-12 w-full rounded-full bg-black text-[15px] font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isLoggingOut ? '이전 세션 정리 중...' : loginLoading ? '로그인 중...' : '로그인'}
                 </button>
-              </motion.div>
+              </motion.form>
             ) : null}
           </div>
 
@@ -312,31 +330,41 @@ export default function LoginPage() {
             </button>
 
             {signupStep === 1 ? (
-              <>
+              <form onSubmit={handleNextStep} noValidate>
                 <h2 className="mb-8 text-3xl font-extrabold text-black">계정을 생성하세요.</h2>
                 <div className="mb-5">
                   <div className="relative">
                     <input
                       type="text"
+                      name="nickname"
+                      autoComplete="nickname"
                       value={signupName}
                       onChange={(event) => setSignupName(event.target.value)}
                       placeholder="이름"
-                      maxLength={50}
+                      maxLength={NICKNAME_MAX_LENGTH}
                       className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                      {signupName.length} / 50
+                      {signupName.length} / {NICKNAME_MAX_LENGTH}
                     </span>
                   </div>
+                  {signupName && nameError ? (
+                    <p className="ml-2 mt-2 text-sm text-red-500">{nameError}</p>
+                  ) : null}
                 </div>
                 <div className="mb-8">
                   <input
                     type="email"
+                    name="email"
+                    autoComplete="email"
                     value={signupEmail}
                     onChange={(event) => setSignupEmail(event.target.value)}
                     placeholder="이메일"
                     className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
                   />
+                  {signupEmail && emailError ? (
+                    <p className="ml-2 mt-2 text-sm text-red-500">{emailError}</p>
+                  ) : null}
                 </div>
                 {BIRTH_DATE_ENABLED ? (
                 <div className="mb-3">
@@ -388,8 +416,7 @@ export default function LoginPage() {
                 </div>
                 ) : null}
                 <button
-                  type="button"
-                  onClick={handleNextStep}
+                  type="submit"
                   disabled={!isStep1Valid}
                   className={`mt-8 w-full rounded-full py-4 text-lg font-bold transition ${
                     !isStep1Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
@@ -397,11 +424,11 @@ export default function LoginPage() {
                 >
                   다음
                 </button>
-              </>
+              </form>
             ) : null}
 
             {signupStep === 2 ? (
-              <>
+              <form onSubmit={handleCompleteSignup} noValidate>
                 <h2 className="mb-4 text-2xl font-extrabold text-black sm:text-3xl">
                   아이디와 비밀번호를 설정하세요.
                 </h2>
@@ -412,42 +439,50 @@ export default function LoginPage() {
                   <div className="relative">
                     <input
                       type="text"
+                      name="username"
+                      autoComplete="username"
                       value={signupId}
-                      onChange={(event) => {
-                        const value = event.target.value.replace(/[^a-zA-Z0-9_]/g, '');
-                        if (value.length <= 20) setSignupId(value);
-                      }}
-                      placeholder="아이디 (영문, 숫자, _ 사용 가능)"
-                      maxLength={20}
+                      onChange={(event) => setSignupId(event.target.value)}
+                      placeholder="아이디 (영문 소문자, 숫자, _ 사용 가능)"
+                      maxLength={HANDLE_MAX_LENGTH}
                       className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-                      {signupId.length} / 20
+                      {signupId.length} / {HANDLE_MAX_LENGTH}
                     </span>
                   </div>
+                  {signupId && handleError ? (
+                    <p className="ml-2 mt-2 text-sm text-red-500">{handleError}</p>
+                  ) : null}
                 </div>
                 <div className="mb-2">
                   <input
                     type="password"
+                    name="new-password"
+                    autoComplete="new-password"
                     value={signupPassword}
                     onChange={(event) => setSignupPassword(event.target.value)}
-                    placeholder="비밀번호 (최소 8자)"
+                    placeholder="비밀번호 (8~20자, 영문·숫자·특수문자 포함)"
+                    maxLength={PASSWORD_MAX_LENGTH}
                     className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
-                      signupPassword.length > 0 && !isPasswordLongEnough
+                      signupPassword.length > 0 && passwordError
                         ? 'border-red-500'
                         : 'border-gray-300 focus:border-black'
                     }`}
                   />
                 </div>
-                {signupPassword.length > 0 && !isPasswordLongEnough ? (
-                  <p className="mb-5 ml-2 text-sm text-red-500">비밀번호는 최소 8자 이상이어야 합니다.</p>
+                {signupPassword.length > 0 && passwordError ? (
+                  <p className="mb-5 ml-2 text-sm text-red-500">{passwordError}</p>
                 ) : null}
                 <div className="mb-2">
                   <input
                     type="password"
+                    name="new-password-confirm"
+                    autoComplete="new-password"
                     value={signupPasswordConfirm}
                     onChange={(event) => setSignupPasswordConfirm(event.target.value)}
                     placeholder="비밀번호 확인"
+                    maxLength={PASSWORD_MAX_LENGTH}
                     className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
                       signupPasswordConfirm.length > 0
                         ? signupPassword === signupPasswordConfirm
@@ -469,8 +504,7 @@ export default function LoginPage() {
                   </p>
                 ) : null}
                 <button
-                  type="button"
-                  onClick={handleCompleteSignup}
+                  type="submit"
                   disabled={!isStep2Valid}
                   className={`mt-4 w-full rounded-full py-4 text-lg font-bold transition ${
                     !isStep2Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
@@ -478,7 +512,7 @@ export default function LoginPage() {
                 >
                   가입 완료
                 </button>
-              </>
+              </form>
             ) : null}
           </div>
         </div>
