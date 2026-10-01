@@ -235,6 +235,26 @@ function SearchPageContent() {
     };
   }, [loadSearch]);
 
+
+  const handlePostUpdated = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)),
+    );
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: current.posts.items.map((post) =>
+                post.postId === updatedPost.postId ? updatedPost : post,
+              ),
+            },
+          }
+        : current,
+    );
+  };
+
   const updateLikeState = (postId: string, likedByMe: boolean) => {
     setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
     setOverview((current) =>
@@ -250,13 +270,29 @@ function SearchPageContent() {
     );
   };
 
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((post) => post.postId !== postId));
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: current.posts.items.filter((post) => post.postId !== postId),
+            },
+          }
+        : current,
+    );
+  };
+
   const handleToggleLike = async (post: PostRecord) => {
     if (likeLoadingByPostId[post.postId]) {
       return;
     }
 
+    const nextLikedByMe = !post.likedByMe;
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    updateLikeState(post.postId, !post.likedByMe);
+    updateLikeState(post.postId, nextLikedByMe);
 
     try {
       if (post.likedByMe) {
@@ -274,23 +310,6 @@ function SearchPageContent() {
         return next;
       });
     }
-  };
-
-  const handlePostUpdated = (updatedPost: PostRecord) => {
-    setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
-    setOverview((current) =>
-      current
-        ? {
-            ...current,
-            posts: {
-              ...current.posts,
-              items: current.posts.items.map((post) =>
-                post.postId === updatedPost.postId ? updatedPost : post,
-              ),
-            },
-          }
-        : current,
-    );
   };
 
   const handleRepostChanged = (updatedPost: PostRecord) => {
@@ -394,6 +413,7 @@ function SearchPageContent() {
           onShare={handlePostUpdated}
           onRepostChange={handleRepostChanged}
           onBookmarkChange={handleBookmarkChanged}
+          onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
         />
       ))}
     </div>
