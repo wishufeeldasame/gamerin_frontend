@@ -144,7 +144,12 @@ function applyAuthSyncMessage(message: AuthSyncMessage | null) {
 
 if (typeof window !== 'undefined') {
   removeLegacyAccessToken();
-  applyAuthSyncMessage(parseAuthSyncMessage(window.localStorage.getItem(AUTH_SYNC_KEY)));
+  // auth-cleared는 보낸 탭이 이미 저장 사용자를 지웠으므로 로드 시 다시 적용하지 않는다.
+  // 다시 적용하면 10초 안에 로그인한 세션이 새로고침 때 지워져 로그인 화면으로 튕긴다.
+  const initialSync = parseAuthSyncMessage(window.localStorage.getItem(AUTH_SYNC_KEY));
+  if (initialSync?.type !== 'auth-cleared') {
+    applyAuthSyncMessage(initialSync);
+  }
   window.addEventListener('storage', (event) => {
     if (event.key === AUTH_SYNC_KEY) {
       applyAuthSyncMessage(parseAuthSyncMessage(event.newValue));

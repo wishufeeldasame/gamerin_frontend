@@ -145,3 +145,24 @@ describe('logoutAuthSession', () => {
     window.removeEventListener(AUTH_CLEARED_EVENT, cleared);
   });
 });
+
+
+describe('auth-store 로드 시 동기화 메시지', () => {
+  afterEach(() => {
+    vi.resetModules();
+    window.localStorage.clear();
+  });
+
+  it('남아 있는 auth-cleared 메시지로 방금 로그인한 저장 사용자를 지우지 않는다', async () => {
+    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify({ id: 'user-id' }));
+    window.localStorage.setItem(
+      AUTH_SYNC_KEY,
+      JSON.stringify({ type: 'auth-cleared', id: 'old', expiresAt: Date.now() + 10_000 }),
+    );
+
+    vi.resetModules();
+    await import('@/lib/auth-store');
+
+    expect(window.localStorage.getItem(AUTH_USER_KEY)).not.toBeNull();
+  });
+});
