@@ -1,7 +1,5 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element */
-
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Hash, ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
@@ -637,6 +635,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                           }`}
                         >
                           <div className="h-20 w-32 bg-zinc-100">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={option.previewUrl} alt={option.label} className="h-full w-full object-cover" />
                           </div>
                           <div className="flex items-center justify-between px-3 py-2">
@@ -660,6 +659,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
             <div className="grid grid-cols-2 gap-3">
               {imagePreviewUrls.map((url, index) => (
                 <div key={url} className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={url} alt={`Selected image ${index + 1}`} className="h-44 w-full object-cover" />
                 </div>
               ))}
