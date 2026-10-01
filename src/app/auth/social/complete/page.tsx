@@ -5,8 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-import { setAccessToken } from '@/lib/auth-store';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { completeSocialSignup } from '@/lib/auth-api';
 import {
   HANDLE_MAX_LENGTH,
   NICKNAME_MAX_LENGTH,
@@ -48,51 +47,11 @@ export default function SocialCompletePage() {
     setError('');
 
     try {
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/social-signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          signupToken,
-          handle: trimmedHandle,
-          nickname: trimmedNickname,
-          agreedToTerms: true,
-          agreedToPrivacy: true,
-        }),
-      });
-
-      const body = await response.json().catch(() => null);
-
-      if (!response.ok || !body?.success) {
-        throw new Error(body?.message || '소셜 회원가입에 실패했습니다.');
-      }
-
-      const payload = body.data;
-      const accessToken = payload?.accessToken;
-      const userId = payload?.userId; // 체크를 위해 변수로 따로 뺍니다.
-
-      // 1. 필수 데이터가 하나라도 없으면 '입구 컷' (수정된 부분)
-      if (!accessToken || !userId) {
-        alert("로그인 정보가 올바르지 않습니다. 다시 시도해 주세요.");
-        return; // 여기서 실행을 멈춰서 잘못된 로그인을 막습니다.
-      }
-
-      // 2. 데이터가 확실히 있을 때만 실행 (안전함)
-      setAccessToken(accessToken);
-      
-      login({
-        id: String(userId), // 이제 userId는 무조건 존재하므로 "undefined"가 될 일이 없어요.
-        name: payload?.nickname ?? trimmedNickname,
-        nickname: payload?.nickname ?? trimmedNickname,
-        handle: payload?.handle ?? trimmedHandle,
-        gameTier: 'Unranked',
-        bio: '',
-      });
-
+      login(await completeSocialSignup({ signupToken, handle: trimmedHandle, nickname: trimmedNickname }));
       router.replace('/home');
     } catch (err) {
+      // 가입 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
+      if (err instanceof DOMException && err.name === 'AbortError') return;
       setError(err instanceof Error ? err.message : '소셜 회원가입에 실패했습니다.');
     } finally {
       setLoading(false);

@@ -51,12 +51,13 @@ export function isBlockedAccountResponse(
     return true;
   }
 
-  if (httpStatus !== 403 && httpStatus !== 423) {
+  // refresh는 비활성 계정에 401 "사용자 계정이 활성 상태가 아닙니다."를 돌려준다.
+  if (httpStatus !== 401 && httpStatus !== 403 && httpStatus !== 423) {
     return false;
   }
 
   const message = typeof payload?.message === 'string' ? payload.message : '';
-  return /활성 상태 계정이 아닙니다|비활성|정지된 계정|이용\s*(?:정지|제한)|영구\s*(?:정지|제한)|suspend|bann/i.test(
+  return /활성 상태 계정이 아닙니다|활성 상태가 아닙니다|비활성|정지된 계정|이용\s*(?:정지|제한)|영구\s*(?:정지|제한)|suspend|bann/i.test(
     message,
   );
 }

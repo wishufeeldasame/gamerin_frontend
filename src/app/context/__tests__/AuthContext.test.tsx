@@ -171,6 +171,30 @@ describe('AuthProvider session clearing', () => {
       expect(stored).not.toHaveProperty('coverImageUrl');
     });
 
+    it('복원 도중 로그인·로그아웃으로 세대가 바뀌면 복원 결과로 사용자를 덮어쓰지 않는다', async () => {
+      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string }) => void) | undefined;
+      authStore.refreshAccessTokenResult.mockImplementationOnce(
+        () => new Promise((resolve) => {
+          finishRefresh = resolve as typeof finishRefresh;
+        }) as never,
+      );
+      apiClient.apiRequest.mockResolvedValue({ userId: 'user-id', handle: 'user', nickname: '서버닉네임' });
+      onTestFinished(() => {
+        authStore.isCurrentAuthGeneration.mockReturnValue(true);
+      });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      fireEvent.click(screen.getByRole('button', { name: 'test login' }));
+      authStore.isCurrentAuthGeneration.mockReturnValue(false);
+      await act(async () => {
+        finishRefresh?.({ status: 'refreshed', accessToken: 'token' });
+      });
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('운영자')).toBeInTheDocument();
+      expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
+    });
+
     it('차단 상태의 계정이면 세션을 종료한다', async () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',

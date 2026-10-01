@@ -11,9 +11,9 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => auth,
 }));
-vi.mock('@/lib/auth-store', () => ({
+vi.mock('@/lib/auth-store', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/auth-store')>()),
   logoutAuthSession: vi.fn(async () => undefined),
-  setAccessToken: vi.fn(),
   waitForLogoutCompletion: vi.fn(async () => undefined),
 }));
 
@@ -163,5 +163,23 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     expect(screen.getByText('아이디는 3~20자로 입력해주세요.')).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('소셜 회원가입 완료는 /me로 확정한 사용자로 로그인하고 홈으로 이동한다', async () => {
+    jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
+    vi.mocked(fetch).mockImplementation(async (url) =>
+      String(url).endsWith('/api/v1/auth/social-signup')
+        ? json(200, { success: true, data: { userId: 'u', handle: 'x', nickname: 'x', accessToken: 'token-s' } })
+        : json(200, { success: true, data: { userId: 'user-id', handle: 'demo_01', nickname: '데모', role: 'USER', status: 'ACTIVE' } }));
+    render(<SocialCompletePage />);
+
+    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
+    fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
+
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/home'));
+    expect(auth.login).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'user-id', handle: 'demo_01', role: 'USER', status: 'ACTIVE', gameTier: 'Unranked',
+    }));
   });
 });

@@ -6,16 +6,9 @@ import { useRouter } from 'next/navigation';
 import { FormEvent, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { isAdminRole } from '@/lib/admin-auth';
-import { getApiBaseUrl } from '@/lib/api-base';
-import { logoutAuthSession, setAccessToken, waitForLogoutCompletion } from '@/lib/auth-store';
-import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
+import { loginWithPassword } from '@/lib/auth-api';
+import { logoutAuthSession } from '@/lib/auth-store';
 import { AdminToast } from '../../_components/AdminToast';
-import {
-  BLOCKED_ACCOUNT_MESSAGE,
-  isBlockedAccountResponse,
-  isBlockedAccountStatus,
-} from '@/lib/auth-session-policy';
-
 
 const inputClassName =
   'h-11 w-full rounded-2xl border border-[#d0d5dd] bg-white px-[15px] text-sm font-normal text-[#172033] outline-none transition placeholder:text-[rgba(23,32,51,0.5)] hover:border-[#98a2b3] focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10 dark:!border-[#d0d5dd] dark:!bg-white dark:!text-[#172033]';
@@ -43,62 +36,16 @@ export function AdminLoginForm() {
 
     submitLockRef.current = true;
     setIsSubmitting(true);
-    let requestGeneration = getAuthGeneration();
 
     try {
-      await waitForLogoutCompletion();
-      const apiBase = getApiBaseUrl();
-      const loginResponse = await fetch(`${apiBase}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ handle: adminId.trim(), password }),
-      });
-      const loginPayload = await loginResponse.json().catch(() => null);
-      assertCurrentAuthGeneration(requestGeneration);
+      const user = await loginWithPassword(adminId.trim(), password);
 
-      if (isBlockedAccountResponse(loginResponse.status, loginPayload)) {
-        throw new Error(BLOCKED_ACCOUNT_MESSAGE);
-      }
-
-      if (!loginResponse.ok) {
-        throw new Error(loginPayload?.message ?? '아이디 또는 비밀번호가 올바르지 않습니다.');
-      }
-
-      const accessToken = loginPayload?.data?.accessToken;
-      if (typeof accessToken !== 'string' || !accessToken) {
-        throw new Error('로그인 응답에 인증 토큰이 없습니다.');
-      }
-      setAccessToken(accessToken);
-      requestGeneration = getAuthGeneration();
-
-      const meResponse = await fetch(`${apiBase}/api/v1/auth/me`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
-        credentials: 'include',
-      });
-      const mePayload = await meResponse.json().catch(() => null);
-      assertCurrentAuthGeneration(requestGeneration);
-
-      if (isBlockedAccountResponse(meResponse.status, mePayload) || isBlockedAccountStatus(mePayload?.data?.status)) {
-        throw new Error(BLOCKED_ACCOUNT_MESSAGE);
-      }
-
-      if (!meResponse.ok || !isAdminRole(mePayload?.data?.role)) {
+      if (!isAdminRole(user.role)) {
+        await logoutAuthSession();
         throw new Error('관리자 권한이 있는 계정만 로그인할 수 있습니다.');
       }
 
-      const me = mePayload.data;
-      const id = String(me.userId ?? me.id ?? '');
-      const nickname = String(me.nickname ?? me.handle ?? id);
-      login({
-        id,
-        name: nickname,
-        nickname,
-        gameTier: '',
-        handle: typeof me.handle === 'string' ? me.handle : undefined,
-        role: me.role,
-        status: typeof me.status === 'string' ? me.status : undefined,
-      });
+      login(user);
 
       setToast({
         id: Date.now(),
@@ -108,20 +55,18 @@ export function AdminLoginForm() {
       });
       window.setTimeout(() => router.push('/admin'), 600);
     } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') {
-        setIsSubmitting(false);
-        submitLockRef.current = false;
-        return;
-      }
+      submitLockRef.current = false;
+      setIsSubmitting(false);
 
-      await logoutAuthSession();
+      // 로그인 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다. 실패한 세션 정리는 loginWithPassword가 한다.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+
       setToast({
         id: Date.now(),
         variant: 'error',
         title: '로그인에 실패했습니다.',
         description: error instanceof Error ? error.message : '로그인 요청을 처리하지 못했습니다.',
       });
-      setIsSubmitting(false);
     }
   };
 
