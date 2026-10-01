@@ -82,7 +82,6 @@ export default function OAuthSuccessPage() {
                 router.replace('/home');
             } catch (err) {
                 if (cancelled) return;
-                console.error(err);
                 await logoutAuthSession();
                 if (cancelled) return;
                 setError(err instanceof Error ? err.message : '로그인 처리 중 오류가 발생했습니다.');
