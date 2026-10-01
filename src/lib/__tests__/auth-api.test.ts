@@ -369,13 +369,13 @@ describe('restoreAuthUser', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('차단 계정이면 세션을 종료하고 null을 반환한다', async () => {
+  it('차단 계정이면 차단 오류를 던지고 세션 종료는 호출한 쪽에 맡긴다', async () => {
     api.route('/api/v1/auth/refresh', refreshOk);
     api.route('/api/v1/auth/me', () => meOk({ status: 'SUSPENDED' }));
 
-    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).resolves.toBeNull();
+    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).rejects.toBeInstanceOf(auth.BlockedAccountError);
 
-    expect(api.count('/api/v1/auth/logout')).toBe(1);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
   it('복원 도중 사용자가 바뀌면 null을 반환하고 세션을 건드리지 않는다', async () => {

@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { useRouter } from 'next/navigation';
-import { restoreAuthUser, type AuthUser } from '@/lib/auth-api';
+import { BlockedAccountError, restoreAuthUser, type AuthUser } from '@/lib/auth-api';
 import {
   AUTH_CLEARED_EVENT,
   AUTH_LOGOUT_STATE_EVENT,
@@ -111,11 +111,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setUser(null);
         }
-      } catch {
+      } catch (error) {
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
           return;
         }
 
+        // 차단 계정은 세션을 끝낸다. 세대가 바뀌므로 화면 사용자 상태는 여기서 직접 비운다.
+        if (error instanceof BlockedAccountError) {
+          await logoutAuthSession({ notify: false });
+        }
         setUser(null);
       } finally {
         setIsAuthReady(true);

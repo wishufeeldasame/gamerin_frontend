@@ -128,7 +128,14 @@ async function clearSessionOnFailure<T>(generation: number, run: () => Promise<T
  */
 export function confirmAuthSession(accessToken: string): Promise<AuthUser> {
   setAccessToken(accessToken);
-  return clearSessionOnFailure(getAuthGeneration(), () => fetchAuthUser());
+  const generation = getAuthGeneration();
+
+  return clearSessionOnFailure(generation, async () => {
+    const user = await fetchAuthUser();
+    // 호출한 쪽이 로그인 상태를 반영하기 직전에, 그사이 로그아웃·사용자 전환이 있었으면 이 결과를 버린다.
+    assertCurrentAuthGeneration(generation);
+    return user;
+  });
 }
 
 /** 아이디·비밀번호로 로그인하고 `/auth/me`로 확정한 사용자를 반환한다. 로그인 응답의 사용자 정보는 쓰지 않는다. */
@@ -245,7 +252,8 @@ async function runOAuthSession(generation: number): Promise<AuthUser> {
 
 /**
  * 앱 시작 때 저장된 사용자를 서버 값으로 검증해 복원한다. 복원할 수 없으면 null.
- * 인증 거절·최종 401은 api-client·refresh가 세션을 종료하고, 차단 계정은 여기서 종료한다.
+ * 인증 거절·최종 401은 api-client·refresh가 세션을 종료한다. 차단 계정이면 BlockedAccountError를 던지고,
+ * 세션을 끝내고 화면 사용자 상태를 비우는 것은 호출한 쪽이 한다(세대가 바뀌기 전에 사용자 상태를 비워야 하므로).
  * 네트워크 오류·5xx·429·형식 오류는 세션(저장 사용자·refresh 쿠키)을 유지한 채 null만 반환한다.
  * 호출한 쪽이 isCurrentAuthGeneration(generation)으로 오래된 결과를 버려야 한다.
  */
@@ -263,7 +271,7 @@ export async function restoreAuthUser(
     return await fetchAuthUser(storedUser);
   } catch (error) {
     if (isCurrentAuthGeneration(generation) && error instanceof BlockedAccountError) {
-      await logoutAuthSession({ notify: false });
+      throw error;
     }
     return null;
   }

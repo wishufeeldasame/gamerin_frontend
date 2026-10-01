@@ -195,6 +195,32 @@ describe('AuthProvider session clearing', () => {
       expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
     });
 
+    it('복원 중 차단 계정으로 확인되면 이미 반영된 화면 사용자 상태도 비운다', async () => {
+      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string }) => void) | undefined;
+      authStore.refreshAccessTokenResult.mockImplementationOnce(
+        () => new Promise((resolve) => {
+          finishRefresh = resolve as typeof finishRefresh;
+        }) as never,
+      );
+      apiClient.apiRequest.mockResolvedValueOnce({
+        userId: 'user-id',
+        handle: 'user',
+        nickname: '사용자',
+        status: 'SUSPENDED',
+      });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      fireEvent.click(screen.getByRole('button', { name: 'test login' }));
+      expect(screen.getByText('운영자')).toBeInTheDocument();
+      await act(async () => {
+        finishRefresh?.({ status: 'refreshed', accessToken: 'token' });
+      });
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(authStore.logoutAuthSession).toHaveBeenCalledWith({ notify: false });
+    });
+
     it('차단 상태의 계정이면 세션을 종료한다', async () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',
