@@ -183,7 +183,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-[40px] bg-white shadow-2xl"
+          className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[40px] bg-white shadow-2xl"
         >
           <div className="bg-black p-8 text-white">
             <div className="mb-6 flex items-center justify-between">
@@ -203,7 +203,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
             </p>
           </div>
 
-          <div className="scrollbar-hide max-h-[400px] space-y-4 overflow-y-auto p-8">
+          <div className="scrollbar-hide min-h-0 flex-1 space-y-4 overflow-y-auto p-8">
             {availableGames.map((game) => (
               <div
                 key={game.name}

@@ -48,10 +48,11 @@ import {
   unfollowUser,
   updateMyProfile,
   unlikePost,
-  updatePostLikeState,
   uploadProfileImage,
 } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
+import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
 import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 import {
   disconnectGameStats,
@@ -645,6 +646,18 @@ export default function ProfilePage() {
     );
   };
 
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+  };
+
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
     setMediaItems((current) => current.filter((item) => item.postId !== postId));
@@ -655,12 +668,8 @@ export default function ProfilePage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-
-    setPosts((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
-    );
+    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
 
     try {
       if (post.likedByMe) {
@@ -669,9 +678,7 @@ export default function ProfilePage() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
+      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
       alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setLikeLoadingByPostId((current) => {
@@ -1003,7 +1010,7 @@ export default function ProfilePage() {
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
       </div>
 
-      <div className="px-8">
+      <div className="px-4 md:px-8">
         <div className="relative mb-8 flex items-end justify-between -mt-16">
           <div className="relative">
             <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
@@ -1146,7 +1153,7 @@ export default function ProfilePage() {
             </div>
           ) : null}
 
-          <div className="flex gap-8 pt-2">
+          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 md:gap-8">
             <button
               type="button"
               onClick={() => openFollowList('followers')}
@@ -1175,7 +1182,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="sticky top-16 z-10 mt-12 flex gap-10 border-b border-zinc-100 bg-white px-8">
+      <div className="sticky top-16 z-10 mt-12 flex gap-6 border-b border-zinc-100 bg-white px-4 md:gap-10 md:px-8">
         {tabs.map((tab) => (
           <button
             key={tab.name}
@@ -1193,11 +1200,11 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      <div className="px-8 pt-10">
+      <div className="px-4 pt-8 md:px-8 md:pt-10">
         {activeTab === 'stats' ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-3xl font-black text-black">Verified Stats</h2>
+            <div className="mb-6 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-black text-black md:text-3xl">Verified Stats</h2>
 
               {isOwnProfile ? (
                 <div className="flex items-center gap-3">
@@ -1233,9 +1240,9 @@ export default function ProfilePage() {
                     key={entry.gameName}
                     className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-zinc-300" />
-                      <div>
+                    <div className="flex min-w-0 items-center gap-4">
+                      <div className="h-12 w-12 shrink-0 rounded-xl bg-zinc-300" />
+                      <div className="min-w-0">
                         <p className="text-xl font-black text-black">{entry.gameName}</p>
                         {entry.detail ? (
                           <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
@@ -1244,8 +1251,8 @@ export default function ProfilePage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 text-right">
-                      <p className="text-sm font-black uppercase tracking-widest text-zinc-400">Live sync</p>
+                    <div className="flex shrink-0 items-center gap-2 text-right">
+                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">Live sync</p>
                       {isOwnProfile && entry.disconnectGameName ? (
                         <button
                           type="button"
@@ -1281,9 +1288,9 @@ export default function ProfilePage() {
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
-                  onRepostChange={handlePostUpdated}
+                  onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={handlePostUpdated}
+                  onBookmarkChange={handleBookmarkChanged}
                 />
               ))
             )}
@@ -1424,7 +1431,7 @@ export default function ProfilePage() {
       ) : null}
       {followListType ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="max-h-[82vh] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
@@ -1444,7 +1451,7 @@ export default function ProfilePage() {
               </button>
             </div>
 
-            <div className="max-h-[58vh] overflow-y-auto p-4">
+            <div className="max-h-[58dvh] overflow-y-auto p-4">
               {followListLoading ? (
                 <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
                   <Loader2 size={18} className="mr-2 animate-spin" />

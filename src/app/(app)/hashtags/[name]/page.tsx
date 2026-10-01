@@ -9,8 +9,12 @@ import {
   type PostRecord,
   likePost,
   unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 const HASHTAG_PAGE_SIZE = 20;
 
@@ -106,9 +110,8 @@ export default function HashtagPostsPage() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => current.map((item) => (item.postId === post.postId ? optimistic : item)));
+    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
 
     try {
       if (post.likedByMe) {
@@ -117,7 +120,7 @@ export default function HashtagPostsPage() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      setPosts((current) => current.map((item) => (item.postId === post.postId ? post : item)));
+      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
       alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
@@ -130,6 +133,18 @@ export default function HashtagPostsPage() {
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
+  };
+
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -175,8 +190,8 @@ export default function HashtagPostsPage() {
               onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
               onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
               onShare={handlePostUpdated}
-              onRepostChange={handlePostUpdated}
-              onBookmarkChange={handlePostUpdated}
+              onRepostChange={handleRepostChanged}
+              onBookmarkChange={handleBookmarkChanged}
               onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
             />
           ))}

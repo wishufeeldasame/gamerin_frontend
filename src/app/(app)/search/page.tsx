@@ -20,8 +20,12 @@ import {
   getInitials,
   likePost,
   unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -231,8 +235,11 @@ function SearchPageContent() {
     };
   }, [loadSearch]);
 
+
   const handlePostUpdated = (updatedPost: PostRecord) => {
-    setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
+    setPosts((current) =>
+      current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)),
+    );
     setOverview((current) =>
       current
         ? {
@@ -242,6 +249,21 @@ function SearchPageContent() {
               items: current.posts.items.map((post) =>
                 post.postId === updatedPost.postId ? updatedPost : post,
               ),
+            },
+          }
+        : current,
+    );
+  };
+
+  const updateLikeState = (postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: updatePostsLikeState(current.posts.items, postId, likedByMe),
             },
           }
         : current,
@@ -268,9 +290,9 @@ function SearchPageContent() {
       return;
     }
 
-    const optimistic = updatePostLikeState(post);
+    const nextLikedByMe = !post.likedByMe;
     setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    handlePostUpdated(optimistic);
+    updateLikeState(post.postId, nextLikedByMe);
 
     try {
       if (post.likedByMe) {
@@ -279,7 +301,7 @@ function SearchPageContent() {
         await likePost(post.postId);
       }
     } catch (likeError) {
-      handlePostUpdated(post);
+      updateLikeState(post.postId, post.likedByMe);
       alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
@@ -288,6 +310,48 @@ function SearchPageContent() {
         return next;
       });
     }
+  };
+
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    const updateRepost = (posts: PostRecord[]) =>
+      updatePostsRepostState(
+        posts,
+        updatedPost.postId,
+        updatedPost.isReposted,
+        updatedPost.repostCount,
+      );
+
+    setPosts(updateRepost);
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: updateRepost(current.posts.items),
+            },
+          }
+        : current,
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: updatePostsBookmarkState(
+                current.posts.items,
+                updatedPost.postId,
+                bookmarked,
+              ),
+            },
+          }
+        : current,
+    );
   };
 
   const loadMore = async () => {
@@ -347,8 +411,8 @@ function SearchPageContent() {
           onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
           onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
           onShare={handlePostUpdated}
-          onRepostChange={handlePostUpdated}
-          onBookmarkChange={handlePostUpdated}
+          onRepostChange={handleRepostChanged}
+          onBookmarkChange={handleBookmarkChanged}
           onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
         />
       ))}

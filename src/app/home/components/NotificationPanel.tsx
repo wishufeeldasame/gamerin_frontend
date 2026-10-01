@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import {
   AtSign,
   Bell,
@@ -246,14 +247,15 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
     }
   };
 
-  return (
+  // 헤더(z-40)의 쌓임 맥락에 갇히면 하단 탭바(z-40)에 가려지므로 body로 렌더링한다.
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
 
       <motion.div
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="fixed right-4 top-20 z-[70] w-[min(380px,calc(100vw-2rem))] overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex items-center gap-2">
@@ -273,7 +275,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
           </button>
         </div>
 
-        <div className="max-h-[450px] overflow-y-auto">
+        <div className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center gap-2 px-5 py-16 text-sm font-black text-zinc-400">
               <Loader2 size={18} className="animate-spin" />
@@ -363,6 +365,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
           ) : null}
         </div>
       </motion.div>
-    </>
+    </>,
+    document.body,
   );
 }
