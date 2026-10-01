@@ -1583,7 +1583,7 @@ export default function MentoringPage() {
 
         {detailLoading || selectedProgram ? (
           <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 px-4 py-8"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8"
             onClick={() => {
               if (!detailLoading) {
                 closeProgramDetail();
@@ -1806,7 +1806,7 @@ export default function MentoringPage() {
 
         {selectedOwnedProgram ? (
           <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-black/55 px-4 py-8"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8"
             onClick={() => setSelectedOwnedProgramId(null)}
           >
             <div
