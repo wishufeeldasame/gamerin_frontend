@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
@@ -28,6 +28,7 @@ export default function HomePage() {
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const postId = searchParams.get('postId');
@@ -138,12 +139,11 @@ export default function HomePage() {
     router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
 
-  const handleLoadMore = async () => {
-    if (!hasNext || !nextCursor || loadingMore) {
+  const handleLoadMore = useCallback(async () => {
+    if (!hasNext || !nextCursor || loadingMore || loadMoreControllerRef.current) {
       return;
     }
 
-    loadMoreControllerRef.current?.abort();
     const controller = new AbortController();
     loadMoreControllerRef.current = controller;
 
@@ -165,7 +165,26 @@ export default function HomePage() {
         setLoadingMore(false);
       }
     }
-  };
+  }, [activeTab, hasNext, loadingMore, nextCursor]);
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasNext || !nextCursor) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          void handleLoadMore();
+        }
+      },
+      { rootMargin: '400px 0px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleLoadMore, hasNext, nextCursor]);
 
   return (
     <div className="flex justify-center overflow-visible">
@@ -232,14 +251,22 @@ export default function HomePage() {
               ))}
 
               {hasNext ? (
-                <button
-                  type="button"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                <div
+                  ref={loadMoreSentinelRef}
+                  data-testid="feed-load-more-sentinel"
+                  aria-hidden="true"
+                  className="h-px"
+                />
+              ) : null}
+
+              {loadingMore ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-purple-200/70"
                 >
-                  {loadingMore ? '불러오는 중...' : '더 보기'}
-                </button>
+                  게시물을 불러오는 중...
+                </div>
               ) : null}
             </div>
           )}

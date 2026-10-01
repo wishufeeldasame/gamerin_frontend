@@ -9,6 +9,23 @@ const api = vi.hoisted(() => ({
   unlikePost: vi.fn(),
 }));
 
+let intersectionCallback: IntersectionObserverCallback | null = null;
+const observeIntersection = vi.fn();
+
+class MockIntersectionObserver {
+  readonly root = null;
+  readonly rootMargin = '400px 0px';
+  readonly thresholds = [0];
+  readonly disconnect = vi.fn();
+  readonly observe = observeIntersection;
+  readonly takeRecords = () => [];
+  readonly unobserve = vi.fn();
+
+  constructor(callback: IntersectionObserverCallback) {
+    intersectionCallback = callback;
+  }
+}
+
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
   useSearchParams: () => new URLSearchParams(),
@@ -144,6 +161,9 @@ describe('HomePage like rollback', () => {
       hasNext: false,
     });
     vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+    intersectionCallback = null;
+    observeIntersection.mockReset();
+    vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
   });
 
   it('rolls back only like fields and keeps bookmark and repost updates made while the request is pending', async () => {
@@ -189,5 +209,43 @@ describe('HomePage like rollback', () => {
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
     expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+  });
+
+  it('loads the next page when the feed sentinel enters the viewport', async () => {
+    const nextPost = {
+      ...initialPost,
+      postId: 'post-2',
+      content: '무한 스크롤로 불러온 게시물',
+    };
+    api.fetchFeed
+      .mockResolvedValueOnce({
+        items: [initialPost],
+        nextCursor: 'cursor-1',
+        hasNext: true,
+      })
+      .mockResolvedValueOnce({
+        items: [nextPost],
+        nextCursor: null,
+        hasNext: false,
+      });
+
+    render(<HomePage />);
+
+    await screen.findByTestId('post-post-1');
+    await waitFor(() => expect(observeIntersection).toHaveBeenCalled());
+    expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument();
+
+    act(() => {
+      intersectionCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    await screen.findByTestId('post-post-2');
+    expect(api.fetchFeed).toHaveBeenNthCalledWith(
+      2, 'all', 'cursor-1', 20, expect.objectContaining({ signal: expect.any(AbortSignal) }),
+    );
+    expect(screen.queryByTestId('feed-load-more-sentinel')).not.toBeInTheDocument();
   });
 });
