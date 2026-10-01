@@ -1,19 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 // 1. 전역 인증 상태 관리를 위해 AuthProvider를 가져옵니다.
 import { AuthProvider } from '@/app/context/AuthContext';
 import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 // 2. 서비스에 맞는 메타데이터 설정 (가독성과 검색 최적화)
 export const metadata: Metadata = {
@@ -48,9 +37,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+      <body className="antialiased">
         {/* 3. AuthProvider로 전체를 감싸서 로그인 상태를 전역으로 관리합니다. */}
         <AuthProvider>
           <BookmarkCollectionProvider>
