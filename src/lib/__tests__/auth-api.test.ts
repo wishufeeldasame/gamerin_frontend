@@ -270,6 +270,33 @@ describe('completeOAuthSession 차단 계정', () => {
   });
 });
 
+describe('confirmAuthSession', () => {
+  it('토큰을 받는 사이 세대가 바뀌었으면 오래된 토큰을 저장하지 않고 AbortError로 끝난다', async () => {
+    const generation = store.getAuthGeneration();
+    store.setAccessToken('other-user-token');
+
+    await expect(auth.confirmAuthSession('stale-token', generation)).rejects.toMatchObject({ name: 'AbortError' });
+
+    expect(store.getAccessToken()).toBe('other-user-token');
+    expect(api.count('/api/v1/auth/me')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+});
+
+describe('refreshAccessTokenResult의 거절 형태', () => {
+  it('일반 401 거절은 blocked 속성 없이 { status: rejected }다', async () => {
+    api.route('/api/v1/auth/refresh', () => json(401, { message: '만료된 리프레시 토큰입니다.' }));
+
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected' });
+  });
+
+  it('차단·비활성 계정 거절만 blocked: true를 담는다', async () => {
+    api.route('/api/v1/auth/refresh', () => json(401, { message: '사용자 계정이 활성 상태가 아닙니다.' }));
+
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected', blocked: true });
+  });
+});
+
 describe('completeSocialSignup', () => {
   const params = { signupToken: 'signup-token', handle: 'demo_01', nickname: '데모' };
   const signupOk = () =>

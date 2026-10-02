@@ -403,7 +403,7 @@ export async function refreshAccessTokenResult(
       const blocked = isBlockedAccountResponse(response.status, payload);
       if (response.status === 401 || blocked) {
         expireAuthSession(expectedGeneration);
-        return { status: 'rejected', blocked };
+        return blocked ? { status: 'rejected', blocked: true } : { status: 'rejected' };
       }
 
       const nextToken = payload?.data?.accessToken;

@@ -125,8 +125,14 @@ async function clearSessionOnFailure<T>(generation: number, run: () => Promise<T
 /**
  * 로그인·가입 응답으로 받은 access token으로 세션을 만들고 `/auth/me`로 사용자를 확정한다.
  * 확정하지 못하면 세션을 정리한다. 서버 응답의 사용자 정보는 쓰지 않는다.
+ * 토큰을 받기까지 비동기 경계가 있었다면 그 시작 때의 세대(expectedGeneration)를 넘겨, 그사이 로그아웃·사용자 전환이 있었으면
+ * 오래된 결과가 새 세션의 토큰을 덮어쓰지 않고 AbortError로 끝나게 한다.
  */
-export function confirmAuthSession(accessToken: string): Promise<AuthUser> {
+export async function confirmAuthSession(
+  accessToken: string,
+  expectedGeneration = getAuthGeneration(),
+): Promise<AuthUser> {
+  assertCurrentAuthGeneration(expectedGeneration);
   setAccessToken(accessToken);
   const generation = getAuthGeneration();
 
@@ -247,7 +253,7 @@ async function runOAuthSession(generation: number): Promise<AuthUser> {
   });
 
   // refresh는 인증 세대를 올리지 않는다. 새 세션으로 확정해 같은 시점에 돌던 앱 시작 복원이 이 로그인을 덮어쓰지 못하게 한다.
-  return confirmAuthSession(refreshed.accessToken);
+  return confirmAuthSession(refreshed.accessToken, generation);
 }
 
 /**
