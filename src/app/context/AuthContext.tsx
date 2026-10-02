@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
-import { ApiError, apiRequest } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
+import { BlockedAccountError, restoreAuthUser, type AuthUser } from '@/lib/auth-api';
 import {
   AUTH_CLEARED_EVENT,
   AUTH_LOGOUT_STATE_EVENT,
@@ -12,24 +12,9 @@ import {
   isLogoutInProgress,
   isCurrentAuthGeneration,
   logoutAuthSession,
-  refreshAccessTokenResult,
 } from '@/lib/auth-store';
-import { isBlockedAccountStatus } from '@/lib/auth-session-policy';
 
-// 유저 데이터 타입 (필요한 정보를 추가하세요)
-interface User {
-  id: string;
-  name: string;
-  nickname: string;
-  gameTier: string;
-  bio?: string;
-  handle?: string;
-  location?: string;
-  website?: string;
-  profileImageUrl?: string | null;
-  role?: string;
-  status?: string;
-}
+export type User = AuthUser;
 
 interface AuthContextType {
   user: User | null;
@@ -77,6 +62,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  const login = useCallback((userData: User) => {
+    const nextUser = normalizeStoredUser(userData);
+    setUser(nextUser);
+    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
+  }, []);
+
   useEffect(() => {
     const bootstrapAuth = async () => {
       let savedUser: string | null;
@@ -108,60 +99,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const refreshResult = await refreshAccessTokenResult(bootstrapGeneration);
+        const restoredUser = await restoreAuthUser(storedUser, bootstrapGeneration);
 
-        // 인증 거절이면 refresh가 세션을 이미 종료해 세대가 바뀌었다.
+        // 복원 도중 로그인·로그아웃·사용자 전환이 있었으면 그 결과를 덮어쓰지 않는다.
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
           return;
         }
 
-        // 일시 장애면 세션(refresh cookie, 저장 사용자)은 유지하되 검증되지 않은 사용자는 복원하지 않는다.
-        if (refreshResult.status !== 'refreshed') {
+        if (restoredUser) {
+          login(restoredUser);
+        } else {
           setUser(null);
-          return;
         }
-
-        // 최종 401·차단 계정이면 api-client가 세션을 종료하고, 일시 장애·형식 오류면 세션을 유지한 채 throw한다.
-        const me = await apiRequest<Record<string, unknown> | null>('/api/v1/auth/me', {
-          toError: ({ status, message }) => new ApiError(message ?? 'Failed to verify the session.', status),
-        });
-
+      } catch (error) {
         if (!isCurrentAuthGeneration(bootstrapGeneration)) {
           return;
         }
 
-        if (isBlockedAccountStatus(me?.status)) {
+        // 차단 계정은 세션을 끝낸다. 세대가 바뀌므로 화면 사용자 상태는 여기서 직접 비운다.
+        if (error instanceof BlockedAccountError) {
           await logoutAuthSession({ notify: false });
-          setUser(null);
-          return;
         }
-
-        if (
-          !me ||
-          typeof me.userId !== 'string' ||
-          typeof me.handle !== 'string' ||
-          typeof me.nickname !== 'string'
-        ) {
-          setUser(null);
-          return;
-        }
-
-        const verifiedUser = normalizeStoredUser({
-          ...storedUser,
-          id: me.userId,
-          handle: me.handle,
-          nickname: me.nickname,
-          name: storedUser.name || me.nickname,
-          role: typeof me.role === 'string' ? me.role : undefined,
-          status: typeof me.status === 'string' ? me.status : undefined,
-        });
-        setUser(verifiedUser);
-        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(verifiedUser));
-      } catch {
-        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
-          return;
-        }
-
         setUser(null);
       } finally {
         setIsAuthReady(true);
@@ -169,13 +127,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     void bootstrapAuth();
-  }, []);
-
-  const login = useCallback((userData: User) => {
-    const nextUser = normalizeStoredUser(userData);
-    setUser(nextUser);
-    window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
-  }, []);
+  }, [login]);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setUser((currentUser) => {

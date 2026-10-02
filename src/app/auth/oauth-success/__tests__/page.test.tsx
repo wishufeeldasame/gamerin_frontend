@@ -7,9 +7,8 @@ const router = vi.hoisted(() => ({
 const auth = vi.hoisted(() => ({
   login: vi.fn(),
 }));
-const authStore = vi.hoisted(() => ({
-  logoutAuthSession: vi.fn<() => Promise<void>>(),
-  setAccessToken: vi.fn(),
+const authApi = vi.hoisted(() => ({
+  completeOAuthSession: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -18,29 +17,15 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => auth,
 }));
-vi.mock('@/lib/api-base', () => ({
-  getApiBaseUrl: () => 'http://api.test',
-}));
-vi.mock('@/lib/auth-store', () => authStore);
+vi.mock('@/lib/auth-api', () => authApi);
 
 import OAuthSuccessPage from '../page';
-
-function jsonResponse(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 describe('OAuthSuccessPage', () => {
   beforeEach(() => {
     router.replace.mockReset();
     auth.login.mockReset();
-    authStore.logoutAuthSession.mockReset();
-    authStore.logoutAuthSession.mockResolvedValue(undefined);
-    authStore.setAccessToken.mockReset();
-    vi.stubGlobal('fetch', vi.fn());
-    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    authApi.completeOAuthSession.mockReset();
   });
 
   afterEach(() => {
@@ -49,7 +34,7 @@ describe('OAuthSuccessPage', () => {
   });
 
   it('applies the expected font class while processing the login', () => {
-    vi.mocked(fetch).mockImplementation(() => new Promise<Response>(() => undefined));
+    authApi.completeOAuthSession.mockImplementation(() => new Promise(() => undefined));
 
     render(<OAuthSuccessPage />);
 
@@ -60,12 +45,7 @@ describe('OAuthSuccessPage', () => {
 
   it('keeps the failure UI and redirects to login after three seconds', async () => {
     vi.useFakeTimers();
-    vi.mocked(fetch).mockResolvedValueOnce(
-      jsonResponse(500, {
-        success: false,
-        message: 'server error',
-      }),
-    );
+    authApi.completeOAuthSession.mockRejectedValueOnce(new Error('인증 세션 생성에 실패했습니다.'));
 
     render(<OAuthSuccessPage />);
 
@@ -76,7 +56,7 @@ describe('OAuthSuccessPage', () => {
     const errorHeading = screen.getByRole('heading', { name: '오류 발생' });
     expect(screen.getByText('인증 세션 생성에 실패했습니다.')).toBeInTheDocument();
     expect(errorHeading.previousElementSibling).toHaveClass('justify-center');
-    expect(authStore.logoutAuthSession).toHaveBeenCalledTimes(1);
+    expect(auth.login).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -88,12 +68,7 @@ describe('OAuthSuccessPage', () => {
 
   it('cancels the login redirect when the failure screen unmounts', async () => {
     vi.useFakeTimers();
-    vi.mocked(fetch).mockResolvedValueOnce(
-      jsonResponse(500, {
-        success: false,
-        message: 'server error',
-      }),
-    );
+    authApi.completeOAuthSession.mockRejectedValueOnce(new Error('실패'));
 
     const { unmount } = render(<OAuthSuccessPage />);
 
@@ -112,33 +87,23 @@ describe('OAuthSuccessPage', () => {
     expect(router.replace).not.toHaveBeenCalled();
   });
 
-  it('does not schedule a redirect when unmounted while clearing the session', async () => {
-    let resolveLogout: (() => void) | undefined;
-    authStore.logoutAuthSession.mockImplementationOnce(
+  it('does not schedule a redirect when unmounted before the session is completed', async () => {
+    let rejectSession: ((error: Error) => void) | undefined;
+    authApi.completeOAuthSession.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          resolveLogout = resolve;
+        new Promise((_, reject) => {
+          rejectSession = reject;
         }),
-    );
-    vi.mocked(fetch).mockResolvedValueOnce(
-      jsonResponse(500, {
-        success: false,
-        message: 'server error',
-      }),
     );
 
     const { unmount } = render(<OAuthSuccessPage />);
-
-    await waitFor(() => {
-      expect(authStore.logoutAuthSession).toHaveBeenCalledTimes(1);
-    });
-    expect(resolveLogout).toBeTypeOf('function');
+    expect(rejectSession).toBeTypeOf('function');
 
     vi.useFakeTimers();
     unmount();
 
     await act(async () => {
-      resolveLogout?.();
+      rejectSession?.(new Error('실패'));
       await Promise.resolve();
     });
     await act(async () => {
@@ -146,39 +111,34 @@ describe('OAuthSuccessPage', () => {
     });
 
     expect(router.replace).not.toHaveBeenCalled();
+    expect(auth.login).not.toHaveBeenCalled();
   });
 
-  it('stores the access token, logs in, and redirects home on success', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: { accessToken: 'oauth-access-token' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: {
-            userId: 'user-id',
-            nickname: '게이머',
-            handle: 'gamer',
-          },
-        }),
-      );
+  it('does not change the screen when the session is cancelled by a user switch', async () => {
+    vi.useFakeTimers();
+    authApi.completeOAuthSession.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'));
+
+    render(<OAuthSuccessPage />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    expect(screen.queryByRole('heading', { name: '오류 발생' })).not.toBeInTheDocument();
+    expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  it('logs in with the confirmed user and redirects home on success', async () => {
+    const user = { id: 'user-id', name: '게이머', nickname: '게이머', handle: 'gamer', gameTier: 'Unranked', bio: '', role: 'USER', status: 'ACTIVE' };
+    authApi.completeOAuthSession.mockResolvedValueOnce(user);
 
     render(<OAuthSuccessPage />);
 
     await waitFor(() => {
-      expect(authStore.setAccessToken).toHaveBeenCalledWith('oauth-access-token');
-      expect(auth.login).toHaveBeenCalledWith({
-        id: 'user-id',
-        name: '게이머',
-        nickname: '게이머',
-        handle: 'gamer',
-        gameTier: 'Unranked',
-        bio: '',
-      });
+      expect(auth.login).toHaveBeenCalledWith(user);
       expect(router.replace).toHaveBeenCalledWith('/home');
     });
   });

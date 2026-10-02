@@ -3,10 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
-import { setAccessToken } from '@/lib/auth-store';
-import { logoutAuthSession } from '@/lib/auth-store';
-import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse, isBlockedAccountStatus } from '@/lib/auth-session-policy';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { completeOAuthSession } from '@/lib/auth-api';
 
 export default function OAuthSuccessPage() {
     const router = useRouter();
@@ -17,73 +14,17 @@ export default function OAuthSuccessPage() {
         let cancelled = false;
         let redirectTimer: ReturnType<typeof setTimeout> | undefined;
 
-        const fetchTokens = async () => {
+        const finishLogin = async () => {
             try {
-                // 1. HttpOnly refresh_token 쿠키를 사용하여 새로운 accessToken 요청
-                const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/refresh`, {
-                    method: 'POST',
-                    credentials: 'include',
-                });
-                const refreshBody = await response.json().catch(() => null);
-                if (isBlockedAccountResponse(response.status, refreshBody)) {
-                    throw new Error(BLOCKED_ACCOUNT_MESSAGE);
-                }
-
-
-                if (!response.ok) {
-                    throw new Error('인증 세션 생성에 실패했습니다.');
-                }
-
-                const body = refreshBody;
-                const nextToken = body?.data?.accessToken;
-                if (!nextToken) {
-                    throw new Error('액세스 토큰을 받아오지 못했습니다.');
-                }
-
+                const user = await completeOAuthSession();
                 if (cancelled) return;
 
-                // 2. 받아온 access token을 브라우저 메모리에 저장
-                setAccessToken(nextToken);
-
-                // 3. 내 사용자 정보 가져오기
-                const meResponse = await fetch(`${getApiBaseUrl()}/api/v1/auth/me`, {
-                    headers: {
-                        Authorization: `Bearer ${nextToken}`,
-                    },
-                    credentials: 'include',
-                });
-
-                const meBody = await meResponse.json().catch(() => null);
-                if (isBlockedAccountResponse(meResponse.status, meBody) || isBlockedAccountStatus(meBody?.data?.status)) {
-                    throw new Error(BLOCKED_ACCOUNT_MESSAGE);
-                }
-
-                if (!meResponse.ok) {
-                    throw new Error('사용자 정보를 가져올 수 없습니다.');
-                }
-
-                const meData = meBody?.data;
-
-                if (!meData) {
-                    throw new Error('사용자 데이터가 비어 있습니다.');
-                }
-
-                // 4. 로그인 상태 세션 업데이트
-                login({
-                    id: String(meData.userId),
-                    name: meData.nickname ?? meData.handle,
-                    nickname: meData.nickname,
-                    handle: meData.handle,
-                    gameTier: 'Unranked',
-                    bio: '',
-                });
-
-                // 5. 홈 화면 진입
+                login(user);
                 router.replace('/home');
             } catch (err) {
                 if (cancelled) return;
-                await logoutAuthSession();
-                if (cancelled) return;
+                // 실패한 세션 정리는 completeOAuthSession이 한다. 사용자 전환·로그아웃(AbortError)이면 화면을 바꾸지 않는다.
+                if (err instanceof DOMException && err.name === 'AbortError') return;
                 setError(err instanceof Error ? err.message : '로그인 처리 중 오류가 발생했습니다.');
                 redirectTimer = setTimeout(() => {
                     router.replace('/login');
@@ -91,7 +32,7 @@ export default function OAuthSuccessPage() {
             }
         };
 
-        void fetchTokens();
+        void finishLogin();
 
         return () => {
             cancelled = true;

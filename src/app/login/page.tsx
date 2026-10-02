@@ -7,12 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import {
-  logoutAuthSession,
-  setAccessToken,
-  waitForLogoutCompletion,
-} from '@/lib/auth-store';
-import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
+import { loginWithPassword } from '@/lib/auth-api';
 import { getApiBaseUrl } from '@/lib/api-base';
 import {
   HANDLE_MAX_LENGTH,
@@ -128,50 +123,11 @@ export default function LoginPage() {
     setLoginLoading(true);
 
     try {
-      await waitForLogoutCompletion();
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          handle: loginHandle.trim(),
-          password: loginPassword,
-        }),
-      });
-
-      const data = await response.json().catch(() => null);
-      if (isBlockedAccountResponse(response.status, data)) {
-        await logoutAuthSession();
-        throw new Error(BLOCKED_ACCOUNT_MESSAGE);
-      }
-
-
-      if (!response.ok) {
-        throw new Error(data?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
-      }
-
-      const accessToken = data?.data?.accessToken || data?.accessToken;
-      if (accessToken) {
-        setAccessToken(accessToken);
-      }
-
-      const payload = data?.data ?? data;
-
-      if (!payload?.userId) {
-        throw new Error('서버로부터 사용자 고유 ID를 받지 못했습니다.');
-      }
-
-      login({
-        id: String(payload.userId),
-        name: payload?.nickname ?? loginHandle.trim(),
-        nickname: payload?.nickname ?? loginHandle.trim(),
-        handle: payload?.handle ?? loginHandle.trim(),
-        gameTier: payload?.gameTier ?? 'Unranked',
-        bio: payload?.bio ?? '',
-      });
-
+      login(await loginWithPassword(loginHandle.trim(), loginPassword));
       router.push('/home');
     } catch (error) {
+      // 로그인 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
+      if (error instanceof DOMException && error.name === 'AbortError') return;
       setLoginError(error instanceof Error ? error.message : '로그인에 실패했습니다.');
     } finally {
       setLoginLoading(false);
