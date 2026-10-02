@@ -23,6 +23,15 @@ import SocialCompletePage from '@/app/auth/social/complete/page';
 
 const jsdom = (globalThis as unknown as { jsdom: { reconfigure: (options: { url: string }) => void } }).jsdom;
 const API = 'https://api.gamerin.test';
+const SIGNUP_ID_PLACEHOLDER = '아이디 (영문 소문자, 숫자, _ 사용 가능)';
+const SIGNUP_PW_PLACEHOLDER = '비밀번호 (8~20자, 영문·숫자·특수문자 포함)';
+
+function openSignupStep2() {
+  fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
+  fireEvent.change(screen.getByPlaceholderText('이름'), { target: { value: '데모' } });
+  fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo@gamerin.test' } });
+  fireEvent.submit(screen.getByPlaceholderText('이메일').closest('form')!);
+}
 
 // 모듈을 불러온 뒤에 설정을 바꿔, 주소를 모듈 로드 시점이 아니라 요청할 때 계산하는지 확인한다.
 function applyRequestTimeApi() {
@@ -63,8 +72,8 @@ describe('인증 흐름 화면의 API 주소', () => {
     expect(screen.queryByText('생년월일')).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '다음' }));
 
-    fireEvent.change(screen.getByPlaceholderText('아이디 (영문, 숫자, _ 사용 가능)'), { target: { value: 'demo01' } });
-    fireEvent.change(screen.getByPlaceholderText('비밀번호 (최소 8자)'), { target: { value: 'abcd123!' } });
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcd123!' } });
     fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
     fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
 
@@ -97,5 +106,62 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/social-signup`, expect.anything()));
+  });
+
+  it('로그인은 Enter(폼 제출)로 보내고 자동 완성 속성을 가진다', async () => {
+    render(<LoginPage />);
+    fireEvent.click(screen.getByRole('button', { name: /ID로 로그인/ }));
+
+    const handle = screen.getByPlaceholderText('아이디');
+    const password = screen.getByPlaceholderText('비밀번호');
+    expect(handle).toHaveAttribute('autocomplete', 'username');
+    expect(password).toHaveAttribute('autocomplete', 'current-password');
+
+    fireEvent.change(handle, { target: { value: 'demo01' } });
+    fireEvent.change(password, { target: { value: 'pw' } });
+    fireEvent.submit(handle.closest('form')!);
+
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/auth/login'), expect.anything()));
+  });
+
+  it('회원가입 1단계는 이름 길이와 이메일 형식을 안내하고 다음 단계를 막는다', () => {
+    render(<LoginPage />);
+    fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
+
+    fireEvent.change(screen.getByPlaceholderText('이름'), { target: { value: '데' } });
+    fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo' } });
+
+    expect(screen.getByText('닉네임은 2~20자로 입력해주세요.')).toBeInTheDocument();
+    expect(screen.getByText('올바른 이메일 형식으로 입력해주세요.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByPlaceholderText('이름')).toHaveAttribute('maxlength', '20');
+  });
+
+  it('회원가입 2단계는 대문자 아이디와 약한 비밀번호를 안내하고 제출을 막는다', () => {
+    render(<LoginPage />);
+    openSignupStep2();
+
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'Demo01' } });
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcdefgh1' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcdefgh1' } });
+
+    expect(screen.getByText('아이디는 영문 소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByText('비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다.')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER)).toHaveAttribute('maxlength', '20');
+
+    fireEvent.submit(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER).closest('form')!);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('소셜 회원가입 완료는 규칙을 어긴 아이디를 제출 전에 막는다', () => {
+    jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
+    render(<SocialCompletePage />);
+
+    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'ab' } });
+    fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
+
+    expect(screen.getByText('아이디는 3~20자로 입력해주세요.')).toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

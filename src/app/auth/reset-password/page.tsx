@@ -14,9 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getApiBaseUrl } from '@/lib/api-base';
-
-const PASSWORD_RULE =
-  /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,20}$/;
+import { PASSWORD_MAX_LENGTH, validatePassword } from '@/lib/auth-validation';
 
 async function readErrorMessage(response: Response, fallback: string) {
   const contentType = response.headers.get('content-type') ?? '';
@@ -45,7 +43,8 @@ function ResetPasswordPageContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const isTokenMissing = !resetToken;
-  const isPasswordValid = PASSWORD_RULE.test(newPassword);
+  const passwordError = validatePassword(newPassword);
+  const isPasswordValid = !passwordError;
   const isMatch = confirmPassword.length > 0 && newPassword === confirmPassword;
 
   useEffect(() => {
@@ -66,8 +65,8 @@ function ResetPasswordPageContent() {
       return;
     }
 
-    if (!isPasswordValid) {
-      setError('비밀번호는 8~20자이며 영문, 숫자, 특수문자를 모두 포함해야 합니다.');
+    if (passwordError) {
+      setError(passwordError);
       return;
     }
 
@@ -218,6 +217,7 @@ function ResetPasswordPageContent() {
                     if (error) setError('');
                   }}
                   placeholder="새 비밀번호"
+                  maxLength={PASSWORD_MAX_LENGTH}
                   className={`w-full h-14 rounded-2xl border bg-white px-14 text-black font-semibold outline-none transition-all placeholder:text-zinc-400 ${
                     newPassword && !isPasswordValid
                       ? 'border-red-500 ring-1 ring-red-500'
@@ -232,10 +232,8 @@ function ResetPasswordPageContent() {
                   {showPw ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
-              {newPassword && !isPasswordValid && (
-                <p className="ml-2 text-xs font-bold text-red-500">
-                  8~20자, 영문/숫자/특수문자를 모두 포함해야 합니다.
-                </p>
+              {newPassword && passwordError && (
+                <p className="ml-2 text-xs font-bold text-red-500">{passwordError}</p>
               )}
             </div>
 
@@ -248,6 +246,7 @@ function ResetPasswordPageContent() {
                   if (error) setError('');
                 }}
                 placeholder="새 비밀번호 확인"
+                maxLength={PASSWORD_MAX_LENGTH}
                 className={`w-full h-14 rounded-2xl border bg-white px-14 text-black font-semibold outline-none transition-all placeholder:text-zinc-400 ${
                   confirmPassword && !isMatch
                     ? 'border-red-500 ring-1 ring-red-500'

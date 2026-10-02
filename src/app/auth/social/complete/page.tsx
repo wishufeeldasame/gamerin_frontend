@@ -7,8 +7,12 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { setAccessToken } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
-
-const handleRegex = /^[a-z0-9_]{3,20}$/;
+import {
+  HANDLE_MAX_LENGTH,
+  NICKNAME_MAX_LENGTH,
+  validateHandle,
+  validateNickname,
+} from '@/lib/auth-validation';
 
 export default function SocialCompletePage() {
   const router = useRouter();
@@ -34,13 +38,9 @@ export default function SocialCompletePage() {
       return;
     }
 
-    if (!handleRegex.test(trimmedHandle)) {
-      setError('아이디는 영문 소문자, 숫자, 언더바(_)만 사용해 3~20자로 입력해주세요.');
-      return;
-    }
-
-    if (!trimmedNickname) {
-      setError('닉네임을 입력해주세요.');
+    const validationError = validateHandle(trimmedHandle) ?? validateNickname(trimmedNickname);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -137,6 +137,7 @@ export default function SocialCompletePage() {
               }}
               placeholder="아이디"
               type="text"
+              maxLength={HANDLE_MAX_LENGTH}
               autoComplete="username"
               aria-label="아이디"
               className="h-14 w-full rounded-2xl border border-zinc-200 bg-white px-5 text-[15px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-zinc-400 focus:border-black focus:ring-1 focus:ring-black"
@@ -150,6 +151,7 @@ export default function SocialCompletePage() {
               }}
               placeholder="닉네임"
               type="text"
+              maxLength={NICKNAME_MAX_LENGTH}
               autoComplete="nickname"
               aria-label="닉네임"
               className="h-14 w-full rounded-2xl border border-zinc-200 bg-white px-5 text-[15px] font-semibold text-black outline-none transition-all placeholder:font-medium placeholder:text-zinc-400 focus:border-black focus:ring-1 focus:ring-black"
