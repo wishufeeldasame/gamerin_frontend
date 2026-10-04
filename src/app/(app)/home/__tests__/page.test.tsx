@@ -248,4 +248,46 @@ describe('HomePage like rollback', () => {
     );
     expect(screen.queryByTestId('feed-load-more-sentinel')).not.toBeInTheDocument();
   });
+
+  it('stops observing after a next-page failure until the user retries', async () => {
+    api.fetchFeed
+      .mockResolvedValueOnce({
+        items: [initialPost],
+        nextCursor: 'cursor-1',
+        hasNext: true,
+      })
+      .mockRejectedValueOnce(new Error('다음 게시물을 불러오지 못했습니다.'));
+
+    render(<HomePage />);
+
+    await screen.findByTestId('post-post-1');
+    await waitFor(() => expect(observeIntersection).toHaveBeenCalledTimes(1));
+
+    act(() => {
+      intersectionCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('다음 게시물을 불러오지 못했습니다.');
+    expect(api.fetchFeed).toHaveBeenCalledTimes(2);
+    expect(observeIntersection).toHaveBeenCalledTimes(1);
+
+    act(() => {
+      intersectionCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+      intersectionCallback?.(
+        [{ isIntersecting: true } as IntersectionObserverEntry],
+        {} as IntersectionObserver,
+      );
+    });
+    expect(api.fetchFeed).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+
+    await waitFor(() => expect(observeIntersection).toHaveBeenCalledTimes(2));
+  });
 });

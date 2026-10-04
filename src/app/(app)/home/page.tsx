@@ -25,9 +25,11 @@ export default function HomePage() {
   const [hasNext, setHasNext] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
+  const loadMoreBlockedRef = useRef(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -46,6 +48,8 @@ export default function HomePage() {
       try {
         setLoading(true);
         setLoadingMore(false);
+        setLoadMoreError(null);
+        loadMoreBlockedRef.current = false;
         setError(null);
 
         const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
@@ -140,7 +144,7 @@ export default function HomePage() {
   };
 
   const handleLoadMore = useCallback(async () => {
-    if (!hasNext || !nextCursor || loadingMore || loadMoreControllerRef.current) {
+    if (!hasNext || !nextCursor || loadMoreBlockedRef.current || loadMoreControllerRef.current) {
       return;
     }
 
@@ -153,23 +157,28 @@ export default function HomePage() {
       setPosts((current) => [...current, ...page.items]);
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
+      loadMoreBlockedRef.current = false;
+      setLoadMoreError(null);
     } catch (loadMoreError) {
       if (loadMoreError instanceof DOMException && loadMoreError.name === 'AbortError') {
         return;
       }
 
-      alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
+      loadMoreBlockedRef.current = true;
+      setLoadMoreError(
+        loadMoreError instanceof Error ? loadMoreError.message : '게시물을 더 불러오지 못했습니다.',
+      );
     } finally {
       if (loadMoreControllerRef.current === controller) {
         loadMoreControllerRef.current = null;
         setLoadingMore(false);
       }
     }
-  }, [activeTab, hasNext, loadingMore, nextCursor]);
+  }, [activeTab, hasNext, nextCursor]);
 
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
-    if (!sentinel || !hasNext || !nextCursor) {
+    if (!sentinel || !hasNext || !nextCursor || loadMoreError) {
       return;
     }
 
@@ -184,7 +193,7 @@ export default function HomePage() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [handleLoadMore, hasNext, nextCursor]);
+  }, [handleLoadMore, hasNext, loadMoreError, nextCursor]);
 
   return (
     <div className="flex justify-center overflow-visible">
@@ -266,6 +275,25 @@ export default function HomePage() {
                   className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-purple-200/70"
                 >
                   게시물을 불러오는 중...
+                </div>
+              ) : null}
+
+              {loadMoreError ? (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+                >
+                  <span>{loadMoreError}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      loadMoreBlockedRef.current = false;
+                      setLoadMoreError(null);
+                    }}
+                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400"
+                  >
+                    다시 시도
+                  </button>
                 </div>
               ) : null}
             </div>
