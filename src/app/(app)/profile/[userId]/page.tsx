@@ -981,14 +981,16 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-4xl bg-white pb-20">
-      <div
-        className="relative h-56 overflow-hidden bg-zinc-950"
-        style={{
-          backgroundImage: `url(${displayedCover})`,
-          backgroundPosition: 'center',
-          backgroundSize: 'cover',
-        }}
-      >
+      <div className="relative h-56 overflow-hidden bg-zinc-950">
+        <Image
+          src={displayedCover}
+          alt={`${profile.nickname} profile cover`}
+          fill
+          priority
+          unoptimized
+          sizes="(max-width: 896px) 100vw, 896px"
+          className="object-cover"
+        />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
       </div>
 
@@ -1009,7 +1011,6 @@ export default function ProfilePage() {
                 getInitials(profile.nickname)
               )}
             </div>
-            <div className="absolute bottom-2 right-2 h-8 w-8 rounded-full border-4 border-white bg-green-500" />
           </div>
 
           <div className="mb-2 flex flex-wrap justify-end gap-3">
