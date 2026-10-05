@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
@@ -16,10 +16,11 @@ import {
 type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<FeedTab>('all');
+  const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
+  const legacyPostId = searchParams.get('postId');
   const [posts, setPosts] = useState<PostRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
@@ -30,18 +31,21 @@ export default function HomePage() {
   const loadMoreControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const postId = searchParams.get('postId');
-    if (!postId) return;
+    if (!legacyPostId) return;
 
     const target = searchParams.get('target') === 'comments' ? '?target=comments' : '';
-    router.replace(`/posts/${encodeURIComponent(postId)}${target}`);
-  }, [router, searchParams]);
+    router.replace(`/posts/${encodeURIComponent(legacyPostId)}${target}`);
+  }, [legacyPostId, router, searchParams]);
 
   useEffect(() => {
     let cancelled = false;
     const controller = new AbortController();
 
     const loadInitialData = async () => {
+      if (legacyPostId) {
+        return;
+      }
+
       try {
         setLoading(true);
         setLoadingMore(false);
@@ -79,7 +83,23 @@ export default function HomePage() {
       loadMoreControllerRef.current?.abort();
       loadMoreControllerRef.current = null;
     };
-  }, [activeTab]);
+  }, [activeTab, legacyPostId]);
+
+  const handleTabChange = (tab: FeedTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('postId');
+    params.delete('target');
+    if (tab === 'following') {
+      params.set('tab', 'following');
+    } else {
+      params.delete('tab');
+    }
+
+    const nextSearch = params.toString();
+    router.push(`/home${nextSearch ? `?${nextSearch}` : ''}`, { scroll: false });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  };
 
   const handleCreatedPost = (createdPost: PostRecord) => {
     setPosts((current) => [createdPost, ...current]);
@@ -177,7 +197,8 @@ export default function HomePage() {
           ].map((tab) => (
             <button
               key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => handleTabChange(tab.value)}
+              aria-pressed={activeTab === tab.value}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
                 activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
               }`}
@@ -250,5 +271,13 @@ export default function HomePage() {
         <RightSidebar />
       </aside>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }

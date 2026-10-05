@@ -152,4 +152,14 @@ describe('PostDetail comment deep link', () => {
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
     expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('comments'));
   });
+
+  it('shows the server error and a link back home when the post does not exist', async () => {
+    api.fetchPostDetail.mockRejectedValue(new Error('게시물을 찾을 수 없습니다.'));
+    api.fetchPostComments.mockResolvedValue([]);
+
+    render(<PostDetail postId="missing-post" onBack={vi.fn()} />);
+
+    expect(await screen.findByText('게시물을 찾을 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+  });
 });

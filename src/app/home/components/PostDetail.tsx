@@ -392,6 +392,12 @@ export function PostDetail({
           Back
         </button>
         <p className="font-black text-red-500">{error ?? 'Post not found.'}</p>
+        <Link
+          href="/home"
+          className="inline-flex rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          홈으로 돌아가기
+        </Link>
       </div>
     );
   }

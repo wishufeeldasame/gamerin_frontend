@@ -95,6 +95,14 @@ describe('Header mobile search', () => {
     mocks.pathname = '/home';
   });
 
+  it('hides the global search controls on the search page', () => {
+    mocks.pathname = '/search';
+    render(<Header />);
+
+    expect(screen.queryByRole('textbox', { name: '통합 검색' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '검색 열기' })).not.toBeInTheDocument();
+  });
+
   it('opens the search field with the toggle, focuses it, and closes it after searching', async () => {
     render(<Header />);
 
