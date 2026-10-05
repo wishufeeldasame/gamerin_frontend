@@ -149,8 +149,9 @@ function readPostState() {
   return JSON.parse(screen.getByTestId('post-state').textContent ?? '{}') as PostRecord;
 }
 
-describe('ProfilePage like rollback', () => {
+describe('ProfilePage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     api.fetchMyProfile.mockReset();
     api.fetchUserMedia.mockReset();
     api.fetchUserPosts.mockReset();
@@ -170,6 +171,27 @@ describe('ProfilePage like rollback', () => {
       nextCursor: null,
       hasNext: false,
     });
+  });
+
+  it('ignores legacy local privacy settings and keeps profile content public', async () => {
+    window.localStorage.setItem(
+      'gamerin_user_settings',
+      JSON.stringify({
+        privacy: {
+          profilePublic: false,
+          showStats: false,
+        },
+      }),
+    );
+
+    render(<ProfilePage />);
+
+    await screen.findByTestId('post-post-1');
+    const statsTab = screen.getByRole('button', { name: 'stats' });
+    expect(statsTab).toBeInTheDocument();
+
+    fireEvent.click(statsTab);
+    expect(await screen.findByRole('heading', { name: 'Verified Stats' })).toBeInTheDocument();
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {
