@@ -1,4 +1,5 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   MentoringApplicationResponse,
@@ -165,6 +166,28 @@ describe('MentoringPage deep links', () => {
     const target = document.getElementById('mentoring-review-review-1');
     expect(target).toHaveClass('ring-2', 'ring-yellow-300');
     await waitFor(() => expect(target?.scrollIntoView).toHaveBeenCalled());
+  });
+
+  it('프로그램 마감 취소는 요청하지 않고 확인한 경우에만 한 번 요청한다', async () => {
+    navigation.searchParams = new URLSearchParams('reviewId=review-1');
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
+    mentoringApi.fetchMentorReviews.mockResolvedValue(pageResponse([review]));
+    mentoringApi.updateMentoringProgram.mockResolvedValue({ ...program, status: 'CLOSED' });
+    render(<MentoringPage />);
+    const close = await screen.findByRole('button', { name: '프로그램 마감' });
+    close.focus();
+    fireEvent.click(close);
+    await act(async () => {
+      fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: '취소' }));
+    });
+    expect(mentoringApi.updateMentoringProgram).not.toHaveBeenCalled();
+    expect(close).toHaveFocus();
+    fireEvent.click(close);
+    const confirm = within(screen.getByRole('alertdialog')).getByRole('button', { name: '마감' });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mentoringApi.updateMentoringProgram).toHaveBeenCalledTimes(1));
+    expect(mentoringApi.updateMentoringProgram).toHaveBeenCalledWith(program.id, expect.objectContaining({ status: 'CLOSED' }));
   });
 
   it('falls back to the default mentoring view when a review is unavailable', async () => {

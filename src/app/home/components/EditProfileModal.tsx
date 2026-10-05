@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import { X, Camera, MapPin, Globe, AlignLeft, User } from 'lucide-react';
 import { useState, useRef, useEffect, type ChangeEvent, type MutableRefObject } from 'react';
@@ -91,6 +93,7 @@ export function EditProfileModal({
   userInfo,
   onSaveUserInfo,
 }: EditProfileModalProps) {
+  const toast = useToast();
   const [formData, setFormData] = useState({
     name: userInfo?.name || '',
     bio: userInfo?.bio || '',
@@ -153,7 +156,7 @@ export function EditProfileModal({
       setCoverImageFile(compressedFile);
       setCoverPreview(previewUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to process cover image.');
+      toast.error(error instanceof Error ? error.message : 'Failed to process cover image.');
     } finally {
       setProcessingImage(false);
       event.target.value = '';
@@ -179,7 +182,7 @@ export function EditProfileModal({
       setAvatarImageFile(compressedFile);
       setAvatarPreview(previewUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to process avatar image.');
+      toast.error(error instanceof Error ? error.message : 'Failed to process avatar image.');
     } finally {
       setProcessingImage(false);
       event.target.value = '';
@@ -217,7 +220,7 @@ export function EditProfileModal({
       onSaveAvatar?.(avatarPreview);
       onClose();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to save profile.');
+      toast.error(error instanceof Error ? error.message : 'Failed to save profile.');
     } finally {
       setSaving(false);
     }

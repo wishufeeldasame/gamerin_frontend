@@ -1,4 +1,5 @@
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 

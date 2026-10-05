@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -17,6 +19,7 @@ type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
 export default function HomePage() {
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState<FeedTab>('all');
@@ -101,7 +104,7 @@ export default function HomePage() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      toast.error(likeError instanceof Error ? likeError.message : 'Failed to update like.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -158,7 +161,7 @@ export default function HomePage() {
         return;
       }
 
-      alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
+      toast.error(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
     } finally {
       if (loadMoreControllerRef.current === controller) {
         loadMoreControllerRef.current = null;

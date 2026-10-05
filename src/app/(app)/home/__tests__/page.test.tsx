@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
@@ -143,7 +144,6 @@ describe('HomePage like rollback', () => {
       nextCursor: null,
       hasNext: false,
     });
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('rolls back only like fields and keeps bookmark and repost updates made while the request is pending', async () => {
@@ -188,6 +188,6 @@ describe('HomePage like rollback', () => {
       expect(renderedPost).toHaveAttribute('data-repost-count', '4');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
-    expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
   });
 });

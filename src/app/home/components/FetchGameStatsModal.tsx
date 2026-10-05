@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { X, ShieldCheck, Gamepad2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
@@ -80,6 +82,7 @@ function validatePlayerName(game: ConnectableGame, playerName: string) {
 }
 
 export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModalProps) {
+  const toast = useToast();
   const { updateUser } = useAuth();
   const [connectingGame, setConnectingGame] = useState<string | null>(null);
   const [promptGame, setPromptGame] = useState<ConnectableGame | null>(null);
@@ -97,7 +100,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     setConnectingGame(gameName);
     setTimeout(() => {
       setConnectingGame(null);
-      alert(`${gameName} integration is not connected yet.`);
+      toast.info(`${gameName} integration is not connected yet.`);
     }, 1000);
   };
 
@@ -138,11 +141,11 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
       }
 
       await onConnected?.();
-      alert(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) connected successfully.`);
+      toast.success(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) connected successfully.`);
       onClose();
     } catch (error) {
       if (connectionCompleted) {
-        alert(
+        toast.error(
           `${getGameLabel(selectedGame)} 계정 연결은 완료됐지만 프로필 화면을 갱신하지 못했습니다. 새로고침 후 다시 확인해 주세요.`,
         );
         onClose();

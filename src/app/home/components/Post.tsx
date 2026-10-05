@@ -1,10 +1,13 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
 import type { KeyboardEvent, MouseEvent } from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -116,6 +119,10 @@ export function Post({
   onRepostChange,
   onDelete,
 }: PostProps) {
+  const toast = useToast();
+  const confirm = useConfirm(post.postId);
+  const deleteLockRef = useRef(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
@@ -215,7 +222,7 @@ export function Post({
       } catch (error) {
         setBookmarked(bookmarked);
         onBookmarkChange?.(post, bookmarked);
-        alert(error instanceof Error ? error.message : 'Failed to update bookmark.');
+        toast.error(error instanceof Error ? error.message : 'Failed to update bookmark.');
         return false;
       }
 
@@ -228,24 +235,31 @@ export function Post({
   };
 
   const handleDelete = async () => {
-    if (deleting) {
+    if (deleteLockRef.current || deleting) {
       return;
     }
 
-    const confirmed = window.confirm('게시물을 삭제할까요?');
-    if (!confirmed) {
-      setMenuOpen(false);
-      return;
-    }
-
+    deleteLockRef.current = true;
+    setMenuOpen(false);
     try {
+      const confirmed = await confirm({
+        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        returnFocusTo: menuButtonRef.current,
+      });
+      if (!confirmed) return;
       setDeleting(true);
       await deletePost(post.postId);
       setMenuOpen(false);
       onDelete?.(post);
+      window.requestAnimationFrame(() => {
+        if (!menuButtonRef.current?.isConnected && document.activeElement === document.body) {
+          restoreFeedbackFocus(null);
+        }
+      });
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
     } finally {
+      deleteLockRef.current = false;
       setDeleting(false);
     }
   };
@@ -303,6 +317,7 @@ export function Post({
             <button
               type="button"
               onClick={() => setMenuOpen((current) => !current)}
+              ref={menuButtonRef}
               className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}

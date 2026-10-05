@@ -1,4 +1,5 @@
 'use client';
+import { useConfirm } from '@/app/context/ConfirmContext';
 
 import {
   AlertCircle,
@@ -16,7 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { createConversation } from '@/lib/message-api';
 import {
@@ -255,6 +256,7 @@ function isDuplicateReviewError(error: unknown) {
 }
 
 export default function MentoringPage() {
+  const closeProgramLockRef = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, logout, isAuthReady } = useAuth();
@@ -344,6 +346,9 @@ export default function MentoringPage() {
 
     return ownedPrograms.find((program) => program.id === selectedOwnedProgramId) ?? null;
   }, [ownedPrograms, selectedOwnedProgramId]);
+  const confirm = useConfirm(JSON.stringify([
+    currentUserId, selectedOwnedProgram?.id, selectedOwnedProgram?.status,
+  ]));
 
   const currentUserOwnsProgram = useCallback(
     (mentorId?: string | null) => normalizeId(mentorId) === normalizeId(currentUserId),
@@ -835,18 +840,23 @@ export default function MentoringPage() {
   };
 
   const handleCloseProgram = async (program: MentoringProgramResponse) => {
+    if (closeProgramLockRef.current) return;
     if (program.status !== 'ACTIVE') {
       showNotice('이미 마감된 프로그램입니다.');
       return;
     }
 
-    const ok = window.confirm('이 프로그램을 마감할까요? 마감 후 새 신청을 받을 수 없습니다.');
-    if (!ok) return;
-
-    setPendingAction(`close-program:${program.id}`);
-    clearMessages();
-
+    closeProgramLockRef.current = true;
+    let requested = false;
     try {
+      const ok = await confirm({
+        message: '이 프로그램을 마감할까요? 마감 후 새 신청을 받을 수 없습니다.',
+        confirmLabel: '마감', danger: true,
+      });
+      if (!ok) return;
+      requested = true;
+      setPendingAction(`close-program:${program.id}`);
+      clearMessages();
       const { method, content } = splitProgramContent(program.content);
       const closedProgram = await updateMentoringProgram(program.id, {
         title: program.title,
@@ -865,7 +875,8 @@ export default function MentoringPage() {
     } catch (error) {
       showError(error);
     } finally {
-      setPendingAction('');
+      closeProgramLockRef.current = false;
+      if (requested) setPendingAction('');
     }
   };
 

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -195,7 +196,6 @@ describe('BookmarksPage state synchronization', () => {
     api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
     api.likePost.mockResolvedValue(undefined);
     api.unlikePost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('hides stale counts until refreshed collections replace the previous array', async () => {
@@ -342,6 +342,6 @@ describe('BookmarksPage state synchronization', () => {
       expect(renderedPost).toHaveAttribute('data-repost-count', '1');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
-    expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
   });
 });

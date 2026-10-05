@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -133,7 +134,6 @@ describe('PostDetail bookmark collection synchronization', () => {
     mocks.refreshCollections.mockResolvedValue(undefined);
     mocks.removeBookmarkFromCollection.mockResolvedValue(undefined);
     mocks.unbookmarkPost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('disables remove all while collections load, then sends one delete', async () => {
@@ -265,7 +265,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
     expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
     expect(
@@ -350,7 +350,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('like failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('like failed');
       expect(screen.getByRole('button', { name: '12' })).toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: BOOKMARK_SAVE_LABEL }),
@@ -423,7 +423,7 @@ describe('PostDetail bookmark collection synchronization', () => {
       rejectDelete(new Error('delete failed'));
     });
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
 
     await act(async () => {
@@ -454,7 +454,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
     expect(mocks.refreshCollections).not.toHaveBeenCalled();
     expect(

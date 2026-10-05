@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -137,6 +139,7 @@ function SectionHeader({
 }
 
 function SearchPageContent() {
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const query = normalizeQuery(searchParams.get('q') ?? '');
@@ -302,7 +305,7 @@ function SearchPageContent() {
       }
     } catch (likeError) {
       updateLikeState(post.postId, post.likedByMe);
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -391,7 +394,7 @@ function SearchPageContent() {
         return;
       }
 
-      alert(loadError instanceof Error ? loadError.message : '결과를 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '결과를 더 불러오지 못했습니다.');
     } finally {
       if (loadMoreControllerRef.current === controller) {
         loadMoreControllerRef.current = null;

@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Hash } from 'lucide-react';
@@ -27,6 +29,7 @@ function decodeHashtagName(value: string) {
 }
 
 export default function HashtagPostsPage() {
+  const toast = useToast();
   const router = useRouter();
   const params = useParams<{ name: string }>();
   const hashtagName = useMemo(() => decodeHashtagName(params.name ?? ''), [params.name]);
@@ -99,7 +102,7 @@ export default function HashtagPostsPage() {
       setNextCursor(page.nextCursor);
       setHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '게시글을 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '게시글을 더 불러오지 못했습니다.');
     } finally {
       setLoadingMore(false);
     }
@@ -121,7 +124,7 @@ export default function HashtagPostsPage() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
