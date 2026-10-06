@@ -7,6 +7,7 @@ import {
 } from '@/lib/api-client';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
 import { toNumber } from '@/lib/coerce';
+import { formatRelativeTimeLabel } from '@/lib/time-format';
 import type { CursorPage } from '@/types/api';
 import type { BookmarkCollection } from '@/types/bookmark';
 
@@ -246,21 +247,7 @@ function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T
 }
 
 export function formatRelativeTime(createdAt: string) {
-  const target = new Date(createdAt).getTime();
-  const diffSeconds = Math.max(1, Math.floor((Date.now() - target) / 1000));
-
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return new Date(createdAt).toLocaleDateString();
+  return formatRelativeTimeLabel(createdAt);
 }
 
 export function getInitials(name: string, fallback = 'G') {

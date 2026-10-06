@@ -1,5 +1,7 @@
 'use client';
 
+import { formatRelativeTimeLabel } from '@/lib/time-format';
+
 export type MessageRecipient = {
   id: string;
   name: string;
@@ -63,20 +65,7 @@ export function formatChatTime(createdAt: string) {
 }
 
 export function formatConversationTime(createdAt: string) {
-  const diffSeconds = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-
-  if (diffSeconds < 60) return '방금';
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}분 전`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}시간 전`;
-
-  return new Date(createdAt).toLocaleDateString('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatRelativeTimeLabel(createdAt);
 }
 
 export function sortConversationsByUpdatedAt(conversations: Conversation[]) {

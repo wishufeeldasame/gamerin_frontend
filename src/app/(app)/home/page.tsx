@@ -62,7 +62,7 @@ export default function HomePage() {
         }
 
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');
+          setError(loadError instanceof Error ? loadError.message : '피드를 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -101,7 +101,7 @@ export default function HomePage() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -158,7 +158,7 @@ export default function HomePage() {
         return;
       }
 
-      alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
+      alert(loadMoreError instanceof Error ? loadMoreError.message : '게시물을 더 불러오지 못했습니다.');
     } finally {
       if (loadMoreControllerRef.current === controller) {
         loadMoreControllerRef.current = null;
