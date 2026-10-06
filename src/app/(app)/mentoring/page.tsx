@@ -329,6 +329,7 @@ export default function MentoringPage() {
     <p className="text-xs font-bold text-zinc-400">게임 목록을 불러오는 중입니다.</p>
   ) : null;
   const programGameCode = programForm.gameName || games[0]?.code || '';
+  const gamesReady = !gamesLoading && !gamesError && Boolean(programGameCode);
   const visiblePrograms = useMemo(() => programPage.content, [programPage.content]);
 
   const selectedProgramApplication = useMemo(() => {
@@ -850,8 +851,8 @@ export default function MentoringPage() {
     clearMessages();
 
     try {
-      if (!programGameCode) {
-        throw new Error(GAMES_ERROR_MESSAGE);
+      if (!gamesReady) {
+        throw new Error(gamesLoading ? '게임 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.' : GAMES_ERROR_MESSAGE);
       }
 
       const price = Number(programForm.price);
@@ -1591,7 +1592,7 @@ export default function MentoringPage() {
 
                   <button
                     type="submit"
-                    disabled={pendingAction === 'save-program' || !programGameCode}
+                    disabled={pendingAction === 'save-program' || !gamesReady}
                     className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
                   >
                     <Plus size={17} />

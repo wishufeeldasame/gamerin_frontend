@@ -98,6 +98,16 @@ const program: MentoringProgramResponse = {
   createdAt: '2026-09-18T00:00:00Z',
 };
 
+const mentorProfile = {
+  userId: 'user-1',
+  nickname: '멘토',
+  status: 'ACTIVE',
+  about: '소개',
+  ratingAvg: 5,
+  reviewCount: 1,
+  menteeCount: 1,
+};
+
 const games = [
   { code: 'PUBG', name: 'PUBG' },
   { code: 'LOL', name: 'League of Legends' },
@@ -322,5 +332,46 @@ describe('MentoringPage game filter', () => {
     });
     expect(screen.getByRole('combobox')).toBeEnabled();
     expect(screen.queryByText(/게임 목록을 불러오지 못했습니다/)).not.toBeInTheDocument();
+  });
+
+  it('폼에서 고른 게임은 표시명이 아니라 코드로 전송한다', async () => {
+    const user = userEvent.setup();
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue(mentorProfile);
+    mentoringApi.createMentoringProgram.mockResolvedValue(program);
+    const { container } = render(<MentoringPage />);
+
+    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    const select = await screen.findByDisplayValue('PUBG');
+    await user.selectOptions(select, 'LOL');
+    await user.type(container.querySelector('input[name=title]')!, '롤 코칭');
+    for (const field of container.querySelectorAll(
+      'form input:not([name=price]):not([name=title]):not([name=gameName]), form textarea',
+    )) {
+      await user.type(field, '내용');
+    }
+    await user.click(screen.getByRole('button', { name: '프로그램 등록' }));
+
+    await waitFor(() =>
+      expect(mentoringApi.createMentoringProgram).toHaveBeenCalledWith(
+        expect.objectContaining({ gameName: 'LOL' }),
+      ),
+    );
+  });
+
+  it('게임 목록 재조회가 실패하면 이전 목록이 남아 있어도 등록을 막는다', async () => {
+    const user = userEvent.setup();
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue(mentorProfile);
+    mentoringApi.fetchGames.mockResolvedValueOnce(games).mockRejectedValue(new Error('boom'));
+    const { rerender } = render(<MentoringPage />);
+
+    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await screen.findByDisplayValue('PUBG');
+    expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeEnabled();
+
+    auth.userId = 'user-2';
+    rerender(<MentoringPage />);
+
+    expect(await screen.findByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeDisabled();
   });
 });
