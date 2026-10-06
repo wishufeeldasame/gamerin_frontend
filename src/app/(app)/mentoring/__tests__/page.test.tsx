@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   MentoringApplicationResponse,
@@ -17,6 +18,7 @@ const mentoringApi = vi.hoisted(() => ({
   completeMentoringApplication: vi.fn(),
   createMentoringProgram: vi.fn(),
   createMentoringReview: vi.fn(),
+  fetchGames: vi.fn(),
   fetchMenteeApplications: vi.fn(),
   fetchMentorApplications: vi.fn(),
   fetchMentorProfile: vi.fn(),
@@ -95,6 +97,11 @@ const program: MentoringProgramResponse = {
   createdAt: '2026-09-18T00:00:00Z',
 };
 
+const games = [
+  { code: 'PUBG', name: 'PUBG' },
+  { code: 'LOL', name: 'League of Legends' },
+];
+
 const review: MentoringReviewResponse = {
   id: 'review-1',
   applicationId: application.id,
@@ -125,6 +132,7 @@ describe('MentoringPage deep links', () => {
       value: vi.fn(),
     });
 
+    mentoringApi.fetchGames.mockResolvedValue(games);
     mentoringApi.fetchMenteeApplications.mockResolvedValue(pageResponse([]));
     mentoringApi.fetchMentorApplications.mockResolvedValue(pageResponse([]));
     mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([]));
@@ -181,5 +189,66 @@ describe('MentoringPage deep links', () => {
     render(<MentoringPage />);
 
     expect(await screen.findByText('멘토링 프로그램 탐색')).toBeInTheDocument();
+  });
+});
+
+describe('MentoringPage game filter', () => {
+  beforeEach(() => {
+    navigation.searchParams = new URLSearchParams();
+    mentoringApi.fetchGames.mockResolvedValue(games);
+    mentoringApi.fetchMenteeApplications.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMentorApplications.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue(null);
+    mileageApi.fetchMyMileageBalance.mockResolvedValue({ currentBalance: 0 });
+    mileageApi.fetchMyMileageTransactions.mockResolvedValue(pageResponse([]));
+  });
+
+  it('필터 선택지는 /games 응답이고, 선택한 코드로 조회하며, 빈 결과에서 초기화한다', async () => {
+    const user = userEvent.setup();
+    render(<MentoringPage />);
+
+    const select = await screen.findByRole('combobox');
+    await waitFor(() => expect(select).toBeEnabled());
+    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+      '전체',
+      'PUBG',
+      'League of Legends',
+    ]);
+    expect(mentoringApi.fetchMentoringPrograms).toHaveBeenLastCalledWith(
+      expect.objectContaining({ gameName: undefined }),
+    );
+
+    await user.selectOptions(select, 'LOL');
+    await waitFor(() =>
+      expect(mentoringApi.fetchMentoringPrograms).toHaveBeenLastCalledWith(
+        expect.objectContaining({ gameName: 'LOL' }),
+      ),
+    );
+
+    await user.click(await screen.findByRole('button', { name: '필터 초기화' }));
+    await waitFor(() =>
+      expect(mentoringApi.fetchMentoringPrograms).toHaveBeenLastCalledWith(
+        expect.objectContaining({ gameName: undefined }),
+      ),
+    );
+    expect(select).toHaveValue('');
+    expect(screen.queryByRole('button', { name: '필터 초기화' })).not.toBeInTheDocument();
+  });
+
+  it('카드 배지는 서버 표시명으로 보여 준다', async () => {
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([{ ...program, gameName: 'LOL' }]));
+    render(<MentoringPage />);
+
+    const badge = await screen.findByText('League of Legends', { selector: 'span' });
+    expect(badge).toBeInTheDocument();
+  });
+
+  it('/games 실패 시 한국어 안내를 보이고 필터를 비활성화한다', async () => {
+    mentoringApi.fetchGames.mockRejectedValue(new Error('boom'));
+    render(<MentoringPage />);
+
+    expect(await screen.findByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
+    expect(screen.getByRole('combobox')).toBeDisabled();
   });
 });

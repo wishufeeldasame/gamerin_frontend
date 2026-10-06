@@ -42,6 +42,11 @@ export interface MentorProfileResponse {
   menteeCount: number;
 }
 
+export interface GameResponse {
+  code: string;
+  name: string;
+}
+
 export interface MentoringProgramResponse {
   id: string;
   mentorId: string;
@@ -190,6 +195,10 @@ export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
     empty: true,
     numberOfElements: 0,
   };
+}
+
+export function fetchGames() {
+  return mentoringRequest<GameResponse[]>('/api/v1/games');
 }
 
 export function registerMentor(payload: { about: string }) {

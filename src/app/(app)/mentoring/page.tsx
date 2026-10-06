@@ -27,10 +27,12 @@ import {
   createMentoringProgram,
   createMentoringReview,
   emptyPage,
+  type GameResponse,
   fetchMenteeApplications,
   fetchMentorReviews,
   fetchMentorApplications,
   fetchMentoringProgramDetail,
+  fetchGames,
   fetchMentoringPrograms,
   fetchMyMentorProfile,
   fetchMentorProfile,
@@ -70,12 +72,12 @@ type ProgramForm = {
   tags: string;
 };
 
-const mentoringGames = ['전체', 'PUBG', 'League of Legends', 'Valorant', 'Overwatch', 'CS2', 'Other'];
+const GAMES_ERROR_MESSAGE = '게임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
 const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
 const DEEP_LINK_HIGHLIGHT_DURATION = 2200;
 
 const defaultProgramForm: ProgramForm = {
-  gameName: 'PUBG',
+  gameName: '',
   title: '',
   method: '',
   content: '',
@@ -264,7 +266,10 @@ export default function MentoringPage() {
   const requestedMineTab = searchParams.get('tab') === 'mine';
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
-  const [gameFilter, setGameFilter] = useState('전체');
+  const [games, setGames] = useState<GameResponse[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const [gamesError, setGamesError] = useState('');
+  const [gameFilter, setGameFilter] = useState(''); // '' = 전체
   const [programPage, setProgramPage] = useState<PageResponse<MentoringProgramResponse>>(emptyPage());
   const [programPageNumber, setProgramPageNumber] = useState(0);
   const [programsLoading, setProgramsLoading] = useState(false);
@@ -311,6 +316,8 @@ export default function MentoringPage() {
 
   const totalPages = Math.max(programPage.totalPages || 1, 1);
 
+  const gameLabel = (code: string) => games.find((game) => game.code === code)?.name ?? code;
+  const programGameCode = programForm.gameName || games[0]?.code || '';
   const visiblePrograms = useMemo(() => programPage.content, [programPage.content]);
 
   const selectedProgramApplication = useMemo(() => {
@@ -398,7 +405,7 @@ export default function MentoringPage() {
 
     try {
       const page = await fetchMentoringPrograms({
-        gameName: gameFilter === '전체' ? undefined : gameFilter,
+        gameName: gameFilter || undefined,
         page: programPageNumber,
         size: 10,
       });
@@ -574,6 +581,25 @@ export default function MentoringPage() {
 
     setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
   }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
+
+  const loadGames = useCallback(async () => {
+    setGamesLoading(true);
+    setGamesError('');
+
+    try {
+      setGames(await fetchGames());
+    } catch {
+      setGamesError(GAMES_ERROR_MESSAGE);
+    } finally {
+      setGamesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthReady && currentUserId) {
+      void loadGames();
+    }
+  }, [currentUserId, isAuthReady, loadGames]);
 
   useEffect(() => {
     if (activeTab === 'find') {
@@ -810,13 +836,17 @@ export default function MentoringPage() {
     clearMessages();
 
     try {
+      if (!programGameCode) {
+        throw new Error(GAMES_ERROR_MESSAGE);
+      }
+
       const price = Number(programForm.price);
       if (price < 0 || Number.isNaN(price)) {
         throw new Error('가격을 올바르게 입력해주세요.');
       }
 
       await createMentoringProgram({
-        gameName: programForm.gameName.trim(),
+        gameName: programGameCode,
         title: programForm.title.trim(),
         content: buildProgramContent(programForm.method, programForm.content),
         availableTimeDesc: programForm.availableTimeDesc.trim(),
@@ -1153,20 +1183,32 @@ export default function MentoringPage() {
                   </p>
                 </div>
 
-                <select
-                  value={gameFilter}
-                  onChange={(event) => {
-                    setProgramPageNumber(0);
-                    setGameFilter(event.target.value);
-                  }}
-                  className="h-11 rounded-xl border border-zinc-200 px-3 text-sm font-black outline-none"
-                >
-                  {mentoringGames.map((game) => (
-                    <option key={game} value={game}>
-                      {game}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-col gap-1 md:items-end">
+                  <select
+                    value={gameFilter}
+                    disabled={gamesLoading || Boolean(gamesError)}
+                    onChange={(event) => {
+                      setProgramPageNumber(0);
+                      setGameFilter(event.target.value);
+                    }}
+                    className="h-11 rounded-xl border border-zinc-200 px-3 text-sm font-black outline-none disabled:opacity-50"
+                  >
+                    <option value="">전체</option>
+                    {games.map((game) => (
+                      <option key={game.code} value={game.code}>
+                        {game.name}
+                      </option>
+                    ))}
+                  </select>
+                  {gamesError && (
+                    <p className="text-xs font-bold text-red-500">
+                      {gamesError}{' '}
+                      <button type="button" onClick={() => void loadGames()} className="underline">
+                        다시 시도
+                      </button>
+                    </p>
+                  )}
+                </div>
               </div>
 
               {programsLoading ? (
@@ -1186,7 +1228,7 @@ export default function MentoringPage() {
                         <div>
                           <div className="mb-2 flex flex-wrap gap-2">
                             <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
-                              {program.gameName}
+                              {gameLabel(program.gameName)}
                             </span>
                             <span
                               className={`rounded-full px-3 py-1 text-[11px] font-black ${
@@ -1220,6 +1262,18 @@ export default function MentoringPage() {
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center">
                   <p className="font-black text-black">등록된 프로그램이 없습니다.</p>
+                  {gameFilter && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProgramPageNumber(0);
+                        setGameFilter('');
+                      }}
+                      className="mt-4 rounded-xl bg-black px-4 py-2 text-sm font-black text-white"
+                    >
+                      필터 초기화
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1388,7 +1442,7 @@ export default function MentoringPage() {
                                       isSelected ? 'text-white/70 dark:text-black/60' : 'text-zinc-400'
                                     }`}
                                   >
-                                    {program.gameName}
+                                    {gameLabel(program.gameName)}
                                   </p>
                                   <h3 className="mt-2 text-xl font-black">{program.title}</h3>
                                 </div>
@@ -1448,13 +1502,14 @@ export default function MentoringPage() {
                       <span className="text-sm font-black text-zinc-700">게임</span>
                       <select
                         name="gameName"
-                        value={programForm.gameName}
+                        value={programGameCode}
+                        disabled={gamesLoading || Boolean(gamesError)}
                         onChange={handleProgramFormChange}
                         className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
                       >
-                        {mentoringGames.filter((game) => game !== '전체').map((game) => (
-                          <option key={game} value={game}>
-                            {game}
+                        {games.map((game) => (
+                          <option key={game.code} value={game.code}>
+                            {game.name}
                           </option>
                         ))}
                       </select>
@@ -1603,7 +1658,7 @@ export default function MentoringPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                        {selectedProgram.gameName}
+                        {gameLabel(selectedProgram.gameName)}
                       </p>
                       <h2 className="mt-1 text-2xl font-black text-black">{selectedProgram.title}</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
@@ -1816,7 +1871,7 @@ export default function MentoringPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                    {selectedOwnedProgram.gameName}
+                    {gameLabel(selectedOwnedProgram.gameName)}
                   </p>
                   <h2 className="mt-1 text-2xl font-black text-black">{selectedOwnedProgram.title}</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">{formatMileage(selectedOwnedProgram.price)}</p>

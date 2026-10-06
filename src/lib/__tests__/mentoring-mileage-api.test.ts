@@ -60,6 +60,14 @@ describe('mentoring-api', () => {
     expect(store.getAccessToken()).toBeNull();
   });
 
+  it('fetchGames는 /api/v1/games를 토큰과 함께 조회한다', async () => {
+    const games = [{ code: 'LOL', name: 'League of Legends' }];
+    api.route('/api/v1/games', () => json(200, { success: true, data: games }));
+
+    await expect(mentoring.fetchGames()).resolves.toEqual(games);
+    expect(api.authorization(0)).toBe('Bearer token-a');
+  });
+
   it('404는 MentoringApiError로 구분한다', async () => {
     api.route('/api/v1/mentoring/programs/p-1', () => json(404, { message: '프로그램이 없습니다.' }));
 
