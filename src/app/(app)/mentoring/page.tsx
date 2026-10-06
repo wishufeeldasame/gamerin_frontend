@@ -48,7 +48,6 @@ import {
   type MentoringProgramResponse,
   type MentoringReviewResponse,
   type MentorProfileResponse,
-  type PageResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
 import {
@@ -56,8 +55,8 @@ import {
   fetchMyMileageBalance,
   fetchMyMileageTransactions,
   type MileageTransactionResponse,
-  type PageResponse as MileagePageResponse,
 } from '@/lib/mileage-api';
+import type { PageResponse } from '@/types/api';
 
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
 type MentoringBannerType = 'auth' | 'mileage' | null;
@@ -295,7 +294,7 @@ export default function MentoringPage() {
   const [applicationsLoaded, setApplicationsLoaded] = useState(false);
   const [mileageBalance, setMileageBalance] = useState(0);
   const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
-  const [mileagePage, setMileagePage] = useState<MileagePageResponse<MileageTransactionResponse> | null>(null);
+  const [mileagePage, setMileagePage] = useState<PageResponse<MileageTransactionResponse> | null>(null);
   const [mileageLoading, setMileageLoading] = useState(false);
   const [chargeAmount, setChargeAmount] = useState('10000');
 

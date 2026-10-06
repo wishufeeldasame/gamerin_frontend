@@ -1,17 +1,7 @@
 import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { ReportReasonCode, ReportStatus, ReportTargetType } from '@/types/report';
 
 const REPORTS_BASE = '/api/v1/reports';
-
-export type ReportTargetType = 'POST' | 'COMMENT' | 'USER' | 'MENTORING' | 'MESSAGE';
-
-export type ReportReasonCode =
-  | 'PROFANITY'
-  | 'SPAM'
-  | 'INAPPROPRIATE'
-  | 'IMPERSONATION'
-  | 'OTHER';
-
-export type ReportStatus = 'RECEIVED' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
 
 export interface ReportReason {
   code: ReportReasonCode;

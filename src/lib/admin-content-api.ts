@@ -1,28 +1,16 @@
-import {
-  adminApiRequest,
-  type AdminReportTargetTypeCode,
-} from '@/lib/admin-report-api';
+import { adminApiRequest } from '@/lib/admin-report-api';
+import type { PageResponse } from '@/types/api';
+import type { ReportTargetType } from '@/types/report';
 
 const ADMIN_CONTENTS_BASE = '/api/v1/admin/contents';
 
 export interface AdminHiddenContentApiItem {
   id: string;
-  targetType: AdminReportTargetTypeCode;
+  targetType: ReportTargetType;
   targetId: string;
   reportCount: number;
   isHidden: boolean;
   updatedAt: string;
-}
-
-export interface AdminHiddenContentPageResponse {
-  content: AdminHiddenContentApiItem[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
 }
 
 export interface AdminHiddenContentSearchParams {
@@ -41,14 +29,14 @@ export function fetchAdminHiddenContents(
     sort: params.sort ?? 'updatedAt,desc',
   });
 
-  return adminApiRequest<AdminHiddenContentPageResponse>(
+  return adminApiRequest<PageResponse<AdminHiddenContentApiItem>>(
     `${ADMIN_CONTENTS_BASE}/hidden?${searchParams.toString()}`,
     { signal },
   );
 }
 
 export function restoreAdminHiddenContent(
-  targetType: AdminReportTargetTypeCode,
+  targetType: ReportTargetType,
   targetId: string,
 ) {
   return adminApiRequest<AdminHiddenContentApiItem>(

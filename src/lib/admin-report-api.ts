@@ -1,16 +1,10 @@
 import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import { notifyAdminAuthorizationFailure } from '@/lib/admin-auth';
+import type { PageResponse } from '@/types/api';
+import type { ReportReasonCode, ReportStatus, ReportTargetType } from '@/types/report';
 
 const ADMIN_REPORTS_BASE = '/api/v1/admin/reports';
 
-export type AdminReportStatusCode = 'RECEIVED' | 'IN_REVIEW' | 'RESOLVED' | 'REJECTED';
-export type AdminReportTargetTypeCode = 'POST' | 'COMMENT' | 'USER' | 'MENTORING' | 'MESSAGE';
-export type AdminReportReasonCode =
-  | 'PROFANITY'
-  | 'SPAM'
-  | 'INAPPROPRIATE'
-  | 'IMPERSONATION'
-  | 'OTHER';
 export type AdminPenaltyType =
   | 'WARNING'
   | 'SUSPENSION_3D'
@@ -24,13 +18,13 @@ export interface AdminReportApiItem {
   reporterId: string;
   reporterNickname: string;
   reporterHandle?: string | null;
-  targetType: AdminReportTargetTypeCode;
+  targetType: ReportTargetType;
   targetId: string;
   targetSnippet: string | null;
-  reasonCode: AdminReportReasonCode;
+  reasonCode: ReportReasonCode;
   reasonLabel: string;
   details: string | null;
-  status: AdminReportStatusCode;
+  status: ReportStatus;
   assignedAdminId: string | null;
   assignedAdminNickname: string | null;
   createdAt: string;
@@ -53,21 +47,10 @@ export interface AdminReportDetailResponse {
   contentHidden: boolean;
 }
 
-export interface AdminReportPageResponse {
-  content: AdminReportApiItem[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
-}
-
 export interface AdminReportSearchParams {
-  status?: AdminReportStatusCode;
-  targetType?: AdminReportTargetTypeCode;
-  reasonCode?: AdminReportReasonCode;
+  status?: ReportStatus;
+  targetType?: ReportTargetType;
+  reasonCode?: ReportReasonCode;
   keyword?: string;
   page?: number;
   size?: number;
@@ -133,7 +116,7 @@ export function fetchAdminReports(params: AdminReportSearchParams, signal?: Abor
   searchParams.set('size', String(params.size ?? 20));
   searchParams.set('sort', params.sort ?? 'createdAt,desc');
 
-  return adminApiRequest<AdminReportPageResponse>(
+  return adminApiRequest<PageResponse<AdminReportApiItem>>(
     `${ADMIN_REPORTS_BASE}?${searchParams.toString()}`,
     { signal },
   );
@@ -141,7 +124,7 @@ export function fetchAdminReports(params: AdminReportSearchParams, signal?: Abor
 
 export function updateAdminReportStatus(
   reportId: string,
-  status: AdminReportStatusCode,
+  status: ReportStatus,
 ) {
   return adminApiRequest<AdminReportApiItem>(
     `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportId)}/status`,

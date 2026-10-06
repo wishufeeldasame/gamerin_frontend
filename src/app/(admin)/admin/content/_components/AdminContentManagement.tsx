@@ -7,7 +7,7 @@ import {
   restoreAdminHiddenContent,
   type AdminHiddenContentApiItem,
 } from '@/lib/admin-content-api';
-import type { AdminReportTargetTypeCode } from '@/lib/admin-report-api';
+import type { ReportTargetType } from '@/types/report';
 import { useVisiblePolling } from '@/hooks/useVisiblePolling';
 import { AdminPagination } from '../../_components/AdminPagination';
 import { AdminRefreshStatus } from '../../_components/AdminRefreshStatus';
@@ -17,7 +17,7 @@ import { RestoreContentButton } from './RestoreContentDialogButton';
 
 const PAGE_SIZE = 20;
 
-const targetTypeLabel: Record<AdminReportTargetTypeCode, string> = {
+const targetTypeLabel: Record<ReportTargetType, string> = {
   POST: '게시글',
   COMMENT: '댓글',
   USER: '사용자',
@@ -25,7 +25,7 @@ const targetTypeLabel: Record<AdminReportTargetTypeCode, string> = {
   MESSAGE: '메시지',
 };
 
-function canRestoreContent(targetType: AdminReportTargetTypeCode) {
+function canRestoreContent(targetType: ReportTargetType) {
   return targetType === 'POST' || targetType === 'COMMENT';
 }
 

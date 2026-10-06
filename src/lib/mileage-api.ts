@@ -1,24 +1,7 @@
 import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { PageResponse } from '@/types/api';
 
 const MILEAGE_BASE = '/api/v1/mileage';
-
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
-export interface PageResponse<T> {
-  content: T[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
-  numberOfElements?: number;
-}
 
 export interface MileageBalanceResponse {
   currentBalance: number;

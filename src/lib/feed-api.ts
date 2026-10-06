@@ -6,19 +6,9 @@ import {
   apiRequest as sendApiRequest,
 } from '@/lib/api-client';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
+import { toNumber } from '@/lib/coerce';
+import type { CursorPage } from '@/types/api';
 import type { BookmarkCollection } from '@/types/bookmark';
-
-export interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-export interface CursorPage<T> {
-  items: T[];
-  nextCursor: string | null;
-  hasNext: boolean;
-}
 
 export interface PostMedia {
   mediaId: string;
@@ -165,11 +155,6 @@ export interface BookmarkCollectionPostState {
   bookmarkedByMe: boolean;
   collectionIds: string[];
   collection: BookmarkCollection;
-}
-
-function toNumber(value: unknown) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
 }
 
 function normalizePostMedia(media: PostMedia): PostMedia {
