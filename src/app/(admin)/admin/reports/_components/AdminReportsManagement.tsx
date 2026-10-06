@@ -3,14 +3,11 @@
 import { Search } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  fetchAdminReports,
-  updateAdminReportStatus,
-  type AdminReportReasonCode,
-} from '@/lib/admin-report-api';
+import { fetchAdminReports, updateAdminReportStatus } from '@/lib/admin-report-api';
 import { fetchReportReasons, type ReportReason } from '@/lib/report-api';
 import { useVisiblePolling } from '@/hooks/useVisiblePolling';
 import type { AdminReport, AdminReportStatus, AdminReportTargetType } from '@/types/admin';
+import type { ReportReasonCode } from '@/types/report';
 import { AdminFilterSelect } from '../../_components/AdminFilterSelect';
 import { AdminPagination } from '../../_components/AdminPagination';
 import { AdminRefreshStatus } from '../../_components/AdminRefreshStatus';
@@ -83,7 +80,7 @@ export function AdminReportsManagement() {
         targetType: targetType
           ? targetTypeCodeByLabel[targetType as AdminReportTargetType]
           : undefined,
-        reasonCode: reason ? reason as AdminReportReasonCode : undefined,
+        reasonCode: reason ? reason as ReportReasonCode : undefined,
         keyword: query,
         page: currentPage,
         size: PAGE_SIZE,

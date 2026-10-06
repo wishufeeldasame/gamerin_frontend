@@ -1,6 +1,7 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
-import type { CursorPage } from '@/lib/feed-api';
+import { toNumber } from '@/lib/coerce';
+import type { CursorPage } from '@/types/api';
 
 interface NotificationRequestOptions {
   signal?: AbortSignal;
@@ -118,7 +119,7 @@ export async function fetchUnreadNotificationCount(options: NotificationRequestO
   const data = await notificationRequest<UnreadNotificationCount>('/api/v1/notifications/unread-count', {
     signal: options.signal,
   });
-  return Number.isFinite(Number(data.unreadCount)) ? Number(data.unreadCount) : 0;
+  return toNumber(data.unreadCount);
 }
 
 export async function markNotificationRead(notificationId: string) {

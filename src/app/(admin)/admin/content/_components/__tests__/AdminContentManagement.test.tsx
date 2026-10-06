@@ -1,9 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  AdminHiddenContentApiItem,
-  AdminHiddenContentPageResponse,
-} from '@/lib/admin-content-api';
+import type { AdminHiddenContentApiItem } from '@/lib/admin-content-api';
+import type { PageResponse } from '@/types/api';
 
 const contentApi = vi.hoisted(() => ({
   fetchAdminHiddenContents: vi.fn(),
@@ -36,8 +34,8 @@ const user: AdminHiddenContentApiItem = {
 
 function pageResponse(
   content: AdminHiddenContentApiItem[],
-  overrides: Partial<AdminHiddenContentPageResponse> = {},
-): AdminHiddenContentPageResponse {
+  overrides: Partial<PageResponse<AdminHiddenContentApiItem>> = {},
+): PageResponse<AdminHiddenContentApiItem> {
   return {
     content,
     totalPages: content.length > 0 ? 1 : 0,

@@ -1,11 +1,12 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { toNumber } from '@/lib/coerce';
 import {
-  type CursorPage,
   type PostRecord,
   normalizeCursorPage,
   normalizePostRecord,
 } from '@/lib/feed-api';
+import type { CursorPage } from '@/types/api';
 
 type SearchRequestOptions = {
   signal?: AbortSignal;
@@ -65,11 +66,6 @@ const COMMUNITY_CLIENT: ApiClientConfig = {
       ? createAuthError()
       : new Error(message ?? 'Community search request failed.'),
 };
-
-function toNumber(value: unknown) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
-}
 
 function normalizeHashtag(hashtag: HashtagSummary): HashtagSummary {
   return {

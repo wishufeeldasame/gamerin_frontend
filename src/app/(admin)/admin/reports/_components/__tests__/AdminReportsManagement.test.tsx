@@ -1,9 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type {
-  AdminReportApiItem,
-  AdminReportPageResponse,
-} from '@/lib/admin-report-api';
+import type { AdminReportApiItem } from '@/lib/admin-report-api';
+import type { PageResponse } from '@/types/api';
 
 const adminReportApi = vi.hoisted(() => ({
   fetchAdminReports: vi.fn(),
@@ -45,8 +43,8 @@ const report: AdminReportApiItem = {
 
 function pageResponse(
   content: AdminReportApiItem[],
-  overrides: Partial<AdminReportPageResponse> = {},
-): AdminReportPageResponse {
+  overrides: Partial<PageResponse<AdminReportApiItem>> = {},
+): PageResponse<AdminReportApiItem> {
   return {
     content,
     totalPages: content.length > 0 ? 1 : 0,
