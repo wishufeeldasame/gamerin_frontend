@@ -16,7 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { createConversation } from '@/lib/message-api';
 import {
@@ -268,6 +268,7 @@ export default function MentoringPage() {
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
   const [games, setGames] = useState<GameResponse[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
+  const gamesRequestRef = useRef(0);
   const [gamesError, setGamesError] = useState('');
   const [gameFilter, setGameFilter] = useState(''); // '' = 전체
   const [programPage, setProgramPage] = useState<PageResponse<MentoringProgramResponse>>(emptyPage());
@@ -317,6 +318,16 @@ export default function MentoringPage() {
   const totalPages = Math.max(programPage.totalPages || 1, 1);
 
   const gameLabel = (code: string) => games.find((game) => game.code === code)?.name ?? code;
+  const gamesNotice = gamesError ? (
+    <p className="text-xs font-bold text-red-500">
+      {gamesError}{' '}
+      <button type="button" onClick={() => void loadGames()} className="underline">
+        다시 시도
+      </button>
+    </p>
+  ) : gamesLoading ? (
+    <p className="text-xs font-bold text-zinc-400">게임 목록을 불러오는 중입니다.</p>
+  ) : null;
   const programGameCode = programForm.gameName || games[0]?.code || '';
   const visiblePrograms = useMemo(() => programPage.content, [programPage.content]);
 
@@ -583,15 +594,18 @@ export default function MentoringPage() {
   }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
 
   const loadGames = useCallback(async () => {
+    const requestId = ++gamesRequestRef.current;
+    const isLatest = () => requestId === gamesRequestRef.current;
     setGamesLoading(true);
     setGamesError('');
 
     try {
-      setGames(await fetchGames());
+      const loaded = await fetchGames();
+      if (isLatest()) setGames(loaded);
     } catch {
-      setGamesError(GAMES_ERROR_MESSAGE);
+      if (isLatest()) setGamesError(GAMES_ERROR_MESSAGE);
     } finally {
-      setGamesLoading(false);
+      if (isLatest()) setGamesLoading(false);
     }
   }, []);
 
@@ -1200,14 +1214,7 @@ export default function MentoringPage() {
                       </option>
                     ))}
                   </select>
-                  {gamesError && (
-                    <p className="text-xs font-bold text-red-500">
-                      {gamesError}{' '}
-                      <button type="button" onClick={() => void loadGames()} className="underline">
-                        다시 시도
-                      </button>
-                    </p>
-                  )}
+                  {gamesNotice}
                 </div>
               </div>
 
@@ -1498,22 +1505,25 @@ export default function MentoringPage() {
                   <h2 className="text-2xl font-black text-black">프로그램 만들기</h2>
 
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-black text-zinc-700">게임</span>
-                      <select
-                        name="gameName"
-                        value={programGameCode}
-                        disabled={gamesLoading || Boolean(gamesError)}
-                        onChange={handleProgramFormChange}
-                        className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
-                      >
-                        {games.map((game) => (
-                          <option key={game.code} value={game.code}>
-                            {game.name}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="space-y-2">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-black text-zinc-700">게임</span>
+                        <select
+                          name="gameName"
+                          value={programGameCode}
+                          disabled={gamesLoading || Boolean(gamesError)}
+                          onChange={handleProgramFormChange}
+                          className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
+                        >
+                          {games.map((game) => (
+                            <option key={game.code} value={game.code}>
+                              {game.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {gamesNotice}
+                    </div>
 
                     <label className="space-y-2">
                       <span className="text-sm font-black text-zinc-700">가격</span>
@@ -1581,7 +1591,7 @@ export default function MentoringPage() {
 
                   <button
                     type="submit"
-                    disabled={pendingAction === 'save-program'}
+                    disabled={pendingAction === 'save-program' || !programGameCode}
                     className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
                   >
                     <Plus size={17} />
