@@ -43,7 +43,7 @@ export function AdminUsersTable() {
               type="search"
               value={query}
               onChange={(event) => { setQuery(event.target.value); setCurrentPage(0); }}
-              placeholder="Handle · Nickname 검색"
+              placeholder="핸들 · 닉네임 검색"
               className="h-10 w-full rounded-2xl border border-[#d0d5dd] bg-white pr-[13px] pl-[37px] text-sm text-[#172033] outline-none transition focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10"
             />
           </label>

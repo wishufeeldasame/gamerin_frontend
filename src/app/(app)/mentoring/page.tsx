@@ -1118,7 +1118,7 @@ export default function MentoringPage() {
       <main className="mx-auto max-w-6xl px-5 py-10">
         <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-400">Mentoring</p>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-400">멘토링</p>
             <h1 className="mt-2 text-4xl font-black tracking-tight text-black">멘토링</h1>
           </div>
 
@@ -1190,7 +1190,7 @@ export default function MentoringPage() {
             <div>
               <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Explore Programs</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램 둘러보기</p>
                   <h2 className="mt-1 text-2xl font-black text-black">멘토링 프로그램 탐색</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
                     게임별 프로그램을 찾고 상세 화면에서 바로 신청할 수 있습니다.
@@ -1315,7 +1315,7 @@ export default function MentoringPage() {
               <div className="rounded-2xl border border-zinc-100 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Mileage</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
                     <h2 className="mt-1 text-2xl font-black text-black">내 마일리지</h2>
                   </div>
                   <div className="rounded-2xl bg-zinc-100 p-3 text-zinc-700">
@@ -1329,7 +1329,7 @@ export default function MentoringPage() {
               </div>
 
               <form onSubmit={handleChargeMileage} className="rounded-2xl border border-zinc-100 bg-white p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Test Charge</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">테스트 충전</p>
                 <h2 className="mt-1 text-2xl font-black text-black">가상 충전</h2>
                 <p className="mt-2 text-sm font-bold text-zinc-500">
                   잔액이 부족할 때 테스트용으로 바로 충전할 수 있습니다.
@@ -1419,7 +1419,7 @@ export default function MentoringPage() {
                 <div>
                   <section>
                     <div className="mb-5">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Programs</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램</p>
                       <h2 className="mt-1 text-2xl font-black text-black">내 프로그램</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
                         프로그램 이름을 선택하면 리뷰와 별점, 마감 항목을 자세히 볼 수 있습니다.
@@ -1713,7 +1713,7 @@ export default function MentoringPage() {
                   <div className="mt-6">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Reviews</p>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
                         <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                       </div>
                       <span className="text-sm font-black text-zinc-400">총 {selectedProgramReviews.length}개</span>
@@ -1940,7 +1940,7 @@ export default function MentoringPage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Reviews</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
                     <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                   </div>
                   <span className="text-sm font-black text-zinc-400">총 {mentorReviews.length.toLocaleString()}개</span>
@@ -1993,7 +1993,7 @@ export default function MentoringPage() {
             <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Review</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기 작성</p>
                   <h2 className="mt-1 text-2xl font-black text-black">리뷰 작성</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
                     {reviewTarget.programTitle}에 대한 평점과 후기를 남겨주세요.
@@ -2328,7 +2328,7 @@ function MileageTransactionPanel({
     <section className="rounded-2xl border border-zinc-100 bg-white p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Transactions</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">거래 내역</p>
           <h2 className="mt-1 text-2xl font-black text-black">마일리지 거래 내역</h2>
         </div>
         <p className="text-sm font-bold text-zinc-500">총 {totalElements.toLocaleString()}건</p>

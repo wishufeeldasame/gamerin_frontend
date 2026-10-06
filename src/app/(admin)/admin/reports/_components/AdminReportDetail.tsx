@@ -193,7 +193,7 @@ function AdminReportDetailView({
         <section className={cardClass}>
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-base leading-6 font-bold text-[#172033]">신고 당시 콘텐츠</h2>
-            <p className="text-xs leading-[18px] text-[#98a2b3]">Snapshot · {report.receivedAt}</p>
+            <p className="text-xs leading-[18px] text-[#98a2b3]">신고 당시 내용 · {report.receivedAt}</p>
           </div>
           <div className="mt-3 rounded-2xl border border-[#e4e7ec] p-[17px]">
             <div className="flex items-center gap-2.5">

@@ -166,6 +166,29 @@ describe('HomePage like rollback', () => {
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
   });
 
+  it.each([
+    ['unknown failure', '피드를 불러오지 못했습니다.'],
+    [new Error('Request failed.'), 'Request failed.'],
+  ])('피드 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
+    api.fetchFeed.mockRejectedValue(error);
+    render(<HomePage />);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  it('좋아요의 알 수 없는 오류를 한국어로 안내하고 기존 상태로 롤백한다', async () => {
+    api.likePost.mockRejectedValue('unknown failure');
+    render(<HomePage />);
+    const renderedPost = await screen.findByTestId('post-post-1');
+    fireEvent.click(screen.getByRole('button', { name: 'toggle like' }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('좋아요 상태를 변경하지 못했습니다.');
+      expect(renderedPost).toHaveAttribute('data-liked', 'false');
+      expect(renderedPost).toHaveAttribute('data-likes', '7');
+      expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
+    });
+  });
+
   it('rolls back only like fields and keeps bookmark and repost updates made while the request is pending', async () => {
     const request = createDeferred<void>();
     api.likePost.mockReturnValue(request.promise);

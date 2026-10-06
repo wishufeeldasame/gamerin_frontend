@@ -43,11 +43,11 @@ import {
   Conversation,
   MessageRecipient,
   formatChatTime,
-  formatConversationTime,
   getInitials,
   mergeMessages,
 } from '@/lib/message-store';
 import { invalidateNotifications } from '@/lib/notification-sync';
+import { RelativeTime } from '@/app/home/components/RelativeTime';
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -173,17 +173,17 @@ function ConversationCard({
               <HighlightedText text={conversation.recipient.name} query={query} />
             </p>
             <p
-              className={`truncate text-[11px] font-bold uppercase tracking-widest ${
+              className={`truncate text-[11px] font-bold tracking-widest ${
                 active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
-              <HighlightedText text={conversation.recipient.role} query={query} />
+              <HighlightedText text={conversation.recipient.handle} query={query} />
             </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
           <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
-            {formatConversationTime(conversation.updatedAt)}
+            <RelativeTime createdAt={conversation.updatedAt} />
           </span>
           {conversation.unreadCount > 0 ? (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-[10px] font-black text-black">
@@ -290,7 +290,7 @@ function NewChatPicker({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-black text-black">{recipient.name}</span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
-                  {recipient.handle} · {recipient.role}
+                  {recipient.handle}
                 </span>
               </span>
             </button>
@@ -1340,7 +1340,7 @@ export default function MessagesPage() {
               <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  {conversations.length} conversations
+                  대화 {conversations.length}개
                 </p>
                 {hasHiddenConversations ? (
                   <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
@@ -1462,11 +1462,11 @@ export default function MessagesPage() {
                     <ShieldCheck size={16} className="shrink-0 text-blue-500" />
                   </div>
                   <p
-                    className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
+                    className={`mt-1 text-[11px] font-black tracking-widest ${
                       activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
                     }`}
                   >
-                    {activeConversation.recipient.online ? 'Online now' : activeConversation.recipient.role}
+                    {activeConversation.recipient.online ? '접속 중' : activeConversation.recipient.handle}
                   </p>
                 </div>
               </div>
