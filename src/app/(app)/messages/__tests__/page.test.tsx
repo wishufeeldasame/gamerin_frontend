@@ -65,16 +65,70 @@ describe('메시지 화면 표시와 기존 검색', () => {
     expect(screen.queryByText('접속 중')).not.toBeInTheDocument();
   });
 
-  it('목록 검색에서 role 조건을 유지한다', async () => {
+  it('목록 검색에서 화면에 보이지 않는 role은 제외한다', async () => {
     render(<MessagesPage />);
     await screen.findByRole('button', { name: /대화상대/ });
     const search = screen.getByPlaceholderText('대화 또는 사용자 검색');
-    fireEvent.change(search, { target: { value: 'USER' } });
+
+    for (const query of ['USER', 'user', '  UsEr  ']) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(screen.queryByRole('button', { name: /대화상대/ })).not.toBeInTheDocument();
+    }
+
+    fireEvent.change(search, { target: { value: '' } });
     expect(screen.getByRole('button', { name: /대화상대/ })).toBeInTheDocument();
+  });
+
+  it('이름과 핸들 검색, 대소문자 무시와 검색어 공백 처리를 유지한다', async () => {
+    render(<MessagesPage />);
+    await screen.findByRole('button', { name: /대화상대/ });
+    const search = screen.getByPlaceholderText('대화 또는 사용자 검색');
+
     fireEvent.change(search, { target: { value: 'not-matching' } });
     expect(screen.queryByRole('button', { name: /대화상대/ })).not.toBeInTheDocument();
-    fireEvent.change(search, { target: { value: 'mixedcase' } });
-    expect(screen.getByRole('button', { name: /대화상대/ })).toBeInTheDocument();
+
+    for (const query of ['대화상대', 'mixedcase', '  MIXEDCASE  ', '   ']) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(screen.getByRole('button', { name: /대화상대/ })).toBeInTheDocument();
+    }
+  });
+
+  it.each([
+    {
+      target: '이름',
+      matchingConversation: {
+        ...conversation,
+        recipient: { ...conversation.recipient, name: 'USER팀' },
+      },
+    },
+    {
+      target: '핸들',
+      matchingConversation: {
+        ...conversation,
+        recipient: { ...conversation.recipient, handle: '@user123' },
+      },
+    },
+    {
+      target: '마지막 메시지',
+      matchingConversation: {
+        ...conversation,
+        messages: [{
+          id: 'message-1', senderId: 'recipient-1', text: 'USER 설정 확인했어요',
+          createdAt: conversation.updatedAt, read: true, deliveryStatus: 'sent' as const,
+          attachments: [], sharedPost: null,
+        }],
+      },
+    },
+  ])('$target에 실제 USER가 있으면 검색된다', async ({ matchingConversation }) => {
+    mocks.list.mockResolvedValue([matchingConversation]);
+    render(<MessagesPage />);
+    const card = await screen.findByRole('button', { name: new RegExp(matchingConversation.recipient.name) });
+    const search = screen.getByPlaceholderText('대화 또는 사용자 검색');
+
+    for (const query of ['USER', 'user', '  UsEr  ']) {
+      fireEvent.change(search, { target: { value: query } });
+      expect(card).toBeInTheDocument();
+    }
   });
 
   it('새 대화 선택에서도 핸들만 표시하고 role은 숨긴다', async () => {

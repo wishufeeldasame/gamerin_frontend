@@ -978,7 +978,6 @@ export default function MessagesPage() {
       [
         conversation.recipient.name,
         conversation.recipient.handle,
-        conversation.recipient.role,
         getLastPreview(conversation),
       ].some((value) => value.toLowerCase().includes(normalized))
     );
