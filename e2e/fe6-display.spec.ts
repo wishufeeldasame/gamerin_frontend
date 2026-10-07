@@ -135,8 +135,12 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         const card = page.getByRole('button', { name: /대화상대/ });
         await expect(card).toBeVisible();
         await page.getByPlaceholder('대화 또는 사용자 검색').fill('USER');
-        await expect(card).toBeVisible();
+        await expect(card).toHaveCount(0);
         await expect(page.getByText('USER', { exact: true })).toHaveCount(0);
+        await page.getByPlaceholder('대화 또는 사용자 검색').fill('mixedcase');
+        await expect(card).toBeVisible();
+        await page.getByPlaceholder('대화 또는 사용자 검색').fill('대화상대');
+        await expect(card).toBeVisible();
         await page.getByPlaceholder('대화 또는 사용자 검색').fill('');
         await checkLayout(page, info, 'messages-list');
         await card.click();
