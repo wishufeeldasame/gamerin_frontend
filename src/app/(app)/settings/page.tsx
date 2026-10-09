@@ -1,7 +1,21 @@
 'use client';
 
+
 import { ChevronRight, Moon, Settings, Sun, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
+import {
+  Bell,
+  ChevronRight,
+  Globe,
+  Lock,
+  Moon,
+  Settings,
+  Sun,
+  Trash2,
+  User,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
 import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
 
@@ -43,6 +57,10 @@ export default function SettingsPage() {
 
   const renderAccountSection = () => (
     <div className="space-y-6">
+      <Link href="/reports/my" className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 font-semibold text-black dark:border-zinc-700 dark:text-zinc-100">
+        내 신고
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Link>
       <div>
         <h3 className="mb-4 text-lg font-bold text-black">계정 정보</h3>
         <div className="space-y-4">
@@ -164,6 +182,20 @@ export default function SettingsPage() {
             <p className="font-semibold text-black">다크 모드</p>
           </button>
         </div>
+      </div>
+
+      <div className="border-t border-zinc-200 pt-6">
+        <h3 className="mb-4 text-lg font-bold text-black">언어 설정</h3>
+        <select
+          value={language}
+          onChange={(event) => setLanguage(event.target.value as LanguageCode)}
+          className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
+        >
+          <option value="ko">한국어</option>
+          <option value="en">영어</option>
+          <option value="ja">일본어</option>
+          <option value="zh">중국어</option>
+        </select>
       </div>
     </div>
   );

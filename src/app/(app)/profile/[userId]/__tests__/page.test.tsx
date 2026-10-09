@@ -173,6 +173,7 @@ describe('ProfilePage', () => {
     });
   });
 
+
   it('ignores legacy local privacy settings and keeps profile content public', async () => {
     window.localStorage.setItem(
       'gamerin_user_settings',
@@ -192,6 +193,14 @@ describe('ProfilePage', () => {
 
     fireEvent.click(statsTab);
     expect(await screen.findByRole('heading', { name: 'Verified Stats' })).toBeInTheDocument();
+
+  it.each([
+    ['unknown failure', '프로필을 불러오지 못했습니다.'],
+    [new Error('Request failed.'), 'Request failed.'],
+  ])('프로필 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
+    api.fetchUserProfile.mockRejectedValue(error);
+    render(<ProfilePage />);
+    expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {

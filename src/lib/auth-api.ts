@@ -6,12 +6,20 @@ import {
   isBlockedAccountStatus,
 } from '@/lib/auth-session-policy';
 import {
+  AUTH_USER_KEY,
   assertCurrentAuthGeneration,
+  beginExplicitOAuthAuthentication,
+  commitAuthenticatedUser,
+  finishExplicitOAuthAuthentication,
   getAuthGeneration,
+  isExplicitOAuthAttemptCurrent,
   isCurrentAuthGeneration,
   isExpiredAuthGeneration,
   logoutAuthSession,
+  markExplicitOAuthConfirmation,
   refreshAccessTokenResult,
+  requireLocalReauthentication,
+  setAuthConfirmationOwner,
   setAccessToken,
   waitForLogoutCompletion,
 } from '@/lib/auth-store';
@@ -124,27 +132,34 @@ async function clearSessionOnFailure<T>(generation: number, run: () => Promise<T
 
 /**
  * 로그인·가입 응답으로 받은 access token으로 세션을 만들고 `/auth/me`로 사용자를 확정한다.
- * 확정하지 못하면 세션을 정리한다. 서버 응답의 사용자 정보는 쓰지 않는다.
+ * 확정하지 못하면 세션을 정리한다. 로그인 응답의 userId는 계정 일치 확인에만 쓰고 화면 사용자는 /me로 만든다.
  * 토큰을 받기까지 비동기 경계가 있었다면 그 시작 때의 세대(expectedGeneration)를 넘겨, 그사이 로그아웃·사용자 전환이 있었으면
  * 오래된 결과가 새 세션의 토큰을 덮어쓰지 않고 AbortError로 끝나게 한다.
  */
 export async function confirmAuthSession(
   accessToken: string,
   expectedGeneration = getAuthGeneration(),
+  expectedUserId?: string,
 ): Promise<AuthUser> {
   assertCurrentAuthGeneration(expectedGeneration);
   setAccessToken(accessToken);
   const generation = getAuthGeneration();
+  if (expectedUserId) setAuthConfirmationOwner(generation, expectedUserId);
 
   return clearSessionOnFailure(generation, async () => {
     const user = await fetchAuthUser();
+    if (expectedUserId && user.id !== expectedUserId) {
+      requireLocalReauthentication();
+      throw new DOMException('다른 계정으로 인증되어 다시 로그인이 필요합니다.', 'AbortError');
+    }
     // 호출한 쪽이 로그인 상태를 반영하기 직전에, 그사이 로그아웃·사용자 전환이 있었으면 이 결과를 버린다.
     assertCurrentAuthGeneration(generation);
+    commitAuthenticatedUser(user.id, generation);
     return user;
   });
 }
 
-/** 아이디·비밀번호로 로그인하고 `/auth/me`로 확정한 사용자를 반환한다. 로그인 응답의 사용자 정보는 쓰지 않는다. */
+/** 아이디·비밀번호로 로그인하고 응답 userId와 `/auth/me`의 계정을 확인한 뒤 사용자를 반환한다. */
 export async function loginWithPassword(handle: string, password: string): Promise<AuthUser> {
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();
@@ -169,11 +184,12 @@ export async function loginWithPassword(handle: string, password: string): Promi
   }
 
   const accessToken = body?.data?.accessToken;
-  if (typeof accessToken !== 'string' || !accessToken) {
+  const userId = body?.data?.userId;
+  if (typeof accessToken !== 'string' || !accessToken || typeof userId !== 'string' || !userId) {
     throw new Error('로그인 응답에 인증 토큰이 없습니다.');
   }
 
-  return confirmAuthSession(accessToken);
+  return confirmAuthSession(accessToken, generation, userId);
 }
 
 /** 소셜 가입을 완료하고(가입 직후 로그인 상태가 된다) `/auth/me`로 확정한 사용자를 반환한다. */
@@ -199,43 +215,51 @@ export async function completeSocialSignup(params: {
   }
 
   const accessToken = body.data?.accessToken;
-  if (typeof accessToken !== 'string' || !accessToken) {
+  const userId = body.data?.userId;
+  if (typeof accessToken !== 'string' || !accessToken || typeof userId !== 'string' || !userId) {
     throw new Error('로그인 정보가 올바르지 않습니다. 다시 시도해 주세요.');
   }
 
   try {
-    return await confirmAuthSession(accessToken);
+    return await confirmAuthSession(accessToken, generation, userId);
   } catch (error) {
     if (isAbortError(error) || error instanceof BlockedAccountError) throw error;
     throw new SignupCompletedError();
   }
 }
 
-// 같은 세대의 OAuth 완료 호출은 한 작업으로 합친다(StrictMode의 effect 재실행 등). 합치지 않으면 한 호출의 실패 정리가
-// 세대를 바꿔 다른 호출이 사용자 전환으로 오인해 AbortError로 끝난다.
-let oauthCompletion: { generation: number; promise: Promise<AuthUser> } | null = null;
+// 같은 활성 OAuth 시도의 완료 호출은 획득·확정 세대에 걸쳐 한 작업으로 합친다(StrictMode 등).
+// 외부 로그인·로그아웃으로 무효화된 시도는 다음 호출에서 재사용하지 않는다.
+let oauthCompletion: { attemptId: number; promise: Promise<AuthUser> } | null = null;
 
 /** OAuth 로그인 뒤 HttpOnly refresh 쿠키로 토큰을 받고 `/auth/me`로 확정한 사용자를 반환한다. */
 export function completeOAuthSession(): Promise<AuthUser> {
-  const generation = getAuthGeneration();
-  if (oauthCompletion?.generation === generation) {
+  if (oauthCompletion && isExplicitOAuthAttemptCurrent(oauthCompletion.attemptId)) {
     return oauthCompletion.promise;
   }
 
-  const promise = runOAuthSession(generation);
-  oauthCompletion = { generation, promise };
+  const attempt = beginExplicitOAuthAuthentication();
+  const promise = runOAuthSession(attempt.id, attempt.generation);
+  oauthCompletion = { attemptId: attempt.id, promise };
   const clear = () => {
+    finishExplicitOAuthAuthentication(attempt.id);
     if (oauthCompletion?.promise === promise) oauthCompletion = null;
   };
   promise.then(clear, clear);
   return promise;
 }
 
-async function runOAuthSession(generation: number): Promise<AuthUser> {
+async function runOAuthSession(attemptId: number, generation: number): Promise<AuthUser> {
   await waitForLogoutCompletion();
+  if (!isExplicitOAuthAttemptCurrent(attemptId)) {
+    throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+  }
 
   const refreshed = await clearSessionOnFailure(generation, async () => {
-    const result = await refreshAccessTokenResult(generation);
+    const result = await refreshAccessTokenResult(generation, {
+      expectedUserId: null,
+      oauthAttemptId: attemptId,
+    });
 
     if (result.status === 'stale') {
       throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
@@ -253,7 +277,9 @@ async function runOAuthSession(generation: number): Promise<AuthUser> {
   });
 
   // refresh는 인증 세대를 올리지 않는다. 새 세션으로 확정해 같은 시점에 돌던 앱 시작 복원이 이 로그인을 덮어쓰지 못하게 한다.
-  return confirmAuthSession(refreshed.accessToken, generation);
+  const confirmation = confirmAuthSession(refreshed.accessToken, generation, refreshed.userId);
+  markExplicitOAuthConfirmation(attemptId, getAuthGeneration());
+  return confirmation;
 }
 
 /**
@@ -267,14 +293,29 @@ export async function restoreAuthUser(
   storedUser: AuthUser,
   generation: number,
 ): Promise<AuthUser | null> {
-  const refreshResult = await refreshAccessTokenResult(generation);
+  setAuthConfirmationOwner(generation, storedUser.id);
+  const refreshResult = await refreshAccessTokenResult(generation, {
+    expectedUserId: storedUser.id,
+  });
 
   if (!isCurrentAuthGeneration(generation) || refreshResult.status !== 'refreshed') {
     return null;
   }
 
   try {
-    return await fetchAuthUser(storedUser);
+    const user = await fetchAuthUser(storedUser);
+    if (user.id !== storedUser.id) {
+      requireLocalReauthentication();
+      return null;
+    }
+    // 다른 탭의 storage 이벤트보다 이 복원의 응답이 먼저 도착해도 새 저장 사용자를 덮어쓰지 않는다.
+    const latestSavedUser = window.localStorage.getItem(AUTH_USER_KEY);
+    if (latestSavedUser && (JSON.parse(latestSavedUser) as Partial<AuthUser> | null)?.id !== storedUser.id) {
+      requireLocalReauthentication();
+      return null;
+    }
+    if (!commitAuthenticatedUser(user.id, generation)) return null;
+    return user;
   } catch (error) {
     if (isCurrentAuthGeneration(generation) && error instanceof BlockedAccountError) {
       throw error;

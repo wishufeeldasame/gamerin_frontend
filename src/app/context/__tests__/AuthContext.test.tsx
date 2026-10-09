@@ -5,12 +5,24 @@ const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const authStore = vi.hoisted(() => ({
   AUTH_CLEARED_EVENT: 'gamerin_auth_cleared',
   AUTH_LOGOUT_STATE_EVENT: 'gamerin_auth_logout_state',
+  AUTH_REAUTH_REQUIRED_EVENT: 'gamerin_auth_reauthentication_required',
   AUTH_USER_KEY: 'gamerin_user',
+  beginExplicitOAuthAuthentication: vi.fn(),
+  commitAuthenticatedUser: vi.fn(() => true),
+  finishExplicitOAuthAuthentication: vi.fn(),
   getAuthGeneration: vi.fn(() => 0),
+  isExplicitOAuthAttemptCurrent: vi.fn(() => true),
   isCurrentAuthGeneration: vi.fn(() => true),
+  isExpiredAuthGeneration: vi.fn(() => false),
+  isLocalReauthenticationRequired: vi.fn(() => false),
   isLogoutInProgress: vi.fn(() => false),
   logoutAuthSession: vi.fn<() => Promise<void>>(),
+  markExplicitOAuthConfirmation: vi.fn(),
   refreshAccessTokenResult: vi.fn(async () => ({ status: 'failed', httpStatus: 0 })),
+  requireLocalReauthentication: vi.fn(),
+  setAccessToken: vi.fn(),
+  setAuthConfirmationOwner: vi.fn(() => true),
+  waitForLogoutCompletion: vi.fn(() => Promise.resolve()),
 }));
 
 const apiClient = vi.hoisted(() => ({
@@ -55,9 +67,11 @@ function AuthHarness() {
 describe('AuthProvider session clearing', () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.sessionStorage.clear();
     router.replace.mockReset();
     authStore.logoutAuthSession.mockReset();
     authStore.logoutAuthSession.mockResolvedValue(undefined);
+    authStore.isLocalReauthenticationRequired.mockReturnValue(false);
   });
 
   it('immediately clears the Context user when the shared auth-cleared event arrives', async () => {
@@ -73,6 +87,22 @@ describe('AuthProvider session clearing', () => {
       window.dispatchEvent(new Event(authStore.AUTH_CLEARED_EVENT));
     });
     expect(screen.getByText('no-user')).toBeInTheDocument();
+  });
+
+  it('현재 탭 재인증 이벤트가 오면 공유 저장 사용자를 지우지 않고 Context 사용자만 비운다', async () => {
+    render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+    expect(await screen.findByText('ready')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'test login' }));
+    expect(screen.getByText('운영자')).toBeInTheDocument();
+
+    act(() => {
+      window.dispatchEvent(new Event(authStore.AUTH_REAUTH_REQUIRED_EVENT));
+    });
+
+    expect(screen.getByText('no-user')).toBeInTheDocument();
+    expect(window.localStorage.getItem(authStore.AUTH_USER_KEY)).toContain('admin-id');
+    expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
   });
 
   it('clears the Context user before a delayed server logout finishes', async () => {
@@ -103,6 +133,18 @@ describe('AuthProvider session clearing', () => {
       apiClient.apiRequest.mockReset();
     });
 
+    it('탭별 재인증 마커가 있으면 bootstrap API를 한 번도 호출하지 않는다', async () => {
+      authStore.isLocalReauthenticationRequired.mockReturnValue(true);
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(authStore.refreshAccessTokenResult).not.toHaveBeenCalled();
+      expect(apiClient.apiRequest).not.toHaveBeenCalled();
+      expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
+    });
+
     it('refresh 일시 장애면 로그아웃하지 않고, 검증되지 않은 사용자도 복원하지 않는다', async () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus: 503 });
 
@@ -119,6 +161,7 @@ describe('AuthProvider session clearing', () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',
         accessToken: 'token',
+        userId: 'user-id',
       } as never);
       apiClient.apiRequest.mockRejectedValueOnce(new Error('unavailable'));
 
@@ -133,6 +176,7 @@ describe('AuthProvider session clearing', () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',
         accessToken: 'token',
+        userId: 'user-id',
       } as never);
       apiClient.apiRequest.mockResolvedValueOnce({
         userId: 'user-id',
@@ -160,6 +204,7 @@ describe('AuthProvider session clearing', () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',
         accessToken: 'token',
+        userId: 'user-id',
       } as never);
       apiClient.apiRequest.mockResolvedValueOnce({ userId: 'user-id', handle: 'user', nickname: '서버닉네임' });
 
@@ -172,7 +217,7 @@ describe('AuthProvider session clearing', () => {
     });
 
     it('복원 도중 로그인·로그아웃으로 세대가 바뀌면 복원 결과로 사용자를 덮어쓰지 않는다', async () => {
-      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string }) => void) | undefined;
+      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string; userId: string }) => void) | undefined;
       authStore.refreshAccessTokenResult.mockImplementationOnce(
         () => new Promise((resolve) => {
           finishRefresh = resolve as typeof finishRefresh;
@@ -187,7 +232,7 @@ describe('AuthProvider session clearing', () => {
       fireEvent.click(screen.getByRole('button', { name: 'test login' }));
       authStore.isCurrentAuthGeneration.mockReturnValue(false);
       await act(async () => {
-        finishRefresh?.({ status: 'refreshed', accessToken: 'token' });
+        finishRefresh?.({ status: 'refreshed', accessToken: 'token', userId: 'user-id' });
       });
 
       expect(await screen.findByText('ready')).toBeInTheDocument();
@@ -196,7 +241,7 @@ describe('AuthProvider session clearing', () => {
     });
 
     it('복원 중 차단 계정으로 확인되면 이미 반영된 화면 사용자 상태도 비운다', async () => {
-      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string }) => void) | undefined;
+      let finishRefresh: ((result: { status: 'refreshed'; accessToken: string; userId: string }) => void) | undefined;
       authStore.refreshAccessTokenResult.mockImplementationOnce(
         () => new Promise((resolve) => {
           finishRefresh = resolve as typeof finishRefresh;
@@ -213,7 +258,7 @@ describe('AuthProvider session clearing', () => {
       fireEvent.click(screen.getByRole('button', { name: 'test login' }));
       expect(screen.getByText('운영자')).toBeInTheDocument();
       await act(async () => {
-        finishRefresh?.({ status: 'refreshed', accessToken: 'token' });
+        finishRefresh?.({ status: 'refreshed', accessToken: 'token', userId: 'user-id' });
       });
 
       expect(await screen.findByText('ready')).toBeInTheDocument();
@@ -225,6 +270,7 @@ describe('AuthProvider session clearing', () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({
         status: 'refreshed',
         accessToken: 'token',
+        userId: 'user-id',
       } as never);
       apiClient.apiRequest.mockResolvedValueOnce({
         userId: 'user-id',

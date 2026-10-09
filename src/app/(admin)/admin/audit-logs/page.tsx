@@ -15,6 +15,7 @@ export default function AdminAuditLogsPage() {
         activePage="auditLogs"
         title="작업 이력"
         description="관리자 처리 내역을 읽기 전용으로 확인합니다."
+        showRefresh={false}
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '작업 이력' }]}
       >
         <AdminAuditLogs />

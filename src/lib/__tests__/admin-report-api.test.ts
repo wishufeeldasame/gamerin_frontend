@@ -13,6 +13,9 @@ vi.mock('@/lib/admin-auth', () => authorizationMocks);
 let store: typeof import('@/lib/auth-store');
 let fetchAdminReports: typeof import('@/lib/admin-report-api').fetchAdminReports;
 let updateAdminReportStatus: typeof import('@/lib/admin-report-api').updateAdminReportStatus;
+let fetchAdminReportDetail: typeof import('@/lib/admin-report-api').fetchAdminReportDetail;
+let startAdminReportReview: typeof import('@/lib/admin-report-api').startAdminReportReview;
+let resolveAdminReport: typeof import('@/lib/admin-report-api').resolveAdminReport;
 let AdminReportApiError: typeof import('@/lib/admin-report-api').AdminReportApiError;
 let fetchAdminHiddenContents: typeof import('@/lib/admin-content-api').fetchAdminHiddenContents;
 let restoreAdminHiddenContent: typeof import('@/lib/admin-content-api').restoreAdminHiddenContent;
@@ -28,7 +31,7 @@ describe('admin API requests', () => {
     window.localStorage.clear();
     api = installFetchRoutes();
     store = await import('@/lib/auth-store');
-    ({ fetchAdminReports, updateAdminReportStatus, AdminReportApiError } = await import('@/lib/admin-report-api'));
+    ({ fetchAdminReports, updateAdminReportStatus, fetchAdminReportDetail, startAdminReportReview, resolveAdminReport, AdminReportApiError } = await import('@/lib/admin-report-api'));
     ({ fetchAdminHiddenContents, restoreAdminHiddenContent } = await import('@/lib/admin-content-api'));
     store.setAccessToken('access-token');
   });
@@ -48,7 +51,7 @@ describe('admin API requests', () => {
 
   it('ends the session and notifies 401 when the retried request is still 401', async () => {
     api.route(REPORTS, () => jsonResponse(401, {}), () => jsonResponse(401, { message: 'expired' }));
-    api.route('/api/v1/auth/refresh', () => jsonResponse(200, { data: { accessToken: 'refreshed-token' } }));
+    api.route('/api/v1/auth/refresh', () => jsonResponse(200, { data: { userId: 'user-a', accessToken: 'refreshed-token' } }));
 
     await expect(fetchAdminReports({})).rejects.toMatchObject({ status: 401, message: 'expired' });
 
@@ -121,7 +124,7 @@ describe('admin API requests', () => {
       () => jsonResponse(401, { success: false }),
       () => jsonResponse(200, { success: true, data: emptyPage }),
     );
-    api.route('/api/v1/auth/refresh', () => jsonResponse(200, { data: { accessToken: 'refreshed-token' } }));
+    api.route('/api/v1/auth/refresh', () => jsonResponse(200, { data: { userId: 'user-a', accessToken: 'refreshed-token' } }));
 
     await expect(fetchAdminReports({})).resolves.toMatchObject({
       content: [],
@@ -153,8 +156,13 @@ describe('admin API requests', () => {
       }),
     );
 
+    const controller = new AbortController();
     await expect(
-      updateAdminReportStatus('a9c79ce8-d1b5-4fba-a6e3-7f9c66212193', 'IN_REVIEW'),
+      updateAdminReportStatus(
+        'a9c79ce8-d1b5-4fba-a6e3-7f9c66212193',
+        'IN_REVIEW',
+        controller.signal,
+      ),
     ).resolves.toMatchObject({ status: 'IN_REVIEW' });
 
     const [url, options] = vi.mocked(fetch).mock.calls[0];
@@ -165,7 +173,34 @@ describe('admin API requests', () => {
       method: 'PATCH',
       body: JSON.stringify({ status: 'IN_REVIEW' }),
       credentials: 'include',
+      signal: controller.signal,
     });
+  });
+
+  it('loads detail by encoded code and starts review without a body', async () => {
+    const detail = { report: { id: 'report-id', status: 'IN_REVIEW' }, reporter: {}, targetUser: null, contentHidden: false };
+    api.route('/api/v1/admin/reports/RPT%2F1/detail', () => jsonResponse(200, { success: true, data: detail }));
+    api.route('/api/v1/admin/reports/report-id/start-review', () => jsonResponse(200, { success: true, data: detail }));
+    const controller = new AbortController();
+    await expect(fetchAdminReportDetail('RPT/1', controller.signal)).resolves.toEqual(detail);
+    await startAdminReportReview('report-id');
+    expect(vi.mocked(fetch).mock.calls[1][1]).toMatchObject({ method: 'POST' });
+    expect(vi.mocked(fetch).mock.calls[1][1]?.body).toBeUndefined();
+  });
+
+  it('sends only supported resolution fields with the 3-day penalty in one request', async () => {
+    api.route('/api/v1/admin/reports/RPT-1/resolve', () => jsonResponse(200, { success: true, data: { report: { status: 'RESOLVED' } } }));
+    await resolveAdminReport('RPT-1', { decision: 'RESOLVED', hideTargetContent: true, penaltyType: 'SUSPENSION_3D', reason: '검토 결과', internalMemo: null });
+    expect(vi.mocked(fetch).mock.calls).toHaveLength(1);
+    expect(vi.mocked(fetch).mock.calls[0][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ decision: 'RESOLVED', hideTargetContent: true, penaltyType: 'SUSPENSION_3D', reason: '검토 결과', internalMemo: null }) });
+  });
+
+  it('omits effects for rejection and preserves the session for a business 400', async () => {
+    api.route('/api/v1/admin/reports/RPT-1/resolve', () => jsonResponse(400, { success: false, message: '관리자 권한을 가진 계정에는 제재를 부여할 수 없습니다.' }));
+    await expect(resolveAdminReport('RPT-1', { decision: 'REJECTED', hideTargetContent: true, penaltyType: 'WARNING', reason: '근거 없음', internalMemo: null })).rejects.toMatchObject({ status: 400 });
+    expect(vi.mocked(fetch).mock.calls[0][1]?.body).toBe(JSON.stringify({ decision: 'REJECTED', hideTargetContent: false, penaltyType: null, reason: '근거 없음', internalMemo: null }));
+    expect(store.getAccessToken()).toBe('access-token');
+    expect(authorizationMocks.notifyAdminAuthorizationFailure).not.toHaveBeenCalled();
   });
 
   it('applies the same authorization policy to admin content requests', async () => {
@@ -225,7 +260,8 @@ describe('admin API requests', () => {
       }),
     );
 
-    await restoreAdminHiddenContent('POST', 'content-id');
+    const controller = new AbortController();
+    await restoreAdminHiddenContent('POST', 'content-id', controller.signal);
 
     const [url, options] = vi.mocked(fetch).mock.calls[0];
     expect(url).toBe(
@@ -234,6 +270,7 @@ describe('admin API requests', () => {
     expect(options).toMatchObject({
       method: 'POST',
       credentials: 'include',
+      signal: controller.signal,
     });
     expect(options?.body).toBeUndefined();
   });
