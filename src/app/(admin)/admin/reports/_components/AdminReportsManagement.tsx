@@ -1,8 +1,10 @@
 'use client';
 
 import { Search } from 'lucide-react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 import { fetchAdminReports, updateAdminReportStatus } from '@/lib/admin-report-api';
 import { fetchReportReasons, type ReportReason } from '@/lib/report-api';
 import { useVisiblePolling } from '@/hooks/useVisiblePolling';
@@ -32,9 +34,30 @@ const statusTones: Record<AdminReportStatus, 'warning' | 'info' | 'success' | 'n
 };
 const statusLabels = Object.keys(statusCodeByLabel) as AdminReportStatus[];
 
-export function AdminReportsManagement() {
+type ReportsQuery = {
+  query: string;
+  status: string;
+  reason: string;
+  targetType: string;
+  sort: string;
+  page: number;
+};
+
+type LoadResult = 'applied' | 'failed' | 'aborted' | 'redirected' | 'skipped';
+
+function isSameQuery(left: ReportsQuery, right: ReportsQuery) {
+  return left.query === right.query
+    && left.status === right.status
+    && left.reason === right.reason
+    && left.targetType === right.targetType
+    && left.sort === right.sort
+    && left.page === right.page;
+}
+
+function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
   const searchParams = useSearchParams();
-  const [query, setQuery] = useState(() => searchParams.get('keyword')?.trim() ?? '');
+  const initialQuery = searchParams.get('keyword')?.trim() ?? '';
+  const [query, setQuery] = useState(initialQuery);
   const [status, setStatus] = useState('');
   const [reason, setReason] = useState('');
   const [targetType, setTargetType] = useState('');
@@ -45,9 +68,13 @@ export function AdminReportsManagement() {
   const [totalItems, setTotalItems] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [pendingReportId, setPendingReportId] = useState<string | null>(null);
+  const [lockedReportIds, setLockedReportIds] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [isMutationInFlight, setIsMutationInFlight] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [mutationSyncWarning, setMutationSyncWarning] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(null);
   const [reasonOptions, setReasonOptions] = useState<ReportReason[]>([]);
@@ -56,13 +83,62 @@ export function AdminReportsManagement() {
   const requestControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const requestInFlightRef = useRef(false);
+  const mutationControllerRef = useRef<AbortController | null>(null);
+  const mutationIdRef = useRef(0);
+  const mutationInFlightRef = useRef(false);
+  const mutationVersionRef = useRef(0);
+  const lockedReportsRef = useRef(new Map<string, number | null>());
+  const mountedRef = useRef(true);
+  const queryRef = useRef<ReportsQuery>({
+    query: initialQuery,
+    status: '',
+    reason: '',
+    targetType: '',
+    sort: '최신순',
+    page: 0,
+  });
 
-  const loadReports = useCallback(async (background = false, force = false) => {
-    if (background && requestInFlightRef.current && !force) return;
+  const publishLockedReports = useCallback(() => {
+    setLockedReportIds(new Set(lockedReportsRef.current.keys()));
+  }, []);
+
+  const invalidateListRequest = useCallback(() => {
+    requestIdRef.current += 1;
+    requestControllerRef.current?.abort();
+    requestControllerRef.current = null;
+    requestInFlightRef.current = false;
+  }, []);
+
+  const changePage = useCallback((page: number) => {
+    if (queryRef.current.page === page) return;
+    queryRef.current = { ...queryRef.current, page };
+    invalidateListRequest();
+    setCurrentPage(page);
+  }, [invalidateListRequest]);
+
+  const clearResyncedLocks = useCallback((requestMutationVersion: number) => {
+    let changed = false;
+    lockedReportsRef.current.forEach((version, reportId) => {
+      if (version !== null && version <= requestMutationVersion) {
+        lockedReportsRef.current.delete(reportId);
+        changed = true;
+      }
+    });
+    if (changed) publishLockedReports();
+    if (lockedReportsRef.current.size === 0) setMutationSyncWarning(false);
+  }, [publishLockedReports]);
+
+  const loadReports = useCallback(async (
+    background = false,
+    force = false,
+  ): Promise<LoadResult> => {
+    if (background && requestInFlightRef.current && !force) return 'skipped';
 
     requestControllerRef.current?.abort();
     const controller = new AbortController();
     const requestId = ++requestIdRef.current;
+    const requestedQuery = { ...queryRef.current };
+    const requestMutationVersion = mutationVersionRef.current;
     requestControllerRef.current = controller;
     requestInFlightRef.current = true;
 
@@ -76,22 +152,31 @@ export function AdminReportsManagement() {
 
     try {
       const response = await fetchAdminReports({
-        status: status ? statusCodeByLabel[status as AdminReportStatus] : undefined,
-        targetType: targetType
-          ? targetTypeCodeByLabel[targetType as AdminReportTargetType]
+        status: requestedQuery.status
+          ? statusCodeByLabel[requestedQuery.status as AdminReportStatus]
           : undefined,
-        reasonCode: reason ? reason as ReportReasonCode : undefined,
-        keyword: query,
-        page: currentPage,
+        targetType: requestedQuery.targetType
+          ? targetTypeCodeByLabel[requestedQuery.targetType as AdminReportTargetType]
+          : undefined,
+        reasonCode: requestedQuery.reason
+          ? requestedQuery.reason as ReportReasonCode
+          : undefined,
+        keyword: requestedQuery.query,
+        page: requestedQuery.page,
         size: PAGE_SIZE,
-        sort: sort === '오래된순' ? 'createdAt,asc' : 'createdAt,desc',
+        sort: requestedQuery.sort === '오래된순' ? 'createdAt,asc' : 'createdAt,desc',
       }, controller.signal);
 
-      if (requestId !== requestIdRef.current) return;
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || requestId !== requestIdRef.current
+        || !isSameQuery(requestedQuery, queryRef.current)
+      ) return 'aborted';
 
-      if (currentPage > 0 && currentPage >= response.totalPages) {
-        setCurrentPage(Math.max(response.totalPages - 1, 0));
-        return;
+      if (requestedQuery.page > 0 && requestedQuery.page >= response.totalPages) {
+        changePage(Math.max(response.totalPages - 1, 0));
+        return 'redirected';
       }
 
       setReports(response.content.map((report) => mapAdminReport(report)));
@@ -100,9 +185,16 @@ export function AdminReportsManagement() {
       setLoadError(null);
       setRefreshError(null);
       setLastUpdatedAt(new Date());
+      clearResyncedLocks(requestMutationVersion);
+      return 'applied';
     } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      if (requestId !== requestIdRef.current) return;
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || (error instanceof DOMException && error.name === 'AbortError')
+        || requestId !== requestIdRef.current
+        || !isSameQuery(requestedQuery, queryRef.current)
+      ) return 'aborted';
 
       const message = error instanceof Error ? error.message : '신고 목록을 불러오지 못했습니다.';
       if (background) {
@@ -113,14 +205,30 @@ export function AdminReportsManagement() {
         setTotalItems(0);
         setLoadError(message);
       }
+      const eligibleLockedReportExists = Array.from(lockedReportsRef.current.values())
+        .some((version) => version !== null && version <= requestMutationVersion);
+      if (eligibleLockedReportExists) setMutationSyncWarning(true);
+      return 'failed';
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (mountedRef.current && requestId === requestIdRef.current) {
+        requestControllerRef.current = null;
         requestInFlightRef.current = false;
         setLoading(false);
         setIsRefreshing(false);
       }
     }
-  }, [currentPage, query, reason, sort, status, targetType]);
+  }, [changePage, clearResyncedLocks]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+      mutationIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      mutationControllerRef.current?.abort();
+    };
+  }, [accountKey]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -131,7 +239,7 @@ export function AdminReportsManagement() {
       window.clearTimeout(timeoutId);
       requestControllerRef.current?.abort();
     };
-  }, [loadReports]);
+  }, [currentPage, loadReports, query, reason, sort, status, targetType]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -139,28 +247,51 @@ export function AdminReportsManagement() {
 
     void fetchReportReasons(controller.signal)
       .then((reasons) => {
+        if (controller.signal.aborted || !mountedRef.current) return;
         setReasonOptions(reasons);
-        setReason((current) => (
-          current && !reasons.some((option) => option.code === current) ? '' : current
-        ));
+        const currentReason = queryRef.current.reason;
+        if (currentReason && !reasons.some((option) => option.code === currentReason)) {
+          queryRef.current = { ...queryRef.current, reason: '' };
+          invalidateListRequest();
+          setReason('');
+        }
       })
       .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === 'AbortError') return;
+        if (
+          controller.signal.aborted
+          || !mountedRef.current
+          || (error instanceof DOMException && error.name === 'AbortError')
+        ) return;
         setReasonOptions([]);
         setReasonError(error instanceof Error ? error.message : '신고 사유를 불러오지 못했습니다.');
       });
 
     return () => controller.abort();
-  }, [reasonReloadKey]);
+  }, [invalidateListRequest, reasonReloadKey]);
 
   useVisiblePolling(
-    () => loadReports(true),
-    { enabled: pendingReportId === null, intervalMs: 30_000 },
+    async () => {
+      await loadReports(true);
+    },
+    { enabled: !isMutationInFlight, intervalMs: 30_000 },
   );
 
   const safePage = Math.min(currentPage, Math.max(totalPages - 1, 0));
 
   const changeFilter = (setter: (value: string) => void) => (value: string) => {
+    const field = setter === setStatus
+      ? 'status'
+      : setter === setReason
+        ? 'reason'
+        : setter === setTargetType
+          ? 'targetType'
+          : 'sort';
+    queryRef.current = {
+      ...queryRef.current,
+      [field]: value,
+      page: 0,
+    };
+    invalidateListRequest();
     setter(value);
     setCurrentPage(0);
   };
@@ -173,21 +304,77 @@ export function AdminReportsManagement() {
       setActionError('실제 API에서 조회한 신고만 상태를 변경할 수 있습니다.');
       return;
     }
-    if (pendingReportId || nextStatus === report.status) return;
+    if (
+      mutationInFlightRef.current
+      || lockedReportsRef.current.has(reportUuid)
+      || nextStatus === report.status
+    ) return;
 
-    setPendingReportId(reportUuid);
+    mutationInFlightRef.current = true;
+    const controller = new AbortController();
+    const mutationId = ++mutationIdRef.current;
+    mutationControllerRef.current = controller;
+    lockedReportsRef.current.set(reportUuid, null);
+    publishLockedReports();
+    setIsMutationInFlight(true);
     setActionError(null);
 
     try {
-      await updateAdminReportStatus(
+      const updatedReport = await updateAdminReportStatus(
         reportUuid,
         statusCodeByLabel[nextStatus],
+        controller.signal,
       );
-      await loadReports(true, true);
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || mutationId !== mutationIdRef.current
+      ) return;
+
+      requestIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      requestInFlightRef.current = false;
+      setIsRefreshing(false);
+
+      const mutationVersion = ++mutationVersionRef.current;
+      lockedReportsRef.current.set(reportUuid, mutationVersion);
+      publishLockedReports();
+
+      const mappedReport = mapAdminReport(updatedReport);
+      setReports((current) => {
+        const reportIndex = current.findIndex((item) => item.reportUuid === reportUuid);
+        if (reportIndex < 0) return current;
+
+        const activeStatus = queryRef.current.status;
+        if (
+          activeStatus
+          && statusCodeByLabel[activeStatus as AdminReportStatus] !== updatedReport.status
+        ) {
+          return current.filter((item) => item.reportUuid !== reportUuid);
+        }
+
+        return current.map((item, index) => index === reportIndex ? mappedReport : item);
+      });
+
+      // Keep the UUID locked for resync, not the global PATCH submission guard.
+      void loadReports(true, true);
     } catch (error: unknown) {
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || (error instanceof DOMException && error.name === 'AbortError')
+        || mutationId !== mutationIdRef.current
+      ) return;
+      lockedReportsRef.current.delete(reportUuid);
+      publishLockedReports();
       setActionError(error instanceof Error ? error.message : '신고 상태를 변경하지 못했습니다.');
     } finally {
-      setPendingReportId(null);
+      if (mountedRef.current && mutationId === mutationIdRef.current) {
+        mutationControllerRef.current = null;
+        mutationInFlightRef.current = false;
+        setIsMutationInFlight(false);
+      }
     }
   };
 
@@ -205,7 +392,14 @@ export function AdminReportsManagement() {
               type="search"
               value={query}
               onChange={(event) => {
-                setQuery(event.target.value);
+                const value = event.target.value;
+                queryRef.current = {
+                  ...queryRef.current,
+                  query: value,
+                  page: 0,
+                };
+                invalidateListRequest();
+                setQuery(value);
                 setCurrentPage(0);
               }}
               placeholder="신고 ID · 상세 내용 · 신고자 닉네임 검색"
@@ -249,6 +443,15 @@ export function AdminReportsManagement() {
         <p className="mt-3 rounded-2xl border border-[#fecdca] bg-[#fef3f2] px-4 py-3 text-sm text-[#b42318]" role="alert">
           {actionError}
         </p>
+      ) : null}
+      {mutationSyncWarning ? (
+        <div
+          className={'mt-3 rounded-2xl border border-[#fedf89] bg-[#fffaeb] px-4 py-3 text-sm text-[#b54708]'}
+          role={'status'}
+        >
+          <p>상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.</p>
+          <p className="mt-1">건수와 페이지 정보는 마지막 조회 기준이며, 새로고침 후 확정됩니다.</p>
+        </div>
       ) : null}
       {refreshError ? (
         <p className="mt-3 rounded-2xl border border-[#fedf89] bg-[#fffaeb] px-4 py-3 text-sm text-[#b54708]" role="status">
@@ -294,7 +497,7 @@ export function AdminReportsManagement() {
               <tbody>
                 {reports.map((report) => (
                   <tr key={report.reportUuid} className="h-[77px] border-b border-[#f2f4f7] last:border-b-0">
-                    <td className="px-5 font-mono text-xs font-bold text-[#315ef5]">{report.id}</td>
+                    <td className="px-5 font-mono text-xs font-bold text-[#315ef5]"><Link href={`/admin/reports/${encodeURIComponent(report.id)}`} className="underline-offset-2 hover:underline">{report.id}</Link></td>
                     <td>
                       <div className="flex flex-col items-start gap-1">
                         <span className="rounded bg-[#f2f4f7] px-1.5 py-0.5 text-[11px] font-semibold text-[#667085]">{report.targetType}</span>
@@ -310,7 +513,9 @@ export function AdminReportsManagement() {
                       <select
                         aria-label={`${report.id} 상태 변경`}
                         value={report.status}
-                        disabled={pendingReportId !== null}
+                        disabled={Boolean(
+                          report.reportUuid && lockedReportIds.has(report.reportUuid),
+                        )}
                         onChange={(event) => {
                           void changeReportStatus(report, event.target.value as AdminReportStatus);
                         }}
@@ -340,9 +545,15 @@ export function AdminReportsManagement() {
           totalItems={totalItems}
           pageSize={PAGE_SIZE}
           itemLabel="건"
-          onPageChange={setCurrentPage}
+          onPageChange={changePage}
         />
       </section>
     </div>
   );
+}
+
+export function AdminReportsManagement() {
+  const { user } = useAuth();
+  const accountKey = user?.id ?? 'anonymous';
+  return <AdminReportsManagementContent key={accountKey} accountKey={accountKey} />;
 }

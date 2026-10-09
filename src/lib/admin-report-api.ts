@@ -63,7 +63,6 @@ export interface AdminReportResolutionRequest {
   penaltyType: AdminPenaltyType | null;
   reason: string;
   internalMemo: string | null;
-  includeRelatedReports: boolean;
 }
 
 export class AdminReportApiError extends ApiError {
@@ -125,44 +124,52 @@ export function fetchAdminReports(params: AdminReportSearchParams, signal?: Abor
 export function updateAdminReportStatus(
   reportId: string,
   status: ReportStatus,
+  signal?: AbortSignal,
 ) {
   return adminApiRequest<AdminReportApiItem>(
     `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportId)}/status`,
     {
       method: 'PATCH',
       body: JSON.stringify({ status }),
+      signal,
     },
   );
-}
-
-const unsupportedDetailMessage =
-  '현재 백엔드는 관리자 신고 상세 및 제재 처리 API를 제공하지 않습니다.';
-
-function unsupportedAdminReportDetailError() {
-  return new AdminReportApiError(unsupportedDetailMessage, 501);
 }
 
 export function fetchAdminReportDetail(
   reportCode: string,
   signal?: AbortSignal,
 ): Promise<AdminReportDetailResponse> {
-  void reportCode;
-  void signal;
-  return Promise.reject(unsupportedAdminReportDetailError());
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/detail`,
+    { signal },
+  );
 }
 
 export function startAdminReportReview(
   reportCode: string,
 ): Promise<AdminReportDetailResponse> {
-  void reportCode;
-  return Promise.reject(unsupportedAdminReportDetailError());
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/start-review`,
+    { method: 'POST' },
+  );
 }
 
 export function resolveAdminReport(
   reportCode: string,
   request: AdminReportResolutionRequest,
 ): Promise<AdminReportDetailResponse> {
-  void reportCode;
-  void request;
-  return Promise.reject(unsupportedAdminReportDetailError());
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/resolve`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        decision: request.decision,
+        hideTargetContent: request.decision === 'RESOLVED' && request.hideTargetContent,
+        penaltyType: request.decision === 'RESOLVED' ? request.penaltyType : null,
+        reason: request.reason,
+        internalMemo: request.internalMemo,
+      }),
+    },
+  );
 }

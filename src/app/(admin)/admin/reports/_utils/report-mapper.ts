@@ -83,7 +83,7 @@ function mapUser(user: AdminReportApiUser): AdminReportUser {
   return {
     id: user.id,
     name: user.nickname,
-    handle: `@${user.handle}`,
+    handle: user.handle ? `@${user.handle.replace(/^@/, '')}` : '-',
     initial: user.nickname.trim().charAt(0) || '?',
     joinedAt: formatJoinedAt(user.joinedAt),
     reportsReceived: user.reportsReceived,
@@ -97,7 +97,7 @@ function fallbackTargetUser(): AdminReportUser {
     handle: '-',
     initial: '?',
     joinedAt: '-',
-    reportsReceived: 0,
+    reportsReceived: null,
     activeSanction: '확인 불가',
   };
 }
@@ -127,7 +127,7 @@ export function mapAdminReport(
       handle: reporterLabel,
       initial: report.reporterNickname.trim().charAt(0) || '?',
       joinedAt: '-',
-      reportsReceived: 0,
+      reportsReceived: null,
     },
     targetUser: detail?.targetUser ? mapUser(detail.targetUser) : fallbackTargetUser(),
     targetId: report.targetId,

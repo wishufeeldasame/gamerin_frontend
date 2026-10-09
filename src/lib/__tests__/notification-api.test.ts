@@ -32,7 +32,7 @@ describe('notification-api', () => {
     const unread = notifications.fetchUnreadNotificationCount();
     const list = notifications.fetchNotifications();
     await flush();
-    refresh.resolve(json(200, { data: { accessToken: 'token-b' } }));
+    refresh.resolve(json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     await expect(unread).resolves.toBe(3);
     await expect(list).resolves.toEqual({ items: [], nextCursor: null, hasNext: false });

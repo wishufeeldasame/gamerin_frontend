@@ -84,7 +84,7 @@ describe('DM 첨부', () => {
 
   it('인증 fetch 후 blob을 반환하고 첫 401이면 refresh 후 다시 받는다', async () => {
     api.route('/api/v1/messages/attachments/a-1', () => json(401, {}), () => new Response('bytes'));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     const blob = await message.fetchMessageAttachmentBlob(ATTACHMENT);
 
@@ -204,7 +204,7 @@ describe('SSE 연결 준비', () => {
     const opening = message.openMessageEventSource({ forceRefresh: true });
     await flush();
     store.setAccessToken('token-new-user');
-    refresh.resolve(json(200, { data: { accessToken: 'old-user-token' } }));
+    refresh.resolve(json(200, { data: { userId: 'user-a', accessToken: 'old-user-token' } }));
 
     await expect(opening).rejects.toMatchObject({ name: 'AbortError' });
     expect(api.count(STREAM_TOKEN)).toBe(0);
@@ -213,7 +213,7 @@ describe('SSE 연결 준비', () => {
   });
 
   it('강제 refresh 후 새 토큰으로 stream-token을 발급받는다', async () => {
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
     api.route(STREAM_TOKEN, streamTokenOk);
 
     await message.openMessageEventSource({ forceRefresh: true });

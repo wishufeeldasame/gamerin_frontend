@@ -38,9 +38,10 @@ export function fetchAdminHiddenContents(
 export function restoreAdminHiddenContent(
   targetType: ReportTargetType,
   targetId: string,
+  signal?: AbortSignal,
 ) {
   return adminApiRequest<AdminHiddenContentApiItem>(
     `${ADMIN_CONTENTS_BASE}/${encodeURIComponent(targetType)}/${encodeURIComponent(targetId)}/restore`,
-    { method: 'POST' },
+    { method: 'POST', signal },
   );
 }

@@ -50,7 +50,7 @@ describe('mentoring-api', () => {
 
   it('인증이 필요한 요청의 최종 401은 MentoringAuthError로 끝내고 세션을 종료한다', async () => {
     api.route('/api/v1/mentoring/mentors/me', () => json(401, {}), () => json(401, {}));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
 

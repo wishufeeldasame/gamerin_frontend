@@ -169,7 +169,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
     vi.mocked(fetch).mockImplementation(async (url) =>
       String(url).endsWith('/api/v1/auth/social-signup')
-        ? json(200, { success: true, data: { userId: 'u', handle: 'x', nickname: 'x', accessToken: 'token-s' } })
+        ? json(200, { success: true, data: { userId: 'user-id', handle: 'x', nickname: 'x', accessToken: 'token-s' } })
         : json(200, { success: true, data: { userId: 'user-id', handle: 'demo_01', nickname: '데모', role: 'USER', status: 'ACTIVE' } }));
     render(<SocialCompletePage />);
 
@@ -187,7 +187,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
     vi.mocked(fetch).mockImplementation(async (url) =>
       String(url).endsWith('/api/v1/auth/social-signup')
-        ? json(200, { success: true, data: { accessToken: 'token-s' } })
+        ? json(200, { success: true, data: { userId: 'user-id', accessToken: 'token-s' } })
         : json(503, { success: false, message: 'unavailable' }));
     render(<SocialCompletePage />);
 

@@ -43,7 +43,7 @@ async function mockApp(page: Page, theme: 'light' | 'dark', admin = false) {
   await page.route('**/api/v1/**', async (route) => {
     const path = new URL(route.request().url()).pathname;
     let data: unknown = null;
-    if (path === '/api/v1/auth/refresh') data = { accessToken: 'fe6-test-token' };
+    if (path === '/api/v1/auth/refresh') data = { userId: user.userId, accessToken: 'fe6-test-token' };
     else if (path === '/api/v1/auth/me') data = user;
     else if (path === '/api/v1/feed') data = { ...cursorPage, items: [post] };
     else if (path === '/api/v1/posts/post-1') data = post;
@@ -70,6 +70,14 @@ async function mockApp(page: Page, theme: 'light' | 'dark', admin = false) {
     else if (path.endsWith('/balance')) data = { currentBalance: 0 };
     else if (path.startsWith('/api/v1/mentoring/') || path.endsWith('/transactions')) data = path.endsWith('/mentors/me') ? null : emptyPage;
     else if (path === '/api/v1/reports/reasons') data = [];
+    else if (path === '/api/v1/admin/users') data = {
+      ...emptyPage, totalPages: 1, totalElements: 1, size: 6, empty: false,
+      content: [{
+        id: 'fixture-user', handle: 'gamer01', nickname: '화면 확인 사용자', email: null,
+        profileImageUrl: null, role: 'USER', status: 'ACTIVE', createdAt,
+        reportsReceivedCount: 0, activeSanction: '없음', activePenaltyId: null,
+      }],
+    };
     else if (path.startsWith('/api/v1/admin/')) data = emptyPage;
     await route.fulfill({ json: { success: true, data } });
   });
