@@ -1,5 +1,8 @@
 'use client';
 
+
+import { ChevronRight, Moon, Settings, Sun, Trash2, User } from 'lucide-react';
+import { useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -14,110 +17,23 @@ import {
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
-import {
-  AccountSettings,
-  LanguageCode,
-  NotificationSettings,
-  PrivacySettings,
-  ThemeMode,
-  UserSettings,
-  applyThemeMode,
-  loadUserSettings,
-  saveUserSettings,
-} from '@/lib/user-settings';
+import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
 
-type SettingsSection = 'account' | 'privacy' | 'notifications' | 'appearance';
-
-function Toggle({
-  checked,
-  onChange,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="relative inline-flex cursor-pointer items-center">
-      <input
-        type="checkbox"
-        checked={checked}
-        onChange={(event) => onChange(event.target.checked)}
-        className="peer sr-only"
-      />
-      <span className="h-6 w-11 rounded-full bg-zinc-300 transition-colors after:absolute after:left-[2px] after:top-[2px] after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:bg-black peer-checked:after:translate-x-full dark:peer-checked:bg-[#f5b93d] dark:peer-checked:after:bg-black" />
-    </label>
-  );
-}
+type SettingsSection = 'account' | 'appearance';
 
 export default function SettingsPage() {
-  const { user, updateUser, logout } = useAuth();
-  const initialSettings = useMemo(() => loadUserSettings(), []);
+  const { user } = useAuth();
   const [activeSection, setActiveSection] = useState<SettingsSection>('account');
-  const [accountSettings, setAccountSettings] = useState<AccountSettings>(initialSettings.account);
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(
-    initialSettings.notifications
-  );
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(initialSettings.privacy);
-  const [theme, setTheme] = useState<ThemeMode>(initialSettings.theme);
-  const [language, setLanguage] = useState<LanguageCode>(initialSettings.language);
-  const savedThemeRef = useRef<ThemeMode>(initialSettings.theme);
-  const savedLanguageRef = useRef<LanguageCode>(initialSettings.language);
+  const [theme, setTheme] = useState<ThemeMode>(() => loadUserSettings().theme);
   const [passwordFields, setPasswordFields] = useState({
     current: '',
     next: '',
     confirm: '',
   });
-  const [savedMessage, setSavedMessage] = useState('');
 
-  useEffect(() => {
-    if (!user) return;
-
-    setAccountSettings((current) => ({
-      ...current,
-      username: current.username === '@user123' && user.handle ? `@${user.handle}` : current.username,
-      displayName: current.displayName === 'GamerIN User' ? user.nickname : current.displayName,
-    }));
-  }, [user]);
-
-  useEffect(() => {
-    applyThemeMode(theme);
-    document.documentElement.lang = language;
-  }, [theme, language]);
-
-  useEffect(() => {
-    return () => {
-      applyThemeMode(savedThemeRef.current);
-      document.documentElement.lang = savedLanguageRef.current;
-    };
-  }, []);
-
-  const currentSettings: UserSettings = {
-    account: accountSettings,
-    privacy: privacySettings,
-    notifications: notificationSettings,
-    theme,
-    language,
-  };
-
-  const showSavedMessage = (message: string) => {
-    setSavedMessage(message);
-    window.setTimeout(() => setSavedMessage(''), 1800);
-  };
-
-  const handleSave = () => {
-    savedThemeRef.current = theme;
-    savedLanguageRef.current = language;
-    saveUserSettings(currentSettings);
-
-    const nextHandle = accountSettings.username.trim().replace(/^@/, '');
-    const nextName = accountSettings.displayName.trim();
-
-    updateUser({
-      handle: nextHandle || user?.handle,
-      nickname: nextName || user?.nickname,
-      name: nextName || user?.name,
-    });
-
-    showSavedMessage('변경사항이 저장되었습니다.');
+  const handleThemeChange = (nextTheme: ThemeMode) => {
+    setTheme(nextTheme);
+    saveUserSettings({ theme: nextTheme });
   };
 
   const handlePasswordChange = () => {
@@ -136,14 +52,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteAccount = () => {
-    const confirmed = window.confirm('프론트에 저장된 로그인 정보와 설정을 삭제하고 로그아웃할까요?');
-    if (!confirmed) return;
-
-    Object.keys(window.localStorage)
-      .filter((key) => key.startsWith('gamerin_'))
-      .forEach((key) => window.localStorage.removeItem(key));
-
-    logout();
+    window.alert('계정 삭제 기능은 준비 중입니다. 현재 계정과 저장된 정보는 삭제되지 않습니다.');
   };
 
   const renderAccountSection = () => (
@@ -155,42 +64,40 @@ export default function SettingsPage() {
       <div>
         <h3 className="mb-4 text-lg font-bold text-black">계정 정보</h3>
         <div className="space-y-4">
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-zinc-700">이메일</span>
+          <div>
+            <label htmlFor="account-email" className="mb-2 block text-sm font-semibold text-zinc-700">
+              이메일
+            </label>
             <input
+              id="account-email"
               type="email"
-              value={accountSettings.email}
-              onChange={(event) => setAccountSettings({ ...accountSettings, email: event.target.value })}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
+              value=""
+              readOnly
+              placeholder="제공되는 이메일 정보가 없습니다"
+              aria-describedby="email-description"
+              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500"
             />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-zinc-700">사용자 이름</span>
+            <span id="email-description" className="mt-1 block text-xs text-zinc-500">
+              이메일 변경 기능은 제공되지 않습니다.
+            </span>
+          </div>
+          <div>
+            <label htmlFor="account-handle" className="mb-2 block text-sm font-semibold text-zinc-700">
+              사용자 이름
+            </label>
             <input
+              id="account-handle"
               type="text"
-              value={accountSettings.username}
-              onChange={(event) => setAccountSettings({ ...accountSettings, username: event.target.value })}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
+              value={user?.handle ? `@${user.handle}` : ''}
+              readOnly
+              placeholder="사용자 이름 정보가 없습니다"
+              aria-describedby="handle-description"
+              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500"
             />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-zinc-700">표시 이름</span>
-            <input
-              type="text"
-              value={accountSettings.displayName}
-              onChange={(event) => setAccountSettings({ ...accountSettings, displayName: event.target.value })}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-sm font-semibold text-zinc-700">전화번호</span>
-            <input
-              type="tel"
-              value={accountSettings.phone}
-              onChange={(event) => setAccountSettings({ ...accountSettings, phone: event.target.value })}
-              className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
-            />
-          </label>
+            <span id="handle-description" className="mt-1 block text-xs text-zinc-500">
+              사용자 이름은 변경할 수 없습니다.
+            </span>
+          </div>
         </div>
       </div>
 
@@ -213,6 +120,7 @@ export default function SettingsPage() {
             </label>
           ))}
           <button
+            type="button"
             onClick={handlePasswordChange}
             className="rounded-lg bg-black px-6 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-800"
           >
@@ -228,10 +136,11 @@ export default function SettingsPage() {
             <div>
               <h4 className="mb-1 font-bold text-black">계정 삭제</h4>
               <p className="text-sm text-zinc-600">
-                현재 프론트에 저장된 로그인 정보, 프로필 이미지, 설정값을 삭제합니다.
+                계정 삭제 기능은 준비 중입니다. 현재 이 버튼으로 계정이나 저장된 정보가 삭제되지 않습니다.
               </p>
             </div>
             <button
+              type="button"
               onClick={handleDeleteAccount}
               className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-red-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-red-600"
             >
@@ -244,78 +153,16 @@ export default function SettingsPage() {
     </div>
   );
 
-  const renderPrivacySection = () => {
-    const items = [
-      ['profilePublic', '공개 프로필', '프로필 화면에 비공개 표시 여부를 반영합니다'],
-      ['showEmail', '이메일 공개', '설정에 저장된 이메일 공개 여부를 저장합니다'],
-      ['showStats', '게임 전적 공개', '프로필의 Stats 탭 표시 여부를 바꿉니다'],
-      ['allowMessages', '메시지 허용', '메시지 허용 여부를 저장합니다'],
-    ] as const;
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <h3 className="mb-4 text-lg font-bold text-black">프라이버시 설정</h3>
-          <div className="space-y-4">
-            {items.map(([key, title, description]) => (
-              <div key={key} className="flex items-center justify-between gap-4 rounded-lg bg-zinc-50 p-4">
-                <div>
-                  <h4 className="mb-1 font-semibold text-black">{title}</h4>
-                  <p className="text-sm text-zinc-600">{description}</p>
-                </div>
-                <Toggle
-                  checked={privacySettings[key]}
-                  onChange={(checked) => setPrivacySettings({ ...privacySettings, [key]: checked })}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderNotificationsSection = () => {
-    const items = [
-      ['likes', '좋아요', '내 게시물에 좋아요가 달렸을 때 알림'],
-      ['comments', '댓글', '내 게시물에 댓글이 달렸을 때 알림'],
-      ['follows', '팔로우', '새로운 팔로워가 생겼을 때 알림'],
-      ['mentions', '멘션', '누군가 나를 언급했을 때 알림'],
-      ['messages', '메시지', '새로운 메시지가 도착했을 때 알림'],
-    ] as const;
-
-    return (
-      <div className="space-y-6">
-        <div>
-          <h3 className="mb-4 text-lg font-bold text-black">알림 설정</h3>
-          <div className="space-y-4">
-            {items.map(([key, title, description]) => (
-              <div key={key} className="flex items-center justify-between gap-4 rounded-lg bg-zinc-50 p-4">
-                <div>
-                  <h4 className="mb-1 font-semibold text-black">{title}</h4>
-                  <p className="text-sm text-zinc-600">{description}</p>
-                </div>
-                <Toggle
-                  checked={notificationSettings[key]}
-                  onChange={(checked) =>
-                    setNotificationSettings({ ...notificationSettings, [key]: checked })
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderAppearanceSection = () => (
     <div className="space-y-6">
       <div>
-        <h3 className="mb-4 text-lg font-bold text-black">테마 설정</h3>
+        <h3 className="mb-2 text-lg font-bold text-black">테마 설정</h3>
+        <p className="mb-4 text-sm text-zinc-600">선택한 테마는 즉시 적용됩니다.</p>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <button
-            onClick={() => setTheme('light')}
+            type="button"
+            aria-pressed={theme === 'light'}
+            onClick={() => handleThemeChange('light')}
             className={`rounded-xl border-2 p-6 transition-all ${
               theme === 'light' ? 'border-black bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300'
             }`}
@@ -324,7 +171,9 @@ export default function SettingsPage() {
             <p className="font-semibold text-black">라이트 모드</p>
           </button>
           <button
-            onClick={() => setTheme('dark')}
+            type="button"
+            aria-pressed={theme === 'dark'}
+            onClick={() => handleThemeChange('dark')}
             className={`rounded-xl border-2 p-6 transition-all ${
               theme === 'dark' ? 'border-black bg-zinc-50' : 'border-zinc-200 hover:border-zinc-300'
             }`}
@@ -353,9 +202,7 @@ export default function SettingsPage() {
 
   const navItems = [
     { id: 'account' as const, icon: User, label: '계정' },
-    { id: 'privacy' as const, icon: Lock, label: '프라이버시' },
-    { id: 'notifications' as const, icon: Bell, label: '알림' },
-    { id: 'appearance' as const, icon: Globe, label: '테마/언어' },
+    { id: 'appearance' as const, icon: Moon, label: '테마' },
   ];
 
   return (
@@ -370,14 +217,16 @@ export default function SettingsPage() {
       <div className="mx-auto max-w-5xl p-6">
         <div className="grid gap-6 lg:grid-cols-4">
           <div className="lg:col-span-1">
-            <nav className="sticky top-36 grid gap-1 sm:grid-cols-2 lg:block lg:space-y-1">
+            <nav aria-label="설정 메뉴" className="sticky top-36 grid gap-1 sm:grid-cols-2 lg:block lg:space-y-1">
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = activeSection === item.id;
 
                 return (
                   <button
+                    type="button"
                     key={item.id}
+                    aria-current={active ? 'page' : undefined}
                     onClick={() => setActiveSection(item.id)}
                     className={`flex w-full items-center justify-between rounded-lg px-4 py-3 transition-colors ${
                       active ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-700 hover:bg-zinc-100'
@@ -397,19 +246,7 @@ export default function SettingsPage() {
           <div className="lg:col-span-3">
             <div className="rounded-xl border border-zinc-200 bg-white p-6">
               {activeSection === 'account' && renderAccountSection()}
-              {activeSection === 'privacy' && renderPrivacySection()}
-              {activeSection === 'notifications' && renderNotificationsSection()}
               {activeSection === 'appearance' && renderAppearanceSection()}
-            </div>
-
-            <div className="mt-6 flex items-center justify-end gap-4">
-              {savedMessage ? <p className="text-sm font-bold text-green-600">{savedMessage}</p> : null}
-              <button
-                onClick={handleSave}
-                className="rounded-lg bg-black px-8 py-3 font-semibold text-white transition-colors hover:bg-zinc-800"
-              >
-                변경사항 저장
-              </button>
             </div>
           </div>
         </div>

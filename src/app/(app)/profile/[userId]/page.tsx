@@ -53,7 +53,6 @@ import {
 import { updatePostsLikeState } from '@/lib/post-mutations';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
 import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
-import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
 import {
   disconnectGameStats,
   fetchPubgSummary,
@@ -345,7 +344,6 @@ export default function ProfilePage() {
   const [postsHasNext, setPostsHasNext] = useState(false);
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => loadUserSettings().privacy);
   const [connectedAccounts, setConnectedAccounts] = useState<Record<ConnectedPlatformId, ConnectedAccount | null>>({
     youtube: null,
     twitch: null,
@@ -380,22 +378,6 @@ export default function ProfilePage() {
       localStorage.removeItem('gamerin_connected_accounts');
     }
   }, []);
-
-  useEffect(() => {
-    const syncPrivacySettings = () => {
-      const nextPrivacySettings = loadUserSettings().privacy;
-      setPrivacySettings(nextPrivacySettings);
-
-      if (!nextPrivacySettings.showStats && activeTab === 'stats') {
-        setActiveTab('posts');
-      }
-    };
-
-    window.addEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
-    return () => {
-      window.removeEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
-    };
-  }, [activeTab]);
 
   useEffect(() => {
     let cancelled = false;
@@ -992,9 +974,15 @@ export default function ProfilePage() {
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
+
+    { name: 'posts' as const, icon: <Grid size={16} /> },
+    { name: 'stats' as const, icon: <BarChart3 size={16} /> },
+    { name: 'media' as const, icon: <Layers size={16} /> },
+
     { name: 'posts' as const, label: '게시물', icon: <Grid size={16} /> },
     ...(privacySettings.showStats ? [{ name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> }] : []),
     { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
+
   ];
 
   return (
@@ -1144,12 +1132,6 @@ export default function ProfilePage() {
                   <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
                 </a>
               ) : null}
-            </div>
-          ) : null}
-
-          {!privacySettings.profilePublic ? (
-            <div className="inline-flex rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-zinc-500">
-              비공개 프로필 모드
             </div>
           ) : null}
 

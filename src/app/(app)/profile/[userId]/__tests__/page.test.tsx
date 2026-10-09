@@ -149,8 +149,9 @@ function readPostState() {
   return JSON.parse(screen.getByTestId('post-state').textContent ?? '{}') as PostRecord;
 }
 
-describe('ProfilePage like rollback', () => {
+describe('ProfilePage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     api.fetchMyProfile.mockReset();
     api.fetchUserMedia.mockReset();
     api.fetchUserPosts.mockReset();
@@ -171,6 +172,27 @@ describe('ProfilePage like rollback', () => {
       hasNext: false,
     });
   });
+
+
+  it('ignores legacy local privacy settings and keeps profile content public', async () => {
+    window.localStorage.setItem(
+      'gamerin_user_settings',
+      JSON.stringify({
+        privacy: {
+          profilePublic: false,
+          showStats: false,
+        },
+      }),
+    );
+
+    render(<ProfilePage />);
+
+    await screen.findByTestId('post-post-1');
+    const statsTab = screen.getByRole('button', { name: 'stats' });
+    expect(statsTab).toBeInTheDocument();
+
+    fireEvent.click(statsTab);
+    expect(await screen.findByRole('heading', { name: 'Verified Stats' })).toBeInTheDocument();
 
   it.each([
     ['unknown failure', '프로필을 불러오지 못했습니다.'],
