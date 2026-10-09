@@ -2,9 +2,6 @@ import type {
   AdminReportApiItem,
   AdminReportApiUser,
   AdminReportDetailResponse,
-  AdminReportReasonCode,
-  AdminReportStatusCode,
-  AdminReportTargetTypeCode,
 } from '@/lib/admin-report-api';
 import type {
   AdminReport,
@@ -12,22 +9,23 @@ import type {
   AdminReportTargetType,
   AdminReportUser,
 } from '@/types/admin';
+import type { ReportReasonCode, ReportStatus, ReportTargetType } from '@/types/report';
 
-export const statusCodeByLabel: Record<AdminReportStatus, AdminReportStatusCode> = {
+export const statusCodeByLabel: Record<AdminReportStatus, ReportStatus> = {
   접수: 'RECEIVED',
   '검토 중': 'IN_REVIEW',
   '처리 완료': 'RESOLVED',
   반려: 'REJECTED',
 };
 
-export const statusLabelByCode: Record<AdminReportStatusCode, AdminReportStatus> = {
+export const statusLabelByCode: Record<ReportStatus, AdminReportStatus> = {
   RECEIVED: '접수',
   IN_REVIEW: '검토 중',
   RESOLVED: '처리 완료',
   REJECTED: '반려',
 };
 
-export const reasonCodeByLabel: Record<string, AdminReportReasonCode> = {
+export const reasonCodeByLabel: Record<string, ReportReasonCode> = {
   '욕설 및 비방': 'PROFANITY',
   '스팸 및 반복 홍보': 'SPAM',
   '부적절한 콘텐츠': 'INAPPROPRIATE',
@@ -37,7 +35,7 @@ export const reasonCodeByLabel: Record<string, AdminReportReasonCode> = {
 
 export const reportReasonLabels = Object.keys(reasonCodeByLabel);
 
-export const targetTypeCodeByLabel: Record<AdminReportTargetType, AdminReportTargetTypeCode> = {
+export const targetTypeCodeByLabel: Record<AdminReportTargetType, ReportTargetType> = {
   게시글: 'POST',
   댓글: 'COMMENT',
   사용자: 'USER',
@@ -45,7 +43,7 @@ export const targetTypeCodeByLabel: Record<AdminReportTargetType, AdminReportTar
   메시지: 'MESSAGE',
 };
 
-const targetTypeLabelByCode: Record<AdminReportTargetTypeCode, AdminReportTargetType> = {
+const targetTypeLabelByCode: Record<ReportTargetType, AdminReportTargetType> = {
   POST: '게시글',
   COMMENT: '댓글',
   USER: '사용자',
@@ -85,7 +83,7 @@ function mapUser(user: AdminReportApiUser): AdminReportUser {
   return {
     id: user.id,
     name: user.nickname,
-    handle: `@${user.handle}`,
+    handle: user.handle ? `@${user.handle.replace(/^@/, '')}` : '-',
     initial: user.nickname.trim().charAt(0) || '?',
     joinedAt: formatJoinedAt(user.joinedAt),
     reportsReceived: user.reportsReceived,
@@ -99,7 +97,7 @@ function fallbackTargetUser(): AdminReportUser {
     handle: '-',
     initial: '?',
     joinedAt: '-',
-    reportsReceived: 0,
+    reportsReceived: null,
     activeSanction: '확인 불가',
   };
 }
@@ -129,7 +127,7 @@ export function mapAdminReport(
       handle: reporterLabel,
       initial: report.reporterNickname.trim().charAt(0) || '?',
       joinedAt: '-',
-      reportsReceived: 0,
+      reportsReceived: null,
     },
     targetUser: detail?.targetUser ? mapUser(detail.targetUser) : fallbackTargetUser(),
     targetId: report.targetId,

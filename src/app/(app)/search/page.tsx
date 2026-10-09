@@ -104,7 +104,7 @@ function HashtagCard({ hashtag }: { hashtag: HashtagSummary }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-black text-black dark:text-zinc-100">#{hashtag.name}</p>
-          <p className="text-xs font-bold text-zinc-400">{hashtag.postCount.toLocaleString()} posts</p>
+          <p className="text-xs font-bold text-zinc-400">게시물 {hashtag.postCount.toLocaleString()}개</p>
         </div>
       </div>
     </Link>

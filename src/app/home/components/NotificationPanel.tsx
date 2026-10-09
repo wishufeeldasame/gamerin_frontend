@@ -31,7 +31,8 @@ import {
   type NotificationIconKind,
 } from '@/lib/notification-presentation';
 import { subscribeToNotificationInvalidation } from '@/lib/notification-sync';
-import { formatRelativeTime, getInitials } from '@/lib/feed-api';
+import { getInitials } from '@/lib/feed-api';
+import { RelativeTime } from './RelativeTime';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -332,7 +333,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
                       {presentation.message}
                     </p>
                     <p className="mt-1 text-[11px] font-bold text-zinc-400">
-                      {formatRelativeTime(notification.createdAt)}
+                      <RelativeTime createdAt={notification.createdAt} />
                     </p>
                   </div>
 

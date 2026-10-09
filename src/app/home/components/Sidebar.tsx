@@ -102,7 +102,7 @@ export function Sidebar() {
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[13px] font-black leading-tight text-black dark:text-zinc-100">{user.nickname}</p>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
-                  {user.gameTier || 'Unranked'}
+                  {!user.gameTier || user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                 </p>
               </div>
             </div>
@@ -112,7 +112,7 @@ export function Sidebar() {
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 dark:border-neutral-700 dark:bg-black dark:text-zinc-400 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={14} strokeWidth={3} />
-              Sign Out
+              로그아웃
             </button>
           </div>
         </div>

@@ -15,7 +15,6 @@ import {
   deletePost,
   fetchPostDetail,
   fetchPostComments,
-  formatRelativeTime,
   getInitials,
   likePost,
   repostPost,
@@ -29,6 +28,7 @@ import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
+import { RelativeTime } from './RelativeTime';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -139,7 +139,7 @@ export function PostDetail({
         }
 
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load post.');
+          setError(loadError instanceof Error ? loadError.message : '게시물을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -186,7 +186,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setIsLikeLoading(false);
     }
@@ -242,7 +242,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      const message = toggleError instanceof Error ? toggleError.message : 'Failed to update repost.';
+      const message = toggleError instanceof Error ? toggleError.message : '리포스트 상태를 변경하지 못했습니다.';
       setRepostError(message);
       alert(message);
     } finally {
@@ -271,7 +271,7 @@ export function PostDetail({
       setCommentText('');
       onPostUpdated?.(nextPost);
     } catch (commentError) {
-      alert(commentError instanceof Error ? commentError.message : 'Failed to create comment.');
+      alert(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
     } finally {
       setSubmittingComment(false);
     }
@@ -350,7 +350,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
+      alert(bookmarkError instanceof Error ? bookmarkError.message : '북마크 상태를 변경하지 못했습니다.');
       return false;
     } finally {
       setBookmarking(false);
@@ -382,16 +382,16 @@ export function PostDetail({
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">Loading post...</div>;
+    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>;
   }
 
   if (!post) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 pb-20 text-center">
         <button onClick={onBack} className="font-black text-zinc-500 hover:text-black">
-          Back
+          돌아가기
         </button>
-        <p className="font-black text-red-500">{error ?? 'Post not found.'}</p>
+        <p className="font-black text-red-500">{error ?? '게시물을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
           className="inline-flex rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
@@ -416,7 +416,7 @@ export function PostDetail({
         className="group mb-8 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-zinc-400 transition-all hover:text-black"
       >
         <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-1" />
-        <span>Back to Feed</span>
+        <span>피드로 돌아가기</span>
       </button>
 
       <article className="rounded-[40px] border border-zinc-100 bg-white shadow-sm">
@@ -437,7 +437,7 @@ export function PostDetail({
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
-                  @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
+                  @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
                 </p>
               </div>
             </Link>
@@ -512,7 +512,7 @@ export function PostDetail({
                   <div key={item.mediaId} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
                     <Image
                       src={item.mediaUrl}
-                      alt="Post media"
+                      alt="게시물 미디어"
                       width={1400}
                       height={1000}
                       unoptimized
@@ -578,14 +578,14 @@ export function PostDetail({
           <div id="comments" ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
             <div className="flex gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
-                ME
+                나
               </div>
               <div className="relative flex-1">
                 <textarea
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
                   maxLength={MAX_COMMENT_LENGTH}
-                  placeholder="Share your thoughts..."
+                  placeholder="댓글을 남겨보세요..."
                   className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
                   rows={3}
                 />
@@ -608,7 +608,7 @@ export function PostDetail({
 
             <div className="space-y-4">
               {comments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
+                <p className="text-sm font-bold text-zinc-400">아직 댓글이 없습니다.</p>
               ) : (
                 comments.map((comment) => (
                   <div
@@ -631,7 +631,7 @@ export function PostDetail({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-black text-black">{comment.author}</span>
                         <span className="text-xs font-bold text-zinc-400">
-                          @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
+                          @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />
                         </span>
                       </div>
                       <div className="relative">

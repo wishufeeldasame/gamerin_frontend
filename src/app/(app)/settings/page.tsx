@@ -2,6 +2,7 @@
 
 import { ChevronRight, Moon, Settings, Sun, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
 import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
 
@@ -43,6 +44,10 @@ export default function SettingsPage() {
 
   const renderAccountSection = () => (
     <div className="space-y-6">
+      <Link href="/reports/my" className="flex items-center justify-between rounded-lg border border-zinc-200 p-4 font-semibold text-black dark:border-zinc-700 dark:text-zinc-100">
+        내 신고
+        <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </Link>
       <div>
         <h3 className="mb-4 text-lg font-bold text-black">계정 정보</h3>
         <div className="space-y-4">

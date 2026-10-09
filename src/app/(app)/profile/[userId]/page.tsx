@@ -430,7 +430,7 @@ export default function ProfilePage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load profile.');
+          setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -598,7 +598,7 @@ export default function ProfilePage() {
       setPostsNextCursor(page.nextCursor);
       setPostsHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : 'Failed to load more posts.');
+      alert(loadError instanceof Error ? loadError.message : '게시물을 더 불러오지 못했습니다.');
     } finally {
       setLoadingMorePosts(false);
     }
@@ -616,7 +616,7 @@ export default function ProfilePage() {
       setMediaNextCursor(page.nextCursor);
       setMediaHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : 'Failed to load more media.');
+      alert(loadError instanceof Error ? loadError.message : '미디어를 더 불러오지 못했습니다.');
     } finally {
       setLoadingMoreMedia(false);
     }
@@ -661,7 +661,7 @@ export default function ProfilePage() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -752,7 +752,7 @@ export default function ProfilePage() {
         followedByMe: previousFollowing,
         followersCount: previousFollowersCount,
       });
-      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+      alert(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowLoading(false);
     }
@@ -779,7 +779,7 @@ export default function ProfilePage() {
       setFollowNextCursor(page.nextCursor);
       setFollowHasNext(page.hasNext);
     } catch (loadError) {
-      setFollowListError(loadError instanceof Error ? loadError.message : 'Failed to load users.');
+      setFollowListError(loadError instanceof Error ? loadError.message : '사용자 목록을 불러오지 못했습니다.');
     } finally {
       setFollowListLoading(false);
       setFollowListLoadingMore(false);
@@ -824,7 +824,7 @@ export default function ProfilePage() {
           user.handle === target.handle ? { ...user, isFollowing: target.isFollowing } : user
         )
       );
-      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+      alert(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowActionHandle(null);
     }
@@ -955,7 +955,7 @@ export default function ProfilePage() {
   if (!currentUser || loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse font-black uppercase italic text-zinc-400">Loading Gamer Data...</p>
+        <p className="animate-pulse font-black uppercase italic text-zinc-400">프로필을 불러오는 중...</p>
       </div>
     );
   }
@@ -963,10 +963,10 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-        <p className="font-black text-red-500">{error ?? 'Profile not found.'}</p>
+        <p className="font-black text-red-500">{error ?? '프로필을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
-          className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+          className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
         >
           홈으로 돌아가기
         </Link>
@@ -980,9 +980,9 @@ export default function ProfilePage() {
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
-    { name: 'posts' as const, icon: <Grid size={16} /> },
-    { name: 'stats' as const, icon: <BarChart3 size={16} /> },
-    { name: 'media' as const, icon: <Layers size={16} /> },
+    { name: 'posts' as const, label: '게시물', icon: <Grid size={16} /> },
+    { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
+    { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
   ];
 
   return (
@@ -1007,7 +1007,7 @@ export default function ProfilePage() {
               {displayedAvatar ? (
                 <Image
                   src={displayedAvatar}
-                  alt="Profile"
+                  alt="프로필 이미지"
                   fill
                   unoptimized
                   sizes="144px"
@@ -1034,7 +1034,7 @@ export default function ProfilePage() {
               className="flex items-center gap-2 rounded-2xl bg-black px-8 py-3 text-sm font-black text-white shadow-lg shadow-zinc-200 transition-all hover:bg-zinc-800"
             >
               <Edit3 size={18} />
-              Edit Profile
+              프로필 수정
             </button>
               </>
             ) : (
@@ -1076,9 +1076,9 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
-                  title="Message"
+                  title="메시지"
                   className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
-                  aria-label="Message"
+                  aria-label="메시지"
                 >
                   <MessageCircle size={20} />
                 </button>
@@ -1090,7 +1090,7 @@ export default function ProfilePage() {
                     isFollowing ? 'bg-zinc-100 text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
                   }`}
                 >
-                  {isFollowing ? 'Following' : 'Follow'}
+                  {isFollowing ? '팔로잉' : '팔로우'}
                 </button>
               </>
             )}
@@ -1111,7 +1111,7 @@ export default function ProfilePage() {
           </div>
 
           <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
-            {profile.bio || 'Tell your gaming story on GamerIN.'}
+            {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
           </p>
 
           {profile.location || profile.website ? (
@@ -1145,7 +1145,7 @@ export default function ProfilePage() {
               <span className="text-2xl font-black tracking-tighter text-black">
                 {profile.followersCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Followers</span>
+              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">팔로워</span>
             </button>
             <button
               type="button"
@@ -1155,11 +1155,11 @@ export default function ProfilePage() {
               <span className="text-2xl font-black tracking-tighter text-black">
                 {profile.followingCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Following</span>
+              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">팔로잉</span>
             </button>
             <div className="flex items-center gap-2">
               <span className="text-2xl font-black tracking-tighter text-black">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Posts</span>
+              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">게시물</span>
             </div>
           </div>
         </div>
@@ -1175,7 +1175,7 @@ export default function ProfilePage() {
             }`}
           >
             {tab.icon}
-            {tab.name}
+            {tab.label}
             {activeTab === tab.name ? (
               <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black dark:bg-[#f5b93d]" />
             ) : null}
@@ -1187,7 +1187,7 @@ export default function ProfilePage() {
         {activeTab === 'stats' ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
             <div className="mb-6 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-black md:text-3xl">Verified Stats</h2>
+              <h2 className="text-xl font-black text-black md:text-3xl">인증된 전적</h2>
 
               {isOwnProfile ? (
                 <div className="flex items-center gap-3">
@@ -1196,7 +1196,7 @@ export default function ProfilePage() {
                     className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
                   >
                     <Plus size={16} />
-                    stat+
+                    전적 추가
                   </button>
 
                   <button
@@ -1215,7 +1215,7 @@ export default function ProfilePage() {
             <div className="space-y-4">
               {gameStatEntries.length === 0 ? (
                 <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
-                  No connected game stats yet.
+                  아직 연결된 게임 전적이 없습니다.
                 </div>
               ) : (
                 gameStatEntries.map((entry) => (
@@ -1235,7 +1235,7 @@ export default function ProfilePage() {
                     </div>
 
                     <div className="flex shrink-0 items-center gap-2 text-right">
-                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">Live sync</p>
+                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
                       {isOwnProfile && entry.disconnectGameName ? (
                         <button
                           type="button"
@@ -1258,8 +1258,8 @@ export default function ProfilePage() {
           <div className="mx-auto max-w-2xl space-y-4">
             {posts.length === 0 ? (
               <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Posts Yet</h3>
-                <p className="text-sm font-bold text-zinc-400">This profile has not published any posts yet.</p>
+                <h3 className="mb-1 text-lg font-black uppercase italic text-black">아직 게시물이 없습니다</h3>
+                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시물이 없습니다.</p>
               </div>
             ) : (
               posts.map((post) => (
@@ -1285,7 +1285,7 @@ export default function ProfilePage() {
                 disabled={loadingMorePosts}
                 className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
               >
-                {loadingMorePosts ? 'Loading...' : 'Load More Posts'}
+                {loadingMorePosts ? '불러오는 중...' : '게시물 더 보기'}
               </button>
             ) : null}
           </div>
@@ -1297,8 +1297,8 @@ export default function ProfilePage() {
 
             {mediaItems.length === 0 ? (
               <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Media Yet</h3>
-                <p className="text-sm font-bold text-zinc-400">Uploaded image and video posts will appear here.</p>
+                <h3 className="mb-1 text-lg font-black uppercase italic text-black">아직 미디어가 없습니다</h3>
+                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시물이 여기에 표시됩니다.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
@@ -1328,7 +1328,7 @@ export default function ProfilePage() {
                       </>
                     ) : (
                       <div className="relative h-full w-full">
-                        <Image src={item.mediaUrl} alt="Profile media" fill unoptimized className="object-cover" />
+                        <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
                       </div>
                     )}
                   </button>
@@ -1343,7 +1343,7 @@ export default function ProfilePage() {
                 disabled={loadingMoreMedia}
                 className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
               >
-                {loadingMoreMedia ? 'Loading...' : 'Load More Media'}
+                {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
               </button>
             ) : null}
           </div>
@@ -1372,7 +1372,7 @@ export default function ProfilePage() {
                 disabled={isDisconnectingGame}
                 className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Cancel
+                취소
               </button>
               <button
                 type="button"
@@ -1380,7 +1380,7 @@ export default function ProfilePage() {
                 disabled={isDisconnectingGame}
                 className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
               >
-                {isDisconnectingGame ? 'Disconnecting...' : 'Disconnect'}
+                {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
               </button>
             </div>
           </div>
@@ -1421,14 +1421,14 @@ export default function ProfilePage() {
                   @{profile.handle}
                 </p>
                 <h2 className="text-2xl font-black text-black">
-                  {followListType === 'followers' ? 'Followers' : 'Following'}
+                  {followListType === 'followers' ? '팔로워' : '팔로잉'}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closeFollowList}
                 className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
-                aria-label="Close"
+                aria-label="닫기"
               >
                 <X size={20} />
               </button>
@@ -1438,7 +1438,7 @@ export default function ProfilePage() {
               {followListLoading ? (
                 <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
                   <Loader2 size={18} className="mr-2 animate-spin" />
-                  Loading users...
+                  사용자를 불러오는 중...
                 </div>
               ) : followListError ? (
                 <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
@@ -1446,7 +1446,7 @@ export default function ProfilePage() {
                 </div>
               ) : followUsers.length === 0 ? (
                 <div className="py-16 text-center text-sm font-bold text-zinc-400">
-                  No users yet.
+                  아직 사용자가 없습니다.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1505,7 +1505,7 @@ export default function ProfilePage() {
                                 : 'bg-black text-white hover:bg-zinc-800'
                             }`}
                           >
-                            {followUserRecord.isFollowing ? 'Following' : 'Follow'}
+                            {followUserRecord.isFollowing ? '팔로잉' : '팔로우'}
                           </button>
                         ) : null}
                       </div>
@@ -1523,7 +1523,7 @@ export default function ProfilePage() {
                   disabled={followListLoadingMore}
                   className="w-full rounded-2xl border border-zinc-100 bg-white px-5 py-3 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                 >
-                  {followListLoadingMore ? 'Loading...' : 'Load More'}
+                  {followListLoadingMore ? '불러오는 중...' : '더 보기'}
                 </button>
               </div>
             ) : null}

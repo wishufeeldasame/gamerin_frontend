@@ -215,7 +215,7 @@ export function Header() {
                      {user.nickname}
                    </p>
                    <p className="text-[9px] font-bold text-black/60 uppercase mt-0.5 dark:text-zinc-400">
-                     {user.gameTier}
+                     {user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                    </p>
                 </div>
                 <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white shadow-lg dark:ring-1 dark:ring-white/10">

@@ -10,7 +10,7 @@ export type AdminReportUser = {
   handle: string;
   initial: string;
   joinedAt: string;
-  reportsReceived: number;
+  reportsReceived: number | null;
   activeSanction?: string;
 };
 

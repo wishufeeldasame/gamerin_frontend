@@ -104,7 +104,7 @@ describe('game-stats-api', () => {
 
   it('최종 401이면 세션을 종료한다', async () => {
     api.route('/api/v1/pubg/me', () => json(401, {}), () => json(401, {}));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     await expect(gameStats.fetchPubgSummary()).rejects.toMatchObject({ status: 401 });
     expect(store.getAccessToken()).toBeNull();
