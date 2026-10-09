@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 
@@ -166,7 +167,6 @@ describe('SearchPage like rollback', () => {
       hasNext: false,
     });
     searchApi.fetchSearchHashtags.mockResolvedValue([]);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('URL 검색어를 입력창에 표시하고 제출 시 현재 탭을 유지한다', async () => {
@@ -237,7 +237,7 @@ describe('SearchPage like rollback', () => {
         expect(renderedPost).toHaveAttribute('data-repost-count', '4');
         expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
       });
-      expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
     },
   );
 });

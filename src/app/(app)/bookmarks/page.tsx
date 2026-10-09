@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -45,6 +47,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 }
 
 export default function BookmarksPage() {
+  const toast = useToast();
   const router = useRouter();
   const { collections, loading: collectionsLoading } = useBookmarkCollections();
   const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
@@ -211,7 +214,7 @@ export default function BookmarksPage() {
         }));
       }
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '북마크를 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '북마크를 더 불러오지 못했습니다.');
     } finally {
       setLoadingMore(false);
     }
@@ -259,7 +262,7 @@ export default function BookmarksPage() {
       setBookmarks((current) =>
         updatePostsLikeState(current, post.postId, previousLikedByMe),
       );
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };

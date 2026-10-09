@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -195,7 +196,6 @@ describe('BookmarksPage state synchronization', () => {
     api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
     api.likePost.mockResolvedValue(undefined);
     api.unlikePost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('좋아요의 알 수 없는 오류를 한국어로 안내하고 기존 상태로 롤백한다', async () => {
@@ -205,7 +205,7 @@ describe('BookmarksPage state synchronization', () => {
     fireEvent.click(within(renderedPost).getByRole('button', { name: 'toggle like' }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('좋아요 상태를 변경하지 못했습니다.');
+      expect(screen.getByRole('alert')).toHaveTextContent('좋아요 상태를 변경하지 못했습니다.');
       expect(renderedPost).toHaveAttribute('data-liked', 'false');
       expect(renderedPost).toHaveAttribute('data-likes', '0');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
@@ -356,6 +356,6 @@ describe('BookmarksPage state synchronization', () => {
       expect(renderedPost).toHaveAttribute('data-repost-count', '1');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
-    expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
   });
 });

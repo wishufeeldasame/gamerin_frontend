@@ -4,12 +4,14 @@ import { ChevronRight, Moon, Settings, Sun, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
+import { useToast } from '@/app/context/ToastContext';
 import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
 
 type SettingsSection = 'account' | 'appearance';
 
 export default function SettingsPage() {
   const { user } = useAuth();
+  const toast = useToast();
   const [activeSection, setActiveSection] = useState<SettingsSection>('account');
   const [theme, setTheme] = useState<ThemeMode>(() => loadUserSettings().theme);
   const [passwordFields, setPasswordFields] = useState({
@@ -25,21 +27,21 @@ export default function SettingsPage() {
 
   const handlePasswordChange = () => {
     if (!passwordFields.current || !passwordFields.next || !passwordFields.confirm) {
-      alert('비밀번호 입력칸을 모두 채워주세요.');
+      toast.error('비밀번호 입력칸을 모두 채워주세요.');
       return;
     }
 
     if (passwordFields.next !== passwordFields.confirm) {
-      alert('새 비밀번호 확인이 일치하지 않습니다.');
+      toast.error('새 비밀번호 확인이 일치하지 않습니다.');
       return;
     }
 
     setPasswordFields({ current: '', next: '', confirm: '' });
-    alert('현재는 프론트 미리보기입니다. 비밀번호 변경 API가 연결되면 실제 저장됩니다.');
+    toast.info('현재는 프론트 미리보기입니다. 비밀번호 변경 API가 연결되면 실제 저장됩니다.');
   };
 
   const handleDeleteAccount = () => {
-    window.alert('계정 삭제 기능은 준비 중입니다. 현재 계정과 저장된 정보는 삭제되지 않습니다.');
+    toast.info('계정 삭제 기능은 준비 중입니다. 현재 계정과 저장된 정보는 삭제되지 않습니다.');
   };
 
   const renderAccountSection = () => (

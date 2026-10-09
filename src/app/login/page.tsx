@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { ChevronDown, Eye, EyeOff, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -24,6 +26,7 @@ import {
 const BIRTH_DATE_ENABLED = false;
 
 export default function LoginPage() {
+  const toast = useToast();
   const router = useRouter();
   const { user, isAuthReady, isLoggingOut, login } = useAuth();
 
@@ -107,7 +110,7 @@ export default function LoginPage() {
       setShowIdLogin(true);
       setLoginHandle(signupId.trim());
     } catch (error) {
-      alert(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
+      toast.error(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
     }
   };
 

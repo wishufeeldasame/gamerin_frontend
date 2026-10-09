@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -313,6 +315,7 @@ function getGameStatsErrorMessage(gameName: 'PUBG' | 'R6', error: unknown) {
 }
 
 export default function ProfilePage() {
+  const toast = useToast();
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
@@ -480,7 +483,7 @@ export default function ProfilePage() {
     }
 
     if (refreshRequests.length === 0) {
-      alert('새로고칠 연결된 게임 전적이 없습니다.');
+      toast.info('새로고칠 연결된 게임 전적이 없습니다.');
       return;
     }
 
@@ -543,7 +546,7 @@ export default function ProfilePage() {
       setProfile(nextProfile);
 
       if (failures.length > 0) {
-        alert(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
+        toast.error(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
       }
     } finally {
       setIsRefreshing(false);
@@ -580,7 +583,7 @@ export default function ProfilePage() {
       );
       setDisconnectTarget(null);
     } catch (disconnectError) {
-      alert(getGameStatsErrorMessage(gameName, disconnectError));
+      toast.error(getGameStatsErrorMessage(gameName, disconnectError));
     } finally {
       setIsDisconnectingGame(false);
     }
@@ -598,7 +601,7 @@ export default function ProfilePage() {
       setPostsNextCursor(page.nextCursor);
       setPostsHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '게시물을 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '게시물을 더 불러오지 못했습니다.');
     } finally {
       setLoadingMorePosts(false);
     }
@@ -616,7 +619,7 @@ export default function ProfilePage() {
       setMediaNextCursor(page.nextCursor);
       setMediaHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '미디어를 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '미디어를 더 불러오지 못했습니다.');
     } finally {
       setLoadingMoreMedia(false);
     }
@@ -661,7 +664,7 @@ export default function ProfilePage() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -752,7 +755,7 @@ export default function ProfilePage() {
         followedByMe: previousFollowing,
         followersCount: previousFollowersCount,
       });
-      alert(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
+      toast.error(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowLoading(false);
     }
@@ -824,7 +827,7 @@ export default function ProfilePage() {
           user.handle === target.handle ? { ...user, isFollowing: target.isFollowing } : user
         )
       );
-      alert(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
+      toast.error(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowActionHandle(null);
     }
@@ -838,7 +841,7 @@ export default function ProfilePage() {
   const handleConnectPlatform = (platformId: ConnectedPlatformId) => {
     const handle = normalizeHandle(platformInputs[platformId]);
     if (!handle) {
-      alert('연동할 계정 ID를 입력해주세요.');
+      toast.error('연동할 계정 ID를 입력해주세요.');
       return;
     }
 

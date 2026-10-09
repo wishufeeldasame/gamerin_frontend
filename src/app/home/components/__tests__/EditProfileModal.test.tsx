@@ -1,6 +1,7 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import type { ComponentProps, ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('framer-motion', () => ({
   AnimatePresence: ({ children }: { children: ReactNode }) => <>{children}</>,
@@ -18,10 +19,6 @@ vi.mock('framer-motion', () => ({
 import { EditProfileModal } from '../EditProfileModal';
 
 describe('EditProfileModal 저장 오류 표시', () => {
-  beforeEach(() => {
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
-  });
-
   it.each([
     ['unknown failure', '프로필을 저장하지 못했습니다.'],
     [new Error('Request failed.'), 'Request failed.'],
@@ -38,7 +35,7 @@ describe('EditProfileModal 저장 오류 표시', () => {
     fireEvent.click(screen.getByRole('button', { name: '저장' }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith(message);
+      expect(screen.getByRole('alert')).toHaveTextContent(message);
       expect(screen.getByRole('button', { name: '저장' })).toBeEnabled();
     });
     expect(onSaveUserInfo).toHaveBeenCalledTimes(1);

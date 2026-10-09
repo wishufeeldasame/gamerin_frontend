@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 
@@ -126,7 +127,6 @@ describe('HashtagPostsPage like rollback', () => {
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {
     const likeRequest = deferred<void>();
     api.likePost.mockReturnValue(likeRequest.promise);
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
 
     render(<HashtagPostsPage />);
     await screen.findByTestId('post-post-1');
@@ -162,6 +162,6 @@ describe('HashtagPostsPage like rollback', () => {
       });
       expect(screen.getByRole('button', { name: 'toggle like' })).toBeEnabled();
     });
-    expect(alertSpy).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getByRole('alert')).toHaveTextContent('좋아요 요청 실패');
   });
 });

@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -17,6 +19,7 @@ type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
 function HomePageContent() {
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
@@ -126,7 +129,7 @@ function HomePageContent() {
       }
     } catch (likeError) {
       setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -188,7 +191,6 @@ function HomePageContent() {
       setLoadMoreError(
         loadMoreError instanceof Error ? loadMoreError.message : '게시물을 더 불러오지 못했습니다.',
       );
-
     } finally {
       if (loadMoreControllerRef.current === controller) {
         loadMoreControllerRef.current = null;

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -131,7 +132,6 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     api.fetchPostComments.mockResolvedValue([]);
     api.fetchMyBookmarks.mockResolvedValue({ items: [post], nextCursor: null, hasNext: false });
     api.unbookmarkPost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it.each([
@@ -246,7 +246,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       expect(screen.getByRole('checkbox', { name: '모음집 A' })).toBeEnabled();
     });
     expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(globalCollectionReads()).toHaveLength(2);
   });
 

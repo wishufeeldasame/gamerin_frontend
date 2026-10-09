@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationRecord } from '@/lib/notification-api';
 
@@ -72,7 +73,6 @@ describe('NotificationPanel server synchronization', () => {
     mocks.push.mockReset();
     mocks.markNotificationRead.mockResolvedValue(undefined);
     mocks.markAllNotificationsRead.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('알림에 ISO와 한국어 절대 시각 툴팁을 표시한다', async () => {
@@ -128,7 +128,7 @@ describe('NotificationPanel server synchronization', () => {
     const item = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
     fireEvent.click(item);
 
-    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('읽음 실패'));
+    await waitFor(() => expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('읽음 실패'));
     expect(screen.getByText('읽지 않은 알림 1개')).toBeInTheDocument();
     expect(mocks.push).not.toHaveBeenCalled();
   });
@@ -145,6 +145,6 @@ describe('NotificationPanel server synchronization', () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/post-1'));
     expect(within(document.body).getByText('읽지 않은 알림 0개')).toBeInTheDocument();
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

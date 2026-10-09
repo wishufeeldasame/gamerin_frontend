@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
@@ -169,7 +170,6 @@ describe('HomePage like rollback', () => {
       nextCursor: null,
       hasNext: false,
     });
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
     vi.spyOn(window, 'scrollTo').mockImplementation(() => undefined);
     Object.defineProperty(window, 'matchMedia', {
       configurable: true,
@@ -251,7 +251,9 @@ describe('HomePage like rollback', () => {
     fireEvent.click(screen.getByRole('button', { name: 'toggle like' }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('좋아요 상태를 변경하지 못했습니다.');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain(
+        '좋아요 상태를 변경하지 못했습니다.',
+      );
       expect(renderedPost).toHaveAttribute('data-liked', 'false');
       expect(renderedPost).toHaveAttribute('data-likes', '7');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
@@ -300,7 +302,7 @@ describe('HomePage like rollback', () => {
       expect(renderedPost).toHaveAttribute('data-repost-count', '4');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
-    expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
   });
 
   it('loads the next page when the feed sentinel enters the viewport', async () => {

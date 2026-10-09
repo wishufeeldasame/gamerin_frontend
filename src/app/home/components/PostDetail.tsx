@@ -1,5 +1,8 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
@@ -49,6 +52,12 @@ export function PostDetail({
   onPostUpdated,
   onPostDeleted,
 }: PostDetailProps) {
+  const toast = useToast();
+  const confirm = useConfirm(postId);
+  const deleteCommentLockRef = useRef(false);
+  const deletePostLockRef = useRef(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
@@ -186,7 +195,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setIsLikeLoading(false);
     }
@@ -244,7 +253,7 @@ export function PostDetail({
       }
       const message = toggleError instanceof Error ? toggleError.message : '리포스트 상태를 변경하지 못했습니다.';
       setRepostError(message);
-      alert(message);
+      toast.error(message);
     } finally {
       setIsRepostLoading(false);
     }
@@ -271,37 +280,44 @@ export function PostDetail({
       setCommentText('');
       onPostUpdated?.(nextPost);
     } catch (commentError) {
-      alert(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
     } finally {
       setSubmittingComment(false);
     }
   };
 
   const handleDeleteComment = async (comment: CommentRecord) => {
-    if (!post || deletingCommentId) {
+    if (!post || deletingCommentId || deleteCommentLockRef.current) {
       return;
     }
 
-    const confirmed = window.confirm('댓글을 삭제할까요?');
-    if (!confirmed) {
-      setCommentMenuOpenId(null);
-      return;
-    }
-
+    deleteCommentLockRef.current = true;
+    const returnFocusTo = commentMenuButtonRefs.current.get(comment.commentId) ?? null;
+    setCommentMenuOpenId(null);
     try {
+      const confirmed = await confirm({
+        message: '댓글을 삭제할까요?', confirmLabel: '삭제', danger: true, returnFocusTo,
+      });
+      if (!confirmed) return;
       setDeletingCommentId(comment.commentId);
       await deleteComment(post.postId, comment.commentId);
       setComments((current) => current.filter((item) => item.commentId !== comment.commentId));
       const nextPost = {
-        ...post,
-        comments: Math.max(0, post.comments - 1),
+        ...(latestPostRef.current ?? post),
+        comments: Math.max(0, (latestPostRef.current ?? post).comments - 1),
       };
       setPost(nextPost);
       onPostUpdated?.(nextPost);
       setCommentMenuOpenId(null);
+      window.requestAnimationFrame(() => {
+        if (!returnFocusTo?.isConnected && document.activeElement === document.body) {
+          restoreFeedbackFocus(null);
+        }
+      });
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
     } finally {
+      deleteCommentLockRef.current = false;
       setDeletingCommentId(null);
     }
   };
@@ -350,7 +366,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      alert(bookmarkError instanceof Error ? bookmarkError.message : '북마크 상태를 변경하지 못했습니다.');
+      toast.error(bookmarkError instanceof Error ? bookmarkError.message : '북마크 상태를 변경하지 못했습니다.');
       return false;
     } finally {
       setBookmarking(false);
@@ -358,25 +374,27 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || deletingPost) {
+    if (!post || deletingPost || deletePostLockRef.current) {
       return;
     }
 
-    const confirmed = window.confirm('게시물을 삭제할까요?');
-    if (!confirmed) {
-      setMenuOpen(false);
-      return;
-    }
-
+    deletePostLockRef.current = true;
+    setMenuOpen(false);
     try {
+      const confirmed = await confirm({
+        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        returnFocusTo: menuButtonRef.current,
+      });
+      if (!confirmed) return;
       setDeletingPost(true);
       await deletePost(post.postId);
       setMenuOpen(false);
       onPostDeleted?.(post.postId);
       onBack();
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
     } finally {
+      deletePostLockRef.current = false;
       setDeletingPost(false);
     }
   };
@@ -445,6 +463,7 @@ export function PostDetail({
               <button
                 type="button"
                 onClick={() => setMenuOpen((current) => !current)}
+                ref={menuButtonRef}
                 className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
@@ -644,6 +663,10 @@ export function PostDetail({
                           }
                           className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
                           aria-label="댓글 메뉴"
+                          ref={(element) => {
+                            if (element) commentMenuButtonRefs.current.set(comment.commentId, element);
+                            else commentMenuButtonRefs.current.delete(comment.commentId);
+                          }}
                           aria-expanded={commentMenuOpenId === comment.commentId}
                         >
                           <MoreHorizontal size={18} />

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 
@@ -108,7 +109,6 @@ describe('Post bookmark collection synchronization', () => {
     mocks.unbookmarkPost.mockReset();
     mocks.bookmarkPost.mockResolvedValue(undefined);
     mocks.unbookmarkPost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('게시물과 리포스트에 ISO와 한국어 절대 시각을 표시한다', () => {
@@ -176,7 +176,7 @@ describe('Post bookmark collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: 'mock unbookmark' }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith(message);
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain(message);
     });
     expect(onBookmarkChange).toHaveBeenCalledTimes(2);
     expect(onBookmarkChange.mock.calls[0][1]).toBe(false);

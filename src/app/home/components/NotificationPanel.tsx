@@ -1,5 +1,7 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -74,6 +76,7 @@ function mergeNotifications(current: NotificationRecord[], incoming: Notificatio
 }
 
 export function NotificationPanel({ onClose, onUnreadCountChange }: NotificationPanelProps) {
+  const toast = useToast();
   const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
@@ -168,7 +171,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setHasNext(Boolean(page.hasNext && page.nextCursor));
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
-      alert(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
     } finally {
       if (loadMoreAbortRef.current === controller) {
         loadMoreAbortRef.current = null;
@@ -217,7 +220,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
     try {
       await markAsRead(notification);
     } catch (readError) {
-      alert(readError instanceof Error ? readError.message : '알림 읽음 처리에 실패했습니다.');
+      toast.error(readError instanceof Error ? readError.message : '알림 읽음 처리에 실패했습니다.');
       return;
     }
 
@@ -242,7 +245,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       onUnreadCountChange?.(0);
       await syncUnreadCount().catch(() => undefined);
     } catch (markAllError) {
-      alert(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
+      toast.error(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
     } finally {
       setMarkingAll(false);
     }
