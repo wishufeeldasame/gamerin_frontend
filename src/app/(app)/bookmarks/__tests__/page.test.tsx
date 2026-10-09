@@ -205,7 +205,7 @@ describe('BookmarksPage state synchronization', () => {
     fireEvent.click(within(renderedPost).getByRole('button', { name: 'toggle like' }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('좋아요 상태를 변경하지 못했습니다.');
+      expect(screen.getByRole('alert')).toHaveTextContent('좋아요 상태를 변경하지 못했습니다.');
       expect(renderedPost).toHaveAttribute('data-liked', 'false');
       expect(renderedPost).toHaveAttribute('data-likes', '0');
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');

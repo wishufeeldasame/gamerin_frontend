@@ -37,7 +37,7 @@ async function mockApp(page: Page, theme: 'light' | 'dark', admin = false) {
       id: user.userId, name: user.nickname, nickname: user.nickname, handle: user.handle,
       gameTier: 'Unranked', role: user.role, status: user.status,
     }));
-    localStorage.setItem('gamerin_theme', theme);
+    localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme }));
   }, { user, theme });
   // 모든 API를 목업해 실제 백엔드·인증 세션에 영향을 주지 않는다.
   await page.route('**/api/v1/**', async (route) => {
@@ -182,10 +182,10 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await checkLayout(page, info, 'game-stats');
 
         await page.goto('/settings');
-        await page.getByRole('button', { name: '테마/언어', exact: true }).click();
-        await expect(page.getByRole('option', { name: '영어', exact: true })).toHaveAttribute('value', 'en');
-        await expect(page.getByRole('option', { name: '일본어', exact: true })).toHaveAttribute('value', 'ja');
-        await expect(page.getByRole('option', { name: '중국어', exact: true })).toHaveAttribute('value', 'zh');
+        await page.getByRole('button', { name: '테마', exact: true }).click();
+        await expect(page.getByRole('button', { name: '라이트 모드', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: '다크 모드', exact: true })).toBeVisible();
+        await expect(page.getByRole('combobox')).toHaveCount(0);
         await checkLayout(page, info, 'settings');
 
         await page.goto('/mentoring');

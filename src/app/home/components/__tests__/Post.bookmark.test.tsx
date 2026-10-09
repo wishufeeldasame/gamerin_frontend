@@ -176,7 +176,7 @@ describe('Post bookmark collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: 'mock unbookmark' }));
 
     await waitFor(() => {
-      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain(message);
     });
     expect(onBookmarkChange).toHaveBeenCalledTimes(2);
     expect(onBookmarkChange.mock.calls[0][1]).toBe(false);

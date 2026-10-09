@@ -40,7 +40,7 @@ async function mockApp(page: Page, options: { posts?: typeof post[]; distinctLik
       return;
     }
     let data: unknown = null;
-    if (path.endsWith('/auth/refresh')) data = { accessToken: 'feedback-test-token' };
+    if (path.endsWith('/auth/refresh')) data = { userId: user.userId, accessToken: 'feedback-test-token' };
     else if (path.endsWith('/auth/me')) data = user;
     else if (path.endsWith('/users/me')) data = {
       id: user.userId, handle: user.handle, nickname: user.nickname,
@@ -57,6 +57,79 @@ async function mockApp(page: Page, options: { posts?: typeof post[]; distinctLik
     await route.fulfill({ json: { success: true, data } });
   });
   return () => deletes;
+}
+
+for (const width of [390, 1280]) {
+  for (const theme of ['light', 'dark']) {
+    test(`설정 알림: ${width}px · ${theme}에서 검증·미리보기·계정 삭제 안내와 기존 데이터 보존`, async ({ page }, info) => {
+      await page.setViewportSize({ width, height: 844 });
+      await mockApp(page);
+      await page.addInitScript((selectedTheme) => {
+        localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: selectedTheme }));
+      }, theme);
+      const nativeDialogs: string[] = [];
+      page.on('dialog', async (dialog) => {
+        nativeDialogs.push(dialog.type());
+        await dialog.dismiss();
+      });
+      await page.goto('/settings');
+      await expect(page.getByRole('heading', { name: '계정 정보' })).toBeVisible();
+      const changes: string[] = [];
+      page.on('request', (request) => {
+        if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method())
+          && !new URL(request.url()).pathname.endsWith('/auth/refresh')) {
+          changes.push(request.method() + ' ' + new URL(request.url()).pathname);
+        }
+      });
+      const current = page.getByLabel('현재 비밀번호', { exact: true });
+      const next = page.getByLabel('새 비밀번호', { exact: true });
+      const confirmation = page.getByLabel('새 비밀번호 확인', { exact: true });
+      const submit = page.getByRole('button', { name: '비밀번호 변경', exact: true });
+      await current.fill('current-password');
+      await submit.focus();
+      await page.keyboard.press('Enter');
+      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' });
+      await expect(error).toHaveText(/비밀번호 입력칸을 모두 채워주세요/);
+      await expect(error).toHaveAttribute('aria-live', 'assertive');
+      await expect(submit).toBeFocused();
+      await expect(current).toHaveValue('current-password');
+      await page.getByRole('button', { name: '알림 닫기' }).click();
+      await next.fill('new-password');
+      await confirmation.fill('different-password');
+      await submit.click();
+      await expect(page.getByRole('alert').filter({ hasText: '새 비밀번호 확인이 일치하지 않습니다' }))
+        .toHaveText(/새 비밀번호 확인이 일치하지 않습니다/);
+      await expect(confirmation).toHaveValue('different-password');
+      await page.getByRole('button', { name: '알림 닫기' }).click();
+      await confirmation.fill('new-password');
+      await submit.click();
+      await expect(page.getByRole('status')).toHaveText(/현재는 프론트 미리보기입니다/);
+      await expect(page.getByRole('status')).toHaveAttribute('aria-live', 'polite');
+      for (const input of [current, next, confirmation]) await expect(input).toHaveValue('');
+      await page.getByRole('button', { name: '알림 닫기' }).click();
+      const storedBefore = await page.evaluate(() => ({
+        user: localStorage.getItem('gamerin_user'),
+        settings: localStorage.getItem('gamerin_user_settings'),
+      }));
+      await page.getByRole('button', { name: '계정 삭제', exact: true }).click();
+      const notice = page.getByRole('status');
+      await expect(notice).toHaveText(/계정 삭제 기능은 준비 중입니다/);
+      await expect(page.getByRole('alertdialog')).toHaveCount(0);
+      expect(await page.evaluate(() => ({
+        user: localStorage.getItem('gamerin_user'),
+        settings: localStorage.getItem('gamerin_user_settings'),
+      }))).toEqual(storedBefore);
+      expect(changes).toEqual([]);
+      expect(nativeDialogs).toEqual([]);
+      await expect(page).toHaveURL(/\/settings$/);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const bounds = await notice.boundingBox();
+      expect(bounds).not.toBeNull();
+      expect(bounds!.x).toBeGreaterThanOrEqual(0);
+      expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+      await page.screenshot({ path: info.outputPath('settings-toast.png'), fullPage: true });
+    });
+  }
 }
 
 test('카드 삭제: 초기 포커스·Tab 제한·Esc 취소·포커스 복귀와 확인 1회 요청', async ({ page }) => {
@@ -100,10 +173,10 @@ for (const dark of [false, true]) {
   test(`모바일 ${dark ? '다크' : '라이트'}: 프로필 저장 실패 토스트가 편집창 위에 표시되고 닫힌다`, async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 812 });
     await mockApp(page);
-    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_theme', 'dark'));
+    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'dark' })));
     await page.goto('/profile/author');
-    await page.getByRole('button', { name: 'Edit Profile', exact: true }).click();
-    await page.getByRole('button', { name: 'SAVE', exact: true }).click();
+    await page.getByRole('button', { name: '프로필 수정', exact: true }).click();
+    await page.getByRole('button', { name: '저장', exact: true }).click();
     const toast = page.getByRole('alert').filter({ hasText: '프로필 저장 실패 테스트' });
     await expect(toast).toBeVisible();
     const close = toast.getByRole('button', { name: '알림 닫기' });
@@ -113,7 +186,7 @@ for (const dark of [false, true]) {
     })).toBe(true);
     await close.click();
     await expect(toast).not.toBeVisible();
-    await expect(page.getByRole('heading', { name: 'Edit Profile' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '프로필 수정' })).toBeVisible();
   });
 
   test(`모바일 ${dark ? '다크' : '라이트'}: 스택에서 가려진 긴 토스트는 표시된 후에만 만료된다`, async ({ page }) => {
@@ -122,7 +195,7 @@ for (const dark of [false, true]) {
       posts: [1, 2, 3].map((index) => ({ ...post, postId: `post-${index}` })),
       distinctLikeErrors: true,
     });
-    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_theme', 'dark'));
+    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'dark' })));
     await page.goto('/home');
     const likes = page.locator('article button').filter({ has: page.locator('svg.lucide-heart') });
     await expect(likes).toHaveCount(3);
@@ -150,7 +223,7 @@ for (const dark of [false, true]) {
     await page.setViewportSize({ width: 375, height: 812 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockApp(page);
-    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_theme', 'dark'));
+    if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'dark' })));
     await page.goto('/home');
     await page.locator('article button').filter({ has: page.locator('svg.lucide-heart') }).click();
     const toast = page.getByRole('alert').filter({ hasText: '좋아요 처리 실패' });

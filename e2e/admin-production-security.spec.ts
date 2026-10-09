@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test.describe('isolated production Docker checks', () => {
   test.skip(process.env.ADMIN_DOCKER_REVIEW !== '1', 'Runs against the isolated production image with generated benign image fixtures.');
 
-  test('preserves security headers and the login redirect', async ({ request }) => {
+  test('preserves security headers and the login redirect', async ({ request, page }) => {
     const response = await request.get('/admin/login');
     expect(response.status()).toBe(200);
     const headers = response.headers();
@@ -14,8 +14,12 @@ test.describe('isolated production Docker checks', () => {
     expect(headers['referrer-policy']).toBe('strict-origin-when-cross-origin');
     expect(headers['x-powered-by']).toBeUndefined();
     const root = await request.get('/', { maxRedirects: 0 });
-    expect(root.status()).toBe(308);
-    expect(root.headers().location).toBe('/login');
+    expect(root.status()).toBe(200);
+    await page.route('**/api/v1/**', (route) =>
+      route.fulfill({ status: 401, json: { success: false, message: '로그인이 필요합니다.' } }),
+    );
+    await page.goto('/');
+    await expect(page).toHaveURL(/\/login$/);
   });
 
   test('optimizes normal images and rejects an unapproved remote origin', async ({ request }) => {
