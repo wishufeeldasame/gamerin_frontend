@@ -24,17 +24,19 @@ let api: ReturnType<typeof installFetchRoutes>;
 beforeEach(async () => {
   vi.resetModules();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   api = installFetchRoutes();
   store = await import('@/lib/auth-store');
   client = await import('@/lib/api-client');
   store.setAccessToken('token-a');
+  store.commitAuthenticatedUser('user-a');
   window.localStorage.setItem(store.AUTH_USER_KEY, JSON.stringify({ id: 'user-a' }));
 });
 
 describe('apiRequest 401 처리', () => {
   it('첫 401이면 refresh 후 새 토큰으로 한 번 다시 보낸다', async () => {
     api.route('/api/v1/items', () => json(401, {}), () => json(200, { success: true, data: ['ok'] }));
-    api.route('/api/v1/auth/refresh', () => json(200, { success: true, data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { success: true, data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).resolves.toEqual(['ok']);
 
@@ -46,7 +48,7 @@ describe('apiRequest 401 처리', () => {
 
   it('재시도한 요청도 401이면 더 재시도하지 않고 세션을 종료한다', async () => {
     api.route('/api/v1/items', () => json(401, {}), () => json(401, { message: '만료' }));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
       reason: 'http',
@@ -164,7 +166,7 @@ describe('동시 요청', () => {
     const lateFirst = deferred<Response>();
     api.route('/api/v1/a', () => json(401, {}), () => json(200, { data: 'a' }));
     api.route('/api/v1/b', () => lateFirst.promise, () => json(200, { data: 'b' }));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     const second = client.apiRequest('/api/v1/b', config);
     await expect(client.apiRequest('/api/v1/a', config)).resolves.toBe('a');
@@ -180,7 +182,7 @@ describe('동시 요청', () => {
     const lateRetry = deferred<Response>();
     api.route('/api/v1/a', () => json(401, {}), () => json(401, {}));
     api.route('/api/v1/b', () => json(401, {}), () => lateRetry.promise);
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     const first = client.apiRequest('/api/v1/a', config);
     const second = client.apiRequest('/api/v1/b', config);
@@ -211,6 +213,26 @@ describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
     expect(toError).not.toHaveBeenCalled();
     expect(store.getAccessToken()).toBe('token-new-user');
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('다른 탭의 계정 변경 뒤 늦게 도착한 성공 응답은 버리고 새 공유 사용자 값은 지우지 않는다', async () => {
+    const late = deferred<Response>();
+    api.route('/api/v1/items', () => late.promise);
+
+    const request = client.apiRequest('/api/v1/items', config);
+    await flush();
+    window.localStorage.setItem(store.AUTH_USER_KEY, JSON.stringify({ id: 'user-b' }));
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: store.AUTH_USER_KEY,
+      newValue: JSON.stringify({ id: 'user-b' }),
+    }));
+    late.resolve(json(200, { data: 'old-user-data' }));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(store.getAccessToken()).toBeNull();
+    expect(window.localStorage.getItem(store.AUTH_USER_KEY)).toContain('user-b');
+    expect(store.isLocalReauthenticationRequired()).toBe(true);
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
@@ -292,7 +314,7 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
     void store.logoutAuthSession({ notify: false });
     store.setAccessToken('token-new-login');
     api.route('/api/v1/items', () => json(401, {}), () => json(401, {}));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-new-refreshed' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-new-refreshed', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({ reason: 'http', status: 401 });
     expect(store.getAccessToken()).toBeNull();
@@ -409,7 +431,7 @@ describe('요청·응답 형식', () => {
     const request = client.apiRequest('/api/v1/items', config, { signal: controller.signal });
     await flush();
     controller.abort();
-    refresh.resolve(json(200, { data: { accessToken: 'token-b' } }));
+    refresh.resolve(json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(api.count('/api/v1/items')).toBe(1);

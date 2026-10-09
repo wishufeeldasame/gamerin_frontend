@@ -17,12 +17,12 @@ export type ReportReviewSubmission = {
   penaltyType: AdminPenaltyType | null;
   reason: string;
   internalMemo: string | null;
-  includeRelatedReports: boolean;
 };
 
 type ReportReviewFormProps = {
   targetType: AdminReportTargetType;
   canSanction: boolean;
+  sanctionUnavailableReason?: string;
   isSubmitting: boolean;
   submitError: string | null;
   onComplete: (submission: ReportReviewSubmission) => void;
@@ -47,6 +47,7 @@ export function ReportReviewForm({
   isSubmitting,
   submitError,
   canSanction,
+  sanctionUnavailableReason,
   onComplete,
 }: ReportReviewFormProps) {
   const [decision, setDecision] = useState<ReviewDecision>('complete');
@@ -55,7 +56,6 @@ export function ReportReviewForm({
   const [reason, setReason] = useState('');
   const [reasonError, setReasonError] = useState(false);
   const [memo, setMemo] = useState('');
-  const [includeRelated, setIncludeRelated] = useState(false);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   const canHideContent = targetType === '게시글' || targetType === '댓글';
@@ -129,7 +129,7 @@ export function ReportReviewForm({
             <p className="text-sm text-[#98a2b3]">이 신고 유형에는 콘텐츠 숨김 조치가 없습니다.</p>
           )}
         </div>
-        <p className="mt-1.5 text-xs leading-[18px] text-[#98a2b3]">완전 삭제 대신 숨김을 우선 사용합니다.</p>
+        <p className="mt-1.5 text-xs leading-[18px] text-[#98a2b3]">숨긴 게시글은 서버 정리 정책에 따라 삭제되어 복구할 수 없을 수 있습니다.</p>
       </fieldset>
 
       <label className="mt-5 block">
@@ -137,7 +137,7 @@ export function ReportReviewForm({
         <select
           value={sanction}
           onChange={(event) => setSanction(event.target.value as AdminPenaltyType | '')}
-          disabled={decision === 'reject' || !canSanction}
+          disabled={isSubmitting || decision === 'reject' || !canSanction}
           aria-label="사용자 제재"
           className="h-10 w-full rounded-2xl border border-[#d0d5dd] bg-white px-3 text-[13px] text-[#344054] outline-none transition focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10 dark:!border-[#d0d5dd] dark:!bg-white dark:!text-[#344054]"
         >
@@ -147,7 +147,7 @@ export function ReportReviewForm({
         </select>
       </label>
         {!canSanction ? (
-          <span className="mt-1 block text-xs text-[#98a2b3]">신고 대상 사용자를 확인할 수 없어 제재할 수 없습니다.</span>
+          <span className="mt-1 block text-xs text-[#98a2b3]">{sanctionUnavailableReason ?? '신고 대상 사용자를 확인할 수 없어 제재할 수 없습니다.'}</span>
         ) : null}
 
       <label className="mt-5 block">
@@ -196,11 +196,6 @@ export function ReportReviewForm({
         </span>
       </label>
 
-      <label className="flex min-h-[61px] cursor-pointer items-center gap-2.5 text-sm font-medium text-[#344054]">
-        <input type="checkbox" checked={includeRelated} onChange={(event) => setIncludeRelated(event.target.checked)} className="size-4 rounded-sm accent-[#315ef5]" />
-        관련 신고 함께 처리
-      </label>
-
       {submitError ? (
         <p className="mb-3 rounded-2xl bg-[#feeceb] px-3 py-2 text-xs text-[#b42318]" role="alert">
           {submitError}
@@ -226,10 +221,9 @@ export function ReportReviewForm({
           onComplete({
             decision: decision === 'complete' ? 'RESOLVED' : 'REJECTED',
             hideTargetContent: decision === 'complete' && hideContent,
-            penaltyType: decision === 'complete' && sanction ? sanction : null,
+            penaltyType: decision === 'complete' && canSanction && sanction ? sanction : null,
             reason: reason.trim(),
             internalMemo: memo.trim() || null,
-            includeRelatedReports: includeRelated,
           });
         }}
       />

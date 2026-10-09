@@ -1,5 +1,7 @@
 'use client';
 
+import { formatRelativeTimeLabel } from '@/lib/time-format';
+
 export type MessageRecipient = {
   id: string;
   name: string;
@@ -62,21 +64,50 @@ export function formatChatTime(createdAt: string) {
   });
 }
 
+export function isSameLocalDate(left: string | Date, right: string | Date) {
+  const leftDate = typeof left === 'string' ? new Date(left) : left;
+  const rightDate = typeof right === 'string' ? new Date(right) : right;
+
+  return (
+    leftDate.getFullYear() === rightDate.getFullYear() &&
+    leftDate.getMonth() === rightDate.getMonth() &&
+    leftDate.getDate() === rightDate.getDate()
+  );
+}
+
+export function formatMessageDate(createdAt: string, now = new Date()) {
+  const messageDate = new Date(createdAt);
+
+  if (isSameLocalDate(messageDate, now)) {
+    return '오늘';
+  }
+
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  if (isSameLocalDate(messageDate, yesterday)) {
+    return '어제';
+  }
+
+  if (messageDate.getFullYear() === now.getFullYear()) {
+    return `${messageDate.getMonth() + 1}월 ${messageDate.getDate()}일`;
+  }
+
+  return `${messageDate.getFullYear()}년 ${messageDate.getMonth() + 1}월 ${messageDate.getDate()}일`;
+}
+
+export function shouldShowMessageDateSeparator(messages: ChatMessage[], index: number) {
+  const previousMessage = messages[index - 1];
+  const currentMessage = messages[index];
+
+  return Boolean(
+    previousMessage &&
+      currentMessage &&
+      !isSameLocalDate(previousMessage.createdAt, currentMessage.createdAt)
+  );
+}
+
 export function formatConversationTime(createdAt: string) {
-  const diffSeconds = Math.floor((Date.now() - new Date(createdAt).getTime()) / 1000);
-
-  if (diffSeconds < 60) return '방금';
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}분 전`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}시간 전`;
-
-  return new Date(createdAt).toLocaleDateString('ko-KR', {
-    month: 'short',
-    day: 'numeric',
-  });
+  return formatRelativeTimeLabel(createdAt);
 }
 
 export function sortConversationsByUpdatedAt(conversations: Conversation[]) {

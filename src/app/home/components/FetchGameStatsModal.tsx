@@ -24,13 +24,13 @@ const availableGames: Array<{
   description: string;
   connectableGame?: ConnectableGame;
 }> = [
-  { name: 'League of Legends', description: 'Sync Rank, Win Rate, KDA' },
-  { name: 'VALORANT', description: 'Sync Rank, ACS, Headshot %' },
-  { name: 'Overwatch 2', description: 'Sync Skill Tier, Hero Stats' },
-  { name: 'PUBG', description: 'Sync Tier, K/D, Win Rate, Matches', connectableGame: 'PUBG' },
-  { name: 'Rainbow Six Siege', description: 'Sync Tier, K/D, Win Rate, Matches', connectableGame: 'R6' },
-  { name: 'CS2', description: 'Sync Premier Rank, K/D, Win Rate' },
-  { name: 'Apex Legends', description: 'Sync Rank, Damage, K/D' },
+  { name: 'League of Legends', description: '등급, 승률, 킬/데스/어시스트 비율 연동' },
+  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동' },
+  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동' },
+  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', connectableGame: 'PUBG' },
+  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', connectableGame: 'R6' },
+  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률 연동' },
+  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율 연동' },
 ];
 
 interface FetchGameStatsModalProps {
@@ -100,7 +100,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     setConnectingGame(gameName);
     setTimeout(() => {
       setConnectingGame(null);
-      toast.info(`${gameName} integration is not connected yet.`);
+      toast.info(`${gameName} 연동은 아직 지원되지 않습니다.`);
     }, 1000);
   };
 
@@ -141,7 +141,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
       }
 
       await onConnected?.();
-      toast.success(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) connected successfully.`);
+      toast.success(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) 계정이 연결되었습니다.`);
       onClose();
     } catch (error) {
       if (connectionCompleted) {
@@ -169,7 +169,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   const promptDescription =
     promptGame === 'R6'
       ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연동하세요.'
-      : 'Enter your nickname to start PUBG account sync.';
+      : 'PUBG 계정 연동을 시작하려면 닉네임을 입력하세요.';
 
   return (
     <AnimatePresence>
@@ -200,9 +200,9 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                 <X size={24} />
               </button>
             </div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter">Stat Sync Engine</h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter">게임 전적 연동</h2>
             <p className="mt-1 text-sm font-bold text-zinc-500">
-              Connect your official game account and import live stats.
+              공식 게임 계정을 연결하고 최신 전적을 불러오세요.
             </p>
           </div>
 
@@ -210,13 +210,13 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
             {availableGames.map((game) => (
               <div
                 key={game.name}
-                className="group flex items-center justify-between rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white"
+                className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-100 bg-white shadow-sm transition-all group-hover:bg-black group-hover:text-white">
+                <div className="flex min-w-0 flex-1 items-center gap-4">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white shadow-sm transition-all group-hover:bg-black group-hover:text-white">
                     <Gamepad2 size={20} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <h3 className="mb-1 text-[15px] font-black leading-none text-black">{game.name}</h3>
                     <p className="text-[11px] font-bold uppercase tracking-tight text-zinc-400">{game.description}</p>
                   </div>
@@ -225,13 +225,13 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                 <button
                   onClick={() => handleConnect(game.name, game.connectableGame)}
                   disabled={connectingGame !== null || promptGame !== null}
-                  className={`rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
+                  className={`shrink-0 whitespace-nowrap rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
                     connectingGame === game.name || promptGame !== null
                       ? 'cursor-not-allowed bg-zinc-200 text-zinc-500'
                       : 'bg-black text-white hover:bg-zinc-800 active:scale-95'
                   }`}
                 >
-                  {connectingGame === (game.connectableGame ?? game.name) ? 'SYNCING...' : 'CONNECT'}
+                  {connectingGame === (game.connectableGame ?? game.name) ? '연동 중...' : '연결'}
                 </button>
               </div>
             ))}
@@ -241,7 +241,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
             <div className="flex items-center justify-center gap-2">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
               <p className="text-center text-[11px] font-black uppercase tracking-widest text-zinc-400">
-                Encryption Active: Secured via Game API
+                암호화 활성: 게임 API를 통한 보안 연결
               </p>
             </div>
           </div>
@@ -257,7 +257,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                 <div className="border-b border-zinc-100 p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-black">Connect {selectedGameLabel}</h3>
+                      <h3 className="text-xl font-black">{selectedGameLabel} 연결</h3>
                       <p className="mt-1 text-sm text-zinc-500">{promptDescription}</p>
                     </div>
                     <button
@@ -271,7 +271,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
                 <div className="space-y-4 p-6">
                   <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
-                    Nickname
+                    닉네임
                   </label>
                   <input
                     value={playerName}
@@ -279,7 +279,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                       setPlayerName(event.target.value);
                       setPlayerNameError('');
                     }}
-                    placeholder={promptGame === 'R6' ? 'Enter your Ubisoft Connect nickname' : 'Enter your PUBG nickname'}
+                    placeholder={promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
                     aria-invalid={Boolean(playerNameError)}
                     className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white ${
                       playerNameError
@@ -297,13 +297,13 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                     onClick={handlePromptCancel}
                     className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-100"
                   >
-                    Cancel
+                    취소
                   </button>
                   <button
                     onClick={() => void handleSubmit()}
                     className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
                   >
-                    Connect
+                    연결
                   </button>
                 </div>
               </div>

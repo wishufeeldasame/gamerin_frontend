@@ -198,6 +198,20 @@ describe('BookmarksPage state synchronization', () => {
     api.unlikePost.mockResolvedValue(undefined);
   });
 
+  it('좋아요의 알 수 없는 오류를 한국어로 안내하고 기존 상태로 롤백한다', async () => {
+    api.likePost.mockRejectedValue('unknown failure');
+    render(<BookmarksPage />);
+    const renderedPost = await screen.findByTestId('post-post-1');
+    fireEvent.click(within(renderedPost).getByRole('button', { name: 'toggle like' }));
+
+    await waitFor(() => {
+      expect(window.alert).toHaveBeenCalledWith('좋아요 상태를 변경하지 못했습니다.');
+      expect(renderedPost).toHaveAttribute('data-liked', 'false');
+      expect(renderedPost).toHaveAttribute('data-likes', '0');
+      expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
+    });
+  });
+
   it('hides stale counts until refreshed collections replace the previous array', async () => {
     const { rerender } = render(<BookmarksPage />);
     await screen.findByTestId('post-post-1');

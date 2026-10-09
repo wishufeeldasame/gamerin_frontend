@@ -16,7 +16,7 @@ vi.mock('@/app/context/AuthContext', () => ({
 vi.mock('@/lib/feed-api', () => ({
   bookmarkPost: mocks.bookmarkPost,
   deletePost: mocks.deletePost,
-  formatRelativeTime: () => 'now',
+  formatRelativeTime: () => '방금 전',
   getInitials: () => 'A',
   unbookmarkPost: mocks.unbookmarkPost,
   updatePostBookmarkState: (post: PostRecord, bookmarkedByMe: boolean) => ({
@@ -111,6 +111,28 @@ describe('Post bookmark collection synchronization', () => {
     mocks.unbookmarkPost.mockResolvedValue(undefined);
   });
 
+  it('게시물과 리포스트에 ISO와 한국어 절대 시각을 표시한다', () => {
+    render(<Post post={{
+      ...bookmarkedPost,
+      reposterInfo: { userId: 'reposter', nickname: '리포스터', repostedAt: '2026-09-18T00:00:00Z' },
+    }} />);
+    const times = document.querySelectorAll('time');
+    expect(times).toHaveLength(2);
+    expect(Array.from(times, (time) => time.dateTime)).toEqual([
+      '2026-09-18T00:00:00.000Z', '2026-09-17T00:00:00.000Z',
+    ]);
+    for (const time of times) expect(time.title).toMatch(/^2026년 9월 \d+일 (오전|오후) \d{1,2}:00$/);
+  });
+
+  it('게시물·리포스트의 빈 날짜와 잘못된 날짜도 안전한 문자열로 표시한다', () => {
+    render(<Post post={{
+      ...bookmarkedPost, createdAt: 'invalid',
+      reposterInfo: { userId: 'reposter', nickname: '리포스터', repostedAt: '' },
+    }} />);
+    expect(screen.getAllByText('시간 정보 없음')).toHaveLength(2);
+    expect(document.querySelector('time')).toBeNull();
+  });
+
   it('runs delete before notifying the parent of a successful unbookmark', async () => {
     const calls: string[] = [];
     const onBookmarkSuccess = vi.fn(() => calls.push('success'));
@@ -134,10 +156,13 @@ describe('Post bookmark collection synchronization', () => {
     expect(calls).toEqual(['delete', 'success']);
   });
 
-  it('rolls back only when the delete request fails', async () => {
+  it.each([
+    [new Error('delete failed'), 'delete failed'],
+    ['unknown failure', '북마크 상태를 변경하지 못했습니다.'],
+  ])('rolls back only when the delete request fails (%s)', async (error, message) => {
     const onBookmarkChange = vi.fn();
     const onBookmarkSuccess = vi.fn();
-    mocks.unbookmarkPost.mockRejectedValue(new Error('delete failed'));
+    mocks.unbookmarkPost.mockRejectedValue(error);
 
     render(
       <Post

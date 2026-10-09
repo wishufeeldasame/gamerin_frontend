@@ -9,9 +9,8 @@ import {
   createReport,
   fetchReportReasons,
   type ReportReason,
-  type ReportReasonCode,
-  type ReportTargetType,
 } from '@/lib/report-api';
+import type { ReportReasonCode, ReportTargetType } from '@/types/report';
 
 interface ReportContentModalProps {
   targetType: ReportTargetType;

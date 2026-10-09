@@ -1,7 +1,7 @@
 'use client';
 
 import { useToast } from '@/app/context/ToastContext';
-
+import Link from 'next/link';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Hash } from 'lucide-react';
@@ -175,8 +175,14 @@ export default function HashtagPostsPage() {
           게시글을 불러오는 중...
         </div>
       ) : error ? (
-        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
+        <div className="flex flex-col items-center gap-4 rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-950 dark:bg-red-950/30">
           <p className="font-black text-red-500">{error}</p>
+          <Link
+            href="/home"
+            className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+          >
+            홈으로 돌아가기
+          </Link>
         </div>
       ) : posts.length === 0 ? (
         <div className="rounded-[32px] border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center">

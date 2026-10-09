@@ -1,4 +1,5 @@
 import { ApiError, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { PageResponse } from '@/types/api';
 
 const MENTORING_BASE = '/api/v1/mentoring';
 
@@ -14,24 +15,6 @@ export type ApplicationStatus =
   | 'CANCELLED';
 export type PaymentStatus = 'PENDING' | 'ESCROW_HELD' | 'SETTLED' | 'REFUNDED';
 
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
-export interface PageResponse<T> {
-  content: T[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
-  numberOfElements?: number;
-}
-
 export interface MentorProfileResponse {
   userId: string;
   nickname: string;
@@ -40,6 +23,11 @@ export interface MentorProfileResponse {
   ratingAvg: number;
   reviewCount: number;
   menteeCount: number;
+}
+
+export interface GameResponse {
+  code: string;
+  name: string;
 }
 
 export interface MentoringProgramResponse {
@@ -190,6 +178,10 @@ export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
     empty: true,
     numberOfElements: 0,
   };
+}
+
+export function fetchGames() {
+  return mentoringRequest<GameResponse[]>('/api/v1/games');
 }
 
 export function registerMentor(payload: { about: string }) {

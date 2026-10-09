@@ -115,7 +115,7 @@ async function createThumbnailFile(
 
   const context = canvas.getContext('2d');
   if (!context) {
-    throw new Error('Canvas is unavailable.');
+    throw new Error('이미지 처리 기능을 사용할 수 없습니다.');
   }
 
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -125,7 +125,7 @@ async function createThumbnailFile(
   });
 
   if (!blob) {
-    throw new Error('Thumbnail generation failed.');
+    throw new Error('썸네일 생성에 실패했습니다.');
   }
 
   return new File([blob], `${baseName}-thumbnail-${index + 1}.jpg`, { type: 'image/jpeg' });
@@ -542,7 +542,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                     >
                       <span className="font-black text-zinc-900">#{hashtag.name}</span>
                       <span className="text-xs font-bold text-zinc-400">
-                        {hashtag.postCount.toLocaleString()} posts
+                        게시물 {hashtag.postCount.toLocaleString()}개
                       </span>
                     </button>
                   ))}
@@ -663,7 +663,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
               {imagePreviewUrls.map((url, index) => (
                 <div key={url} className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`Selected image ${index + 1}`} className="h-44 w-full object-cover" />
+                  <img src={url} alt={`선택한 이미지 ${index + 1}`} className="h-44 w-full object-cover" />
                 </div>
               ))}
             </div>

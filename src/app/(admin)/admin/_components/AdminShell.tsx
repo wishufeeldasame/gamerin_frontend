@@ -75,7 +75,7 @@ function AdminSidebar({ activePage, className = '', onNavigate }: AdminSidebarPr
         </span>
         <span>
           <span className="block text-[15px] leading-[22.5px] font-black tracking-[-0.375px] text-white">GamerIN</span>
-          <span className="block text-[10px] leading-[15px] font-semibold tracking-[1px] text-[#7b8aa8]">ADMIN CONSOLE</span>
+          <span className="block text-[10px] leading-[15px] font-semibold tracking-[1px] text-[#7b8aa8]">관리자 콘솔</span>
         </span>
       </Link>
 

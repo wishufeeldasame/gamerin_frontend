@@ -95,6 +95,14 @@ describe('Header mobile search', () => {
     mocks.pathname = '/home';
   });
 
+  it('hides the global search controls on the search page', () => {
+    mocks.pathname = '/search';
+    render(<Header />);
+
+    expect(screen.queryByRole('textbox', { name: '통합 검색' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '검색 열기' })).not.toBeInTheDocument();
+  });
+
   it('opens the search field with the toggle, focuses it, and closes it after searching', async () => {
     render(<Header />);
 
@@ -136,5 +144,20 @@ describe('Header mobile search', () => {
     mocks.pathname = '/home';
     view.rerender(<Header />);
     expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+describe('Header rank display', () => {
+  it('Unranked 값은 유지하고 표시만 미배치로 바꾼다', async () => {
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(0);
+    mocks.user = { ...mocks.user, gameTier: 'Unranked' };
+    const view = render(<Header />);
+    expect(screen.getByText('미배치')).toBeInTheDocument();
+    expect(screen.queryByText('Unranked')).not.toBeInTheDocument();
+    expect(mocks.user.gameTier).toBe('Unranked');
+    mocks.user = { ...mocks.user, gameTier: 'Gold' };
+    view.rerender(<Header />);
+    expect(screen.getByText('Gold')).toBeInTheDocument();
+    await waitFor(() => expect(mocks.fetchUnreadNotificationCount).toHaveBeenCalled());
   });
 });

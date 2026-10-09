@@ -15,7 +15,6 @@ import {
   PostRecord,
   bookmarkPost,
   deletePost,
-  formatRelativeTime,
   getInitials,
   unbookmarkPost,
   updatePostBookmarkState,
@@ -25,6 +24,7 @@ import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
 import { HashtagText } from './HashtagText';
+import { RelativeTime } from './RelativeTime';
 
 interface PostProps {
   post: PostRecord;
@@ -66,7 +66,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
         <div className="relative overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
           <Image
             src={item.mediaUrl}
-            alt="Post media"
+            alt="게시물 미디어"
             width={1200}
             height={800}
             unoptimized
@@ -94,7 +94,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
           ) : (
             <Image
               src={item.mediaUrl}
-              alt="Post media"
+              alt="게시물 미디어"
               width={800}
               height={800}
               unoptimized
@@ -222,7 +222,7 @@ export function Post({
       } catch (error) {
         setBookmarked(bookmarked);
         onBookmarkChange?.(post, bookmarked);
-        toast.error(error instanceof Error ? error.message : 'Failed to update bookmark.');
+        toast.error(error instanceof Error ? error.message : '북마크 상태를 변경하지 못했습니다.');
         return false;
       }
 
@@ -281,7 +281,8 @@ export function Post({
             <Repeat2 size={15} className="text-emerald-500" />
             <span>
               {post.reposterInfo.nickname}님이 리포스트했습니다
-              {post.reposterInfo.repostedAt ? ` · ${formatRelativeTime(post.reposterInfo.repostedAt)}` : ''}
+              {' · '}
+              <RelativeTime createdAt={post.reposterInfo.repostedAt} />
             </span>
           </div>
         ) : null}
@@ -308,7 +309,7 @@ export function Post({
                 <h2 className="text-[16px] font-black tracking-tight text-black">{post.author}</h2>
               </div>
               <span className="text-[11px] font-bold text-zinc-400">
-                @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
+                @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
               </span>
             </div>
           </Link>

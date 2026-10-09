@@ -262,7 +262,7 @@ export default function BookmarksPage() {
       setBookmarks((current) =>
         updatePostsLikeState(current, post.postId, previousLikedByMe),
       );
-      toast.error(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
     } finally {
       setLikeLoadingByPostId((current) => {
         const next = { ...current };
@@ -464,7 +464,7 @@ export default function BookmarksPage() {
                   <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
                     <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
                       <ImageIcon size={12} />
-                      Media
+                      미디어
                     </span>
                     {query.trim() ? (
                       <span className="normal-case">

@@ -7,8 +7,10 @@ import { BlockedAccountError, restoreAuthUser, type AuthUser } from '@/lib/auth-
 import {
   AUTH_CLEARED_EVENT,
   AUTH_LOGOUT_STATE_EVENT,
+  AUTH_REAUTH_REQUIRED_EVENT,
   AUTH_USER_KEY,
   getAuthGeneration,
+  isLocalReauthenticationRequired,
   isLogoutInProgress,
   isCurrentAuthGeneration,
   logoutAuthSession,
@@ -55,9 +57,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoggingOut(isLogoutInProgress());
     window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+    window.addEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
     window.addEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
     return () => {
       window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+      window.removeEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
       window.removeEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
     };
   }, []);
@@ -71,6 +75,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const bootstrapAuth = async () => {
       let savedUser: string | null;
+
+      if (isLocalReauthenticationRequired()) {
+        setUser(null);
+        setIsAuthReady(true);
+        return;
+      }
 
       try {
         savedUser = window.localStorage.getItem(AUTH_USER_KEY);

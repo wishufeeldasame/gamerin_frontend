@@ -107,6 +107,18 @@ describe('PostDetail comment deep link', () => {
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
   });
 
+  it.each([
+    ['unknown failure', '게시물을 불러오지 못했습니다.'],
+    [new Error('Request failed.'), 'Request failed.'],
+  ])('게시물 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
+    api.fetchPostDetail.mockRejectedValue(error);
+    api.fetchPostComments.mockResolvedValue([]);
+    render(<PostDetail postId="post-1" onBack={vi.fn()} />);
+
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '돌아가기' })).toBeInTheDocument();
+  });
+
   it('waits for the full comment list, then scrolls to and highlights the matching comment', async () => {
     let resolveComments!: (value: CommentRecord[]) => void;
     const commentsPromise = new Promise<CommentRecord[]>((resolve) => {
@@ -116,7 +128,7 @@ describe('PostDetail comment deep link', () => {
 
     render(<PostDetail postId="post-1" onBack={vi.fn()} initialCommentId="comment-2" />);
 
-    expect(screen.getByText('Loading post...')).toBeInTheDocument();
+    expect(screen.getByText('게시물을 불러오는 중...')).toBeInTheDocument();
     expect(scrollIntoView).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -144,6 +156,18 @@ describe('PostDetail comment deep link', () => {
     expect(screen.getByText('Post content')).toBeInTheDocument();
   });
 
+  it('게시물과 댓글에 ISO 및 한국어 절대 시각 툴팁을 표시한다', async () => {
+    api.fetchPostComments.mockResolvedValue(comments);
+    render(<PostDetail postId="post-1" onBack={vi.fn()} />);
+    await screen.findByText('Target comment');
+    const times = document.querySelectorAll('time');
+    expect(times).toHaveLength(3);
+    for (const time of times) {
+      expect(time).toHaveAttribute('dateTime', '2026-09-18T00:00:00.000Z');
+      expect(time.title).toMatch(/^2026년 9월 18일 (오전|오후) \d{1,2}:00$/);
+    }
+  });
+
   it('keeps the existing target=comments section scroll behavior', async () => {
     api.fetchPostComments.mockResolvedValue(comments);
 
@@ -152,5 +176,15 @@ describe('PostDetail comment deep link', () => {
     await screen.findByText('Target comment');
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
     expect(scrollIntoView.mock.contexts[0]).toBe(document.getElementById('comments'));
+  });
+
+  it('shows the server error and a link back home when the post does not exist', async () => {
+    api.fetchPostDetail.mockRejectedValue(new Error('게시물을 찾을 수 없습니다.'));
+    api.fetchPostComments.mockResolvedValue([]);
+
+    render(<PostDetail postId="missing-post" onBack={vi.fn()} />);
+
+    expect(await screen.findByText('게시물을 찾을 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
   });
 });

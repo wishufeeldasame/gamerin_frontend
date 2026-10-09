@@ -150,8 +150,9 @@ function readPostState() {
   return JSON.parse(screen.getByTestId('post-state').textContent ?? '{}') as PostRecord;
 }
 
-describe('ProfilePage like rollback', () => {
+describe('ProfilePage', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     api.fetchMyProfile.mockReset();
     api.fetchUserMedia.mockReset();
     api.fetchUserPosts.mockReset();
@@ -171,6 +172,54 @@ describe('ProfilePage like rollback', () => {
       nextCursor: null,
       hasNext: false,
     });
+  });
+
+  it('ignores legacy local privacy settings and keeps profile content public', async () => {
+    window.localStorage.setItem(
+      'gamerin_user_settings',
+      JSON.stringify({
+        privacy: {
+          profilePublic: false,
+          showStats: false,
+        },
+      }),
+    );
+
+    render(<ProfilePage />);
+
+    await screen.findByTestId('post-post-1');
+    const statsTab = screen.getByRole('button', { name: '전적' });
+    expect(statsTab).toBeInTheDocument();
+
+    fireEvent.click(statsTab);
+    expect(await screen.findByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['unknown failure', '프로필을 불러오지 못했습니다.'],
+    [new Error('Request failed.'), 'Request failed.'],
+  ])('프로필 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
+    api.fetchUserProfile.mockRejectedValue(error);
+    render(<ProfilePage />);
+    expect(await screen.findByText(message)).toBeInTheDocument();
+  });
+
+  it('uses the repository default cover without rendering an online indicator', async () => {
+    render(<ProfilePage />);
+
+    const cover = await screen.findByRole('img', { name: `${profile.nickname} profile cover` });
+    expect(cover).toHaveAttribute('src', '/images/default-profile-cover.svg');
+    expect(cover).toHaveClass('object-cover');
+    expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
+  });
+
+  it('shows the server error and a link back home when the profile does not exist', async () => {
+    api.fetchUserProfile.mockRejectedValue(new Error('사용자를 찾을 수 없습니다.'));
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByText('사용자를 찾을 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {

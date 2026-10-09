@@ -75,6 +75,16 @@ describe('NotificationPanel server synchronization', () => {
     mocks.markAllNotificationsRead.mockResolvedValue(undefined);
   });
 
+  it('알림에 ISO와 한국어 절대 시각 툴팁을 표시한다', async () => {
+    mocks.fetchNotifications.mockResolvedValue(page([notification('1', '첫 번째')], null, false));
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
+    render(<NotificationPanel onClose={vi.fn()} />);
+    await screen.findByText('첫 번째님이 게시글을 좋아합니다.');
+    const time = document.querySelector('time');
+    expect(time).toHaveAttribute('dateTime', '2026-09-18T00:00:00.000Z');
+    expect(time?.title).toMatch(/^2026년 9월 18일 (오전|오후) \d{1,2}:00$/);
+  });
+
   it('replaces the first page after invalidation so removed server items disappear', async () => {
     mocks.fetchNotifications
       .mockResolvedValueOnce(page([notification('1', '첫 번째'), notification('2', '두 번째')], null, false))

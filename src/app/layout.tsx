@@ -30,7 +30,8 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{
             __html: `
               try {
-                if (localStorage.getItem('gamerin_theme') === 'dark') {
+                const settings = JSON.parse(localStorage.getItem('gamerin_user_settings') || '{}');
+                if (settings.theme === 'dark') {
                   document.documentElement.classList.add('dark');
                 }
               } catch {}

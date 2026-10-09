@@ -14,6 +14,17 @@ let remoteLogoutTimer: number | null = null;
 let loggedOutGeneration: number | null = null;
 // 인증 만료로 끝난 세대와 그 직후 세대. 같은 세션의 다른 요청을 사용자 전환과 구분한다.
 let expiredSession: { generation: number; clearedGeneration: number } | null = null;
+// 확정된 사용자와 `/auth/me` 확인 중인 사용자를 세대별로 기억한다.
+// refresh 쿠키는 탭 간 공유되므로 응답의 userId가 이 소유자와 다르면 현재 탭만 재인증한다.
+let authenticatedUserId: string | null = null;
+let confirmationOwner: { generation: number; userId: string } | null = null;
+let reauthenticationRequired = false;
+let explicitOAuthAttemptId = 0;
+let explicitOAuthAttempt: {
+  id: number;
+  acquisitionGeneration: number;
+  confirmationGeneration: number | null;
+} | null = null;
 let refreshRequest: {
   generation: number;
   requestId: number;
@@ -21,7 +32,7 @@ let refreshRequest: {
 } | null = null;
 
 export type RefreshResult =
-  | { status: 'refreshed'; accessToken: string }
+  | { status: 'refreshed'; accessToken: string; userId: string }
   // 서버가 인증을 거절했다. 세션은 이미 종료됐다. blocked면 차단·비활성 계정이라서 거절한 것이다.
   | { status: 'rejected'; blocked?: boolean }
   // 네트워크 오류·5xx·429·잘못된 응답. 세션은 유지된다. httpStatus 0은 응답 없음.
@@ -34,6 +45,9 @@ export const AUTH_USER_KEY = 'gamerin_user';
 export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
 export const AUTH_LOGOUT_STATE_EVENT = 'gamerin_auth_logout_state';
 export const AUTH_SYNC_KEY = 'gamerin_auth_sync';
+export const AUTH_REAUTH_REQUIRED_EVENT = 'gamerin_auth_reauthentication_required';
+
+const AUTH_REAUTH_REQUIRED_KEY = 'gamerin_auth_reauthentication_required';
 
 const LOGOUT_REQUEST_TIMEOUT_MS = 5_000;
 const LOGOUT_SYNC_TTL_MS = 10_000;
@@ -47,6 +61,8 @@ type AuthSyncMessage = {
 export function setAccessToken(token: string) {
   authGeneration += 1;
   accessTokenMemory = token;
+  authenticatedUserId = null;
+  confirmationOwner = null;
   refreshRequest = null;
   removeLegacyAccessToken();
 }
@@ -75,8 +91,99 @@ export function assertCurrentAuthGeneration(generation: number) {
 export function removeAccessToken() {
   authGeneration += 1;
   accessTokenMemory = null;
+  authenticatedUserId = null;
+  confirmationOwner = null;
   refreshRequest = null;
   removeLegacyAccessToken();
+}
+
+function clearReauthenticationRequired() {
+  reauthenticationRequired = false;
+  if (typeof window === 'undefined') return;
+
+  try {
+    window.sessionStorage.removeItem(AUTH_REAUTH_REQUIRED_KEY);
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
+
+export function isLocalReauthenticationRequired() {
+  if (reauthenticationRequired) return true;
+  if (typeof window === 'undefined') return false;
+
+  try {
+    reauthenticationRequired = window.sessionStorage.getItem(AUTH_REAUTH_REQUIRED_KEY) === '1';
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+  return reauthenticationRequired;
+}
+
+export function setAuthConfirmationOwner(generation: number, userId: string) {
+  if (!isCurrentAuthGeneration(generation) || !userId) return false;
+  confirmationOwner = { generation, userId };
+  return true;
+}
+
+export function commitAuthenticatedUser(userId: string, generation = authGeneration) {
+  if (!isCurrentAuthGeneration(generation) || !userId) return false;
+  authenticatedUserId = userId;
+  confirmationOwner = null;
+  clearReauthenticationRequired();
+  return true;
+}
+
+function expectedUserIdForGeneration(generation: number) {
+  if (confirmationOwner?.generation === generation) return confirmationOwner.userId;
+  return isCurrentAuthGeneration(generation) ? authenticatedUserId : null;
+}
+
+export function requireLocalReauthentication() {
+  if (isLocalReauthenticationRequired() && authGeneration === loggedOutGeneration) return;
+
+  removeAccessToken();
+  explicitOAuthAttempt = null;
+  expiredSession = null;
+  loggedOutGeneration = authGeneration;
+  reauthenticationRequired = true;
+
+  if (typeof window !== 'undefined') {
+    try {
+      window.sessionStorage.setItem(AUTH_REAUTH_REQUIRED_KEY, '1');
+    } catch {
+      // Storage can be unavailable in restricted browser contexts.
+    }
+    window.dispatchEvent(new Event(AUTH_REAUTH_REQUIRED_EVENT));
+  }
+}
+
+export function beginExplicitOAuthAuthentication() {
+  removeAccessToken();
+  expiredSession = null;
+  const attempt = {
+    id: ++explicitOAuthAttemptId,
+    acquisitionGeneration: authGeneration,
+    confirmationGeneration: null,
+  };
+  explicitOAuthAttempt = attempt;
+  return { id: attempt.id, generation: attempt.acquisitionGeneration };
+}
+
+export function markExplicitOAuthConfirmation(id: number, generation: number) {
+  if (explicitOAuthAttempt?.id !== id || !isCurrentAuthGeneration(generation)) return false;
+  explicitOAuthAttempt.confirmationGeneration = generation;
+  return true;
+}
+
+export function isExplicitOAuthAttemptCurrent(id: number) {
+  if (explicitOAuthAttempt?.id !== id) return false;
+  return authGeneration === explicitOAuthAttempt.acquisitionGeneration
+    || authGeneration === explicitOAuthAttempt.confirmationGeneration;
+}
+
+export function finishExplicitOAuthAuthentication(id: number) {
+  if (explicitOAuthAttempt?.id === id) explicitOAuthAttempt = null;
 }
 
 function setRefreshedAccessToken(token: string, expectedGeneration: number) {
@@ -153,6 +260,20 @@ if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === AUTH_SYNC_KEY) {
       applyAuthSyncMessage(parseAuthSyncMessage(event.newValue));
+      return;
+    }
+
+    if (event.key === AUTH_USER_KEY && event.newValue) {
+      const expectedUserId = expectedUserIdForGeneration(authGeneration);
+      if (!expectedUserId) return;
+
+      try {
+        const nextUser = JSON.parse(event.newValue) as { id?: unknown };
+        if (nextUser.id === expectedUserId) return;
+      } catch {
+        // A malformed replacement cannot be trusted as the current account.
+      }
+      requireLocalReauthentication();
     }
   });
 }
@@ -237,6 +358,8 @@ export function clearStoredAuth({
   broadcast = true,
 }: ClearStoredAuthOptions = {}) {
   removeAccessToken();
+  explicitOAuthAttempt = null;
+  clearReauthenticationRequired();
 
   if (typeof window !== 'undefined') {
     try {
@@ -329,6 +452,7 @@ type RefreshPayload = {
   success?: boolean;
   data?: {
     accessToken?: string;
+    userId?: string;
     status?: unknown;
   };
   message?: string;
@@ -364,12 +488,25 @@ export function expireAuthSession(generation: number) {
 
 export async function refreshAccessTokenResult(
   expectedGeneration = authGeneration,
+  options: { expectedUserId?: string | null; oauthAttemptId?: number } = {},
 ): Promise<RefreshResult> {
   if (typeof window === 'undefined') {
     return { status: 'failed', httpStatus: 0 };
   }
 
   if (!isCurrentAuthGeneration(expectedGeneration)) {
+    return { status: 'stale' };
+  }
+
+  if (options.oauthAttemptId !== undefined) {
+    if (
+      explicitOAuthAttempt?.id !== options.oauthAttemptId
+      || explicitOAuthAttempt.acquisitionGeneration !== expectedGeneration
+    ) {
+      return { status: 'stale' };
+    }
+  } else if (explicitOAuthAttempt?.acquisitionGeneration === expectedGeneration) {
+    // 명시적 OAuth 토큰 획득은 같은 세대의 일반 API refresh와도 공유하지 않는다.
     return { status: 'stale' };
   }
 
@@ -381,6 +518,9 @@ export async function refreshAccessTokenResult(
     return refreshRequest.promise;
   }
 
+  const requestExpectedUserId = Object.prototype.hasOwnProperty.call(options, 'expectedUserId')
+    ? options.expectedUserId
+    : expectedUserIdForGeneration(expectedGeneration);
   const requestId = ++refreshRequestId;
   const promise = (async (): Promise<RefreshResult> => {
     try {
@@ -407,12 +547,19 @@ export async function refreshAccessTokenResult(
       }
 
       const nextToken = payload?.data?.accessToken;
-      if (!response.ok || !nextToken) {
+      const nextUserId = payload?.data?.userId;
+      if (!response.ok || typeof nextToken !== 'string' || !nextToken
+        || typeof nextUserId !== 'string' || !nextUserId) {
         return { status: 'failed', httpStatus: response.ok ? 0 : response.status };
       }
 
+      if (requestExpectedUserId && nextUserId !== requestExpectedUserId) {
+        requireLocalReauthentication();
+        return { status: 'stale' };
+      }
+
       return setRefreshedAccessToken(nextToken, expectedGeneration)
-        ? { status: 'refreshed', accessToken: nextToken }
+        ? { status: 'refreshed', accessToken: nextToken, userId: nextUserId }
         : { status: 'stale' };
     } finally {
       if (refreshRequest?.requestId === requestId) {

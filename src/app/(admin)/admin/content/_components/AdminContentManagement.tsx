@@ -2,12 +2,13 @@
 
 import { Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 import {
   fetchAdminHiddenContents,
   restoreAdminHiddenContent,
   type AdminHiddenContentApiItem,
 } from '@/lib/admin-content-api';
-import type { AdminReportTargetTypeCode } from '@/lib/admin-report-api';
+import type { ReportTargetType } from '@/types/report';
 import { useVisiblePolling } from '@/hooks/useVisiblePolling';
 import { AdminPagination } from '../../_components/AdminPagination';
 import { AdminRefreshStatus } from '../../_components/AdminRefreshStatus';
@@ -17,7 +18,7 @@ import { RestoreContentButton } from './RestoreContentDialogButton';
 
 const PAGE_SIZE = 20;
 
-const targetTypeLabel: Record<AdminReportTargetTypeCode, string> = {
+const targetTypeLabel: Record<ReportTargetType, string> = {
   POST: '게시글',
   COMMENT: '댓글',
   USER: '사용자',
@@ -25,7 +26,7 @@ const targetTypeLabel: Record<AdminReportTargetTypeCode, string> = {
   MESSAGE: '메시지',
 };
 
-function canRestoreContent(targetType: AdminReportTargetTypeCode) {
+function canRestoreContent(targetType: ReportTargetType) {
   return targetType === 'POST' || targetType === 'COMMENT';
 }
 
@@ -43,7 +44,7 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-export function AdminContentManagement() {
+function AdminContentManagementContent() {
   const [query, setQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [contents, setContents] = useState<AdminHiddenContentApiItem[]>([]);
@@ -57,9 +58,18 @@ export function AdminContentManagement() {
   const [restoringContentId, setRestoringContentId] = useState<string | null>(null);
   const [toastId, setToastId] = useState(0);
   const [toastDescription, setToastDescription] = useState('');
+  const currentPageRef = useRef(0);
+  const mountedRef = useRef(true);
   const requestControllerRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
   const requestInFlightRef = useRef(false);
+  const mutationControllerRef = useRef<AbortController | null>(null);
+  const mutationIdRef = useRef(0);
+
+  const changePage = useCallback((page: number) => {
+    currentPageRef.current = page;
+    setCurrentPage(page);
+  }, []);
 
   const loadContents = useCallback(async (background = false, force = false) => {
     if (background && requestInFlightRef.current && !force) return;
@@ -67,6 +77,7 @@ export function AdminContentManagement() {
     requestControllerRef.current?.abort();
     const controller = new AbortController();
     const requestId = ++requestIdRef.current;
+    const requestedPage = currentPageRef.current;
     requestControllerRef.current = controller;
     requestInFlightRef.current = true;
 
@@ -80,14 +91,19 @@ export function AdminContentManagement() {
 
     try {
       const response = await fetchAdminHiddenContents(
-        { page: currentPage, size: PAGE_SIZE, sort: 'updatedAt,desc' },
+        { page: requestedPage, size: PAGE_SIZE, sort: 'updatedAt,desc' },
         controller.signal,
       );
 
-      if (requestId !== requestIdRef.current) return;
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || requestId !== requestIdRef.current
+        || requestedPage !== currentPageRef.current
+      ) return;
 
-      if (currentPage > 0 && currentPage >= response.totalPages) {
-        setCurrentPage(Math.max(response.totalPages - 1, 0));
+      if (requestedPage > 0 && requestedPage >= response.totalPages) {
+        changePage(Math.max(response.totalPages - 1, 0));
         return;
       }
 
@@ -98,8 +114,13 @@ export function AdminContentManagement() {
       setRefreshError(null);
       setLastUpdatedAt(new Date());
     } catch (error: unknown) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      if (requestId !== requestIdRef.current) return;
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || (error instanceof DOMException && error.name === 'AbortError')
+        || requestId !== requestIdRef.current
+        || requestedPage !== currentPageRef.current
+      ) return;
 
       const message = error instanceof Error ? error.message : '숨김 콘텐츠를 불러오지 못했습니다.';
       if (background) {
@@ -111,18 +132,29 @@ export function AdminContentManagement() {
         setLoadError(message);
       }
     } finally {
-      if (requestId === requestIdRef.current) {
+      if (mountedRef.current && requestId === requestIdRef.current) {
         requestInFlightRef.current = false;
         setLoading(false);
         setIsRefreshing(false);
       }
     }
-  }, [currentPage]);
+  }, [changePage]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      requestIdRef.current += 1;
+      mutationIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      mutationControllerRef.current?.abort();
+    };
+  }, []);
 
   useEffect(() => {
     void loadContents(false);
     return () => requestControllerRef.current?.abort();
-  }, [loadContents]);
+  }, [currentPage, loadContents]);
 
   useVisiblePolling(
     () => loadContents(true),
@@ -136,9 +168,18 @@ export function AdminContentManagement() {
   }, [contents, query]);
 
   const restoreContent = async (content: AdminHiddenContentApiItem) => {
+    mutationControllerRef.current?.abort();
+    const controller = new AbortController();
+    const mutationId = ++mutationIdRef.current;
+    mutationControllerRef.current = controller;
     setRestoringContentId(content.id);
     try {
-      const restored = await restoreAdminHiddenContent(content.targetType, content.targetId);
+      const restored = await restoreAdminHiddenContent(content.targetType, content.targetId, controller.signal);
+      if (
+        controller.signal.aborted
+        || !mountedRef.current
+        || mutationId !== mutationIdRef.current
+      ) return;
       setContents((current) => current.filter((item) => item.id !== restored.id));
       setToastDescription(
         `${targetTypeLabel[content.targetType]} ${content.targetId}을(를) 복구했습니다.`,
@@ -146,7 +187,10 @@ export function AdminContentManagement() {
       setToastId(Date.now());
       await loadContents(true, true);
     } finally {
-      setRestoringContentId(null);
+      if (mountedRef.current && mutationId === mutationIdRef.current) {
+        mutationControllerRef.current = null;
+        setRestoringContentId(null);
+      }
     }
   };
 
@@ -229,7 +273,7 @@ export function AdminContentManagement() {
                       </td>
                       <td>
                         <span className="rounded-full bg-[#fff4e5] px-2.5 py-1 text-xs font-semibold text-[#b54708]">
-                          자동 숨김
+                          숨김
                         </span>
                       </td>
                       <td className="text-[13px] whitespace-nowrap text-[#98a2b3]">
@@ -258,7 +302,7 @@ export function AdminContentManagement() {
           <AdminStatePanel
             state="empty"
             title={query ? '현재 페이지에 검색 결과가 없습니다.' : '숨김 처리된 콘텐츠가 없습니다.'}
-            description={query ? '다른 UUID를 입력하거나 페이지를 이동해보세요.' : '현재 자동 숨김 상태인 콘텐츠가 없습니다.'}
+            description={query ? '다른 UUID를 입력하거나 페이지를 이동해보세요.' : '현재 숨김 상태인 콘텐츠가 없습니다.'}
           />
         )}
 
@@ -271,7 +315,7 @@ export function AdminContentManagement() {
             itemLabel="건"
             onPageChange={(page) => {
               setQuery('');
-              setCurrentPage(page);
+              changePage(page);
             }}
           />
         ) : null}
@@ -288,4 +332,9 @@ export function AdminContentManagement() {
       ) : null}
     </div>
   );
+}
+
+export function AdminContentManagement() {
+  const { user } = useAuth();
+  return <AdminContentManagementContent key={user?.id ?? 'anonymous'} />;
 }

@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { AdminShell } from '../../_components/AdminShell';
 import { adminFont } from '../../_components/admin-font';
 import { AdminUserDetail } from '../_components/AdminUserDetail';
-import { findAdminUser } from '../_data/admin-users';
 
 export const metadata: Metadata = {
   title: '사용자 상세 | GamerIN 관리자',
@@ -16,11 +14,6 @@ type AdminUserDetailPageProps = {
 
 export default async function AdminUserDetailPage({ params }: AdminUserDetailPageProps) {
   const { handle } = await params;
-  const user = findAdminUser(handle);
-
-  if (!user) {
-    notFound();
-  }
 
   return (
     <main className={adminFont.className}>
@@ -30,11 +23,11 @@ export default async function AdminUserDetailPage({ params }: AdminUserDetailPag
         breadcrumbs={[
           { label: '관리자', href: '/admin' },
           { label: '사용자 관리', href: '/admin/users' },
-          { label: `@${user.handle}` },
+          { label: `@${handle}` },
         ]}
         showRefresh={false}
       >
-        <AdminUserDetail user={user} />
+        <AdminUserDetail handle={handle} />
       </AdminShell>
     </main>
   );

@@ -50,7 +50,7 @@ describe('mentoring-api', () => {
 
   it('인증이 필요한 요청의 최종 401은 MentoringAuthError로 끝내고 세션을 종료한다', async () => {
     api.route('/api/v1/mentoring/mentors/me', () => json(401, {}), () => json(401, {}));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
 
@@ -58,6 +58,14 @@ describe('mentoring-api', () => {
     expect(mentoring.isMentoringAuthError(error)).toBe(true);
     expect(api.count('/api/v1/mentoring/mentors/me')).toBe(2);
     expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('fetchGames는 /api/v1/games를 토큰과 함께 조회한다', async () => {
+    const games = [{ code: 'LOL', name: 'League of Legends' }];
+    api.route('/api/v1/games', () => json(200, { success: true, data: games }));
+
+    await expect(mentoring.fetchGames()).resolves.toEqual(games);
+    expect(api.authorization(0)).toBe('Bearer token-a');
   });
 
   it('404는 MentoringApiError로 구분한다', async () => {

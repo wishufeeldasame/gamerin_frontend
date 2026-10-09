@@ -28,10 +28,12 @@ import {
   createMentoringProgram,
   createMentoringReview,
   emptyPage,
+  type GameResponse,
   fetchMenteeApplications,
   fetchMentorReviews,
   fetchMentorApplications,
   fetchMentoringProgramDetail,
+  fetchGames,
   fetchMentoringPrograms,
   fetchMyMentorProfile,
   fetchMentorProfile,
@@ -47,7 +49,6 @@ import {
   type MentoringProgramResponse,
   type MentoringReviewResponse,
   type MentorProfileResponse,
-  type PageResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
 import {
@@ -55,8 +56,8 @@ import {
   fetchMyMileageBalance,
   fetchMyMileageTransactions,
   type MileageTransactionResponse,
-  type PageResponse as MileagePageResponse,
 } from '@/lib/mileage-api';
+import type { PageResponse } from '@/types/api';
 
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
 type MentoringBannerType = 'auth' | 'mileage' | null;
@@ -71,12 +72,12 @@ type ProgramForm = {
   tags: string;
 };
 
-const mentoringGames = ['전체', 'PUBG', 'League of Legends', 'Valorant', 'Overwatch', 'CS2', 'Other'];
+const GAMES_ERROR_MESSAGE = '게임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
 const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
 const DEEP_LINK_HIGHLIGHT_DURATION = 2200;
 
 const defaultProgramForm: ProgramForm = {
-  gameName: 'PUBG',
+  gameName: '',
   title: '',
   method: '',
   content: '',
@@ -266,7 +267,11 @@ export default function MentoringPage() {
   const requestedMineTab = searchParams.get('tab') === 'mine';
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
-  const [gameFilter, setGameFilter] = useState('전체');
+  const [games, setGames] = useState<GameResponse[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
+  const gamesRequestRef = useRef(0);
+  const [gamesError, setGamesError] = useState('');
+  const [gameFilter, setGameFilter] = useState(''); // '' = 전체
   const [programPage, setProgramPage] = useState<PageResponse<MentoringProgramResponse>>(emptyPage());
   const [programPageNumber, setProgramPageNumber] = useState(0);
   const [programsLoading, setProgramsLoading] = useState(false);
@@ -291,7 +296,7 @@ export default function MentoringPage() {
   const [applicationsLoaded, setApplicationsLoaded] = useState(false);
   const [mileageBalance, setMileageBalance] = useState(0);
   const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
-  const [mileagePage, setMileagePage] = useState<MileagePageResponse<MileageTransactionResponse> | null>(null);
+  const [mileagePage, setMileagePage] = useState<PageResponse<MileageTransactionResponse> | null>(null);
   const [mileageLoading, setMileageLoading] = useState(false);
   const [chargeAmount, setChargeAmount] = useState('10000');
 
@@ -313,6 +318,19 @@ export default function MentoringPage() {
 
   const totalPages = Math.max(programPage.totalPages || 1, 1);
 
+  const gameLabel = (code: string) => games.find((game) => game.code === code)?.name ?? code;
+  const gamesNotice = gamesError ? (
+    <p className="text-xs font-bold text-red-500">
+      {gamesError}{' '}
+      <button type="button" onClick={() => void loadGames()} className="underline">
+        다시 시도
+      </button>
+    </p>
+  ) : gamesLoading ? (
+    <p className="text-xs font-bold text-zinc-400">게임 목록을 불러오는 중입니다.</p>
+  ) : null;
+  const programGameCode = programForm.gameName || games[0]?.code || '';
+  const gamesReady = !gamesLoading && !gamesError && Boolean(programGameCode);
   const visiblePrograms = useMemo(() => programPage.content, [programPage.content]);
 
   const selectedProgramApplication = useMemo(() => {
@@ -403,7 +421,7 @@ export default function MentoringPage() {
 
     try {
       const page = await fetchMentoringPrograms({
-        gameName: gameFilter === '전체' ? undefined : gameFilter,
+        gameName: gameFilter || undefined,
         page: programPageNumber,
         size: 10,
       });
@@ -579,6 +597,28 @@ export default function MentoringPage() {
 
     setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
   }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
+
+  const loadGames = useCallback(async () => {
+    const requestId = ++gamesRequestRef.current;
+    const isLatest = () => requestId === gamesRequestRef.current;
+    setGamesLoading(true);
+    setGamesError('');
+
+    try {
+      const loaded = await fetchGames();
+      if (isLatest()) setGames(loaded);
+    } catch {
+      if (isLatest()) setGamesError(GAMES_ERROR_MESSAGE);
+    } finally {
+      if (isLatest()) setGamesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthReady && currentUserId) {
+      void loadGames();
+    }
+  }, [currentUserId, isAuthReady, loadGames]);
 
   useEffect(() => {
     if (activeTab === 'find') {
@@ -815,13 +855,17 @@ export default function MentoringPage() {
     clearMessages();
 
     try {
+      if (!gamesReady) {
+        throw new Error(gamesLoading ? '게임 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.' : GAMES_ERROR_MESSAGE);
+      }
+
       const price = Number(programForm.price);
       if (price < 0 || Number.isNaN(price)) {
         throw new Error('가격을 올바르게 입력해주세요.');
       }
 
       await createMentoringProgram({
-        gameName: programForm.gameName.trim(),
+        gameName: programGameCode,
         title: programForm.title.trim(),
         content: buildProgramContent(programForm.method, programForm.content),
         availableTimeDesc: programForm.availableTimeDesc.trim(),
@@ -1085,7 +1129,7 @@ export default function MentoringPage() {
       <main className="mx-auto max-w-6xl px-5 py-10">
         <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-400">Mentoring</p>
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-400">멘토링</p>
             <h1 className="mt-2 text-4xl font-black tracking-tight text-black">멘토링</h1>
           </div>
 
@@ -1157,27 +1201,32 @@ export default function MentoringPage() {
             <div>
               <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Explore Programs</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램 둘러보기</p>
                   <h2 className="mt-1 text-2xl font-black text-black">멘토링 프로그램 탐색</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
                     게임별 프로그램을 찾고 상세 화면에서 바로 신청할 수 있습니다.
                   </p>
                 </div>
 
-                <select
-                  value={gameFilter}
-                  onChange={(event) => {
-                    setProgramPageNumber(0);
-                    setGameFilter(event.target.value);
-                  }}
-                  className="h-11 rounded-xl border border-zinc-200 px-3 text-sm font-black outline-none"
-                >
-                  {mentoringGames.map((game) => (
-                    <option key={game} value={game}>
-                      {game}
-                    </option>
-                  ))}
-                </select>
+                <div className="flex flex-col gap-1 md:items-end">
+                  <select
+                    value={gameFilter}
+                    disabled={gamesLoading || Boolean(gamesError)}
+                    onChange={(event) => {
+                      setProgramPageNumber(0);
+                      setGameFilter(event.target.value);
+                    }}
+                    className="h-11 rounded-xl border border-zinc-200 px-3 text-sm font-black outline-none disabled:opacity-50"
+                  >
+                    <option value="">전체</option>
+                    {games.map((game) => (
+                      <option key={game.code} value={game.code}>
+                        {game.name}
+                      </option>
+                    ))}
+                  </select>
+                  {gamesNotice}
+                </div>
               </div>
 
               {programsLoading ? (
@@ -1197,7 +1246,7 @@ export default function MentoringPage() {
                         <div>
                           <div className="mb-2 flex flex-wrap gap-2">
                             <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
-                              {program.gameName}
+                              {gameLabel(program.gameName)}
                             </span>
                             <span
                               className={`rounded-full px-3 py-1 text-[11px] font-black ${
@@ -1231,6 +1280,18 @@ export default function MentoringPage() {
               ) : (
                 <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center">
                   <p className="font-black text-black">등록된 프로그램이 없습니다.</p>
+                  {gameFilter && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProgramPageNumber(0);
+                        setGameFilter('');
+                      }}
+                      className="mt-4 rounded-xl bg-black px-4 py-2 text-sm font-black text-white"
+                    >
+                      필터 초기화
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -1265,7 +1326,7 @@ export default function MentoringPage() {
               <div className="rounded-2xl border border-zinc-100 bg-white p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Mileage</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
                     <h2 className="mt-1 text-2xl font-black text-black">내 마일리지</h2>
                   </div>
                   <div className="rounded-2xl bg-zinc-100 p-3 text-zinc-700">
@@ -1279,7 +1340,7 @@ export default function MentoringPage() {
               </div>
 
               <form onSubmit={handleChargeMileage} className="rounded-2xl border border-zinc-100 bg-white p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Test Charge</p>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">테스트 충전</p>
                 <h2 className="mt-1 text-2xl font-black text-black">가상 충전</h2>
                 <p className="mt-2 text-sm font-bold text-zinc-500">
                   잔액이 부족할 때 테스트용으로 바로 충전할 수 있습니다.
@@ -1369,7 +1430,7 @@ export default function MentoringPage() {
                 <div>
                   <section>
                     <div className="mb-5">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Programs</p>
+                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램</p>
                       <h2 className="mt-1 text-2xl font-black text-black">내 프로그램</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
                         프로그램 이름을 선택하면 리뷰와 별점, 마감 항목을 자세히 볼 수 있습니다.
@@ -1399,7 +1460,7 @@ export default function MentoringPage() {
                                       isSelected ? 'text-white/70 dark:text-black/60' : 'text-zinc-400'
                                     }`}
                                   >
-                                    {program.gameName}
+                                    {gameLabel(program.gameName)}
                                   </p>
                                   <h3 className="mt-2 text-xl font-black">{program.title}</h3>
                                 </div>
@@ -1455,21 +1516,25 @@ export default function MentoringPage() {
                   <h2 className="text-2xl font-black text-black">프로그램 만들기</h2>
 
                   <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <label className="space-y-2">
-                      <span className="text-sm font-black text-zinc-700">게임</span>
-                      <select
-                        name="gameName"
-                        value={programForm.gameName}
-                        onChange={handleProgramFormChange}
-                        className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
-                      >
-                        {mentoringGames.filter((game) => game !== '전체').map((game) => (
-                          <option key={game} value={game}>
-                            {game}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    <div className="space-y-2">
+                      <label className="block space-y-2">
+                        <span className="text-sm font-black text-zinc-700">게임</span>
+                        <select
+                          name="gameName"
+                          value={programGameCode}
+                          disabled={gamesLoading || Boolean(gamesError)}
+                          onChange={handleProgramFormChange}
+                          className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
+                        >
+                          {games.map((game) => (
+                            <option key={game.code} value={game.code}>
+                              {game.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {gamesNotice}
+                    </div>
 
                     <label className="space-y-2">
                       <span className="text-sm font-black text-zinc-700">가격</span>
@@ -1537,7 +1602,7 @@ export default function MentoringPage() {
 
                   <button
                     type="submit"
-                    disabled={pendingAction === 'save-program'}
+                    disabled={pendingAction === 'save-program' || !gamesReady}
                     className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
                   >
                     <Plus size={17} />
@@ -1614,7 +1679,7 @@ export default function MentoringPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                        {selectedProgram.gameName}
+                        {gameLabel(selectedProgram.gameName)}
                       </p>
                       <h2 className="mt-1 text-2xl font-black text-black">{selectedProgram.title}</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
@@ -1659,7 +1724,7 @@ export default function MentoringPage() {
                   <div className="mt-6">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Reviews</p>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
                         <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                       </div>
                       <span className="text-sm font-black text-zinc-400">총 {selectedProgramReviews.length}개</span>
@@ -1827,7 +1892,7 @@ export default function MentoringPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                    {selectedOwnedProgram.gameName}
+                    {gameLabel(selectedOwnedProgram.gameName)}
                   </p>
                   <h2 className="mt-1 text-2xl font-black text-black">{selectedOwnedProgram.title}</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">{formatMileage(selectedOwnedProgram.price)}</p>
@@ -1886,7 +1951,7 @@ export default function MentoringPage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Reviews</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
                     <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                   </div>
                   <span className="text-sm font-black text-zinc-400">총 {mentorReviews.length.toLocaleString()}개</span>
@@ -1939,7 +2004,7 @@ export default function MentoringPage() {
             <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Review</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기 작성</p>
                   <h2 className="mt-1 text-2xl font-black text-black">리뷰 작성</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
                     {reviewTarget.programTitle}에 대한 평점과 후기를 남겨주세요.
@@ -2274,7 +2339,7 @@ function MileageTransactionPanel({
     <section className="rounded-2xl border border-zinc-100 bg-white p-5">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">Transactions</p>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">거래 내역</p>
           <h2 className="mt-1 text-2xl font-black text-black">마일리지 거래 내역</h2>
         </div>
         <p className="text-sm font-bold text-zinc-500">총 {totalElements.toLocaleString()}건</p>
