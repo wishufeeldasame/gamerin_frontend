@@ -203,6 +203,15 @@ describe('ProfilePage', () => {
     expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
+  it('uses the repository default cover without rendering an online indicator', async () => {
+    render(<ProfilePage />);
+
+    const cover = await screen.findByRole('img', { name: `${profile.nickname} profile cover` });
+    expect(cover).toHaveAttribute('src', '/images/default-profile-cover.svg');
+    expect(cover).toHaveClass('object-cover');
+    expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
+  });
+
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {
     const likeRequest = deferred<void>();
     api.likePost.mockReturnValue(likeRequest.promise);
