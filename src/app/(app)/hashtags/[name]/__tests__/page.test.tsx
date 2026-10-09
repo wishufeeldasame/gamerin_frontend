@@ -114,6 +114,15 @@ describe('HashtagPostsPage like rollback', () => {
     api.unlikePost.mockReset();
   });
 
+  it('shows a link back home when the hashtag request fails', async () => {
+    api.fetchHashtagPosts.mockRejectedValue(new Error('해시태그 게시글을 불러오지 못했습니다.'));
+
+    render(<HashtagPostsPage />);
+
+    expect(await screen.findByText('해시태그 게시글을 불러오지 못했습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+  });
+
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {
     const likeRequest = deferred<void>();
     api.likePost.mockReturnValue(likeRequest.promise);

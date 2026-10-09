@@ -173,7 +173,6 @@ describe('ProfilePage', () => {
     });
   });
 
-
   it('ignores legacy local privacy settings and keeps profile content public', async () => {
     window.localStorage.setItem(
       'gamerin_user_settings',
@@ -188,11 +187,12 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     await screen.findByTestId('post-post-1');
-    const statsTab = screen.getByRole('button', { name: 'stats' });
+    const statsTab = screen.getByRole('button', { name: '전적' });
     expect(statsTab).toBeInTheDocument();
 
     fireEvent.click(statsTab);
-    expect(await screen.findByRole('heading', { name: 'Verified Stats' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+  });
 
   it.each([
     ['unknown failure', '프로필을 불러오지 못했습니다.'],
@@ -210,6 +210,15 @@ describe('ProfilePage', () => {
     expect(cover).toHaveAttribute('src', '/images/default-profile-cover.svg');
     expect(cover).toHaveClass('object-cover');
     expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
+  });
+
+  it('shows the server error and a link back home when the profile does not exist', async () => {
+    api.fetchUserProfile.mockRejectedValue(new Error('사용자를 찾을 수 없습니다.'));
+
+    render(<ProfilePage />);
+
+    expect(await screen.findByText('사용자를 찾을 수 없습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {

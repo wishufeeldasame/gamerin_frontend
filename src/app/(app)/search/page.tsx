@@ -55,7 +55,7 @@ function EmptyState({ query, label }: { query: string; label: string }) {
         {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
       </h2>
       <p className="mt-2 text-sm font-bold text-zinc-400">
-        {query ? '다른 키워드로 다시 검색해 보세요.' : '상단 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
+        {query ? '다른 키워드로 다시 검색해 보세요.' : '위 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
       </p>
     </div>
   );
@@ -143,6 +143,7 @@ function SearchPageContent() {
   const tabParam = searchParams.get('tab');
   const activeTab = isSearchTab(tabParam) ? tabParam : 'all';
   const [overview, setOverview] = useState<SearchOverview | null>(null);
+  const [searchInput, setSearchInput] = useState(query);
   const [accounts, setAccounts] = useState<SimpleUserProfile[]>([]);
   const [accountCursor, setAccountCursor] = useState<string | null>(null);
   const [accountHasNext, setAccountHasNext] = useState(false);
@@ -161,6 +162,25 @@ function SearchPageContent() {
     () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '전체',
     [activeTab],
   );
+
+  useEffect(() => {
+    setSearchInput(query);
+  }, [query]);
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const params = new URLSearchParams(searchParams.toString());
+    const nextQuery = normalizeQuery(searchInput);
+    if (nextQuery) {
+      params.set('q', nextQuery);
+    } else {
+      params.delete('q');
+    }
+
+    const nextSearch = params.toString();
+    router.push(`/search${nextSearch ? `?${nextSearch}` : ''}`);
+  };
 
   const setTab = (tab: SearchTab) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -427,6 +447,32 @@ function SearchPageContent() {
           <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {query ? `'${query}'에 대한 결과` : '검색어를 입력해 주세요'}
           </p>
+          <form
+            role="search"
+            onSubmit={handleSearchSubmit}
+            className="mt-5 flex h-12 w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-neutral-900"
+          >
+            <Search
+              size={19}
+              className="shrink-0 text-zinc-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="사용자, 게시글, 해시태그 검색"
+              aria-label="검색 페이지 검색"
+              maxLength={100}
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-xl bg-black px-4 py-2 text-sm font-black text-white transition hover:bg-zinc-800 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#dca62f]"
+            >
+              검색
+            </button>
+          </form>
         </header>
 
         <nav

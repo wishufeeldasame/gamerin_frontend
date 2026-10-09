@@ -133,50 +133,54 @@ export function Header() {
         </div>
 
         {/* 검색 영역 */}
-        <div
-          className={`${
-            mobileSearchOpen
-              ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900'
-              : 'hidden'
-          } flex-1 justify-start md:static md:flex md:border-0 md:bg-transparent md:p-0 md:dark:bg-transparent`}
-        >
-          <form
-            onSubmit={handleSearchSubmit}
-            role="search"
-            className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none"
+        {pathname !== '/search' ? (
+          <div
+            className={`${
+              mobileSearchOpen
+                ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900'
+                : 'hidden'
+            } flex-1 justify-start md:static md:flex md:border-0 md:bg-transparent md:p-0 md:dark:bg-transparent`}
           >
-            <Search size={18} className="text-zinc-500 dark:text-zinc-400" strokeWidth={2.1} />
-            <input
-              type="text"
-              value={searchQuery}
-              ref={searchInputRef}
-              onChange={(event) => setSearchQuery(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Escape') {
-                  setMobileSearchOpen(false);
-                }
-              }}
-              placeholder="게임, 플레이어, 게시글 검색..."
-              aria-label="통합 검색"
-              className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:text-zinc-400"
-            />
-          </form>
-        </div>
+            <form
+              onSubmit={handleSearchSubmit}
+              role="search"
+              className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none"
+            >
+              <Search size={18} className="text-zinc-500 dark:text-zinc-400" strokeWidth={2.1} />
+              <input
+                type="text"
+                value={searchQuery}
+                ref={searchInputRef}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Escape') {
+                    setMobileSearchOpen(false);
+                  }
+                }}
+                placeholder="게임, 플레이어, 게시글 검색..."
+                aria-label="통합 검색"
+                className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:text-zinc-400"
+              />
+            </form>
+          </div>
+        ) : null}
 
         {/* 오른쪽 유저 액션 영역 */}
         <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3 lg:max-w-md">
           {user ? (
             /* A. 로그인 상태: 알림, 메시지, 유저 아바타, 로그아웃 */
             <>
-              <button
-                type="button"
-                onClick={() => setMobileSearchOpen((current) => !current)}
-                className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 md:hidden dark:text-zinc-200 dark:hover:bg-white/10"
-                aria-label={mobileSearchOpen ? "검색 닫기" : "검색 열기"}
-                aria-expanded={mobileSearchOpen}
-              >
-                {mobileSearchOpen ? <X size={18} strokeWidth={2.1} /> : <Search size={18} strokeWidth={2.1} />}
-              </button>
+              {pathname !== '/search' ? (
+                <button
+                  type="button"
+                  onClick={() => setMobileSearchOpen((current) => !current)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 md:hidden dark:text-zinc-200 dark:hover:bg-white/10"
+                  aria-label={mobileSearchOpen ? "검색 닫기" : "검색 열기"}
+                  aria-expanded={mobileSearchOpen}
+                >
+                  {mobileSearchOpen ? <X size={18} strokeWidth={2.1} /> : <Search size={18} strokeWidth={2.1} />}
+                </button>
+              ) : null}
               <button
                 type="button"
                 onClick={() => setNotificationOpen((current) => !current)}

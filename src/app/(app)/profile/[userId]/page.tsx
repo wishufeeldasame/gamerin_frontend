@@ -962,8 +962,14 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <div className="flex h-screen items-center justify-center">
+      <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="font-black text-red-500">{error ?? '프로필을 찾을 수 없습니다.'}</p>
+        <Link
+          href="/home"
+          className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          홈으로 돌아가기
+        </Link>
       </div>
     );
   }
@@ -974,15 +980,9 @@ export default function ProfilePage() {
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
-
-    { name: 'posts' as const, icon: <Grid size={16} /> },
-    { name: 'stats' as const, icon: <BarChart3 size={16} /> },
-    { name: 'media' as const, icon: <Layers size={16} /> },
-
     { name: 'posts' as const, label: '게시물', icon: <Grid size={16} /> },
-    ...(privacySettings.showStats ? [{ name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> }] : []),
+    { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
     { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
-
   ];
 
   return (
