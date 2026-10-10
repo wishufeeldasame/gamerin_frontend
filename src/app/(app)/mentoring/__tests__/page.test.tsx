@@ -63,7 +63,6 @@ vi.mock('@/lib/mentoring-api', () => ({
     number,
     size,
   }),
-  isMentoringAuthError: () => false,
 }));
 vi.mock('@/lib/mileage-api', () => mileageApi);
 

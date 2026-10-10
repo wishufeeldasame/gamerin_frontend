@@ -88,6 +88,20 @@ describe('apiRequest 401 처리', () => {
   });
 });
 
+describe('isAuthError', () => {
+  it('401 status, unauthenticated reason, blocked reason을 인증 오류로 판별한다', () => {
+    expect(client.isAuthError(new client.ApiError('expired', 401))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('expired', 403, 'unauthenticated'))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('blocked', 403, 'blocked'))).toBe(true);
+  });
+
+  it('일반 Error와 인증이 아닌 ApiError는 인증 오류로 판별하지 않는다', () => {
+    expect(client.isAuthError(new Error('로그인이 필요합니다.'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('forbidden', 403, 'http'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('temporary', 503, 'unavailable'))).toBe(false);
+  });
+});
+
 describe('일시 장애에서 세션 유지', () => {
   it.each([500, 503, 429])('보호 API의 %i 응답은 요청 실패만 전달한다', async (status) => {
     api.route('/api/v1/items', () => json(status, { message: 'busy' }));

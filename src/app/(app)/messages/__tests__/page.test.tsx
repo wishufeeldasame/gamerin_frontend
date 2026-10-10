@@ -22,7 +22,6 @@ vi.mock('@/lib/message-api', () => ({
   fetchConversationMessages: mocks.messages,
   searchMessageRecipients: mocks.recipients,
   openMessageEventSource: mocks.stream,
-  isMessageAuthError: () => false,
   markConversationRead: vi.fn(),
   createConversation: vi.fn(),
   deleteConversationMessage: vi.fn(),

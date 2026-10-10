@@ -9,6 +9,7 @@ let store: typeof import('@/lib/auth-store');
 let mentoring: typeof import('@/lib/mentoring-api');
 let mileage: typeof import('@/lib/mileage-api');
 let ApiError: typeof import('@/lib/api-client').ApiError;
+let isAuthError: typeof import('@/lib/api-client').isAuthError;
 let api: ReturnType<typeof installFetchRoutes>;
 
 const PROGRAMS = '/api/v1/mentoring/programs?page=0&size=10';
@@ -21,7 +22,7 @@ beforeEach(async () => {
   store = await import('@/lib/auth-store');
   mentoring = await import('@/lib/mentoring-api');
   mileage = await import('@/lib/mileage-api');
-  ({ ApiError } = await import('@/lib/api-client'));
+  ({ ApiError, isAuthError } = await import('@/lib/api-client'));
   store.setAccessToken('token-a');
 });
 
@@ -42,20 +43,22 @@ describe('mentoring-api', () => {
     const error = await mentoring.fetchMentoringPrograms({}).catch((reason: unknown) => reason);
 
     expect(error).toBeInstanceOf(Error);
-    expect(error).not.toBeInstanceOf(mentoring.MentoringAuthError);
-    expect((error as Error).message).toBe('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({ status: 401, reason: 'unauthenticated' });
+    expect(isAuthError(error)).toBe(true);
     expect(api.count(PROGRAMS)).toBe(1);
     expect(api.count('/api/v1/auth/logout')).toBe(1);
   });
 
-  it('인증이 필요한 요청의 최종 401은 MentoringAuthError로 끝내고 세션을 종료한다', async () => {
+  it('인증이 필요한 요청의 최종 401은 공통 인증 오류로 세션을 종료한다', async () => {
     api.route('/api/v1/mentoring/mentors/me', () => json(401, {}), () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(200, { data: { userId: 'user-a', accessToken: 'token-b' } }));
 
     const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
 
-    expect(error).toBeInstanceOf(mentoring.MentoringAuthError);
-    expect(mentoring.isMentoringAuthError(error)).toBe(true);
+    expect(error).toBeInstanceOf(mentoring.MentoringApiError);
+    expect(error).toMatchObject({ status: 401, reason: 'http' });
+    expect(isAuthError(error)).toBe(true);
     expect(api.count('/api/v1/mentoring/mentors/me')).toBe(2);
     expect(store.getAccessToken()).toBeNull();
   });
@@ -85,7 +88,7 @@ describe('mentoring-api', () => {
 
     const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
 
-    expect(mentoring.isMentoringAuthError(error)).toBe(false);
+    expect(isAuthError(error)).toBe(false);
     expect((error as Error).message).toBe('멘토링 요청 처리에 실패했습니다.');
     expect(store.getAccessToken()).toBe('token-a');
   });
@@ -104,9 +107,10 @@ describe('mileage-api', () => {
     api.route('/api/v1/mileage/me/balance', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
 
-    await expect(mileage.fetchMyMileageBalance()).rejects.toThrow(
-      'Authentication is required. Please sign in again.',
-    );
+    await expect(mileage.fetchMyMileageBalance()).rejects.toMatchObject({
+      name: 'ApiError', status: 401, reason: 'unauthenticated',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+    });
   });
 
   it('서버 문구를 우선하고, 없으면 기존 기본 문구를 쓴다', async () => {
@@ -116,8 +120,12 @@ describe('mileage-api', () => {
       () => json(500, {}),
     );
 
-    await expect(mileage.chargeMileage(0)).rejects.toThrow('충전 금액이 올바르지 않습니다.');
-    await expect(mileage.chargeMileage(0)).rejects.toThrow('Failed to process mileage request.');
+    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+      name: 'ApiError', status: 400, reason: 'http', message: '충전 금액이 올바르지 않습니다.',
+    });
+    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+      name: 'ApiError', status: 500, reason: 'http', message: '마일리지 요청을 처리하지 못했습니다.',
+    });
     expect(store.getAccessToken()).toBe('token-a');
   });
 

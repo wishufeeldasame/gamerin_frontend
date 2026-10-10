@@ -1,8 +1,8 @@
-import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 
 export class GameStatsApiError extends ApiError {
-  constructor(status: number, message: string) {
-    super(message, status);
+  constructor(status: number, message: string, reason: ApiFailureReason = 'http') {
+    super(message, status, reason);
     this.name = 'GameStatsApiError';
   }
 }
@@ -50,11 +50,12 @@ export interface R6SummaryResponse extends GameStatsSummaryResponse {
 const GAME_STATS_CLIENT: ApiClientConfig = {
   toError: ({ reason, status, message }) => new GameStatsApiError(
     status,
-    reason === 'unauthenticated'
-      ? '로그인이 필요하거나 인증이 만료되었습니다.'
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
       : reason === 'invalid-response'
         ? '게임 전적 응답 형식이 올바르지 않습니다.'
-        : message ?? '게임 전적 요청에 실패했습니다.',
+        : '게임 전적 요청에 실패했습니다.'),
+    reason,
   ),
 };
 

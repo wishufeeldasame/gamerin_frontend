@@ -19,6 +19,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
 import { createConversation } from '@/lib/message-api';
 import {
   acceptMentoringApplication,
@@ -38,7 +39,6 @@ import {
   fetchMyMentorProfile,
   fetchMentorProfile,
   finishMentoringApplication,
-  isMentoringAuthError,
   registerMentor,
   rejectMentoringApplication,
   startMentoringApplication,
@@ -210,29 +210,10 @@ function isMileageShortageError(error: unknown) {
   }
 
   const message = error.message.toLowerCase();
-  const hasMileageTerm =
-    message.includes('마일리지') || message.includes('mileage') || message.includes('balance');
-  const hasShortageTerm =
-    message.includes('부족') ||
-    message.includes('insufficient') ||
-    message.includes('shortage') ||
-    message.includes('not enough');
+  const hasMileageTerm = message.includes('마일리지');
+  const hasShortageTerm = message.includes('부족');
 
   return hasMileageTerm && hasShortageTerm;
-}
-
-function isAuthRequiredError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return (
-    message.includes('authentication is required') ||
-    message.includes('sign in again') ||
-    message.includes('token has expired')
-  );
 }
 
 function isApplicationBlockingReapply(status: ApplicationStatus) {
@@ -250,10 +231,7 @@ function isDuplicateReviewError(error: unknown) {
 
   const message = error.message.toLowerCase();
 
-  return (
-    (message.includes('이미') && message.includes('리뷰') && message.includes('작성')) ||
-    (message.includes('already') && message.includes('review'))
-  );
+  return message.includes('이미') && message.includes('리뷰') && message.includes('작성');
 }
 
 export default function MentoringPage() {
@@ -403,9 +381,9 @@ export default function MentoringPage() {
       return;
     }
 
-    if (isMentoringAuthError(error) || isAuthRequiredError(error)) {
+    if (isAuthError(error)) {
       setBannerType('auth');
-      setAuthMessage('세션이 만료되었거나 인증 상태가 올바르지 않습니다. 다시 로그인해주세요.');
+      setAuthMessage(error instanceof Error ? error.message : AUTH_REQUIRED_MESSAGE);
       setErrorMessage('');
       return;
     }
@@ -539,7 +517,7 @@ export default function MentoringPage() {
     ]);
 
     const authFailure = [menteeResult, mentorResult].find(
-      (result) => result.status === 'rejected' && isMentoringAuthError(result.reason)
+      (result) => result.status === 'rejected' && isAuthError(result.reason)
     );
 
     if (authFailure?.status === 'rejected') {

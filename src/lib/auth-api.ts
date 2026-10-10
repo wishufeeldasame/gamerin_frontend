@@ -95,7 +95,7 @@ export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser>
     toError: ({ reason, status, message }) =>
       reason === 'blocked'
         ? new BlockedAccountError()
-        : new ApiError(message ?? '사용자 정보를 가져올 수 없습니다.', status),
+        : new ApiError(message ?? '사용자 정보를 가져올 수 없습니다.', status, reason),
   });
 
   if (isBlockedAccountStatus((me as { status?: unknown } | null)?.status)) {
@@ -104,7 +104,7 @@ export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser>
 
   const user = toAuthUser(me, base);
   if (!user) {
-    throw new ApiError('사용자 정보를 확인할 수 없습니다.', 200);
+    throw new ApiError('사용자 정보를 확인할 수 없습니다.', 200, 'invalid-response');
   }
 
   return user;

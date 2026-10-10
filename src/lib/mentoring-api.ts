@@ -1,4 +1,4 @@
-import { ApiError, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 
 const MENTORING_BASE = '/api/v1/mentoring';
@@ -109,29 +109,11 @@ type RequestOptions = ApiRequestOptions & {
   authRequired?: boolean;
 };
 
-export class MentoringAuthError extends Error {
-  constructor() {
-    super('로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.');
-    this.name = 'MentoringAuthError';
-  }
-}
-
 export class MentoringApiError extends ApiError {
-  constructor(message: string, status: number) {
-    super(message, status);
+  constructor(message: string, status: number, reason: ApiFailureReason = 'http') {
+    super(message, status, reason);
     this.name = 'MentoringApiError';
   }
-}
-
-export function isMentoringAuthError(error: unknown): error is MentoringAuthError {
-  return (
-    error instanceof MentoringAuthError ||
-    (error instanceof Error &&
-      (error.message.includes('로그인이 필요') ||
-        error.message.includes('Authentication is required') ||
-        error.message.includes('sign in again') ||
-        error.message.includes('token has expired')))
-  );
 }
 
 export function isMentoringNotFoundError(error: unknown): error is MentoringApiError {
@@ -150,16 +132,15 @@ function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promis
       envelope: 'optional',
       toError: ({ reason, status, message }) => {
         if (reason === 'http' && status === 404) {
-          return new MentoringApiError(message ?? 'Mentoring resource was not found.', status);
+          return new MentoringApiError(message ?? '멘토링 정보를 찾을 수 없습니다.', status, reason);
         }
 
-        if (reason === 'unauthenticated' || (reason === 'http' && status === 401)) {
-          return authRequired
-            ? new MentoringAuthError()
-            : new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-        }
-
-        return new Error(message || '멘토링 요청 처리에 실패했습니다.');
+        const fallback = reason === 'unauthenticated' || reason === 'blocked' || status === 401
+          ? AUTH_REQUIRED_MESSAGE
+          : authRequired
+            ? '멘토링 요청 처리에 실패했습니다.'
+            : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+        return new MentoringApiError(message ?? fallback, status, reason);
       },
     },
     fetchOptions,

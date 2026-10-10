@@ -7,6 +7,7 @@ vi.mock('@/lib/api-base', () => ({
 
 let store: typeof import('@/lib/auth-store');
 let message: typeof import('@/lib/message-api');
+let client: typeof import('@/lib/api-client');
 let api: ReturnType<typeof installFetchRoutes>;
 
 const eventSources: string[] = [];
@@ -28,18 +29,24 @@ beforeEach(async () => {
   api = installFetchRoutes();
   store = await import('@/lib/auth-store');
   message = await import('@/lib/message-api');
+  client = await import('@/lib/api-client');
   store.setAccessToken('token-a');
 });
 
 describe('message-api 요청', () => {
-  it('최종 401은 기존 인증 문구로 끝나 isMessageAuthError로 판별된다', async () => {
+  it('최종 401은 공통 인증 오류와 상태 정보를 보존한다', async () => {
     api.route('/api/v1/messages/conversations', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
 
     const error = await message.fetchConversationList().catch((reason: unknown) => reason);
 
-    expect((error as Error).message).toBe('Authentication is required or the token has expired.');
-    expect(message.isMessageAuthError(error)).toBe(true);
+    expect(error).toMatchObject({
+      name: 'ApiError',
+      status: 401,
+      reason: 'unauthenticated',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+    });
+    expect(client.isAuthError(error)).toBe(true);
     expect(store.getAccessToken()).toBeNull();
   });
 
@@ -48,9 +55,18 @@ describe('message-api 요청', () => {
 
     const error = await message.fetchConversationList().catch((reason: unknown) => reason);
 
-    expect((error as Error).message).toBe('Message request failed.');
-    expect(message.isMessageAuthError(error)).toBe(false);
+    expect(error).toMatchObject({ name: 'ApiError', status: 503, reason: 'http' });
+    expect((error as Error).message).toBe('메시지 요청을 처리하지 못했습니다.');
+    expect(client.isAuthError(error)).toBe(false);
     expect(store.getAccessToken()).toBe('token-a');
+  });
+
+  it('API 서버 오류는 서버 메시지와 status/reason을 보존한다', async () => {
+    api.route('/api/v1/messages/conversations', () => json(500, { message: '메시지 서버 오류' }));
+
+    await expect(message.fetchConversationList()).rejects.toMatchObject({
+      name: 'ApiError', status: 500, reason: 'http', message: '메시지 서버 오류',
+    });
   });
 
   it('첨부가 있으면 FormData로 보내고 JSON Content-Type을 붙이지 않는다', async () => {
@@ -94,14 +110,12 @@ describe('DM 첨부', () => {
 
   it('실패 문구와 인증 문구를 보존한다', async () => {
     api.route('/api/v1/messages/attachments/a-1', () => json(404, { message: 'not found' }));
-    await expect(message.fetchMessageAttachmentBlob(ATTACHMENT)).rejects.toThrow(
-      'Message attachment request failed.',
-    );
+    await expect(message.fetchMessageAttachmentBlob(ATTACHMENT)).rejects.toThrow('not found');
 
     api.route('/api/v1/messages/attachments/a-1', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
     await expect(message.fetchMessageAttachmentBlob(ATTACHMENT)).rejects.toThrow(
-      'Authentication is required or the token has expired.',
+      '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
     );
   });
 
@@ -154,7 +168,10 @@ describe('DM 첨부', () => {
       api.route(EXTERNAL, () => json(401, {}), () => Promise.reject(new TypeError('Failed to fetch')));
 
       for (let i = 0; i < 2; i += 1) {
-        await expect(message.fetchMessageAttachmentBlob(EXTERNAL)).rejects.toThrow('Message attachment request failed.');
+        await expect(message.fetchMessageAttachmentBlob(EXTERNAL)).rejects.toMatchObject({
+          name: 'ApiError', status: 0, reason: 'unavailable',
+          message: '메시지 첨부 파일을 불러오지 못했습니다.',
+        });
       }
       expect(api.paths()).toEqual([EXTERNAL, EXTERNAL]);
       expect(store.getAccessToken()).toBe('token-a');
@@ -228,7 +245,7 @@ describe('SSE 연결 준비', () => {
 
     const error = await message.openMessageEventSource({ forceRefresh: true }).catch((reason: unknown) => reason);
 
-    expect(message.isMessageAuthError(error)).toBe(false);
+    expect(client.isAuthError(error)).toBe(false);
     expect(store.getAccessToken()).toBe('token-a');
     expect(eventSources).toEqual([]);
   });
@@ -238,7 +255,7 @@ describe('SSE 연결 준비', () => {
 
     const error = await message.openMessageEventSource({ forceRefresh: true }).catch((reason: unknown) => reason);
 
-    expect(message.isMessageAuthError(error)).toBe(true);
+    expect(client.isAuthError(error)).toBe(true);
     expect(store.getAccessToken()).toBeNull();
     expect(api.count(STREAM_TOKEN)).toBe(0);
   });
