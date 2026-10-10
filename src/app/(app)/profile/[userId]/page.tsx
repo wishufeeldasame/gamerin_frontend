@@ -24,7 +24,7 @@ import {
   Loader2,
   MapPin,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
@@ -46,10 +46,8 @@ import {
   fetchUserPosts,
   followUser,
   getInitials,
-  likePost,
   unfollowUser,
   updateMyProfile,
-  unlikePost,
   uploadProfileImage,
 } from '@/lib/feed-api';
 import { updatePostsLikeState } from '@/lib/post-mutations';
@@ -65,6 +63,8 @@ import {
   type R6SummaryResponse,
   type StatsMode,
 } from '@/lib/game-stats-api';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
@@ -341,10 +341,7 @@ export default function ProfilePage() {
   const [profileCover, setProfileCover] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [posts, setPosts] = useState<PostRecord[]>([]);
   const [mediaItems, setMediaItems] = useState<ProfileMediaItem[]>([]);
-  const [postsNextCursor, setPostsNextCursor] = useState<string | null>(null);
-  const [postsHasNext, setPostsHasNext] = useState(false);
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
   const [connectedAccounts, setConnectedAccounts] = useState<Record<ConnectedPlatformId, ConnectedAccount | null>>({
@@ -358,10 +355,35 @@ export default function ProfilePage() {
     soop: '',
   });
   const [loading, setLoading] = useState(true);
-  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
-  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
+  const profileHandle = profile?.handle ?? '';
+  const loadProfilePostPage = useCallback(
+    (cursor: string | null, { signal }: { signal: AbortSignal }) =>
+      fetchUserPosts(profileHandle, cursor, 20, { signal }),
+    [profileHandle],
+  );
+  const {
+    items: posts,
+    setItems: setPosts,
+    hasNext: postsHasNext,
+    loading: postsLoading,
+    loadingMore: loadingMorePosts,
+    error: postsError,
+    reload: reloadPosts,
+    loadMore: loadMorePosts,
+  } = useCursorList({
+    loadPage: loadProfilePostPage,
+    getKey: (post: PostRecord) => post.postId,
+    queryKey: profileHandle,
+    enabled: Boolean(profileHandle),
+    initialErrorMessage: '게시물을 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+  });
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   useEffect(() => {
     localStorage.removeItem('gamerin_profile_cover');
@@ -393,10 +415,7 @@ export default function ProfilePage() {
         const shouldLoadMyProfile =
           !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
         const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
-        const [postPage, mediaPage] = await Promise.all([
-          fetchUserPosts(loadedProfile.handle),
-          fetchUserMedia(loadedProfile.handle),
-        ]);
+        const mediaPage = await fetchUserMedia(loadedProfile.handle);
         const followedByMe = shouldLoadMyProfile ? false : Boolean(loadedProfile.followedByMe);
         const followsViewer = shouldLoadMyProfile ? false : Boolean(loadedProfile.followsViewer);
         const resolvedProfile = {
@@ -410,9 +429,6 @@ export default function ProfilePage() {
         }
 
         setProfile(resolvedProfile);
-        setPosts(postPage.items);
-        setPostsNextCursor(postPage.nextCursor);
-        setPostsHasNext(postPage.hasNext);
         setMediaItems(mediaPage.items);
         setMediaNextCursor(mediaPage.nextCursor);
         setMediaHasNext(mediaPage.hasNext);
@@ -589,24 +605,6 @@ export default function ProfilePage() {
     }
   };
 
-  const handleLoadMorePosts = async () => {
-    if (!profile || !postsHasNext || !postsNextCursor || loadingMorePosts) {
-      return;
-    }
-
-    try {
-      setLoadingMorePosts(true);
-      const page = await fetchUserPosts(profile.handle, postsNextCursor);
-      setPosts((current) => [...current, ...page.items]);
-      setPostsNextCursor(page.nextCursor);
-      setPostsHasNext(page.hasNext);
-    } catch (loadError) {
-      toast.error(loadError instanceof Error ? loadError.message : '게시물을 더 불러오지 못했습니다.');
-    } finally {
-      setLoadingMorePosts(false);
-    }
-  };
-
   const handleLoadMoreMedia = async () => {
     if (!profile || !mediaHasNext || !mediaNextCursor || loadingMoreMedia) {
       return;
@@ -646,32 +644,6 @@ export default function ProfilePage() {
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
     setMediaItems((current) => current.filter((item) => item.postId !== postId));
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
-
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
@@ -1259,7 +1231,20 @@ export default function ProfilePage() {
 
         {activeTab === 'posts' ? (
           <div className="mx-auto max-w-2xl space-y-4">
-            {posts.length === 0 ? (
+            {postsLoading ? (
+              <div className="py-24 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>
+            ) : postsError ? (
+              <div className="py-24 text-center">
+                <p className="font-black text-red-500">{postsError}</p>
+                <button
+                  type="button"
+                  onClick={() => void reloadPosts()}
+                  className="mt-5 rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+                >
+                  다시 시도
+                </button>
+              </div>
+            ) : posts.length === 0 ? (
               <div className="py-24 text-center">
                 <h3 className="mb-1 text-lg font-black uppercase italic text-black">아직 게시물이 없습니다</h3>
                 <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시물이 없습니다.</p>
@@ -1270,7 +1255,7 @@ export default function ProfilePage() {
                   key={post.postId}
                   post={post}
                   likeLoading={Boolean(likeLoadingByPostId[post.postId])}
-                  onToggleLike={handleToggleLike}
+                  onToggleLike={toggleLike}
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
@@ -1284,7 +1269,7 @@ export default function ProfilePage() {
             {postsHasNext ? (
               <button
                 type="button"
-                onClick={handleLoadMorePosts}
+                onClick={() => void loadMorePosts()}
                 disabled={loadingMorePosts}
                 className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
               >

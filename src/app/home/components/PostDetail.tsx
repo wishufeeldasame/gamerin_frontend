@@ -6,7 +6,7 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -19,10 +19,8 @@ import {
   fetchPostDetail,
   fetchPostComments,
   getInitials,
-  likePost,
   repostPost,
   unbookmarkPost,
-  unlikePost,
   unrepostPost,
   updatePostBookmarkState,
   updatePostLikeState,
@@ -32,6 +30,7 @@ import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
+import { usePostLike } from '@/hooks/usePostLike';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -79,7 +78,6 @@ export function PostDetail({
   const [menuOpen, setMenuOpen] = useState(false);
   const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
-  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isRepostLoading, setIsRepostLoading] = useState(false);
   const [repostError, setRepostError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
@@ -87,6 +85,17 @@ export function PostDetail({
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const loadedPostId = post?.postId;
+  const applyLikeState = useCallback((targetPostId: string, likedByMe: boolean) => {
+    const currentPost = latestPostRef.current;
+    if (!currentPost || currentPost.postId !== targetPostId) return;
+
+    const nextPost = updatePostLikeState(currentPost, likedByMe);
+    latestPostRef.current = nextPost;
+    setPost(nextPost);
+    onPostUpdated?.(nextPost);
+  }, [onPostUpdated]);
+  const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
+  const isLikeLoading = Boolean(post && likeLoadingByPostId[post.postId]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -164,41 +173,9 @@ export function PostDetail({
     };
   }, [postId]);
 
-  const handleToggleLike = async () => {
-    if (!post || isLikeLoading) {
-      return;
-    }
-
-    const currentPost = latestPostRef.current ?? post;
-    const previousLikeState = {
-      likedByMe: currentPost.likedByMe,
-      likes: currentPost.likes,
-    };
-    const nextPost = updatePostLikeState(currentPost);
-    setIsLikeLoading(true);
-
-    latestPostRef.current = nextPost;
-    setPost(nextPost);
-    onPostUpdated?.(nextPost);
-
-    try {
-      if (currentPost.likedByMe) {
-        await unlikePost(currentPost.postId);
-      } else {
-        await likePost(currentPost.postId);
-      }
-    } catch (likeError) {
-      const latestPost = latestPostRef.current;
-      if (latestPost) {
-        const rollbackPost = { ...latestPost, ...previousLikeState };
-        latestPostRef.current = rollbackPost;
-        setPost(rollbackPost);
-        onPostUpdated?.(rollbackPost);
-      }
-      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setIsLikeLoading(false);
-    }
+  const handleToggleLike = () => {
+    const currentPost = latestPostRef.current;
+    if (currentPost) void toggleLike(currentPost);
   };
 
   const handleToggleRepost = async () => {
