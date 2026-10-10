@@ -212,6 +212,20 @@ describe('BookmarksPage state synchronization', () => {
     });
   });
 
+  it('다음 커서가 없으면 hasNext가 true여도 더 보기를 표시하지 않는다', async () => {
+    api.fetchMyBookmarks.mockResolvedValue({
+      items: [post],
+      nextCursor: null,
+      hasNext: true,
+    });
+
+    render(<BookmarksPage />);
+
+    await screen.findByTestId('post-post-1');
+    expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument();
+    expect(api.fetchMyBookmarks).toHaveBeenCalledTimes(1);
+  });
+
   it('hides stale counts until refreshed collections replace the previous array', async () => {
     const { rerender } = render(<BookmarksPage />);
     await screen.findByTestId('post-post-1');
