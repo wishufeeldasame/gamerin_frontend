@@ -540,7 +540,12 @@ export async function fetchFollowing(handle: string, cursor?: string | null, siz
   );
 }
 
-export async function fetchUserPosts(handle: string, cursor?: string | null, size = 20) {
+export async function fetchUserPosts(
+  handle: string,
+  cursor?: string | null,
+  size = 20,
+  options: FeedRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -550,7 +555,8 @@ export async function fetchUserPosts(handle: string, cursor?: string | null, siz
   }
 
   const page = await apiRequest<CursorPage<PostRecord>>(
-    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`
+    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`,
+    { signal: options.signal },
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }

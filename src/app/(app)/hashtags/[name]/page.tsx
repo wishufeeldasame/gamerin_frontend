@@ -1,17 +1,14 @@
 'use client';
 
-import { useToast } from '@/app/context/ToastContext';
 import Link from 'next/link';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Hash } from 'lucide-react';
 import { Post } from '@/app/home/components/Post';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
 import { fetchHashtagPosts } from '@/lib/community-search-api';
-import {
-  type PostRecord,
-  likePost,
-  unlikePost,
-} from '@/lib/feed-api';
+import type { PostRecord } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
@@ -29,110 +26,33 @@ function decodeHashtagName(value: string) {
 }
 
 export default function HashtagPostsPage() {
-  const toast = useToast();
   const router = useRouter();
   const params = useParams<{ name: string }>();
   const hashtagName = useMemo(() => decodeHashtagName(params.name ?? ''), [params.name]);
-  const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
-  const loadControllerRef = useRef<AbortController | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    loadControllerRef.current?.abort();
-    loadControllerRef.current = controller;
-
-    const loadInitialPosts = async () => {
-      if (!hashtagName) {
-        setPosts([]);
-        setNextCursor(null);
-        setHasNext(false);
-        setLoading(false);
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setError(null);
-        const page = await fetchHashtagPosts(hashtagName, null, HASHTAG_PAGE_SIZE, {
-          signal: controller.signal,
-        });
-
-        setPosts(page.items);
-        setNextCursor(page.nextCursor);
-        setHasNext(page.hasNext);
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-          return;
-        }
-
-        setError(loadError instanceof Error ? loadError.message : '해시태그 게시글을 불러오지 못했습니다.');
-      } finally {
-        if (loadControllerRef.current === controller) {
-          loadControllerRef.current = null;
-          setLoading(false);
-        }
-      }
-    };
-
-    void loadInitialPosts();
-
-    return () => {
-      controller.abort();
-    };
-  }, [hashtagName]);
-
-  const handleLoadMore = async () => {
-    if (!hasNext || !nextCursor || loadingMore) {
-      return;
-    }
-
-    try {
-      setLoadingMore(true);
-      const page = await fetchHashtagPosts(hashtagName, nextCursor, HASHTAG_PAGE_SIZE);
-      setPosts((current) => {
-        const seen = new Set(current.map((post) => post.postId));
-        return [...current, ...page.items.filter((post) => !seen.has(post.postId))];
-      });
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-    } catch (loadError) {
-      toast.error(loadError instanceof Error ? loadError.message : '게시글을 더 불러오지 못했습니다.');
-    } finally {
-      setLoadingMore(false);
-    }
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
-
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
-  };
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
+    fetchHashtagPosts(hashtagName, cursor, HASHTAG_PAGE_SIZE, { signal })
+  ), [hashtagName]);
+  const {
+    items: posts,
+    setItems: setPosts,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    loadMore: handleLoadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: hashtagName,
+    enabled: Boolean(hashtagName),
+    initialErrorMessage: '해시태그 게시글을 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
+  });
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
@@ -205,7 +125,7 @@ export default function HashtagPostsPage() {
             />
           ))}
 
-          {hasNext ? (
+          {hasNext && nextCursor ? (
             <button
               type="button"
               onClick={handleLoadMore}

@@ -220,6 +220,55 @@ for (const width of [375, 1440]) {
         await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
       });
 
+      test('Windows IME의 조합 종료 직후 Enter를 차단하고 다음 Enter는 전송한다', async ({ page }) => {
+        const writes = await mockApp(page, theme);
+        await page.goto('/posts/post-1');
+        const textarea = page.getByRole('textbox', { name: '댓글 입력' });
+        await textarea.fill('가');
+        await textarea.evaluate((element) => {
+          element.dispatchEvent(new CompositionEvent('compositionstart', { bubbles: true }));
+          element.dispatchEvent(new CompositionEvent('compositionend', { bubbles: true, data: '가' }));
+          element.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true, cancelable: true, key: 'Enter', code: 'Enter', isComposing: false,
+          }));
+          element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: 'Enter' }));
+        });
+        await expect(textarea).toHaveValue('가');
+        expect(writes.filter((request) => request.path.endsWith('/comments'))).toHaveLength(0);
+        await textarea.press('Enter');
+        await expect(textarea).toHaveValue('');
+        expect(writes.filter((request) => request.path.endsWith('/comments'))).toHaveLength(1);
+      });
+
+      test('등록된 댓글의 줄바꿈을 화면에서도 유지한다', async ({ page }) => {
+        const writes = await mockApp(page, theme);
+        await page.goto('/posts/post-1');
+        const textarea = page.getByRole('textbox', { name: '댓글 입력' });
+        await textarea.fill('댓글 첫 번째 줄');
+        await textarea.press('Shift+Enter');
+        await textarea.press('Shift+Enter');
+        await textarea.press('End');
+        await textarea.pressSequentially('댓글 두 번째 줄');
+        const content = '댓글 첫 번째 줄\n\n댓글 두 번째 줄';
+        await expect(textarea).toHaveValue(content);
+        expect(writes.filter((request) => request.path.endsWith('/comments'))).toHaveLength(0);
+        await textarea.press('Enter');
+        await expect(textarea).toHaveValue('');
+        expect(writes.filter((request) => request.path.endsWith('/comments'))).toEqual([
+          { method: 'POST', path: '/api/v1/posts/post-1/comments', body: { content } },
+        ]);
+        const rendered = page.locator('p').filter({ hasText: '댓글 첫 번째 줄' });
+        await expect(rendered).toBeVisible();
+        expect(await rendered.textContent()).toBe(content);
+        expect(await rendered.evaluate((element) => getComputedStyle(element).whiteSpace)).toBe('pre-wrap');
+        const lines = await rendered.evaluate((element) => {
+          const range = document.createRange();
+          range.selectNodeContents(element);
+          return new Set(Array.from(range.getClientRects(), (rect) => Math.round(rect.top))).size;
+        });
+        expect(lines).toBeGreaterThanOrEqual(2);
+      });
+
       test('댓글 form은 Enter·Shift+Enter·조합을 구분한다', async ({ page }, info) => {
         const writes = await mockApp(page, theme);
         await page.goto('/posts/post-1');

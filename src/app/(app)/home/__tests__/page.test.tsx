@@ -24,12 +24,14 @@ class MockIntersectionObserver {
   readonly rootMargin = '400px 0px';
   readonly thresholds = [0];
   readonly disconnect = vi.fn();
-  readonly observe = observeIntersection;
+  readonly observe: (target: Element) => void;
   readonly takeRecords = () => [];
   readonly unobserve = vi.fn();
 
-  constructor(callback: IntersectionObserverCallback) {
-    intersectionCallback = callback;
+  constructor(callback: IntersectionObserverCallback, options?: IntersectionObserverInit) {
+    const isFeedObserver = options?.rootMargin === '400px 0px';
+    this.observe = isFeedObserver ? observeIntersection : vi.fn();
+    if (isFeedObserver) intersectionCallback = callback;
   }
 }
 
@@ -343,14 +345,39 @@ describe('HomePage like rollback', () => {
     expect(screen.queryByTestId('feed-load-more-sentinel')).not.toBeInTheDocument();
   });
 
+  it('다음 커서가 없으면 hasNext가 true여도 무한 스크롤을 시작하지 않는다', async () => {
+    api.fetchFeed.mockResolvedValue({
+      items: [initialPost],
+      nextCursor: null,
+      hasNext: true,
+    });
+
+    render(<HomePage />);
+
+    await screen.findByTestId('post-post-1');
+    expect(screen.queryByTestId('feed-load-more-sentinel')).not.toBeInTheDocument();
+    expect(observeIntersection).not.toHaveBeenCalled();
+    expect(api.fetchFeed).toHaveBeenCalledTimes(1);
+  });
+
   it('stops observing after a next-page failure until the user retries', async () => {
+    const nextPost = {
+      ...initialPost,
+      postId: 'post-2',
+      content: '재시도로 불러온 게시물',
+    };
     api.fetchFeed
       .mockResolvedValueOnce({
         items: [initialPost],
         nextCursor: 'cursor-1',
         hasNext: true,
       })
-      .mockRejectedValueOnce(new Error('다음 게시물을 불러오지 못했습니다.'));
+      .mockRejectedValueOnce(new Error('다음 게시물을 불러오지 못했습니다.'))
+      .mockResolvedValueOnce({
+        items: [nextPost],
+        nextCursor: null,
+        hasNext: false,
+      });
 
     render(<HomePage />);
 
@@ -364,7 +391,10 @@ describe('HomePage like rollback', () => {
       );
     });
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('다음 게시물을 불러오지 못했습니다.');
+    const retryButton = await screen.findByRole('button', { name: '다시 시도' });
+    expect(retryButton.closest('[role="alert"]')).toHaveTextContent(
+      '다음 게시물을 불러오지 못했습니다.',
+    );
     expect(api.fetchFeed).toHaveBeenCalledTimes(2);
     expect(observeIntersection).toHaveBeenCalledTimes(1);
 
@@ -380,8 +410,10 @@ describe('HomePage like rollback', () => {
     });
     expect(api.fetchFeed).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
+    fireEvent.click(retryButton);
 
-    await waitFor(() => expect(observeIntersection).toHaveBeenCalledTimes(2));
+    await screen.findByTestId('post-post-2');
+    expect(api.fetchFeed).toHaveBeenCalledTimes(3);
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
   });
 });

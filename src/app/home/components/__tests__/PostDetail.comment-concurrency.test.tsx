@@ -66,6 +66,73 @@ describe('PostDetail comment concurrency', () => {
     api.repostPost.mockResolvedValue({ postId: 'post-1', isReposted: true, repostCount: 2, repostedAt: null });
   });
 
+  it('blocks Windows compositionend-before-Enter and allows the next Enter', async () => {
+    api.createComment.mockResolvedValue(makeComment('ime', '가'));
+    await renderDetail();
+    const input = screen.getByRole('textbox', { name: '댓글 입력' });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: '가' } });
+    fireEvent.compositionEnd(input, { data: '가' });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false, keyCode: 13 });
+    expect(api.createComment).not.toHaveBeenCalled();
+    expect(input).toHaveValue('가');
+    fireEvent.keyUp(input, { key: 'Enter' });
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false, keyCode: 13 });
+    await waitFor(() => expect(api.createComment).toHaveBeenCalledTimes(1));
+  });
+
+  it('does not retain the composition guard after the event turn or blur', async () => {
+    api.createComment.mockResolvedValueOnce(makeComment('ime-first', '가'))
+      .mockResolvedValueOnce(makeComment('ime-second', '가'));
+    await renderDetail();
+    const input = screen.getByRole('textbox', { name: '댓글 입력' });
+    fireEvent.change(input, { target: { value: '가' } });
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input, { data: '가' });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 13 });
+    await waitFor(() => expect(api.createComment).toHaveBeenCalledTimes(1));
+    fireEvent.change(input, { target: { value: '가' } });
+    fireEvent.compositionStart(input);
+    fireEvent.compositionEnd(input, { data: '가' });
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    fireEvent.keyDown(input, { key: 'Enter', keyCode: 13 });
+    await waitFor(() => expect(api.createComment).toHaveBeenCalledTimes(2));
+  });
+
+  it('blocks active composition even when the native flag is false and keeps Shift+Enter', async () => {
+    await renderDetail();
+    const input = screen.getByRole('textbox', { name: '댓글 입력' });
+    fireEvent.change(input, { target: { value: '가' } });
+    fireEvent.compositionStart(input);
+    fireEvent.keyDown(input, { key: 'Enter', isComposing: false, keyCode: 13 });
+    expect(api.createComment).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(input, { data: '가' });
+    expect(fireEvent.keyDown(input, { key: 'Enter', shiftKey: true })).toBe(true);
+    expect(api.createComment).not.toHaveBeenCalled();
+  });
+
+  it('preserves line breaks in loaded and newly submitted comments', async () => {
+    api.fetchPostComments.mockResolvedValue([makeComment('existing', '첫 번째 줄\n두 번째 줄')]);
+    api.createComment.mockImplementation(async (_postId: string, content: string) => makeComment('new', content));
+    const { container } = await renderDetail();
+    await screen.findByText('첫 번째 줄 두 번째 줄');
+    const loaded = container.querySelector('p.whitespace-pre-wrap');
+    expect(loaded).toHaveTextContent('첫 번째 줄 두 번째 줄');
+    expect(loaded?.textContent).toBe('첫 번째 줄\n두 번째 줄');
+
+    fireEvent.change(screen.getByRole('textbox', { name: '댓글 입력' }), {
+      target: { value: '새 댓글 첫 줄\n새 댓글 둘째 줄' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    await waitFor(() => {
+      const submitted = Array.from(container.querySelectorAll('p.whitespace-pre-wrap'))
+        .find((element) => element.textContent === '새 댓글 첫 줄\n새 댓글 둘째 줄');
+      expect(submitted).toBeDefined();
+    });
+  });
+
   it('merges a comment into the latest like, repost, and bookmark state', async () => {
     const request = deferred<CommentRecord>();
     api.createComment.mockReturnValue(request.promise);

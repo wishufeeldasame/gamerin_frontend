@@ -6,7 +6,7 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
@@ -21,10 +21,8 @@ import {
   fetchPostDetail,
   fetchPostComments,
   getInitials,
-  likePost,
   repostPost,
   unbookmarkPost,
-  unlikePost,
   unrepostPost,
   updatePostBookmarkState,
   updatePostLikeState,
@@ -35,6 +33,7 @@ import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
 import { PostImage } from './PostImage';
+import { usePostLike } from '@/hooks/usePostLike';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -78,6 +77,19 @@ export function PostDetail({
   const [submittingComment, setSubmittingComment] = useState(false);
   const submittingCommentRef = useRef(false);
   const commentRequestGenerationRef = useRef(0);
+  const commentComposingRef = useRef(false);
+  const commentCompositionEndedRef = useRef(false);
+  const commentCompositionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearCommentCompositionGuard = () => {
+    commentCompositionEndedRef.current = false;
+    if (commentCompositionTimerRef.current !== null) {
+      clearTimeout(commentCompositionTimerRef.current);
+      commentCompositionTimerRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (commentCompositionTimerRef.current !== null) clearTimeout(commentCompositionTimerRef.current);
+  }, []);
   const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
   useLayoutEffect(() => {
     actionLifetime.active = true;
@@ -94,7 +106,6 @@ export function PostDetail({
   useDismissable({ open: menuOpen, onDismiss: closeMenu, triggerRef: menuTriggerRef, panelRef: menuPanelRef });
   const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
-  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isRepostLoading, setIsRepostLoading] = useState(false);
   const [repostError, setRepostError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
@@ -102,6 +113,17 @@ export function PostDetail({
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const loadedPostId = post?.postId;
+  const applyLikeState = useCallback((targetPostId: string, likedByMe: boolean) => {
+    const currentPost = latestPostRef.current;
+    if (!currentPost || currentPost.postId !== targetPostId) return;
+
+    const nextPost = updatePostLikeState(currentPost, likedByMe);
+    latestPostRef.current = nextPost;
+    setPost(nextPost);
+    onPostUpdated?.(nextPost);
+  }, [onPostUpdated]);
+  const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
+  const isLikeLoading = Boolean(post && likeLoadingByPostId[post.postId]);
 
   useEffect(() => {
     commentRequestGenerationRef.current += 1;
@@ -190,41 +212,9 @@ export function PostDetail({
     };
   }, [postId]);
 
-  const handleToggleLike = async () => {
-    if (!post || isLikeLoading) {
-      return;
-    }
-
-    const currentPost = latestPostRef.current ?? post;
-    const previousLikeState = {
-      likedByMe: currentPost.likedByMe,
-      likes: currentPost.likes,
-    };
-    const nextPost = updatePostLikeState(currentPost);
-    setIsLikeLoading(true);
-
-    latestPostRef.current = nextPost;
-    setPost(nextPost);
-    onPostUpdated?.(nextPost);
-
-    try {
-      if (currentPost.likedByMe) {
-        await unlikePost(currentPost.postId);
-      } else {
-        await likePost(currentPost.postId);
-      }
-    } catch (likeError) {
-      const latestPost = latestPostRef.current;
-      if (latestPost) {
-        const rollbackPost = { ...latestPost, ...previousLikeState };
-        latestPostRef.current = rollbackPost;
-        setPost(rollbackPost);
-        onPostUpdated?.(rollbackPost);
-      }
-      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setIsLikeLoading(false);
-    }
+  const handleToggleLike = () => {
+    const currentPost = latestPostRef.current;
+    if (currentPost) void toggleLike(currentPost);
   };
 
   const handleToggleRepost = async () => {
@@ -666,8 +656,40 @@ export function PostDetail({
                   aria-label="댓글 입력"
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
+                  onCompositionStart={() => {
+                    clearCommentCompositionGuard();
+                    commentComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                    // Windows IME can end composition before dispatching the same Enter.
+                    // Protect only this event turn, not the user's next deliberate Enter.
+                    commentCompositionEndedRef.current = true;
+                    commentCompositionTimerRef.current = setTimeout(clearCommentCompositionGuard, 0);
+                  }}
+                  onBlur={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                  }}
+                  onKeyUp={(event) => {
+                    if (event.key === 'Enter') clearCommentCompositionGuard();
+                  }}
                   onKeyDown={(event) => {
-                    if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                    if (event.key !== 'Enter') {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (event.shiftKey) {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (commentComposingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                    if (commentCompositionEndedRef.current) {
+                      event.preventDefault();
+                      clearCommentCompositionGuard();
+                      return;
+                    }
                     event.preventDefault();
                     event.currentTarget.form?.requestSubmit();
                   }}
@@ -775,7 +797,7 @@ export function PostDetail({
                         ) : null}
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-zinc-700"><HashtagText text={comment.content} linkHashtags={false} /></p>
+                    <p className="whitespace-pre-wrap text-sm font-medium text-zinc-700"><HashtagText text={comment.content} linkHashtags={false} /></p>
                   </div>
                 ))
               )}
