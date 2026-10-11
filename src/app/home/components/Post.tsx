@@ -6,8 +6,8 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
-import type { KeyboardEvent, MouseEvent } from 'react';
-import { useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -25,6 +25,8 @@ import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
+import { usePopup } from '@/app/context/PopupContext';
+import { useDismissable } from '@/hooks/useDismissable';
 
 interface PostProps {
   post: PostRecord;
@@ -48,8 +50,8 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     const item = media[0];
     if (item.mediaType === 'VIDEO') {
       return (
-        <div className="px-5 pb-4" data-card-open-ignore="true">
-          <div className="overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
+        <div className="pointer-events-none relative z-10 px-5 pb-4">
+          <div className="pointer-events-auto overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner" data-card-open-ignore="true">
             <video
               controls
               poster={item.thumbnailUrl ?? undefined}
@@ -62,7 +64,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     }
 
     return (
-      <div className="px-5 pb-4">
+      <div className="pointer-events-none relative z-10 px-5 pb-4">
         <div className="relative overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
           <Image
             src={item.mediaUrl}
@@ -79,11 +81,11 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-2 px-5 pb-4">
+    <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-2 px-5 pb-4">
       {media.slice(0, 4).map((item) => (
         <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
           {item.mediaType === 'VIDEO' ? (
-            <div data-card-open-ignore="true">
+            <div className="pointer-events-auto" data-card-open-ignore="true">
               <video
                 controls
                 poster={item.thumbnailUrl ?? undefined}
@@ -122,13 +124,16 @@ export function Post({
   const toast = useToast();
   const confirm = useConfirm(post.postId);
   const deleteLockRef = useRef(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menuId = useId();
+  const { isOpen: menuOpen, toggle: toggleMenu, close: closeMenu, closeAll } = usePopup(menuId);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  useDismissable({ open: menuOpen, onDismiss: closeMenu, triggerRef: menuTriggerRef, panelRef: menuPanelRef });
   const [reportOpen, setReportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [bookmarked, setBookmarked] = useState(post.bookmarkedByMe);
@@ -147,37 +152,15 @@ export function Post({
     ? '본인 게시글은 리포스트할 수 없습니다.'
     : repostError ?? undefined;
 
-  const shouldIgnoreCardOpen = (target: EventTarget | null) => {
-    if (!(target instanceof Element)) {
-      return false;
-    }
-
-    return Boolean(target.closest('a, button, input, select, textarea, video, [data-card-open-ignore="true"]'));
-  };
-
   useEffect(() => {
     setBookmarked(post.bookmarkedByMe);
   }, [post.bookmarkedByMe]);
 
-  const handleOpenDetailFromCard = (event: MouseEvent<HTMLElement>) => {
-    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
-      return;
-    }
-
-    onOpenDetail(post);
-  };
-
-  const handleOpenDetailFromKeyboard = (event: KeyboardEvent<HTMLElement>) => {
-    if (!onOpenDetail || shouldIgnoreCardOpen(event.target)) {
-      return;
-    }
-
-    if (event.key !== 'Enter' && event.key !== ' ') {
-      return;
-    }
-
-    event.preventDefault();
-    onOpenDetail(post);
+  const handleBodyClick = (event: MouseEvent<HTMLParagraphElement>) => {
+    // The sibling overlay is the keyboard path; text stays above it for selection.
+    if (event.target instanceof Element && event.target.closest('a, [data-card-open-ignore="true"]')) return;
+    if (window.getSelection()?.isCollapsed === false) return;
+    onOpenDetail?.(post);
   };
 
   const handleOpenComments = () => {
@@ -240,19 +223,19 @@ export function Post({
     }
 
     deleteLockRef.current = true;
-    setMenuOpen(false);
+    closeMenu();
     try {
       const confirmed = await confirm({
         message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
-        returnFocusTo: menuButtonRef.current,
+        returnFocusTo: menuTriggerRef.current,
       });
       if (!confirmed) return;
       setDeleting(true);
       await deletePost(post.postId);
-      setMenuOpen(false);
+      closeMenu();
       onDelete?.(post);
       window.requestAnimationFrame(() => {
-        if (!menuButtonRef.current?.isConnected && document.activeElement === document.body) {
+        if (!menuTriggerRef.current?.isConnected && document.activeElement === document.body) {
           restoreFeedbackFocus(null);
         }
       });
@@ -268,16 +251,20 @@ export function Post({
     <>
       <motion.article
         whileHover={{ y: -4 }}
-        onClick={handleOpenDetailFromCard}
-        onKeyDown={handleOpenDetailFromKeyboard}
-        role={onOpenDetail ? 'button' : undefined}
-        tabIndex={onOpenDetail ? 0 : undefined}
-        className={`overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl ${
-          onOpenDetail ? 'cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2' : ''
+        className={`relative isolate overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl ${
+          onOpenDetail ? 'cursor-pointer' : ''
         }`}
       >
+        {onOpenDetail ? (
+          <button
+            type="button"
+            onClick={() => onOpenDetail(post)}
+            aria-label={`${post.author}님의 게시물 열기`}
+            className="absolute inset-0 z-0 rounded-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+          />
+        ) : null}
         {post.reposterInfo ? (
-          <div className="flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
+          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
             <Repeat2 size={15} className="text-emerald-500" />
             <span>
               {post.reposterInfo.nickname}님이 리포스트했습니다
@@ -287,11 +274,11 @@ export function Post({
           </div>
         ) : null}
 
-        <div className="p-5">
+        <div className="pointer-events-none relative z-20 p-5">
         <div className="mb-4 flex items-center justify-between">
           <Link
             href={`/profile/${encodeURIComponent(post.authorHandle)}`}
-            className="flex items-center gap-4"
+            className="pointer-events-auto flex items-center gap-4"
             data-card-open-ignore="true"
           >
             {post.authorProfileImageUrl ? (
@@ -314,25 +301,26 @@ export function Post({
             </div>
           </Link>
 
-          <div className="relative">
+          <div className="pointer-events-auto relative">
             <button
               type="button"
-              onClick={() => setMenuOpen((current) => !current)}
-              ref={menuButtonRef}
+              ref={menuTriggerRef}
+              onClick={toggleMenu}
               className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}
+              aria-controls={menuOpen ? menuId : undefined}
             >
               <MoreHorizontal size={20} />
             </button>
 
             {menuOpen ? (
-              <div className="absolute right-0 top-10 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+              <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-10 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
                 {canReportPost ? (
                   <button
                     type="button"
                     onClick={() => {
-                      setMenuOpen(false);
+                      closeMenu();
                       setReportOpen(true);
                     }}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
@@ -355,7 +343,7 @@ export function Post({
 
                 <button
                   type="button"
-                  onClick={() => setMenuOpen(false)}
+                  onClick={closeMenu}
                   className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
                 >
                   취소
@@ -366,7 +354,7 @@ export function Post({
         </div>
 
         {post.content ? (
-          <p className="w-full px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
+          <p onClick={handleBodyClick} className="pointer-events-auto w-full cursor-text select-text px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
             <HashtagText text={post.content} />
           </p>
         ) : null}
@@ -374,11 +362,13 @@ export function Post({
 
         {hasMedia ? <MediaBlock media={post.media} /> : null}
 
-        <div className="flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400">
+        <div className="pointer-events-none relative z-10 flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400 [&_button]:pointer-events-auto [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-4 [&_button]:focus-visible:outline-black dark:[&_button]:focus-visible:outline-white">
           <div className="flex items-center gap-6">
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
+            aria-label={`좋아요 ${post.likes}개`}
+            aria-pressed={post.likedByMe}
             disabled={likeLoading}
             className={`group flex items-center gap-2 transition-colors ${
               post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
@@ -402,7 +392,9 @@ export function Post({
             type="button"
             onClick={() => void toggleRepost()}
             disabled={isRepostLoading || !canRepostPost}
-            aria-label={isReposted ? '리포스트 취소' : '리포스트'}
+            aria-label="리포스트"
+            aria-pressed={isReposted}
+            aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
             title={repostButtonTitle}
             className={`group flex items-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
               isReposted ? 'text-emerald-500' : 'hover:text-emerald-500'
@@ -418,9 +410,11 @@ export function Post({
             </span>
           </button>
 
+          {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
           <button
             type="button"
-            onClick={() => setCollectionModalOpen(true)}
+            onClick={() => { closeAll(); setCollectionModalOpen(true); }}
+            aria-haspopup="dialog"
             disabled={bookmarking}
             className={`group flex items-center gap-2 transition-colors ${
               bookmarked ? 'text-black' : 'hover:text-black'
@@ -433,7 +427,7 @@ export function Post({
 
           <button
             type="button"
-            onClick={() => setShareOpen(true)}
+            onClick={() => { closeAll(); setShareOpen(true); }}
             className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black"
             aria-label="게시물 공유"
           >
