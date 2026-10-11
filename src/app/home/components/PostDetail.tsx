@@ -6,7 +6,9 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { usePopup } from '@/app/context/PopupContext';
+import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -30,6 +32,7 @@ import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
+import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
 
 const MAX_COMMENT_LENGTH = 300;
@@ -55,7 +58,6 @@ export function PostDetail({
   const confirm = useConfirm(postId);
   const deleteCommentLockRef = useRef(false);
   const deletePostLockRef = useRef(false);
-  const menuButtonRef = useRef<HTMLButtonElement>(null);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
@@ -63,7 +65,7 @@ export function PostDetail({
   const handledScrollKeyRef = useRef<string | null>(null);
   const [post, setPost] = useState<PostRecord | null>(null);
   const latestPostRef = useRef<PostRecord | null>(post);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestPostRef.current = post;
   }, [post]);
   const [comments, setComments] = useState<CommentRecord[]>([]);
@@ -73,9 +75,35 @@ export function PostDetail({
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const submittingCommentRef = useRef(false);
+  const commentRequestGenerationRef = useRef(0);
+  const commentComposingRef = useRef(false);
+  const commentCompositionEndedRef = useRef(false);
+  const commentCompositionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearCommentCompositionGuard = () => {
+    commentCompositionEndedRef.current = false;
+    if (commentCompositionTimerRef.current !== null) {
+      clearTimeout(commentCompositionTimerRef.current);
+      commentCompositionTimerRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (commentCompositionTimerRef.current !== null) clearTimeout(commentCompositionTimerRef.current);
+  }, []);
+  const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
+  useLayoutEffect(() => {
+    actionLifetime.active = true;
+    deletePostLockRef.current = false;
+    setDeletingPost(false);
+    return () => { actionLifetime.active = false; };
+  }, [actionLifetime]);
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menuId = useId();
+  const { isOpen: menuOpen, toggle: toggleMenu, close: closeMenu, closeAll } = usePopup(menuId);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  useDismissable({ open: menuOpen, onDismiss: closeMenu, triggerRef: menuTriggerRef, panelRef: menuPanelRef });
   const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
   const [isRepostLoading, setIsRepostLoading] = useState(false);
@@ -96,6 +124,17 @@ export function PostDetail({
   }, [onPostUpdated]);
   const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
   const isLikeLoading = Boolean(post && likeLoadingByPostId[post.postId]);
+
+  useEffect(() => {
+    commentRequestGenerationRef.current += 1;
+    submittingCommentRef.current = false;
+    setSubmittingComment(false);
+
+    return () => {
+      commentRequestGenerationRef.current += 1;
+      submittingCommentRef.current = false;
+    };
+  }, [postId]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -237,29 +276,47 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
-    if (!post || !commentText.trim() || submittingComment) {
+    if (!post || post.postId !== postId || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
     if (commentText.length > MAX_COMMENT_LENGTH) {
       return;
     }
 
+    const submittedDraft = commentText;
+    const submittedPostId = post.postId;
+    const requestGeneration = commentRequestGenerationRef.current;
+    submittingCommentRef.current = true;
     try {
       setSubmittingComment(true);
-      const createdComment = await createComment(post.postId, commentText.trim());
+      const createdComment = await createComment(submittedPostId, submittedDraft.trim());
+      const currentPost = latestPostRef.current;
+      if (
+        commentRequestGenerationRef.current !== requestGeneration
+        || !currentPost
+        || currentPost.postId !== submittedPostId
+      ) {
+        return;
+      }
       const nextPost = {
-        ...post,
-        comments: post.comments + 1,
+        ...currentPost,
+        comments: currentPost.comments + 1,
       };
 
+      latestPostRef.current = nextPost;
       setPost(nextPost);
       setComments((current) => [createdComment, ...current]);
-      setCommentText('');
+      setCommentText((current) => current === submittedDraft ? '' : current);
       onPostUpdated?.(nextPost);
     } catch (commentError) {
-      toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      }
     } finally {
-      setSubmittingComment(false);
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        submittingCommentRef.current = false;
+        setSubmittingComment(false);
+      }
     }
   };
 
@@ -351,28 +408,33 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || deletingPost || deletePostLockRef.current) {
+    if (!post || post.postId !== postId || deletingPost || deletePostLockRef.current) {
       return;
     }
 
     deletePostLockRef.current = true;
-    setMenuOpen(false);
+    const submittedPostId = post.postId;
+    const isCurrent = () => actionLifetime.active;
+    closeMenu();
     try {
       const confirmed = await confirm({
         message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
-        returnFocusTo: menuButtonRef.current,
+        returnFocusTo: menuTriggerRef.current,
       });
-      if (!confirmed) return;
+      if (!confirmed || !isCurrent()) return;
       setDeletingPost(true);
-      await deletePost(post.postId);
-      setMenuOpen(false);
-      onPostDeleted?.(post.postId);
-      onBack();
+      await deletePost(submittedPostId);
+      if (!isCurrent()) return;
+      closeMenu();
+      if (onPostDeleted) onPostDeleted(submittedPostId);
+      else onBack();
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
     } finally {
-      deletePostLockRef.current = false;
-      setDeletingPost(false);
+      if (isCurrent()) {
+        deletePostLockRef.current = false;
+        setDeletingPost(false);
+      }
     }
   };
 
@@ -439,22 +501,23 @@ export function PostDetail({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setMenuOpen((current) => !current)}
-                ref={menuButtonRef}
+                ref={menuTriggerRef}
+                onClick={toggleMenu}
                 className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
+                aria-controls={menuOpen ? menuId : undefined}
               >
                 <MoreHorizontal size={24} />
               </button>
 
               {menuOpen ? (
-                <div className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
                   {canReportPost ? (
                     <button
                       type="button"
                       onClick={() => {
-                        setMenuOpen(false);
+                        closeMenu();
                         setReportPostOpen(true);
                       }}
                       className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
@@ -477,7 +540,7 @@ export function PostDetail({
 
                   <button
                     type="button"
-                    onClick={() => setMenuOpen(false)}
+                    onClick={closeMenu}
                     className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
                   >
                     취소
@@ -495,7 +558,7 @@ export function PostDetail({
 
           {post.media.length > 0 ? (
             <div className="mb-8 space-y-3">
-              {post.media.map((item) =>
+              {post.media.map((item, index) =>
                 item.mediaType === 'VIDEO' ? (
                   <video
                     key={item.mediaId}
@@ -505,13 +568,12 @@ export function PostDetail({
                     className="max-h-[520px] w-full rounded-[24px] bg-black object-cover"
                   />
                 ) : (
-                  <div key={item.mediaId} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
-                    <Image
+                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
+                    <PostImage
                       src={item.mediaUrl}
-                      alt="게시물 미디어"
+                      imageNumber={index + 1}
                       width={1400}
                       height={1000}
-                      unoptimized
                       className="h-auto max-h-[520px] w-full object-cover"
                     />
                   </div>
@@ -523,7 +585,10 @@ export function PostDetail({
           <div className="flex items-center justify-between border-y border-zinc-50 py-6">
             <div className="flex items-center gap-8">
               <button
+                type="button"
                 onClick={handleToggleLike}
+                aria-label={`좋아요 ${post.likes}개`}
+                aria-pressed={post.likedByMe}
                 disabled={isLikeLoading}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
@@ -540,7 +605,9 @@ export function PostDetail({
                 type="button"
                 onClick={() => void handleToggleRepost()}
                 disabled={isRepostLoading || !canRepostPost}
-                aria-label={post.isReposted ? '리포스트 취소' : '리포스트'}
+                aria-label="리포스트"
+                aria-pressed={post.isReposted}
+                aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
                 title={repostButtonTitle}
                 className={`flex items-center gap-2 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                   post.isReposted ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'
@@ -549,9 +616,11 @@ export function PostDetail({
                 <Repeat2 size={22} />
                 <span>{post.repostCount}</span>
               </button>
+              {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
               <button
                 type="button"
-                onClick={() => setCollectionModalOpen(true)}
+                onClick={() => { closeAll(); setCollectionModalOpen(true); }}
+                aria-haspopup="dialog"
                 aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
                 disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
@@ -563,7 +632,7 @@ export function PostDetail({
             </div>
             <button
               type="button"
-              onClick={() => setShareOpen(true)}
+              onClick={() => { closeAll(); setShareOpen(true); }}
               className="text-zinc-400 transition-all hover:text-black"
               aria-label="게시물 공유"
             >
@@ -576,10 +645,54 @@ export function PostDetail({
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
                 나
               </div>
-              <div className="relative flex-1">
+              <form
+                className="relative flex-1"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleSubmitComment();
+                }}
+              >
                 <textarea
+                  aria-label="댓글 입력"
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
+                  onCompositionStart={() => {
+                    clearCommentCompositionGuard();
+                    commentComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                    // Windows IME can end composition before dispatching the same Enter.
+                    // Protect only this event turn, not the user's next deliberate Enter.
+                    commentCompositionEndedRef.current = true;
+                    commentCompositionTimerRef.current = setTimeout(clearCommentCompositionGuard, 0);
+                  }}
+                  onBlur={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                  }}
+                  onKeyUp={(event) => {
+                    if (event.key === 'Enter') clearCommentCompositionGuard();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (event.shiftKey) {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (commentComposingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                    if (commentCompositionEndedRef.current) {
+                      event.preventDefault();
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
                   className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
@@ -593,13 +706,14 @@ export function PostDetail({
                   {commentText.length}/{MAX_COMMENT_LENGTH}
                 </span>
                 <button
-                  onClick={handleSubmitComment}
+                  type="submit"
+                  aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
                   className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
                 >
                   <Send size={18} />
                 </button>
-              </div>
+              </form>
             </div>
 
             <div className="space-y-4">
@@ -683,7 +797,7 @@ export function PostDetail({
                         ) : null}
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-zinc-700">{comment.content}</p>
+                    <p className="whitespace-pre-wrap text-sm font-medium text-zinc-700"><HashtagText text={comment.content} linkHashtags={false} /></p>
                   </div>
                 ))
               )}
@@ -697,8 +811,13 @@ export function PostDetail({
           post={post}
           onClose={() => setShareOpen(false)}
           onShared={(sharedPost) => {
-            setPost(sharedPost);
-            onPostUpdated?.(sharedPost);
+            const currentPost = latestPostRef.current;
+            if (!actionLifetime.active || !currentPost ||
+                currentPost.postId !== sharedPost.postId || currentPost.postId !== postId) return;
+            const updatedPost = { ...currentPost, shares: sharedPost.shares };
+            latestPostRef.current = updatedPost;
+            setPost(updatedPost);
+            onPostUpdated?.(updatedPost);
           }}
         />
       ) : null}

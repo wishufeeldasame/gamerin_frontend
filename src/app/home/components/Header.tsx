@@ -4,12 +4,14 @@ import { Bell, MessageSquare, Search, LogOut, X } from "lucide-react";
 import { useAuth } from "@/app/context/AuthContext"; // 1. 경로 확인 필수!
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { NotificationPanel } from "./NotificationPanel";
 import { fetchUnreadNotificationCount } from "@/lib/notification-api";
 import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
 import { useVisiblePolling } from "@/hooks/useVisiblePolling";
+import { usePopup } from "@/app/context/PopupContext";
+import { useDismissable } from "@/hooks/useDismissable";
 
 const UNREAD_REFRESH_INTERVAL_MS = 60_000;
 const UNREAD_STALE_TIME_MS = 5_000;
@@ -20,7 +22,25 @@ export function Header() {
   const router = useRouter();
   const pathname = usePathname();
   const [searchQuery, setSearchQuery] = useState("");
-  const [notificationOpen, setNotificationOpen] = useState(false);
+  const notificationId = useId();
+  const { isOpen: notificationOpen, toggle: toggleNotification, close: closeNotification } = usePopup(notificationId);
+  const notificationTriggerRef = useRef<HTMLButtonElement>(null);
+  const notificationPanelRef = useRef<HTMLDivElement>(null);
+  const closeNotificationAndRestoreFocus = useCallback(() => {
+    closeNotification();
+    notificationTriggerRef.current?.focus();
+  }, [closeNotification]);
+  useEffect(() => {
+    if (notificationOpen) {
+      notificationPanelRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    }
+  }, [notificationOpen]);
+  useDismissable({
+    open: notificationOpen,
+    onDismiss: closeNotification,
+    triggerRef: notificationTriggerRef,
+    panelRef: notificationPanelRef,
+  });
   // md 미만에서는 검색창을 숨겨 두고 돋보기 버튼으로 헤더 아래에 펼친다.
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   // 탭바 등으로 페이지를 옮기면 펼친 검색창이 새 페이지를 가리지 않게 닫는다.
@@ -144,6 +164,7 @@ export function Header() {
             <form
               onSubmit={handleSearchSubmit}
               role="search"
+              data-escape-owner={mobileSearchOpen ? 'search' : undefined}
               className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none"
             >
               <Search size={18} className="text-zinc-500 dark:text-zinc-400" strokeWidth={2.1} />
@@ -183,10 +204,12 @@ export function Header() {
               ) : null}
               <button
                 type="button"
-                onClick={() => setNotificationOpen((current) => !current)}
+                ref={notificationTriggerRef}
+                onClick={toggleNotification}
                 className="relative flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 dark:text-zinc-200 dark:hover:bg-white/10"
                 aria-label="알림"
                 aria-expanded={notificationOpen}
+                aria-controls={notificationOpen ? notificationId : undefined}
               >
                 <Bell size={18} strokeWidth={2.1} />
                 {notificationUnreadCount > 0 ? (
@@ -197,7 +220,9 @@ export function Header() {
               </button>
               {notificationOpen ? (
                 <NotificationPanel
-                  onClose={() => setNotificationOpen(false)}
+                  id={notificationId}
+                  panelRef={notificationPanelRef}
+                  onClose={closeNotificationAndRestoreFocus}
                   onUnreadCountChange={setNotificationUnreadCount}
                 />
               ) : null}
