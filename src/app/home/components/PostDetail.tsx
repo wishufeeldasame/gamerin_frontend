@@ -6,7 +6,7 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
@@ -34,6 +34,7 @@ import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
+import { PostImage } from './PostImage';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -65,7 +66,7 @@ export function PostDetail({
   const handledScrollKeyRef = useRef<string | null>(null);
   const [post, setPost] = useState<PostRecord | null>(null);
   const latestPostRef = useRef<PostRecord | null>(post);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestPostRef.current = post;
   }, [post]);
   const [comments, setComments] = useState<CommentRecord[]>([]);
@@ -76,6 +77,14 @@ export function PostDetail({
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const submittingCommentRef = useRef(false);
+  const commentRequestGenerationRef = useRef(0);
+  const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
+  useLayoutEffect(() => {
+    actionLifetime.active = true;
+    deletePostLockRef.current = false;
+    setDeletingPost(false);
+    return () => { actionLifetime.active = false; };
+  }, [actionLifetime]);
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const menuId = useId();
@@ -93,6 +102,17 @@ export function PostDetail({
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const loadedPostId = post?.postId;
+
+  useEffect(() => {
+    commentRequestGenerationRef.current += 1;
+    submittingCommentRef.current = false;
+    setSubmittingComment(false);
+
+    return () => {
+      commentRequestGenerationRef.current += 1;
+      submittingCommentRef.current = false;
+    };
+  }, [postId]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -266,7 +286,7 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
-    if (!post || !commentText.trim() || submittingCommentRef.current) {
+    if (!post || post.postId !== postId || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
     if (commentText.length > MAX_COMMENT_LENGTH) {
@@ -274,24 +294,39 @@ export function PostDetail({
     }
 
     const submittedDraft = commentText;
+    const submittedPostId = post.postId;
+    const requestGeneration = commentRequestGenerationRef.current;
     submittingCommentRef.current = true;
     try {
       setSubmittingComment(true);
-      const createdComment = await createComment(post.postId, submittedDraft.trim());
+      const createdComment = await createComment(submittedPostId, submittedDraft.trim());
+      const currentPost = latestPostRef.current;
+      if (
+        commentRequestGenerationRef.current !== requestGeneration
+        || !currentPost
+        || currentPost.postId !== submittedPostId
+      ) {
+        return;
+      }
       const nextPost = {
-        ...post,
-        comments: post.comments + 1,
+        ...currentPost,
+        comments: currentPost.comments + 1,
       };
 
+      latestPostRef.current = nextPost;
       setPost(nextPost);
       setComments((current) => [createdComment, ...current]);
       setCommentText((current) => current === submittedDraft ? '' : current);
       onPostUpdated?.(nextPost);
     } catch (commentError) {
-      toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      }
     } finally {
-      submittingCommentRef.current = false;
-      setSubmittingComment(false);
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        submittingCommentRef.current = false;
+        setSubmittingComment(false);
+      }
     }
   };
 
@@ -383,28 +418,33 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || deletingPost || deletePostLockRef.current) {
+    if (!post || post.postId !== postId || deletingPost || deletePostLockRef.current) {
       return;
     }
 
     deletePostLockRef.current = true;
+    const submittedPostId = post.postId;
+    const isCurrent = () => actionLifetime.active;
     closeMenu();
     try {
       const confirmed = await confirm({
         message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
         returnFocusTo: menuTriggerRef.current,
       });
-      if (!confirmed) return;
+      if (!confirmed || !isCurrent()) return;
       setDeletingPost(true);
-      await deletePost(post.postId);
+      await deletePost(submittedPostId);
+      if (!isCurrent()) return;
       closeMenu();
-      onPostDeleted?.(post.postId);
-      onBack();
+      if (onPostDeleted) onPostDeleted(submittedPostId);
+      else onBack();
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
     } finally {
-      deletePostLockRef.current = false;
-      setDeletingPost(false);
+      if (isCurrent()) {
+        deletePostLockRef.current = false;
+        setDeletingPost(false);
+      }
     }
   };
 
@@ -528,7 +568,7 @@ export function PostDetail({
 
           {post.media.length > 0 ? (
             <div className="mb-8 space-y-3">
-              {post.media.map((item) =>
+              {post.media.map((item, index) =>
                 item.mediaType === 'VIDEO' ? (
                   <video
                     key={item.mediaId}
@@ -538,13 +578,12 @@ export function PostDetail({
                     className="max-h-[520px] w-full rounded-[24px] bg-black object-cover"
                   />
                 ) : (
-                  <div key={item.mediaId} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
-                    <Image
+                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
+                    <PostImage
                       src={item.mediaUrl}
-                      alt="게시물 미디어"
+                      imageNumber={index + 1}
                       width={1400}
                       height={1000}
-                      unoptimized
                       className="h-auto max-h-[520px] w-full object-cover"
                     />
                   </div>
@@ -750,8 +789,13 @@ export function PostDetail({
           post={post}
           onClose={() => setShareOpen(false)}
           onShared={(sharedPost) => {
-            setPost(sharedPost);
-            onPostUpdated?.(sharedPost);
+            const currentPost = latestPostRef.current;
+            if (!actionLifetime.active || !currentPost ||
+                currentPost.postId !== sharedPost.postId || currentPost.postId !== postId) return;
+            const updatedPost = { ...currentPost, shares: sharedPost.shares };
+            latestPostRef.current = updatedPost;
+            setPost(updatedPost);
+            onPostUpdated?.(updatedPost);
           }}
         />
       ) : null}

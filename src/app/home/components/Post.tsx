@@ -7,7 +7,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
 import type { MouseEvent } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -27,6 +27,7 @@ import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
+import { PostImage } from './PostImage';
 
 interface PostProps {
   post: PostRecord;
@@ -66,12 +67,11 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     return (
       <div className="pointer-events-none relative z-10 px-5 pb-4">
         <div className="relative overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
-          <Image
+          <PostImage
             src={item.mediaUrl}
-            alt="게시물 미디어"
+            imageNumber={1}
             width={1200}
             height={800}
-            unoptimized
             sizes="(max-width: 768px) 100vw, 700px"
             className="h-auto max-h-[420px] w-full object-cover transition-transform duration-700 hover:scale-105"
           />
@@ -82,7 +82,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 
   return (
     <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-2 px-5 pb-4">
-      {media.slice(0, 4).map((item) => (
+      {media.slice(0, 4).map((item, index) => (
         <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
           {item.mediaType === 'VIDEO' ? (
             <div className="pointer-events-auto" data-card-open-ignore="true">
@@ -94,12 +94,11 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
               />
             </div>
           ) : (
-            <Image
+            <PostImage
               src={item.mediaUrl}
-              alt="게시물 미디어"
+              imageNumber={index + 1}
               width={800}
               height={800}
-              unoptimized
               className="h-52 w-full object-cover"
             />
           )}
@@ -124,6 +123,15 @@ export function Post({
   const toast = useToast();
   const confirm = useConfirm(post.postId);
   const deleteLockRef = useRef(false);
+  const latestPostRef = useRef(post);
+  const shareLifetime = useMemo(() => ({ active: false, postId: post.postId }), [post.postId]);
+  useLayoutEffect(() => {
+    latestPostRef.current = post;
+  }, [post]);
+  useLayoutEffect(() => {
+    shareLifetime.active = true;
+    return () => { shareLifetime.active = false; };
+  }, [shareLifetime]);
   const { user } = useAuth();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
@@ -360,7 +368,7 @@ export function Post({
         ) : null}
         </div>
 
-        {hasMedia ? <MediaBlock media={post.media} /> : null}
+        {hasMedia ? <MediaBlock key={post.postId} media={post.media} /> : null}
 
         <div className="pointer-events-none relative z-10 flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400 [&_button]:pointer-events-auto [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-4 [&_button]:focus-visible:outline-black dark:[&_button]:focus-visible:outline-white">
           <div className="flex items-center gap-6">
@@ -440,7 +448,13 @@ export function Post({
         <SharePostModal
           post={post}
           onClose={() => setShareOpen(false)}
-          onShared={(sharedPost) => onShare?.(sharedPost)}
+          onShared={(sharedPost) => {
+            const currentPost = latestPostRef.current;
+            if (!shareLifetime.active || currentPost.postId !== sharedPost.postId) return;
+            const updatedPost = { ...currentPost, shares: sharedPost.shares };
+            latestPostRef.current = updatedPost;
+            onShare?.(updatedPost);
+          }}
         />
       ) : null}
 

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { parseMentions } from '@/lib/mention-parser';
+import { MentionLink } from './MentionLink';
 
 const HASHTAG_PATTERN = /#[\p{L}\p{N}_]{1,50}/gu;
 
@@ -40,19 +41,12 @@ export function HashtagText({ text, className, linkHashtags = true }: HashtagTex
     <span className={className}>
       {parts.map((part, index) =>
         part.mention ? (
-          <Link
-            key={`${part.value}-${index}`}
-            href={`/profile/${encodeURIComponent(part.mention)}`}
-            className="font-black text-sky-600 transition hover:text-sky-700 hover:underline"
-            data-card-open-ignore="true"
-          >
-            {part.value}
-          </Link>
+          <MentionLink key={`${part.value}-${index}`} value={part.value} handle={part.mention} />
         ) : part.hashtag ? (
           <Link
             key={`${part.value}-${index}`}
             href={`/hashtags/${encodeURIComponent(part.hashtag)}`}
-            className="font-black text-emerald-600 transition hover:text-emerald-700 hover:underline"
+            className="font-black text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 dark:focus-visible:outline-emerald-400"
             data-card-open-ignore="true"
           >
             {part.value}

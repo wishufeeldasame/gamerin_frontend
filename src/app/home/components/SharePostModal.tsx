@@ -9,7 +9,7 @@ import { MessageRecipient } from '@/lib/message-store';
 interface SharePostModalProps {
   post: PostRecord;
   onClose: () => void;
-  onShared?: (post: PostRecord) => void;
+  onShared?: (result: Pick<PostRecord, 'postId' | 'shares'>) => void;
 }
 
 function buildPostUrl(postId: string) {
@@ -67,7 +67,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
   const updateShareCount = (shares: number) => {
     onShared?.({
-      ...post,
+      postId: post.postId,
       shares,
     });
   };
