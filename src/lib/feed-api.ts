@@ -1,6 +1,7 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   ApiError,
+  AUTH_REQUIRED_MESSAGE,
   type ApiClientConfig,
   type ApiRequestOptions,
   apiRequest as sendApiRequest,
@@ -235,10 +236,11 @@ interface FeedRequestOptions {
 
 const FEED_CLIENT: ApiClientConfig = {
   toError: ({ reason, status, message }) => new ApiError(
-    reason === 'unauthenticated'
-      ? '로그인이 필요하거나 인증이 만료되었습니다.'
-      : message ?? 'Request failed.',
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
+      : '요청을 처리하지 못했습니다.'),
     status,
+    reason,
   ),
 };
 

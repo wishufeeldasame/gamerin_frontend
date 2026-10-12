@@ -98,6 +98,15 @@ describe('loginWithPassword', () => {
     expect(store.getAccessToken()).toBeNull();
   });
 
+  it('로그인 요청의 네트워크 TypeError는 한국어 메시지로 거절한다', async () => {
+    api.route('/api/v1/auth/login', () => Promise.reject(new TypeError('Failed to fetch')));
+
+    await expect(auth.loginWithPassword('demo', 'pw')).rejects.toThrow('로그인에 실패했습니다.');
+
+    expect(api.paths()).toEqual(['/api/v1/auth/login']);
+    expect(store.getAccessToken()).toBeNull();
+  });
+
   it('차단 계정 응답이면 세션을 정리하고 차단 오류로 거절한다', async () => {
     api.route('/api/v1/auth/login', () => json(403, { success: false, code: 'ACCOUNT_SUSPENDED' }));
 
@@ -184,6 +193,22 @@ describe('loginWithPassword', () => {
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
     expect(store.getAccessToken()).toBeNull();
     expect(api.paths()).toEqual(['/api/v1/auth/login']);
+  });
+
+  it('로그인 네트워크 오류보다 요청 중 바뀐 인증 세대를 우선해 AbortError로 버린다', async () => {
+    let failLogin!: (error: Error) => void;
+    api.route('/api/v1/auth/login', () => new Promise<Response>((_, reject) => {
+      failLogin = reject;
+    }));
+
+    const pending = auth.loginWithPassword('demo', 'pw');
+    await flush();
+    store.setAccessToken('other-user-token');
+    failLogin(new TypeError('Failed to fetch'));
+
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    expect(store.getAccessToken()).toBe('other-user-token');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 });
 
@@ -368,7 +393,7 @@ describe('refreshAccessTokenResult의 거절 형태', () => {
   it('차단·비활성 계정 거절만 blocked: true를 담는다', async () => {
     api.route('/api/v1/auth/refresh', () => json(401, { message: '사용자 계정이 활성 상태가 아닙니다.' }));
 
-    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected', blocked: true });
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected', blocked: true, httpStatus: 401 });
   });
 });
 
@@ -397,6 +422,17 @@ describe('completeSocialSignup', () => {
 
     expect(api.paths()).toEqual(['/api/v1/auth/social-signup']);
     expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('가입 전 네트워크 TypeError는 가입 완료 오류가 아닌 한국어 요청 오류로 거절한다', async () => {
+    api.route('/api/v1/auth/social-signup', () => Promise.reject(new TypeError('NetworkError')));
+
+    const result = auth.completeSocialSignup(params);
+
+    await expect(result).rejects.toThrow('소셜 회원가입에 실패했습니다.');
+    await expect(result).rejects.not.toBeInstanceOf(auth.SignupCompletedError);
+    expect(store.getAccessToken()).toBeNull();
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
   it('토큰이 없는 성공 응답은 거절한다', async () => {

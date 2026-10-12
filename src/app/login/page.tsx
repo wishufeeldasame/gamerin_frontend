@@ -12,6 +12,10 @@ import { useAuth } from '@/app/context/AuthContext';
 import { loginWithPassword } from '@/lib/auth-api';
 import { getApiBaseUrl } from '@/lib/api-base';
 import {
+  getPublicRequestErrorMessage,
+  readPublicResponseErrorMessage,
+} from '@/lib/public-request-error';
+import {
   HANDLE_MAX_LENGTH,
   NICKNAME_MAX_LENGTH,
   PASSWORD_MAX_LENGTH,
@@ -102,15 +106,14 @@ export default function LoginPage() {
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => null);
-        throw new Error(errorData?.message || '회원가입에 실패했습니다.');
+        throw new Error(await readPublicResponseErrorMessage(response, '회원가입에 실패했습니다.'));
       }
 
       resetSignup();
       setShowIdLogin(true);
       setLoginHandle(signupId.trim());
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '회원가입에 실패했습니다.');
+      toast.error(getPublicRequestErrorMessage(error, '회원가입에 실패했습니다.'));
     }
   };
 
@@ -131,7 +134,7 @@ export default function LoginPage() {
     } catch (error) {
       // 로그인 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
       if (error instanceof DOMException && error.name === 'AbortError') return;
-      setLoginError(error instanceof Error ? error.message : '로그인에 실패했습니다.');
+      setLoginError(getPublicRequestErrorMessage(error, '로그인에 실패했습니다.'));
     } finally {
       setLoginLoading(false);
     }

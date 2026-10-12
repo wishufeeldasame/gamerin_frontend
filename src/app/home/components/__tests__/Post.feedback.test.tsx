@@ -69,12 +69,15 @@ describe('게시물 카드 확인창', () => {
     await act(async () => deletion.resolve());
     expect(onDelete).toHaveBeenCalledWith(post);
   });
-  it('실패 시 오류 토스트를 띄우고 재시도할 수 있다', async () => {
-    api.deletePost.mockRejectedValueOnce(new Error('삭제 실패'));
+  it.each([
+    [new Error('삭제 실패'), '삭제 실패'],
+    [null, '게시물을 삭제하지 못했습니다.'],
+  ])('실패 시 오류 토스트(%s)를 띄우고 재시도할 수 있다', async (error, message) => {
+    api.deletePost.mockRejectedValueOnce(error);
     const onDelete = vi.fn();
     render(<Post post={post} onDelete={onDelete} />);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('삭제 실패');
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
     expect(onDelete).not.toHaveBeenCalled();
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
@@ -108,13 +111,16 @@ describe('게시물 상세 확인창', () => {
     expect(api.deleteComment).toHaveBeenCalledExactlyOnceWith(post.postId, comment.commentId);
     expect(onPostUpdated).toHaveBeenCalledWith(expect.objectContaining({ comments: 0 }));
   });
-  it('댓글 삭제 실패 시 댓글·개수는 유지하고 오류를 표시한다', async () => {
-    api.deleteComment.mockRejectedValueOnce(new Error('댓글 삭제 실패'));
+  it.each([
+    [new Error('댓글 삭제 실패'), '댓글 삭제 실패'],
+    [null, '댓글을 삭제하지 못했습니다.'],
+  ])('댓글 삭제 실패 시 댓글·개수는 유지하고 오류(%s)를 표시한다', async (error, message) => {
+    api.deleteComment.mockRejectedValueOnce(error);
     const onPostUpdated = vi.fn();
     render(<PostDetail postId={post.postId} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText(comment.content);
     fireEvent.click(within(openDeletion('댓글 메뉴')).getByRole('button', { name: '삭제' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('댓글 삭제 실패');
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
     expect(screen.getByText(comment.content)).toBeInTheDocument();
     expect(onPostUpdated).not.toHaveBeenCalled();
   });
@@ -155,14 +161,17 @@ describe('게시물 상세 확인창', () => {
     expect(onBack).not.toHaveBeenCalled();
     expect(onPostDeleted).not.toHaveBeenCalled();
   });
-  it('삭제 실패는 이동하지 않고 오류 표시 후 재시도할 수 있다', async () => {
-    api.deletePost.mockRejectedValueOnce(new Error('상세 삭제 실패'));
+  it.each([
+    [new Error('상세 삭제 실패'), '상세 삭제 실패'],
+    [null, '게시물을 삭제하지 못했습니다.'],
+  ])('삭제 실패는 이동하지 않고 오류(%s) 표시 후 재시도할 수 있다', async (error, message) => {
+    api.deletePost.mockRejectedValueOnce(error);
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
     render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('상세 삭제 실패');
+    expect(await screen.findByRole('alert')).toHaveTextContent(message);
     expect(onBack).not.toHaveBeenCalled();
     expect(onPostDeleted).not.toHaveBeenCalled();
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
