@@ -1,5 +1,6 @@
 import { getApiBaseUrl } from '@/lib/api-base';
 import { ApiError, apiRequest } from '@/lib/api-client';
+import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
 import {
   BLOCKED_ACCOUNT_MESSAGE,
   isBlockedAccountResponse,
@@ -95,7 +96,7 @@ export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser>
     toError: ({ reason, status, message }) =>
       reason === 'blocked'
         ? new BlockedAccountError()
-        : new ApiError(message ?? '사용자 정보를 가져올 수 없습니다.', status),
+        : new ApiError(message ?? '사용자 정보를 가져올 수 없습니다.', status, reason),
   });
 
   if (isBlockedAccountStatus((me as { status?: unknown } | null)?.status)) {
@@ -104,7 +105,7 @@ export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser>
 
   const user = toAuthUser(me, base);
   if (!user) {
-    throw new ApiError('사용자 정보를 확인할 수 없습니다.', 200);
+    throw new ApiError('사용자 정보를 확인할 수 없습니다.', 200, 'invalid-response');
   }
 
   return user;
@@ -164,12 +165,19 @@ export async function loginWithPassword(handle: string, password: string): Promi
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();
 
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ handle, password }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ handle, password }),
+    });
+  } catch (error) {
+    assertCurrentAuthGeneration(generation);
+    if (isAbortError(error)) throw error;
+    throw new Error(getPublicRequestErrorMessage(error, '로그인에 실패했습니다.'));
+  }
   const body = await response.json().catch(() => null);
   assertCurrentAuthGeneration(generation);
 
@@ -201,12 +209,19 @@ export async function completeSocialSignup(params: {
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();
 
-  const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/social-signup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ ...params, agreedToTerms: true, agreedToPrivacy: true }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/v1/auth/social-signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ...params, agreedToTerms: true, agreedToPrivacy: true }),
+    });
+  } catch (error) {
+    assertCurrentAuthGeneration(generation);
+    if (isAbortError(error)) throw error;
+    throw new Error(getPublicRequestErrorMessage(error, '소셜 회원가입에 실패했습니다.'));
+  }
   const body = await response.json().catch(() => null);
   assertCurrentAuthGeneration(generation);
 

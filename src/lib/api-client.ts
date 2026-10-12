@@ -10,32 +10,42 @@ import {
 } from '@/lib/auth-store';
 import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
 
+export type ApiFailureReason =
+  // 사용할 토큰이 없어 세션이 종료됨
+  | 'unauthenticated'
+  // 차단 계정으로 세션이 종료됨
+  | 'blocked'
+  // 네트워크·5xx·429·응답 형식 문제로 refresh 실패
+  | 'unavailable'
+  // 그 밖의 HTTP 오류. 최종 401은 세션 종료
+  | 'http'
+  // 성공 응답에 필요한 API envelope가 없음
+  | 'invalid-response';
+
+export const AUTH_REQUIRED_MESSAGE = '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.';
+
 export class ApiError extends Error {
   constructor(
     message: string,
     public readonly status: number,
+    public readonly reason: ApiFailureReason = 'http',
   ) {
     super(message);
     this.name = 'ApiError';
   }
 }
 
-export type ApiFailureReason =
-  // 쓸 수 있는 토큰이 없다(refresh 거절, 같은 세션의 다른 요청이 세션을 종료). 세션은 종료됐다.
-  | 'unauthenticated'
-  // 차단 계정. 세션은 종료됐고 message는 BLOCKED_ACCOUNT_MESSAGE다.
-  | 'blocked'
-  // refresh의 네트워크 오류·5xx·429·형식 오류. 세션은 유지된다. status 0은 응답 없음.
-  | 'unavailable'
-  // 그 밖의 오류 응답. status가 401(재시도 후 최종 401)이면 세션은 종료됐다.
-  | 'http'
-  // 성공 응답에 ApiResponse envelope가 없다.
-  | 'invalid-response';
-
 export interface ApiFailure {
   reason: ApiFailureReason;
   status: number;
   message: string | null;
+}
+
+export function isAuthError(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError &&
+    (error.status === 401 || error.reason === 'unauthenticated' || error.reason === 'blocked')
+  );
 }
 
 export type ApiRequestOptions = Omit<RequestInit, 'headers'> & {
@@ -89,6 +99,13 @@ function createAuthSession({ toError }: ApiClientConfig, signal?: AbortSignal | 
 
   const refresh = async () => {
     const result = await refreshAccessTokenResult(generation);
+    // refresh가 같은 세션을 이미 종료했어도 차단 사유를 일반 인증 만료로 덮어쓰지 않는다.
+    if (result.status === 'rejected' && result.blocked) {
+      if (!isExpiredAuthGeneration(generation)) {
+        ensureCurrent();
+      }
+      return endSession(() => fail('blocked', result.httpStatus ?? 403, BLOCKED_ACCOUNT_MESSAGE));
+    }
     ensureCurrent();
 
     switch (result.status) {
@@ -130,6 +147,12 @@ async function sendAuthorized(
       ...options,
       headers,
       credentials: 'include',
+    }).catch((error: unknown) => {
+      session.ensureCurrent();
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      throw session.fail('unavailable', 0);
     });
     const body = await readBody(response);
     session.ensureCurrent();

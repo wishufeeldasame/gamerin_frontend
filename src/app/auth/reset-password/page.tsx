@@ -10,18 +10,10 @@ import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { useAuth } from '@/app/context/AuthContext';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { PASSWORD_MAX_LENGTH, validatePassword } from '@/lib/auth-validation';
-
-async function readErrorMessage(response: Response, fallback: string) {
-  const contentType = response.headers.get('content-type') ?? '';
-
-  if (contentType.includes('application/json')) {
-    const data = await response.json().catch(() => null);
-    return data?.message || data?.error || fallback;
-  }
-
-  const text = await response.text().catch(() => '');
-  return text.trim() || fallback;
-}
+import {
+  getPublicRequestErrorMessage,
+  readPublicResponseErrorMessage,
+} from '@/lib/public-request-error';
 
 function ResetPasswordPageContent() {
   const router = useRouter();
@@ -90,7 +82,7 @@ function ResetPasswordPageContent() {
 
       if (!response.ok) {
         throw new Error(
-          await readErrorMessage(
+          await readPublicResponseErrorMessage(
             response,
             '비밀번호 변경에 실패했습니다.'
           )
@@ -100,9 +92,7 @@ function ResetPasswordPageContent() {
       logout({ redirectTo: null });
       setIsSuccess(true);
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : '비밀번호 변경에 실패했습니다.'
-      );
+      setError(getPublicRequestErrorMessage(error, '비밀번호 변경에 실패했습니다.'));
     } finally {
       setIsSubmitting(false);
     }

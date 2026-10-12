@@ -63,6 +63,19 @@ describe('인증 흐름 화면의 API 주소', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/login`, expect.anything()));
   });
 
+  it('로그인 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    render(<LoginPage />);
+
+    fireEvent.click(screen.getByRole('button', { name: /ID로 로그인/ }));
+    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호'), { target: { value: 'pw' } });
+    fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+    expect(await screen.findByText('로그인에 실패했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
+  });
+
   it('회원가입은 생년월일 없이 다음 단계로 가고 요청 시점의 API 주소로 보낸다', async () => {
     render(<LoginPage />);
     applyRequestTimeApi();
@@ -90,6 +103,33 @@ describe('인증 흐름 화면의 API 주소', () => {
     });
   });
 
+  it('회원가입 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async () => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('NetworkError when attempting to fetch resource.'));
+    render(<LoginPage />);
+    openSignupStep2();
+
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcd123!' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
+    fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
+
+    expect(await screen.findByText('회원가입에 실패했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText('NetworkError when attempting to fetch resource.')).not.toBeInTheDocument();
+  });
+
+  it('회원가입 거절은 한국어 fallback보다 서버 message를 우선 안내한다', async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(409, { success: false, message: '이미 사용 중인 아이디입니다.' }));
+    render(<LoginPage />);
+    openSignupStep2();
+
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcd123!' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
+    fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
+
+    expect(await screen.findByText('이미 사용 중인 아이디입니다.')).toBeInTheDocument();
+  });
+
   it('OAuth 성공 화면은 마운트 시점의 API 주소로 refresh한다', async () => {
     applyRequestTimeApi();
     render(<OAuthSuccessPage />);
@@ -107,6 +147,20 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/social-signup`, expect.anything()));
+  });
+
+  it('소셜 가입 전 네트워크 TypeError는 재제출 가능한 한국어 오류로 안내한다', async () => {
+    jsdom.reconfigure({ url: 'http://localhost:3000/auth/social/complete#signupToken=signup-token' });
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    render(<SocialCompletePage />);
+
+    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
+    fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
+
+    expect(await screen.findByText('소셜 회원가입에 실패했습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '회원가입 완료' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '로그인 화면으로 이동' })).not.toBeInTheDocument();
   });
 
   it('로그인은 Enter(폼 제출)로 보내고 자동 완성 속성을 가진다', async () => {

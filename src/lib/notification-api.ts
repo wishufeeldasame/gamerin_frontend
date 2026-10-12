@@ -1,5 +1,5 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
-import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import { toNumber } from '@/lib/coerce';
 import type { CursorPage } from '@/types/api';
 
@@ -49,15 +49,14 @@ export interface UnreadNotificationCount {
   unreadCount: number;
 }
 
-function createAuthError() {
-  return new Error('Authentication is required or the token has expired.');
-}
-
 const NOTIFICATION_CLIENT: ApiClientConfig = {
-  toError: ({ reason, status, message }) =>
-    reason === 'unauthenticated' || (reason === 'http' && status === 401)
-      ? createAuthError()
-      : new Error(message ?? 'Notification request failed.'),
+  toError: ({ reason, status, message }) => new ApiError(
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
+      : '알림 요청을 처리하지 못했습니다.'),
+    status,
+    reason,
+  ),
 };
 
 function normalizeActor(actor: NotificationActor | null): NotificationActor | null {

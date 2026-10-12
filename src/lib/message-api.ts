@@ -2,6 +2,8 @@ import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store
 import { getApiBaseUrl } from '@/lib/api-base';
 import { isApiOriginUrl, toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
+  ApiError,
+  AUTH_REQUIRED_MESSAGE,
   type ApiClientConfig,
   type ApiRequestOptions,
   apiRequest,
@@ -21,26 +23,26 @@ import {
 
 const MESSAGE_BASE = '/api/v1/messages';
 
-function createMessageAuthError() {
-  return new Error('Authentication is required or the token has expired.');
-}
-
-function isAuthFailure({ reason, status }: { reason: string; status: number }) {
-  return reason === 'unauthenticated' || (reason === 'http' && status === 401);
-}
-
 const MESSAGE_CLIENT: ApiClientConfig = {
-  toError: (failure) =>
-    isAuthFailure(failure)
-      ? createMessageAuthError()
-      : new Error(failure.message ?? 'Message request failed.'),
+  toError: ({ reason, status, message }) =>
+    new ApiError(
+      message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+        ? AUTH_REQUIRED_MESSAGE
+        : '메시지 요청을 처리하지 못했습니다.'),
+      status,
+      reason,
+    ),
 };
 
 const MESSAGE_ATTACHMENT_CLIENT: ApiClientConfig = {
-  toError: (failure) =>
-    isAuthFailure(failure)
-      ? createMessageAuthError()
-      : new Error('Message attachment request failed.'),
+  toError: ({ reason, status, message }) =>
+    new ApiError(
+      message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+        ? AUTH_REQUIRED_MESSAGE
+        : '메시지 첨부 파일을 불러오지 못했습니다.'),
+      status,
+      reason,
+    ),
 };
 
 type ConversationPayload = {
@@ -141,7 +143,7 @@ function messageRequest<T>(path: string, options: ApiRequestOptions = {}): Promi
 export async function fetchMessageAttachmentBlob(url: string) {
   const attachmentUrl = toAbsoluteAssetUrl(url);
   if (!attachmentUrl) {
-    throw new Error('Message attachment request failed.');
+    throw new ApiError('메시지 첨부 파일을 불러오지 못했습니다.', 0, 'unavailable');
   }
 
   if (isApiOriginUrl(attachmentUrl)) {
@@ -153,24 +155,12 @@ export async function fetchMessageAttachmentBlob(url: string) {
   const response = await fetch(attachmentUrl, { credentials: 'omit' }).catch(() => null);
   assertCurrentAuthGeneration(generation);
   if (!response?.ok) {
-    throw new Error('Message attachment request failed.');
+    throw new ApiError('메시지 첨부 파일을 불러오지 못했습니다.', 0, 'unavailable');
   }
 
   const blob = await response.blob();
   assertCurrentAuthGeneration(generation);
   return blob;
-}
-
-export function isMessageAuthError(error: unknown) {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes('로그인이 필요') ||
-    message.includes('인증') ||
-    message.includes('토큰') ||
-    message.includes('authentication') ||
-    message.includes('token')
-  );
 }
 
 export async function fetchConversationList() {

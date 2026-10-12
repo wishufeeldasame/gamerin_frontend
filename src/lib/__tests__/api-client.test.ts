@@ -88,6 +88,20 @@ describe('apiRequest 401 처리', () => {
   });
 });
 
+describe('isAuthError', () => {
+  it('401 status, unauthenticated reason, blocked reason을 인증 오류로 판별한다', () => {
+    expect(client.isAuthError(new client.ApiError('expired', 401))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('expired', 403, 'unauthenticated'))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('blocked', 403, 'blocked'))).toBe(true);
+  });
+
+  it('일반 Error와 인증이 아닌 ApiError는 인증 오류로 판별하지 않는다', () => {
+    expect(client.isAuthError(new Error('로그인이 필요합니다.'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('forbidden', 403, 'http'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('temporary', 503, 'unavailable'))).toBe(false);
+  });
+});
+
 describe('일시 장애에서 세션 유지', () => {
   it.each([500, 503, 429])('보호 API의 %i 응답은 요청 실패만 전달한다', async (status) => {
     api.route('/api/v1/items', () => json(status, { message: 'busy' }));
@@ -103,13 +117,17 @@ describe('일시 장애에서 세션 유지', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('보호 API의 네트워크 오류는 그대로 전달하고 세션을 유지한다', async () => {
+  it('보호 API의 네트워크 오류는 unavailable로 전달하고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    await expect(client.apiRequest('/api/v1/items', config)).rejects.toBeInstanceOf(TypeError);
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      reason: 'unavailable', status: 0, message: 'unavailable',
+    });
     expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
   it.each([
@@ -196,6 +214,21 @@ describe('동시 요청', () => {
 });
 
 describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
+  it('사용자 전환 뒤 이전 요청의 네트워크 실패는 AbortError로 폐기한다', async () => {
+    let reject!: (reason: unknown) => void;
+    const late = new Promise<Response>((_resolve, fail) => { reject = fail; });
+    api.route('/api/v1/items', () => late);
+    const request = client.apiRequest('/api/v1/items', config);
+    await flush();
+    store.setAccessToken('token-new-user');
+    reject(new TypeError('Failed to fetch'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(toError).not.toHaveBeenCalled();
+    expect(store.getAccessToken()).toBe('token-new-user');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it.each([
     ['성공', () => json(200, { data: 'old-user-data' })],
     ['401', () => json(401, {})],
@@ -367,6 +400,20 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
 });
 
 describe('403과 차단 계정', () => {
+  it.each([401, 403, 423])('refresh에서 차단된 계정의 %i와 차단 사유를 보존한다', async (status) => {
+    api.route('/api/v1/items', () => json(401, {}));
+    api.route('/api/v1/auth/refresh', () => json(status, { message: '정지된 계정입니다.' }));
+
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      status, reason: 'blocked',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+    });
+    expect(api.count('/api/v1/items')).toBe(1);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+    expect(store.getAccessToken()).toBeNull();
+  });
+
   it('일반 403은 권한 오류로 끝내고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => json(403, { message: '권한이 없습니다.' }));
 

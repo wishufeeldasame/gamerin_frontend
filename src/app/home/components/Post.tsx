@@ -248,7 +248,7 @@ export function Post({
         }
       });
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
     } finally {
       deleteLockRef.current = false;
       setDeleting(false);

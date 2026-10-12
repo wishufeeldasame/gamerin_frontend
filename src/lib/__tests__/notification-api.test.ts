@@ -7,6 +7,7 @@ vi.mock('@/lib/api-base', () => ({
 
 let store: typeof import('@/lib/auth-store');
 let notifications: typeof import('@/lib/notification-api');
+let client: typeof import('@/lib/api-client');
 let api: ReturnType<typeof installFetchRoutes>;
 
 const UNREAD = '/api/v1/notifications/unread-count';
@@ -19,10 +20,24 @@ beforeEach(async () => {
   api = installFetchRoutes();
   store = await import('@/lib/auth-store');
   notifications = await import('@/lib/notification-api');
+  client = await import('@/lib/api-client');
   store.setAccessToken('token-a');
 });
 
 describe('notification-api', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route(UNREAD, () => { throw new TypeError('Failed to fetch'); });
+
+    const error = await notifications.fetchUnreadNotificationCount().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(client.ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '알림 요청을 처리하지 못했습니다.',
+    });
+    expect(client.isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('헤더 폴링과 패널 조회가 함께 만료되면 refresh를 공유하고 각각 한 번씩만 다시 보낸다', async () => {
     const refresh = deferred<Response>();
     api.route(UNREAD, () => json(401, {}), () => json(200, { success: true, data: { unreadCount: 3 } }));
@@ -54,8 +69,12 @@ describe('notification-api', () => {
     for (const result of results) {
       expect(result).toMatchObject({
         status: 'rejected',
-        reason: { message: 'Authentication is required or the token has expired.' },
+        reason: {
+          name: 'ApiError', status: 401, reason: 'unauthenticated',
+          message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+        },
       });
+      expect(client.isAuthError((result as PromiseRejectedResult).reason)).toBe(true);
     }
     expect(api.count('/api/v1/auth/logout')).toBe(1);
     expect(store.getAccessToken()).toBeNull();
@@ -65,8 +84,12 @@ describe('notification-api', () => {
     api.route(UNREAD, () => json(503, {}));
     api.route('/api/v1/notifications/read-all', () => json(500, { message: '읽음 처리 실패' }));
 
-    await expect(notifications.fetchUnreadNotificationCount()).rejects.toThrow('Notification request failed.');
-    await expect(notifications.markAllNotificationsRead()).rejects.toThrow('읽음 처리 실패');
+    await expect(notifications.fetchUnreadNotificationCount()).rejects.toMatchObject({
+      name: 'ApiError', status: 503, reason: 'http', message: '알림 요청을 처리하지 못했습니다.',
+    });
+    await expect(notifications.markAllNotificationsRead()).rejects.toMatchObject({
+      name: 'ApiError', status: 500, reason: 'http', message: '읽음 처리 실패',
+    });
     expect(store.getAccessToken()).toBe('token-a');
   });
 

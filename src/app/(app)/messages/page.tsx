@@ -23,13 +23,13 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { isAuthError } from '@/lib/api-client';
 import {
   createConversation,
   deleteConversationMessage,
   fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
-  isMessageAuthError,
   leaveConversation,
   markConversationRead,
   openMessageEventSource,
@@ -590,7 +590,6 @@ export default function MessagesPage() {
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
-  const [, setIsAuthError] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -739,7 +738,6 @@ export default function MessagesPage() {
       const data = await fetchConversationList();
       setConversations(data);
       setPageError('');
-      setIsAuthError(false);
       setActiveConversationId((current) => {
         if (current && data.some((conversation) => conversation.id === current)) {
           return current;
@@ -749,7 +747,6 @@ export default function MessagesPage() {
       });
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (!options?.silent) {
         setLoadingConversations(false);
@@ -782,10 +779,8 @@ export default function MessagesPage() {
         [conversationId]: page.hasNext,
       }));
       setPageError('');
-      setIsAuthError(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (options?.cursor) {
         setLoadingOlderMessages(false);
@@ -862,11 +857,7 @@ export default function MessagesPage() {
           )
         );
         invalidateNotifications('conversation-read');
-      } catch (error) {
-        if (isMessageAuthError(error)) {
-          setIsAuthError(true);
-        }
-      }
+      } catch {}
     };
 
     void markRead();
@@ -946,8 +937,7 @@ export default function MessagesPage() {
         };
       } catch (error) {
         if (!cancelled) {
-          const authError = isMessageAuthError(error);
-          setIsAuthError(authError);
+          const authError = isAuthError(error);
           if (authError) {
             setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
           } else {
@@ -1043,7 +1033,6 @@ export default function MessagesPage() {
       setPageError('');
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     }
   };
 
@@ -1102,7 +1091,6 @@ export default function MessagesPage() {
       } catch (error) {
         requestedRecipientRef.current = '';
         setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-        setIsAuthError(isMessageAuthError(error));
       }
     };
 
@@ -1147,7 +1135,6 @@ export default function MessagesPage() {
       void loadConversations({ silent: true });
     } catch (error) {
       setComposerError(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       setSending(false);
     }
@@ -1181,7 +1168,6 @@ export default function MessagesPage() {
       void loadMessages(activeConversation.id, { silent: true });
     } catch (error) {
       setComposerError(error instanceof Error ? error.message : '메시지 삭제에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
@@ -1220,7 +1206,6 @@ export default function MessagesPage() {
       setMessageActionLoading(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화방 나가기에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
