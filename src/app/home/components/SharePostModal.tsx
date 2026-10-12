@@ -176,7 +176,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="이름 또는 핸들 검색"
-              className="h-12 w-full rounded-2xl border border-zinc-100 bg-zinc-50 pl-11 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
+              className="h-12 w-full rounded-2xl border border-zinc-100 bg-zinc-50 pl-11 pr-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
             />
           </div>
 
@@ -240,11 +240,11 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             onChange={(event) => setMessage(event.target.value)}
             placeholder="메시지 추가..."
             rows={3}
-            className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black"
+            className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
 
           {errorMessage ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
               {errorMessage}
             </div>
           ) : null}
@@ -253,7 +253,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             type="button"
             onClick={() => void handleSend()}
             disabled={!canSend}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-neutral-800"
           >
             {sent ? (
               <>

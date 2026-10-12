@@ -20,7 +20,7 @@ const descriptionClassName = 'text-[16px] font-medium leading-relaxed text-zinc-
 export function AuthPageShell({ title, description, icon, back, children }: AuthPageShellProps) {
   return (
     <div className="flex min-h-screen bg-white font-sans text-black">
-      <div className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center">
+      <div className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center dark:border-neutral-800 dark:bg-neutral-900">
         <div className="relative flex h-80 w-80 items-center justify-center">
           <Image
             src="/logo.png"

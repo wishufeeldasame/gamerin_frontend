@@ -185,7 +185,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/70' : 'text-zinc-300'}`}>
             <RelativeTime createdAt={conversation.updatedAt} />
           </span>
           {conversation.unreadCount > 0 ? (
@@ -540,7 +540,7 @@ function MessageBubble({
         </div>
 
         <div
-          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
+          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 dark:text-zinc-400 ${
             mine ? 'justify-end' : 'justify-start'
           }`}
         >
@@ -1370,7 +1370,7 @@ export default function MessagesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="대화 또는 사용자 검색"
-              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black"
+              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
             />
           </label>
         </div>
@@ -1429,13 +1429,13 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
+        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-neutral-950 ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-neutral-900/95">
               <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
@@ -1691,7 +1691,7 @@ export default function MessagesPage() {
                   maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
-                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
+                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
                 />
                 <span
                   className={`shrink-0 text-xs font-bold ${
@@ -1703,7 +1703,7 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={(!message.trim() && attachments.length === 0) || sending}
-                  className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100"
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
                   aria-label="메시지 전송"
                 >
                   {sending ? (

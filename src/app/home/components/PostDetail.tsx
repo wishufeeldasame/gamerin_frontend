@@ -695,7 +695,7 @@ export function PostDetail({
                   }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
-                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
+                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
                   rows={3}
                 />
                 <span
@@ -709,7 +709,7 @@ export function PostDetail({
                   type="submit"
                   aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
                 >
                   <Send size={18} />
                 </button>
