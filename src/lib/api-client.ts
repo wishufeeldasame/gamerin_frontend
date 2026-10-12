@@ -140,6 +140,12 @@ async function sendAuthorized(
       ...options,
       headers,
       credentials: 'include',
+    }).catch((error: unknown) => {
+      session.ensureCurrent();
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw error;
+      }
+      throw session.fail('unavailable', 0);
     });
     const body = await readBody(response);
     session.ensureCurrent();

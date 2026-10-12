@@ -117,13 +117,17 @@ describe('일시 장애에서 세션 유지', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('보호 API의 네트워크 오류는 그대로 전달하고 세션을 유지한다', async () => {
+  it('보호 API의 네트워크 오류는 unavailable로 전달하고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    await expect(client.apiRequest('/api/v1/items', config)).rejects.toBeInstanceOf(TypeError);
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      reason: 'unavailable', status: 0, message: 'unavailable',
+    });
     expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
   it.each([
@@ -210,6 +214,21 @@ describe('동시 요청', () => {
 });
 
 describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
+  it('사용자 전환 뒤 이전 요청의 네트워크 실패는 AbortError로 폐기한다', async () => {
+    let reject!: (reason: unknown) => void;
+    const late = new Promise<Response>((_resolve, fail) => { reject = fail; });
+    api.route('/api/v1/items', () => late);
+    const request = client.apiRequest('/api/v1/items', config);
+    await flush();
+    store.setAccessToken('token-new-user');
+    reject(new TypeError('Failed to fetch'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(toError).not.toHaveBeenCalled();
+    expect(store.getAccessToken()).toBe('token-new-user');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it.each([
     ['성공', () => json(200, { data: 'old-user-data' })],
     ['401', () => json(401, {})],

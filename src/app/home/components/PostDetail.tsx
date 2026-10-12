@@ -349,7 +349,7 @@ export function PostDetail({
         }
       });
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '댓글을 삭제하지 못했습니다.');
     } finally {
       deleteCommentLockRef.current = false;
       setDeletingCommentId(null);
@@ -429,7 +429,7 @@ export function PostDetail({
       if (onPostDeleted) onPostDeleted(submittedPostId);
       else onBack();
     } catch (deleteError) {
-      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
     } finally {
       if (isCurrent()) {
         deletePostLockRef.current = false;

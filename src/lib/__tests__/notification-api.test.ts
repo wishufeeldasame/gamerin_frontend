@@ -25,6 +25,19 @@ beforeEach(async () => {
 });
 
 describe('notification-api', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route(UNREAD, () => { throw new TypeError('Failed to fetch'); });
+
+    const error = await notifications.fetchUnreadNotificationCount().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(client.ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '알림 요청을 처리하지 못했습니다.',
+    });
+    expect(client.isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('헤더 폴링과 패널 조회가 함께 만료되면 refresh를 공유하고 각각 한 번씩만 다시 보낸다', async () => {
     const refresh = deferred<Response>();
     api.route(UNREAD, () => json(401, {}), () => json(200, { success: true, data: { unreadCount: 3 } }));

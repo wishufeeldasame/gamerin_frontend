@@ -24,6 +24,19 @@ beforeEach(async () => {
 });
 
 describe('community-search-api', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route(OVERVIEW, () => { throw new TypeError('Failed to fetch'); });
+
+    const error = await search.fetchSearchOverview('demo').catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(client.ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '커뮤니티 검색 요청을 처리하지 못했습니다.',
+    });
+    expect(client.isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('backend 계정 응답의 id를 userId로 옮기고 프로필 이미지 주소를 요청 시점 base URL로 만든다', async () => {
     api.route(ACCOUNTS, () => json(200, {
       success: true,

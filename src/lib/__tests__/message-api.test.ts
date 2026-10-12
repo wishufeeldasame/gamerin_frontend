@@ -34,6 +34,19 @@ beforeEach(async () => {
 });
 
 describe('message-api 요청', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route('/api/v1/messages/conversations', () => { throw new TypeError('Failed to fetch'); });
+
+    const error = await message.fetchConversationList().catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(client.ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '메시지 요청을 처리하지 못했습니다.',
+    });
+    expect(client.isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('최종 401은 공통 인증 오류와 상태 정보를 보존한다', async () => {
     api.route('/api/v1/messages/conversations', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));

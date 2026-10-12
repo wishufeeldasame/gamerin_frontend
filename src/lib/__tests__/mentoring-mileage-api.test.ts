@@ -27,6 +27,18 @@ beforeEach(async () => {
 });
 
 describe('mentoring-api', () => {
+  it('네트워크 실패는 한국어 오류로 전달하고 세션을 유지한다', async () => {
+    api.route('/api/v1/mentoring/mentors/me', () => { throw new TypeError('Failed to fetch'); });
+    const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '멘토링 요청 처리에 실패했습니다.',
+    });
+    expect(isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+  });
+
   it('authRequired: false 조회는 토큰이 없어도 미리 refresh하지 않고 보낸다', async () => {
     store.removeAccessToken();
     api.route(PROGRAMS, () => json(200, { success: true, data: page }));
@@ -103,6 +115,19 @@ describe('mentoring-api', () => {
 });
 
 describe('mileage-api', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route('/api/v1/mileage/me/balance', () => { throw new TypeError('Failed to fetch'); });
+    const error = await mileage.fetchMyMileageBalance().catch((reason: unknown) => reason);
+
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '마일리지 요청을 처리하지 못했습니다.',
+    });
+    expect(isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('최종 401은 기존 인증 문구로 끝낸다', async () => {
     api.route('/api/v1/mileage/me/balance', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
