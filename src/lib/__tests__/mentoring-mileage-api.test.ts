@@ -27,6 +27,19 @@ beforeEach(async () => {
 });
 
 describe('mentoring-api', () => {
+  it.each(['', '   ', null])('빈 서버 메시지(%j)는 상태를 보존한 한국어 fallback으로 처리한다', async (message) => {
+    api.route('/api/v1/mentoring/mentors/me', () => json(500, { message }));
+    api.route('/api/v1/mentoring/programs/p-1', () => json(404, { message }));
+
+    await expect(mentoring.fetchMyMentorProfile()).rejects.toMatchObject({
+      status: 500, reason: 'http', message: '멘토링 요청 처리에 실패했습니다.',
+    });
+    await expect(mentoring.fetchMentoringProgramDetail('p-1')).rejects.toMatchObject({
+      status: 404, reason: 'http', message: '멘토링 정보를 찾을 수 없습니다.',
+    });
+    expect(store.getAccessToken()).toBe('token-a');
+  });
+
   it('네트워크 실패는 한국어 오류로 전달하고 세션을 유지한다', async () => {
     api.route('/api/v1/mentoring/mentors/me', () => { throw new TypeError('Failed to fetch'); });
     const error = await mentoring.fetchMyMentorProfile().catch((reason: unknown) => reason);
@@ -115,6 +128,15 @@ describe('mentoring-api', () => {
 });
 
 describe('mileage-api', () => {
+  it.each(['', '   ', null])('빈 서버 메시지(%j)는 상태를 보존한 한국어 fallback으로 처리한다', async (message) => {
+    api.route('/api/v1/mileage/charge', () => json(400, { message }));
+
+    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+      status: 400, reason: 'http', message: '마일리지 요청을 처리하지 못했습니다.',
+    });
+    expect(store.getAccessToken()).toBe('token-a');
+  });
+
   it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
     api.route('/api/v1/mileage/me/balance', () => { throw new TypeError('Failed to fetch'); });
     const error = await mileage.fetchMyMileageBalance().catch((reason: unknown) => reason);

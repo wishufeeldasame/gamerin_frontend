@@ -8,6 +8,7 @@ import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { useAuth } from '@/app/context/AuthContext';
 import { SignupCompletedError, completeSocialSignup } from '@/lib/auth-api';
+import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
 import {
   HANDLE_MAX_LENGTH,
   NICKNAME_MAX_LENGTH,
@@ -57,7 +58,7 @@ export default function SocialCompletePage() {
       // 가입 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
       if (err instanceof DOMException && err.name === 'AbortError') return;
       if (err instanceof SignupCompletedError) setAccountCreated(true);
-      setError(err instanceof Error ? err.message : '소셜 회원가입에 실패했습니다.');
+      setError(getPublicRequestErrorMessage(err, '소셜 회원가입에 실패했습니다.'));
     } finally {
       setLoading(false);
     }

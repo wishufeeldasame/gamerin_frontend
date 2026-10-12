@@ -67,6 +67,7 @@ vi.mock('@/lib/mentoring-api', () => ({
 vi.mock('@/lib/mileage-api', () => mileageApi);
 
 import MentoringPage from '../page';
+import { ApiError, type ApiFailureReason } from '@/lib/api-client';
 
 const application: MentoringApplicationResponse = {
   id: 'application-1',
@@ -134,6 +135,67 @@ function pageResponse<T>(content: T[]) {
     last: true,
   };
 }
+
+describe('MentoringPage error handling', () => {
+  beforeEach(() => {
+    Object.values(mentoringApi).forEach((mock) => mock.mockReset());
+    Object.values(mileageApi).forEach((mock) => mock.mockReset());
+    auth.userId = 'user-1';
+    navigation.searchParams = new URLSearchParams();
+    mentoringApi.fetchGames.mockResolvedValue(games);
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMenteeApplications.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMentorApplications.mockResolvedValue(pageResponse([]));
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue(null);
+    mileageApi.fetchMyMileageBalance.mockResolvedValue({ currentBalance: 50000 });
+    mileageApi.fetchMyMileageTransactions.mockResolvedValue(pageResponse([]));
+  });
+
+  it.each<[number, ApiFailureReason]>([
+    [401, 'http'], [0, 'unauthenticated'], [403, 'blocked'],
+  ])('문구 대신 status %s / reason %s로 로그인 안내를 표시한다', async (status, reason) => {
+    mentoringApi.fetchMentoringPrograms.mockRejectedValue(new ApiError('서버 안내입니다.', status, reason));
+    render(<MentoringPage />);
+
+    expect(await screen.findByText('인증 확인이 필요합니다')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다시 로그인' })).toBeInTheDocument();
+    expect(screen.getByText('서버 안내입니다.')).toBeInTheDocument();
+  });
+
+  it.each([403, 429, 500])('일반 %s 오류 문구에 인증이 포함돼도 로그인 안내로 분류하지 않는다', async (status) => {
+    mentoringApi.fetchMentoringPrograms.mockRejectedValue(new ApiError('인증 서버 요청을 처리하지 못했습니다.', status));
+    render(<MentoringPage />);
+
+    expect(await screen.findByText('인증 서버 요청을 처리하지 못했습니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다시 로그인' })).not.toBeInTheDocument();
+  });
+
+  it('백엔드 한국어 마일리지 부족 메시지는 충전 안내로 처리한다', async () => {
+    navigation.searchParams = new URLSearchParams('tab=mine');
+    mileageApi.fetchMyMileageBalance.mockRejectedValue(new ApiError('마일리지가 부족합니다. (현재 잔액: 0)', 400));
+    render(<MentoringPage />);
+
+    const dialog = await screen.findByRole('dialog', { name: '마일리지가 부족합니다' });
+    expect(within(dialog).getByRole('button', { name: '충전하기' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '다시 로그인' })).not.toBeInTheDocument();
+  });
+
+  it('리뷰 중복 서버 메시지는 완료 안내와 작성 상태에 반영한다', async () => {
+    navigation.searchParams = new URLSearchParams('tab=mine');
+    mentoringApi.fetchMenteeApplications.mockResolvedValue(pageResponse([{ ...application, reviewed: false }]));
+    mentoringApi.createMentoringReview.mockRejectedValue(new ApiError('이미 이 멘토링에 대한 리뷰를 작성했습니다.', 409));
+    const user = userEvent.setup();
+    render(<MentoringPage />);
+
+    await user.click(await screen.findByRole('button', { name: '리뷰 작성' }));
+    await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어주세요.'), '좋은 피드백이었습니다.');
+    await user.click(screen.getByRole('button', { name: '리뷰 등록' }));
+
+    expect(await screen.findByText('이미 리뷰 작성이 완료된 멘토링입니다.')).toBeInTheDocument();
+    expect(screen.getByText('리뷰 작성 완료')).toBeInTheDocument();
+    expect(mentoringApi.createMentoringReview).toHaveBeenCalledOnce();
+  });
+});
 
 describe('MentoringPage deep links', () => {
   beforeEach(() => {

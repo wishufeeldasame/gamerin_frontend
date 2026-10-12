@@ -20,7 +20,7 @@ export interface MileageTransactionResponse {
 const MILEAGE_CLIENT: ApiClientConfig = {
   envelope: 'optional',
   toError: ({ reason, status, message }) => new ApiError(
-    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+    (message?.trim() ? message : undefined) ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
       ? AUTH_REQUIRED_MESSAGE
       : '마일리지 요청을 처리하지 못했습니다.'),
     status,

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/lib/api-client';
 import type { Conversation } from '@/lib/message-store';
 import { formatAbsoluteTime } from '@/lib/time-format';
 
@@ -41,13 +42,39 @@ const conversation: Conversation = {
   updatedAt: '2026-10-06T15:05:00+09:00',
 };
 
+function createEventSource() {
+  return { addEventListener: vi.fn(), close: vi.fn() };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((nextResolve) => {
+    resolve = nextResolve;
+  });
+
+  return { promise, resolve };
+}
+
+async function flushAsyncWork() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
 describe('메시지 화면 표시와 기존 검색', () => {
   beforeEach(() => {
+    mocks.user = { id: 'viewer', handle: 'viewer' };
+    vi.useRealTimers();
     mocks.list.mockResolvedValue([conversation]);
     mocks.messages.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
     mocks.recipients.mockResolvedValue([conversation.recipient]);
-    mocks.stream.mockResolvedValue({ addEventListener: vi.fn(), close: vi.fn() });
+    mocks.stream.mockResolvedValue(createEventSource());
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('목록과 오프라인 헤더에 USER 대신 기존 핸들을 그대로 표시한다', async () => {
@@ -154,5 +181,113 @@ describe('메시지 화면 표시와 기존 검색', () => {
     fireEvent.click(await screen.findByRole('button', { name: /대화상대/ }));
     expect(await screen.findByText('접속 중')).toBeInTheDocument();
     expect(screen.queryByText('Online now')).not.toBeInTheDocument();
+  });
+});
+
+describe('메시지 화면 실시간 연결과 폴링 복구', () => {
+  beforeEach(() => {
+    mocks.user = { id: 'viewer', handle: 'viewer' };
+    mocks.list.mockResolvedValue([conversation]);
+    mocks.messages.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
+    mocks.recipients.mockResolvedValue([conversation.recipient]);
+    mocks.stream.mockResolvedValue(createEventSource());
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: vi.fn() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it.each([
+    new ApiError('authentication required', 401),
+    new ApiError('account blocked', 403, 'blocked'),
+  ])('인증 오류(%s)에서는 SSE 재연결 없이 안내한다', async (error) => {
+    vi.useFakeTimers();
+    mocks.stream.mockRejectedValue(error);
+
+    render(<MessagesPage />);
+
+    await flushAsyncWork();
+    expect(screen.getByText(error.message)).toBeInTheDocument();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    new ApiError('forbidden', 403, 'http'),
+    new ApiError('server error', 500, 'http'),
+    new ApiError('too many requests', 429, 'http'),
+    new ApiError('network unavailable', 0, 'unavailable'),
+    new Error('unexpected failure'),
+  ])('재시도 가능한 SSE 오류(%s)는 2초 뒤 다시 연결한다', async (error) => {
+    vi.useFakeTimers();
+    mocks.stream.mockRejectedValueOnce(error).mockResolvedValueOnce(createEventSource());
+
+    render(<MessagesPage />);
+
+    await flushAsyncWork();
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_000);
+    });
+    expect(mocks.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it('5초 폴링 실패 뒤에도 같은 대화를 재조회하고 성공 시 오류를 지운다', async () => {
+    vi.useFakeTimers();
+    mocks.messages
+      .mockResolvedValueOnce({ items: [], nextCursor: null, hasNext: false })
+      .mockRejectedValueOnce(new Error('polling failed'))
+      .mockResolvedValueOnce({
+        items: [{
+          id: 'recovered-message',
+          senderId: 'recipient-1',
+          text: 'polling recovered',
+          createdAt: conversation.updatedAt,
+          read: true,
+          deliveryStatus: 'sent' as const,
+          attachments: [],
+          sharedPost: null,
+        }],
+        nextCursor: null,
+        hasNext: false,
+      });
+
+    render(<MessagesPage />);
+    await flushAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: /대화상대/ }));
+    await flushAsyncWork();
+    expect(mocks.messages).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.getByText('polling failed')).toBeInTheDocument();
+    expect(mocks.messages).toHaveBeenLastCalledWith('conversation-1', undefined, 30);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_000);
+    });
+    expect(screen.getByText('polling recovered')).toBeInTheDocument();
+    expect(screen.queryByText('polling failed')).not.toBeInTheDocument();
+    expect(mocks.messages).toHaveBeenCalledTimes(3);
+  });
+
+  it('사용자 전환 후 늦게 완료된 이전 SSE 연결은 닫는다', async () => {
+    const pendingStream = deferred<ReturnType<typeof createEventSource>>();
+    const staleEventSource = createEventSource();
+    mocks.stream.mockReturnValueOnce(pendingStream.promise).mockResolvedValueOnce(createEventSource());
+
+    const { rerender } = render(<MessagesPage />);
+    await waitFor(() => expect(mocks.stream).toHaveBeenCalledTimes(1));
+
+    mocks.user = { id: 'next-viewer', handle: 'next-viewer' };
+    rerender(<MessagesPage />);
+    await waitFor(() => expect(mocks.stream).toHaveBeenCalledTimes(2));
+
+    pendingStream.resolve(staleEventSource);
+    await waitFor(() => expect(staleEventSource.close).toHaveBeenCalledTimes(1));
   });
 });

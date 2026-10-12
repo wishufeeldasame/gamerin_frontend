@@ -131,8 +131,9 @@ function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promis
       authRequired,
       envelope: 'optional',
       toError: ({ reason, status, message }) => {
+        const serverMessage = message?.trim() ? message : undefined;
         if (reason === 'http' && status === 404) {
-          return new MentoringApiError(message ?? '멘토링 정보를 찾을 수 없습니다.', status, reason);
+          return new MentoringApiError(serverMessage ?? '멘토링 정보를 찾을 수 없습니다.', status, reason);
         }
 
         const fallback = reason === 'unauthenticated' || reason === 'blocked' || status === 401
@@ -140,7 +141,7 @@ function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promis
           : authRequired
             ? '멘토링 요청 처리에 실패했습니다.'
             : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
-        return new MentoringApiError(message ?? fallback, status, reason);
+        return new MentoringApiError(serverMessage ?? fallback, status, reason);
       },
     },
     fetchOptions,
