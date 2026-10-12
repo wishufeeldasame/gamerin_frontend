@@ -368,7 +368,7 @@ describe('refreshAccessTokenResult의 거절 형태', () => {
   it('차단·비활성 계정 거절만 blocked: true를 담는다', async () => {
     api.route('/api/v1/auth/refresh', () => json(401, { message: '사용자 계정이 활성 상태가 아닙니다.' }));
 
-    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected', blocked: true });
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'rejected', blocked: true, httpStatus: 401 });
   });
 });
 

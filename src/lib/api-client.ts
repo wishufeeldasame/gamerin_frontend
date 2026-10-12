@@ -99,6 +99,13 @@ function createAuthSession({ toError }: ApiClientConfig, signal?: AbortSignal | 
 
   const refresh = async () => {
     const result = await refreshAccessTokenResult(generation);
+    // refresh가 같은 세션을 이미 종료했어도 차단 사유를 일반 인증 만료로 덮어쓰지 않는다.
+    if (result.status === 'rejected' && result.blocked) {
+      if (!isExpiredAuthGeneration(generation)) {
+        ensureCurrent();
+      }
+      return endSession(() => fail('blocked', result.httpStatus ?? 403, BLOCKED_ACCOUNT_MESSAGE));
+    }
     ensureCurrent();
 
     switch (result.status) {

@@ -400,6 +400,20 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
 });
 
 describe('403과 차단 계정', () => {
+  it.each([401, 403, 423])('refresh에서 차단된 계정의 %i와 차단 사유를 보존한다', async (status) => {
+    api.route('/api/v1/items', () => json(401, {}));
+    api.route('/api/v1/auth/refresh', () => json(status, { message: '정지된 계정입니다.' }));
+
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      status, reason: 'blocked',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+    });
+    expect(api.count('/api/v1/items')).toBe(1);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+    expect(store.getAccessToken()).toBeNull();
+  });
+
   it('일반 403은 권한 오류로 끝내고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => json(403, { message: '권한이 없습니다.' }));
 
