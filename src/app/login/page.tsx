@@ -175,7 +175,7 @@ export default function LoginPage() {
             <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
           </div>
 
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             GamerIN은 현재 개발 단계입니다. 이용 중 오류나 데이터 변경이 발생할 수 있습니다.
           </div>
 
@@ -218,7 +218,7 @@ export default function LoginPage() {
                   value={loginHandle}
                   onChange={(event) => setLoginHandle(event.target.value)}
                   placeholder="아이디"
-                  className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-black outline-none transition-colors focus:border-black"
+                  className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-black outline-none transition-colors focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                 />
                 <div className="relative">
                   <input
@@ -228,7 +228,7 @@ export default function LoginPage() {
                     value={loginPassword}
                     onChange={(event) => setLoginPassword(event.target.value)}
                     placeholder="비밀번호"
-                    className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 pr-12 text-black outline-none transition-colors focus:border-black"
+                    className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 pr-12 text-black outline-none transition-colors focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                   <button
                     type="button"
@@ -285,7 +285,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={resetSignup}
-              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black"
+              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
               aria-label="회원가입 닫기"
             >
               <X size={22} />
@@ -304,9 +304,9 @@ export default function LoginPage() {
                       onChange={(event) => setSignupName(event.target.value)}
                       placeholder="이름"
                       maxLength={NICKNAME_MAX_LENGTH}
-                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
+                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-zinc-400">
                       {signupName.length} / {NICKNAME_MAX_LENGTH}
                     </span>
                   </div>
@@ -322,7 +322,7 @@ export default function LoginPage() {
                     value={signupEmail}
                     onChange={(event) => setSignupEmail(event.target.value)}
                     placeholder="이메일"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black"
+                    className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                   {signupEmail && emailError ? (
                     <p className="ml-2 mt-2 text-sm text-red-500">{emailError}</p>
@@ -394,7 +394,7 @@ export default function LoginPage() {
                 <h2 className="mb-4 text-2xl font-extrabold text-black sm:text-3xl">
                   아이디와 비밀번호를 설정하세요.
                 </h2>
-                <p className="mb-10 text-base text-gray-600">
+                <p className="mb-10 text-base text-gray-600 dark:text-zinc-400">
                   로그인에 사용할 아이디와 비밀번호를 입력해주세요.
                 </p>
                 <div className="mb-5">
@@ -407,9 +407,9 @@ export default function LoginPage() {
                       onChange={(event) => setSignupId(event.target.value)}
                       placeholder="아이디 (영문 소문자, 숫자, _ 사용 가능)"
                       maxLength={HANDLE_MAX_LENGTH}
-                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black"
+                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-zinc-400">
                       {signupId.length} / {HANDLE_MAX_LENGTH}
                     </span>
                   </div>
@@ -426,7 +426,7 @@ export default function LoginPage() {
                     onChange={(event) => setSignupPassword(event.target.value)}
                     placeholder="비밀번호 (8~20자, 영문·숫자·특수문자 포함)"
                     maxLength={PASSWORD_MAX_LENGTH}
-                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
+                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d] ${
                       signupPassword.length > 0 && passwordError
                         ? 'border-red-500'
                         : 'border-gray-300 focus:border-black'
@@ -445,7 +445,7 @@ export default function LoginPage() {
                     onChange={(event) => setSignupPasswordConfirm(event.target.value)}
                     placeholder="비밀번호 확인"
                     maxLength={PASSWORD_MAX_LENGTH}
-                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none ${
+                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d] ${
                       signupPasswordConfirm.length > 0
                         ? signupPassword === signupPasswordConfirm
                           ? 'border-gray-300 focus:border-black'
@@ -457,7 +457,7 @@ export default function LoginPage() {
                 {signupPasswordConfirm.length > 0 ? (
                   <p
                     className={`mb-8 ml-2 text-sm ${
-                      signupPassword === signupPasswordConfirm ? 'text-green-600' : 'text-red-500'
+                      signupPassword === signupPasswordConfirm ? 'text-green-600 dark:text-green-400' : 'text-red-500'
                     }`}
                   >
                     {signupPassword === signupPasswordConfirm

@@ -64,7 +64,7 @@ export default function SettingsPage() {
               readOnly
               placeholder="제공되는 이메일 정보가 없습니다"
               aria-describedby="email-description"
-              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500"
+              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500 dark:placeholder:!text-zinc-400"
             />
             <span id="email-description" className="mt-1 block text-xs text-zinc-500">
               이메일 변경 기능은 제공되지 않습니다.
@@ -81,7 +81,7 @@ export default function SettingsPage() {
               readOnly
               placeholder="사용자 이름 정보가 없습니다"
               aria-describedby="handle-description"
-              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500"
+              className="w-full cursor-not-allowed rounded-lg border border-zinc-300 bg-zinc-100 px-4 py-2.5 text-zinc-500 dark:placeholder:!text-zinc-400"
             />
             <span id="handle-description" className="mt-1 block text-xs text-zinc-500">
               사용자 이름은 변경할 수 없습니다.
@@ -104,7 +104,7 @@ export default function SettingsPage() {
                 type="password"
                 value={passwordFields[key as keyof typeof passwordFields]}
                 onChange={(event) => setPasswordFields({ ...passwordFields, [key]: event.target.value })}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none"
+                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
               />
             </label>
           ))}
@@ -119,8 +119,8 @@ export default function SettingsPage() {
       </div>
 
       <div className="border-t border-zinc-200 pt-6">
-        <h3 className="mb-4 text-lg font-bold text-red-600">위험 영역</h3>
-        <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4">
+        <h3 className="mb-4 text-lg font-bold text-red-600 dark:text-red-300">위험 영역</h3>
+        <div className="rounded-lg border-2 border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/40">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h4 className="mb-1 font-bold text-black">계정 삭제</h4>
@@ -131,7 +131,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleDeleteAccount}
-              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-red-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-red-600"
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-red-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
             >
               <Trash2 className="h-4 w-4" />
               계정 삭제
@@ -204,7 +204,7 @@ export default function SettingsPage() {
                     aria-current={active ? 'page' : undefined}
                     onClick={() => setActiveSection(item.id)}
                     className={`flex w-full items-center justify-between rounded-lg px-4 py-3 transition-colors ${
-                      active ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-700 hover:bg-zinc-100'
+                      active ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-700 hover:bg-zinc-100 dark:hover:bg-neutral-800'
                     }`}
                   >
                     <span className="flex items-center gap-3">

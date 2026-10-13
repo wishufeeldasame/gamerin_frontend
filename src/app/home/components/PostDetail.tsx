@@ -503,7 +503,7 @@ export function PostDetail({
                 type="button"
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
@@ -520,7 +520,7 @@ export function PostDetail({
                         closeMenu();
                         setReportPostOpen(true);
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Flag size={15} />
                       게시물 신고
@@ -532,7 +532,7 @@ export function PostDetail({
                       type="button"
                       onClick={handleDeletePost}
                       disabled={deletingPost}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       {deletingPost ? '삭제 중...' : '삭제'}
                     </button>
@@ -541,7 +541,7 @@ export function PostDetail({
                   <button
                     type="button"
                     onClick={closeMenu}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
                   >
                     취소
                   </button>
@@ -627,7 +627,7 @@ export function PostDetail({
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
                 }`}
               >
-                <Bookmark size={22} className={bookmarked ? 'fill-black' : ''} />
+                <Bookmark size={22} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : ''} />
               </button>
             </div>
             <button
@@ -695,7 +695,7 @@ export function PostDetail({
                   }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
-                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
+                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
                   rows={3}
                 />
                 <span
@@ -709,7 +709,7 @@ export function PostDetail({
                   type="submit"
                   aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
                 >
                   <Send size={18} />
                 </button>
@@ -752,7 +752,7 @@ export function PostDetail({
                               current === comment.commentId ? null : comment.commentId
                             )
                           }
-                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
+                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
                           aria-label="댓글 메뉴"
                           ref={(element) => {
                             if (element) commentMenuButtonRefs.current.set(comment.commentId, element);
@@ -769,7 +769,7 @@ export function PostDetail({
                                 type="button"
                                 onClick={() => handleDeleteComment(comment)}
                                 disabled={deletingCommentId === comment.commentId}
-                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                               >
                                 {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
                               </button>
@@ -780,7 +780,7 @@ export function PostDetail({
                                   setCommentMenuOpenId(null);
                                   setReportComment(comment);
                                 }}
-                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                               >
                                 <Flag size={15} />
                                 댓글 신고
@@ -789,7 +789,7 @@ export function PostDetail({
                             <button
                               type="button"
                               onClick={() => setCommentMenuOpenId(null)}
-                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
                             >
                               취소
                             </button>

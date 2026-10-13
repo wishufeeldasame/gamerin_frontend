@@ -429,7 +429,7 @@ function SearchPageContent() {
               placeholder="사용자, 게시글, 해시태그 검색"
               aria-label="검색 페이지 검색"
               maxLength={100}
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100"
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:!text-zinc-400"
             />
             <button
               type="submit"
@@ -472,8 +472,8 @@ function SearchPageContent() {
               검색 결과를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-              <p className="font-black text-red-500">{error}</p>
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+              <p className="font-black text-red-500 dark:text-red-300">{error}</p>
               <button
                 type="button"
                 onClick={() => void reload()}

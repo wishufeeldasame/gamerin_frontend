@@ -16,7 +16,7 @@ interface AuthTextFieldProps extends InputHTMLAttributes<HTMLInputElement> {
   variant?: 'default' | 'reset';
 }
 
-const baseClassName = 'h-14 w-full rounded-2xl border bg-white font-semibold text-black outline-none transition-all';
+const baseClassName = 'h-14 w-full rounded-2xl border bg-white font-semibold text-black outline-none transition-all dark:placeholder:!text-zinc-400';
 
 export function AuthTextField({
   icon,
@@ -33,10 +33,10 @@ export function AuthTextField({
     ? 'placeholder:text-zinc-400'
     : 'text-[15px] placeholder:font-medium placeholder:text-zinc-400';
   const state = invalid
-    ? 'border-red-500 ring-1 ring-red-500'
+    ? 'border-red-500 ring-1 ring-red-500 dark:!border-red-400 dark:ring-red-400'
     : isReset
-      ? 'border-zinc-200 focus:border-black'
-      : 'border-zinc-200 focus:border-black focus:ring-1 focus:ring-black';
+      ? 'border-zinc-200 focus:border-black dark:focus:!border-[#f5b93d]'
+      : 'border-zinc-200 focus:border-black focus:ring-1 focus:ring-black dark:focus:!border-[#f5b93d] dark:focus:ring-[#f5b93d]';
 
   const input = (
     <input
@@ -52,7 +52,7 @@ export function AuthTextField({
   const iconTone = isReset
     ? 'text-zinc-400'
     : `transition-colors ${
-        highlightIconOnError && invalid ? 'text-red-500' : 'text-zinc-400 group-focus-within:text-black'
+        highlightIconOnError && invalid ? 'text-red-500 dark:text-red-400' : 'text-zinc-400 group-focus-within:text-black dark:group-focus-within:!text-[#f5b93d]'
       }`;
 
   return (

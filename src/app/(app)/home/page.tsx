@@ -137,7 +137,7 @@ function HomePageContent() {
   return (
     <div className="flex justify-center overflow-visible">
       <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-purple-500/30 dark:bg-purple-700">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -147,7 +147,7 @@ function HomePageContent() {
               onClick={() => handleTabChange(tab.value)}
               aria-pressed={activeTab === tab.value}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
+                activeTab === tab.value ? 'text-black dark:!text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:!text-white'
               }`}
             >
               {tab.label}
@@ -169,7 +169,7 @@ function HomePageContent() {
               피드를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           ) : posts.length === 0 ? (
@@ -212,7 +212,7 @@ function HomePageContent() {
                 <div
                   role="status"
                   aria-live="polite"
-                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-purple-200/70"
+                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-zinc-400"
                 >
                   게시물을 불러오는 중...
                 </div>
@@ -221,13 +221,13 @@ function HomePageContent() {
               {loadMoreError ? (
                 <div
                   role="alert"
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                 >
                   <span>{loadMoreError}</span>
                   <button
                     type="button"
                     onClick={() => void loadMore()}
-                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400"
+                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300 dark:hover:border-red-400"
                   >
                     다시 시도
                   </button>

@@ -180,7 +180,7 @@ export function Header() {
                 }}
                 placeholder="게임, 플레이어, 게시글 검색..."
                 aria-label="통합 검색"
-                className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:text-zinc-400"
+                className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:!text-zinc-400"
               />
             </form>
           </div>

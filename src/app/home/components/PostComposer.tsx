@@ -520,7 +520,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
             onKeyUp={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
             maxLength={MAX_POST_CONTENT_LENGTH}
             placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
-            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
+            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500 dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
           {activeHashtagQuery ? (
             <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-lg">
@@ -538,7 +538,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                       key={hashtag.hashtagId}
                       type="button"
                       onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
                     >
                       <span className="font-black text-zinc-900">#{hashtag.name}</span>
                       <span className="text-xs font-bold text-zinc-400">
@@ -564,7 +564,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
             value={externalLinkUrl}
             onChange={(event) => setExternalLinkUrl(event.target.value)}
             placeholder="외부 링크 URL"
-            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
+            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
 
           {videoPreviewUrl ? (
@@ -735,7 +735,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
               disabled={!canSubmit}
               onClick={handleSubmit}
               className={`inline-flex h-11 items-center justify-center rounded-2xl px-7 text-lg font-medium text-white transition ${
-                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
+                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-neutral-800 dark:text-zinc-500'
               }`}
             >
               {submitting ? '게시 중...' : '게시'}

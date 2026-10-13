@@ -19,8 +19,8 @@ const descriptionClassName = 'text-[16px] font-medium leading-relaxed text-zinc-
 // 좌측 로고 패널과 우측 폼 영역으로 나뉜 인증 화면의 공통 레이아웃.
 export function AuthPageShell({ title, description, icon, back, children }: AuthPageShellProps) {
   return (
-    <div className="flex min-h-screen bg-white font-sans text-black">
-      <div className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center">
+    <div className="flex min-h-screen bg-white font-sans text-black dark:[&_button:disabled]:!bg-neutral-800 dark:[&_button:disabled]:!text-zinc-400">
+      <div className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center dark:border-neutral-800 dark:bg-neutral-900">
         <div className="relative flex h-80 w-80 items-center justify-center">
           <Image
             src="/logo.png"
