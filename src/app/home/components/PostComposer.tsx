@@ -538,7 +538,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                       key={hashtag.hashtagId}
                       type="button"
                       onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
                     >
                       <span className="font-black text-zinc-900">#{hashtag.name}</span>
                       <span className="text-xs font-bold text-zinc-400">

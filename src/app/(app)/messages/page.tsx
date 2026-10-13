@@ -158,7 +158,7 @@ function ConversationCard({
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
           ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
-          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
+          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-neutral-800'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -249,7 +249,7 @@ function NewChatPicker({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black"
+          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
           aria-label="새 대화 닫기"
         >
           <X size={16} />
@@ -262,7 +262,7 @@ function NewChatPicker({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="이름 또는 핸들 검색"
-          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
+          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
         />
       </label>
 
@@ -272,7 +272,7 @@ function NewChatPicker({
           검색 중...
         </div>
       ) : errorMessage ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {errorMessage}
         </div>
       ) : recipients.length > 0 ? (
@@ -385,7 +385,7 @@ function AttachmentGrid({
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
           <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
-          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
+          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">{attachment.name}</p>
         </div>
       ))}
     </div>
@@ -492,7 +492,7 @@ function MessageBubble({
           name={recipientName}
           imageUrl={recipientImageUrl}
           sizes="32px"
-          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black"
+          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black dark:bg-neutral-700"
         />
       ) : null}
 
@@ -507,7 +507,7 @@ function MessageBubble({
                 type="button"
                 onClick={onDelete}
                 disabled={actionLoading}
-                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                 aria-label="메시지 삭제"
               >
                 <Trash2 size={16} className="-translate-x-[1px] shrink-0" />
@@ -531,7 +531,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500"
+              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-neutral-800"
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -1369,7 +1369,7 @@ export default function MessagesPage() {
           ) : null}
 
           {pageError ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {pageError}
             </div>
           ) : null}
@@ -1425,7 +1425,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
-                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden"
+                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-neutral-800"
                   aria-label="대화 목록으로 돌아가기"
                 >
                   <ArrowLeft size={22} />
@@ -1462,7 +1462,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setHeaderMenuOpen((current) => !current)}
-                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
                   aria-label="대화방 옵션"
                 >
                   <Ellipsis size={24} />
@@ -1473,7 +1473,7 @@ export default function MessagesPage() {
                       type="button"
                       onClick={() => void handleLeaveActiveConversation()}
                       disabled={messageActionLoading}
-                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Trash2 size={16} />
                       대화방 나가기
@@ -1562,7 +1562,7 @@ export default function MessagesPage() {
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-3 md:p-6">
               {composerError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   <CircleAlert size={16} className="shrink-0" />
                   <span>{composerError}</span>
                 </div>
@@ -1637,7 +1637,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
-                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200"
+                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-neutral-800"
                   aria-label="첨부 메뉴"
                 >
                   <Plus size={20} />
@@ -1647,7 +1647,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <ImagePlus size={18} />
                       사진 추가
@@ -1655,7 +1655,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <Video size={18} />
                       동영상 추가
@@ -1663,7 +1663,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={clearAttachments}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <X size={18} />
                       첨부 지우기

@@ -137,7 +137,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
             aria-label="닫기"
           >
             <X size={20} />

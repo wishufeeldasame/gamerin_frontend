@@ -169,7 +169,7 @@ function HomePageContent() {
               피드를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           ) : posts.length === 0 ? (
@@ -221,13 +221,13 @@ function HomePageContent() {
               {loadMoreError ? (
                 <div
                   role="alert"
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                 >
                   <span>{loadMoreError}</span>
                   <button
                     type="button"
                     onClick={() => void loadMore()}
-                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400"
+                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300 dark:hover:border-red-400"
                   >
                     다시 시도
                   </button>

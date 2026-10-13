@@ -135,6 +135,8 @@ async function mockApp(page: Page, theme: 'light' | 'dark') {
       postId: 'post-1', read: true, createdAt,
     }] };
     else if (path === '/api/v1/games') data = [];
+    // Recipient lookup can finish while the deliberately delayed share is pending.
+    else if (path === '/api/v1/messages/recipients') data = [];
     else if (path === '/api/v1/reports/reasons') data = [];
     else if (path.endsWith('/media')) data = cursor;
     await route.fulfill({ json: { success: true, data } });

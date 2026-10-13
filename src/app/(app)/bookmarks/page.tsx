@@ -217,7 +217,7 @@ export default function BookmarksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
@@ -336,8 +336,8 @@ export default function BookmarksPage() {
           북마크를 불러오는 중...
         </div>
       ) : error ? (
-        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-          <p className="font-black text-red-500">{error}</p>
+        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+          <p className="font-black text-red-500 dark:text-red-300">{error}</p>
           <button
             type="button"
             onClick={() => void reload()}

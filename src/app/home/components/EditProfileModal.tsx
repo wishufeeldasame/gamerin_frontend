@@ -247,7 +247,7 @@ export function EditProfileModal({
             <div className="flex items-center gap-4">
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black"
+                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black dark:hover:bg-neutral-800"
               >
                 <X size={24} />
               </button>

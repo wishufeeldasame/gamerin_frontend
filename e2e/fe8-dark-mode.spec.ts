@@ -94,6 +94,21 @@ async function capture(page: Page, info: TestInfo, name: string) {
 }
 
 for (const width of [390, 1440]) {
+  test.describe(`${width}px light toast colors`, () => {
+    test.use({ viewport: { width, height: 900 }, colorScheme: 'light' });
+    test('light toast leaves the password button default and hover colors unchanged', async ({ page }) => {
+      await mockApp(page, 'light'); await page.goto('/settings');
+      const button = page.getByRole('button', { name: '비밀번호 변경', exact: true });
+      await button.click();
+      await expect(page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' })).toBeVisible();
+      await page.mouse.move(0, 0);
+      await expect(button).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+      await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
+      await button.hover();
+      await expect(button).toHaveCSS('background-color', 'oklch(0.274 0.006 286.033)');
+      await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
+    });
+  });
   test.describe(`${width}px dark`, () => {
     test.use({ viewport: { width, height: 900 }, colorScheme: 'dark', timezoneId: 'Asia/Seoul' });
     test('home tabs, composer, notifications and menu', async ({ page }, info) => {
@@ -184,7 +199,8 @@ for (const width of [390, 1440]) {
       await mockApp(page, 'dark', true); await page.goto('/auth/forgot-password');
       const handle = page.getByPlaceholder('아이디 입력'); await handle.fill('viewer');
       await page.getByRole('button', { name: '비밀번호 재설정 메일 받기' }).click();
-      const error = page.getByText('요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.', { exact: true });
+      // FE-12 preserves the server message for public authentication failures.
+      const error = page.getByText('로그인이 필요합니다.', { exact: true });
       await expect(error).toBeVisible();
       await expect.poll(() => handle.evaluate(element => getComputedStyle(element).borderColor)).toBe('oklch(0.704 0.191 22.216)');
       expect(await contrast(error)).toBeGreaterThanOrEqual(4.5);

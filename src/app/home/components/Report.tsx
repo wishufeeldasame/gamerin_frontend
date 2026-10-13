@@ -163,7 +163,7 @@ export function ReportContentModal({
             type="button"
             onClick={onClose}
             aria-label="신고 모달 닫기"
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
           >
             <X size={18} />
           </button>
@@ -305,7 +305,7 @@ export function ReportContentModal({
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
                 aria-label="신고 확인 닫기"
-                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
               >
                 <X size={18} />
               </button>

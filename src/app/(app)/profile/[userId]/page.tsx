@@ -908,7 +908,7 @@ export default function ProfilePage() {
                         setPlatformInputs({ ...platformInputs, [platformId]: event.target.value })
                       }
                       placeholder={meta.placeholder}
-                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black"
+                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
                     <button
                       type="button"
@@ -930,7 +930,7 @@ export default function ProfilePage() {
   if (!currentUser || loading) {
     return (
       <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse font-black uppercase italic text-zinc-400">프로필을 불러오는 중...</p>
+        <p className="animate-pulse font-black uppercase italic text-zinc-400 dark:!text-zinc-100">프로필을 불러오는 중...</p>
       </div>
     );
   }
@@ -1033,7 +1033,7 @@ export default function ProfilePage() {
                           setProfileReportMenuOpen(false);
                           setProfileReportOpen(true);
                         }}
-                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                       >
                         <Flag size={15} />
                         사용자 신고
@@ -1041,7 +1041,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => setProfileReportMenuOpen(false)}
-                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
                       >
                         취소
                       </button>
@@ -1178,7 +1178,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => void handleRefreshStats()}
                     disabled={isRefreshing}
-                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
                     aria-label="연결된 게임 전적 새로고침"
                   >
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
@@ -1205,7 +1205,7 @@ export default function ProfilePage() {
                         {entry.detail ? (
                           <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
                         ) : null}
-                        <p className="mt-1 max-w-xl truncate text-base text-slate-600">{entry.summary}</p>
+                        <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
                       </div>
                     </div>
 
@@ -1215,7 +1215,7 @@ export default function ProfilePage() {
                         <button
                           type="button"
                           onClick={() => setDisconnectTarget(entry.disconnectGameName)}
-                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500"
+                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
                           aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
                         >
                           <Trash2 size={16} />
@@ -1358,7 +1358,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => setDisconnectTarget(null)}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
               >
                 취소
               </button>
@@ -1366,7 +1366,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => void handleDisconnectGame()}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800"
               >
                 {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
               </button>
@@ -1415,7 +1415,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={closeFollowList}
-                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
                 aria-label="닫기"
               >
                 <X size={20} />
@@ -1429,7 +1429,7 @@ export default function ProfilePage() {
                   사용자를 불러오는 중...
                 </div>
               ) : followListError ? (
-                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   {followListError}
                 </div>
               ) : followUsers.length === 0 ? (
@@ -1446,7 +1446,7 @@ export default function ProfilePage() {
                     return (
                       <div
                         key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50"
+                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
                       >
                         <Link
                           href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
