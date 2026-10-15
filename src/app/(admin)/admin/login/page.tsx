@@ -1,12 +1,6 @@
 import type { Metadata } from 'next';
-import { Noto_Sans_KR } from 'next/font/google';
 import { AdminLoginForm } from './_components/AdminLoginForm';
-
-const notoSansKr = Noto_Sans_KR({
-  subsets: ['latin'],
-  weight: ['400', '600', '700', '900'],
-  display: 'swap',
-});
+import { adminFont } from '../_components/admin-font';
 
 export const metadata: Metadata = {
   title: '관리자 로그인 | GamerIN',
@@ -16,7 +10,7 @@ export const metadata: Metadata = {
 export default function AdminLoginPage() {
   return (
     <main
-      className={`${notoSansKr.className} flex min-h-dvh items-center justify-center bg-[#f6f7f9] px-5 py-8 text-[#172033]`}
+      className={`${adminFont.className} flex min-h-dvh items-center justify-center bg-[#f6f7f9] px-5 py-8 text-[#172033]`}
     >
       <section className="w-full max-w-[440px]" aria-labelledby="admin-login-title">
         <header className="flex flex-col items-center gap-3 text-center">
