@@ -7,6 +7,7 @@ vi.mock('@/lib/api-base', () => ({
 
 let store: typeof import('@/lib/auth-store');
 let search: typeof import('@/lib/community-search-api');
+let client: typeof import('@/lib/api-client');
 let api: ReturnType<typeof installFetchRoutes>;
 
 const ACCOUNTS = '/api/v1/search/accounts?size=20&q=demo';
@@ -18,10 +19,24 @@ beforeEach(async () => {
   api = installFetchRoutes();
   store = await import('@/lib/auth-store');
   search = await import('@/lib/community-search-api');
+  client = await import('@/lib/api-client');
   store.setAccessToken('token-a');
 });
 
 describe('community-search-api', () => {
+  it('네트워크 실패는 한국어 ApiError로 전달하고 세션을 유지한다', async () => {
+    api.route(OVERVIEW, () => { throw new TypeError('Failed to fetch'); });
+
+    const error = await search.fetchSearchOverview('demo').catch((reason: unknown) => reason);
+    expect(error).toBeInstanceOf(client.ApiError);
+    expect(error).toMatchObject({
+      status: 0, reason: 'unavailable', message: '커뮤니티 검색 요청을 처리하지 못했습니다.',
+    });
+    expect(client.isAuthError(error)).toBe(false);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it('backend 계정 응답의 id를 userId로 옮기고 프로필 이미지 주소를 요청 시점 base URL로 만든다', async () => {
     api.route(ACCOUNTS, () => json(200, {
       success: true,
@@ -56,9 +71,9 @@ describe('community-search-api', () => {
     api.route(OVERVIEW, () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
 
-    await expect(search.fetchSearchOverview('demo')).rejects.toThrow(
-      'Authentication is required or the token has expired.',
-    );
+    const error = await search.fetchSearchOverview('demo').catch((reason: unknown) => reason);
+    expect(error).toMatchObject({ name: 'ApiError', status: 401, reason: 'unauthenticated' });
+    expect(client.isAuthError(error)).toBe(true);
     expect(store.getAccessToken()).toBeNull();
     expect(api.count('/api/v1/auth/logout')).toBe(1);
   });
@@ -67,14 +82,18 @@ describe('community-search-api', () => {
     api.route(OVERVIEW, () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(503, {}));
 
-    await expect(search.fetchSearchOverview('demo')).rejects.toThrow('Community search request failed.');
+    await expect(search.fetchSearchOverview('demo')).rejects.toMatchObject({
+      name: 'ApiError', status: 503, reason: 'unavailable', message: '커뮤니티 검색 요청을 처리하지 못했습니다.',
+    });
     expect(store.getAccessToken()).toBe('token-a');
   });
 
   it('서버 문구를 우선하고 5xx에서 세션을 유지한다', async () => {
     api.route(OVERVIEW, () => json(500, { message: '검색 서버 오류' }));
 
-    await expect(search.fetchSearchOverview('demo')).rejects.toThrow('검색 서버 오류');
+    await expect(search.fetchSearchOverview('demo')).rejects.toMatchObject({
+      name: 'ApiError', status: 500, reason: 'http', message: '검색 서버 오류',
+    });
     expect(store.getAccessToken()).toBe('token-a');
   });
 

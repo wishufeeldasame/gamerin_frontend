@@ -21,15 +21,15 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { isAuthError } from '@/lib/api-client';
 import {
   createConversation,
   deleteConversationMessage,
   fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
-  isMessageAuthError,
   leaveConversation,
   markConversationRead,
   openMessageEventSource,
@@ -43,11 +43,14 @@ import {
   Conversation,
   MessageRecipient,
   formatChatTime,
-  formatConversationTime,
+  formatMessageDate,
   getInitials,
   mergeMessages,
+  shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
 import { invalidateNotifications } from '@/lib/notification-sync';
+import MessageDateSeparator from './MessageDateSeparator';
+import { RelativeTime } from '@/app/home/components/RelativeTime';
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -155,7 +158,7 @@ function ConversationCard({
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
           ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
-          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
+          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-neutral-800'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -173,17 +176,17 @@ function ConversationCard({
               <HighlightedText text={conversation.recipient.name} query={query} />
             </p>
             <p
-              className={`truncate text-[11px] font-bold uppercase tracking-widest ${
+              className={`truncate text-[11px] font-bold tracking-widest ${
                 active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
-              <HighlightedText text={conversation.recipient.role} query={query} />
+              <HighlightedText text={conversation.recipient.handle} query={query} />
             </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
-            {formatConversationTime(conversation.updatedAt)}
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/70' : 'text-zinc-300'}`}>
+            <RelativeTime createdAt={conversation.updatedAt} />
           </span>
           {conversation.unreadCount > 0 ? (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-[10px] font-black text-black">
@@ -246,7 +249,7 @@ function NewChatPicker({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black"
+          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
           aria-label="새 대화 닫기"
         >
           <X size={16} />
@@ -259,7 +262,7 @@ function NewChatPicker({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="이름 또는 핸들 검색"
-          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
+          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
         />
       </label>
 
@@ -269,7 +272,7 @@ function NewChatPicker({
           검색 중...
         </div>
       ) : errorMessage ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {errorMessage}
         </div>
       ) : recipients.length > 0 ? (
@@ -290,7 +293,7 @@ function NewChatPicker({
               <span className="min-w-0">
                 <span className="block truncate text-sm font-black text-black">{recipient.name}</span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
-                  {recipient.handle} · {recipient.role}
+                  {recipient.handle}
                 </span>
               </span>
             </button>
@@ -382,7 +385,7 @@ function AttachmentGrid({
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
           <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
-          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
+          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">{attachment.name}</p>
         </div>
       ))}
     </div>
@@ -489,7 +492,7 @@ function MessageBubble({
           name={recipientName}
           imageUrl={recipientImageUrl}
           sizes="32px"
-          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black"
+          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black dark:bg-neutral-700"
         />
       ) : null}
 
@@ -504,7 +507,7 @@ function MessageBubble({
                 type="button"
                 onClick={onDelete}
                 disabled={actionLoading}
-                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                 aria-label="메시지 삭제"
               >
                 <Trash2 size={16} className="-translate-x-[1px] shrink-0" />
@@ -528,7 +531,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500"
+              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-neutral-800"
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -537,7 +540,7 @@ function MessageBubble({
         </div>
 
         <div
-          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
+          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 dark:text-zinc-400 ${
             mine ? 'justify-end' : 'justify-start'
           }`}
         >
@@ -587,7 +590,6 @@ export default function MessagesPage() {
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
-  const [, setIsAuthError] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -736,7 +738,6 @@ export default function MessagesPage() {
       const data = await fetchConversationList();
       setConversations(data);
       setPageError('');
-      setIsAuthError(false);
       setActiveConversationId((current) => {
         if (current && data.some((conversation) => conversation.id === current)) {
           return current;
@@ -746,7 +747,6 @@ export default function MessagesPage() {
       });
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (!options?.silent) {
         setLoadingConversations(false);
@@ -779,10 +779,8 @@ export default function MessagesPage() {
         [conversationId]: page.hasNext,
       }));
       setPageError('');
-      setIsAuthError(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (options?.cursor) {
         setLoadingOlderMessages(false);
@@ -859,11 +857,7 @@ export default function MessagesPage() {
           )
         );
         invalidateNotifications('conversation-read');
-      } catch (error) {
-        if (isMessageAuthError(error)) {
-          setIsAuthError(true);
-        }
-      }
+      } catch {}
     };
 
     void markRead();
@@ -943,8 +937,7 @@ export default function MessagesPage() {
         };
       } catch (error) {
         if (!cancelled) {
-          const authError = isMessageAuthError(error);
-          setIsAuthError(authError);
+          const authError = isAuthError(error);
           if (authError) {
             setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
           } else {
@@ -978,7 +971,6 @@ export default function MessagesPage() {
       [
         conversation.recipient.name,
         conversation.recipient.handle,
-        conversation.recipient.role,
         getLastPreview(conversation),
       ].some((value) => value.toLowerCase().includes(normalized))
     );
@@ -1041,7 +1033,6 @@ export default function MessagesPage() {
       setPageError('');
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     }
   };
 
@@ -1100,7 +1091,6 @@ export default function MessagesPage() {
       } catch (error) {
         requestedRecipientRef.current = '';
         setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-        setIsAuthError(isMessageAuthError(error));
       }
     };
 
@@ -1145,7 +1135,6 @@ export default function MessagesPage() {
       void loadConversations({ silent: true });
     } catch (error) {
       setComposerError(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       setSending(false);
     }
@@ -1179,7 +1168,6 @@ export default function MessagesPage() {
       void loadMessages(activeConversation.id, { silent: true });
     } catch (error) {
       setComposerError(error instanceof Error ? error.message : '메시지 삭제에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
@@ -1218,7 +1206,6 @@ export default function MessagesPage() {
       setMessageActionLoading(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화방 나가기에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
@@ -1340,7 +1327,7 @@ export default function MessagesPage() {
               <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  {conversations.length} conversations
+                  대화 {conversations.length}개
                 </p>
                 {hasHiddenConversations ? (
                   <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
@@ -1368,7 +1355,7 @@ export default function MessagesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="대화 또는 사용자 검색"
-              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black"
+              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
             />
           </label>
         </div>
@@ -1382,7 +1369,7 @@ export default function MessagesPage() {
           ) : null}
 
           {pageError ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {pageError}
             </div>
           ) : null}
@@ -1427,18 +1414,18 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
+        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-neutral-950 ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-neutral-900/95">
               <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
-                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden"
+                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-neutral-800"
                   aria-label="대화 목록으로 돌아가기"
                 >
                   <ArrowLeft size={22} />
@@ -1462,11 +1449,11 @@ export default function MessagesPage() {
                     <ShieldCheck size={16} className="shrink-0 text-blue-500" />
                   </div>
                   <p
-                    className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
+                    className={`mt-1 text-[11px] font-black tracking-widest ${
                       activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
                     }`}
                   >
-                    {activeConversation.recipient.online ? 'Online now' : activeConversation.recipient.role}
+                    {activeConversation.recipient.online ? '접속 중' : activeConversation.recipient.handle}
                   </p>
                 </div>
               </div>
@@ -1475,7 +1462,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setHeaderMenuOpen((current) => !current)}
-                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
                   aria-label="대화방 옵션"
                 >
                   <Ellipsis size={24} />
@@ -1486,7 +1473,7 @@ export default function MessagesPage() {
                       type="button"
                       onClick={() => void handleLeaveActiveConversation()}
                       disabled={messageActionLoading}
-                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Trash2 size={16} />
                       대화방 나가기
@@ -1519,39 +1506,45 @@ export default function MessagesPage() {
                 </div>
               ) : activeMessages.length > 0 ? (
                 <div className="space-y-6">
-                  {activeMessages.map((chatMessage) => (
-                    <div
-                      key={chatMessage.id}
-                      ref={(element) => {
-                        if (element) {
-                          messageElementRefs.current.set(chatMessage.id, element);
-                        } else {
-                          messageElementRefs.current.delete(chatMessage.id);
-                        }
-                      }}
-                      data-message-id={chatMessage.id}
-                      className={`rounded-[32px] transition-[box-shadow,background-color] duration-500 ${
-                        highlightedMessageId === chatMessage.id
-                          ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
-                          : ''
-                      }`}
-                    >
-                      <MessageBubble
-                        chatMessage={chatMessage}
-                        mine={chatMessage.senderId === 'me'}
-                        recipientName={activeConversation.recipient.name}
-                        recipientImageUrl={activeConversation.recipient.profileImageUrl}
-                        isActionOpen={messageActionId === chatMessage.id}
-                        actionLoading={messageActionLoading}
-                        onToggleAction={() =>
-                          setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
-                        }
-                        onDelete={() => void handleDeleteMessage(chatMessage.id)}
-                        onOpenPost={handleOpenPost}
-                        onOpenImage={handleOpenImage}
-                      />
-                    </div>
-                  ))}
+                  {activeMessages.map((chatMessage, index) => {
+                    return (
+                      <Fragment key={chatMessage.id}>
+                        {shouldShowMessageDateSeparator(activeMessages, index) ? (
+                          <MessageDateSeparator label={formatMessageDate(chatMessage.createdAt)} />
+                        ) : null}
+                        <div
+                          ref={(element) => {
+                            if (element) {
+                              messageElementRefs.current.set(chatMessage.id, element);
+                            } else {
+                              messageElementRefs.current.delete(chatMessage.id);
+                            }
+                          }}
+                          data-message-id={chatMessage.id}
+                          className={`rounded-[32px] transition-[box-shadow,background-color] duration-500 ${
+                            highlightedMessageId === chatMessage.id
+                              ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
+                              : ''
+                          }`}
+                        >
+                          <MessageBubble
+                            chatMessage={chatMessage}
+                            mine={chatMessage.senderId === 'me'}
+                            recipientName={activeConversation.recipient.name}
+                            recipientImageUrl={activeConversation.recipient.profileImageUrl}
+                            isActionOpen={messageActionId === chatMessage.id}
+                            actionLoading={messageActionLoading}
+                            onToggleAction={() =>
+                              setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
+                            }
+                            onDelete={() => void handleDeleteMessage(chatMessage.id)}
+                            onOpenPost={handleOpenPost}
+                            onOpenImage={handleOpenImage}
+                          />
+                        </div>
+                      </Fragment>
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="flex h-full items-center justify-center">
@@ -1569,7 +1562,7 @@ export default function MessagesPage() {
 
             <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-3 md:p-6">
               {composerError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   <CircleAlert size={16} className="shrink-0" />
                   <span>{composerError}</span>
                 </div>
@@ -1644,7 +1637,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
-                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200"
+                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-neutral-800"
                   aria-label="첨부 메뉴"
                 >
                   <Plus size={20} />
@@ -1654,7 +1647,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <ImagePlus size={18} />
                       사진 추가
@@ -1662,7 +1655,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <Video size={18} />
                       동영상 추가
@@ -1670,7 +1663,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={clearAttachments}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <X size={18} />
                       첨부 지우기
@@ -1683,7 +1676,7 @@ export default function MessagesPage() {
                   maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   disabled={sending}
-                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
+                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
                 />
                 <span
                   className={`shrink-0 text-xs font-bold ${
@@ -1695,7 +1688,7 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={(!message.trim() && attachments.length === 0) || sending}
-                  className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100"
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
                   aria-label="메시지 전송"
                 >
                   {sending ? (

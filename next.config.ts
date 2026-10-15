@@ -60,8 +60,6 @@ const contentSecurityPolicy = [
   `connect-src ${Array.from(connectSources).join(" ")}`,
   "manifest-src 'self'",
   "worker-src 'self' blob:",
-  // 배포시 아래 주석 해제
-  // ...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [
@@ -73,14 +71,6 @@ const securityHeaders = [
     key: "Permissions-Policy",
     value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
   },
-  ...(isProduction
-    ? [
-        {
-          key: "Strict-Transport-Security",
-          value: "max-age=63072000; includeSubDomains; preload",
-        },
-      ]
-    : []),
 ];
 
 const nextConfig: NextConfig = {
@@ -111,15 +101,6 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: securityHeaders,
-      },
-    ];
-  },
-  async redirects() {
-    return [
-      {
-        source: "/",
-        destination: "/login",
-        permanent: true,
       },
     ];
   },

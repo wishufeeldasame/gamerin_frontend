@@ -43,7 +43,12 @@ async function seedAdmin(page: Page) {
 }
 
 async function mockEmptyAdminReports(page: Page) {
+  await page.route('**/api/v1/admin/dashboard/stats', (route) => route.fulfill({ json: { success: true, data: { receivedReportsCount: 0, inReviewReportsCount: 0, resolvedReportsCount: 0, rejectedReportsCount: 0, activePenaltiesCount: 0, hiddenContentsCount: 0 } } }));
   await page.route('**/api/v1/admin/reports**', async (route) => {
+    if (new URL(route.request().url()).pathname !== '/api/v1/admin/reports') {
+      await route.fulfill({ status: 404, json: { success: false, message: '테스트에서 정의하지 않은 신고 상세 요청입니다.' } });
+      return;
+    }
     await route.fulfill({
       json: {
         success: true,

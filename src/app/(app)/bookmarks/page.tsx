@@ -7,17 +7,18 @@ import { useRouter } from 'next/navigation';
 import {
   fetchCollectionBookmarks,
   fetchMyBookmarks,
-  likePost,
-  unlikePost,
 } from '@/lib/feed-api';
 import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
   updatePostsRepostState,
 } from '@/lib/post-mutations';
+import type { CursorPage } from '@/types/api';
 
 type PostDetailTarget = 'post' | 'comments';
 
@@ -47,19 +48,77 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 export default function BookmarksPage() {
   const router = useRouter();
   const { collections, loading: collectionsLoading } = useBookmarkCollections();
-  const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
   const [collectionCountOverrides, setCollectionCountOverrides] = useState<Record<string, number>>({});
   const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
   const collectionCountSyncBaseRef = useRef(collections);
-  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
+
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => {
+    const requestOptions = {
+      signal,
+      q: query,
+      mediaOnly,
+    };
+
+    return selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
+      ? fetchMyBookmarks(
+          cursor,
+          BOOKMARK_PAGE_SIZE,
+          requestOptions,
+          selectedCollectionId as BookmarkScope,
+        )
+      : fetchCollectionBookmarks(
+          selectedCollectionId,
+          cursor,
+          BOOKMARK_PAGE_SIZE,
+          requestOptions,
+        );
+  }, [mediaOnly, query, selectedCollectionId]);
+
+  const handlePageLoaded = useCallback((
+    page: CursorPage<PostRecord>,
+    { items }: { append: boolean; items: PostRecord[] },
+  ) => {
+    if (selectedCollectionId === 'all' || selectedCollectionId === 'unclassified') return;
+
+    const hasMore = Boolean(page.hasNext && page.nextCursor);
+    setCollectionCountOverrides((current) => ({
+      ...current,
+      [selectedCollectionId]: hasMore
+        ? Math.max(items.length, current[selectedCollectionId] ?? 0)
+        : items.length,
+    }));
+  }, [selectedCollectionId]);
+
+  const bookmarkQueryKey = useMemo(
+    () => JSON.stringify([selectedCollectionId, query, mediaOnly]),
+    [mediaOnly, query, selectedCollectionId],
+  );
+  const {
+    items: bookmarks,
+    setItems: setBookmarks,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    reload,
+    loadMore: handleLoadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: bookmarkQueryKey,
+    initialErrorMessage: '북마크를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '북마크를 더 불러오지 못했습니다.',
+    onPageLoaded: handlePageLoaded,
+  });
+
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setBookmarks((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setBookmarks]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   const upsertBookmark = useCallback((post: PostRecord) => {
     setBookmarks((current) => {
@@ -70,11 +129,11 @@ export default function BookmarksPage() {
 
       return current.map((item) => (item.postId === post.postId ? post : item));
     });
-  }, []);
+  }, [setBookmarks]);
 
   const removeBookmark = useCallback((postId: string) => {
     setBookmarks((current) => current.filter((post) => post.postId !== postId));
-  }, []);
+  }, [setBookmarks]);
 
   const handleBookmarkChanged = useCallback((changedPost: PostRecord, bookmarked = changedPost.bookmarkedByMe) => {
     if (!bookmarked) {
@@ -87,69 +146,7 @@ export default function BookmarksPage() {
         ? updatePostsBookmarkState(current, changedPost.postId, true)
         : [changedPost, ...current];
     });
-  }, []);
-
-  const loadInitialBookmarks = useCallback(async (signal?: AbortSignal) => {
-    try {
-      setLoading(true);
-      setLoadingMore(false);
-      setError(null);
-
-      const requestOptions = {
-        signal,
-        q: query,
-        mediaOnly,
-      };
-      const page =
-        selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
-          ? await fetchMyBookmarks(
-              null,
-              BOOKMARK_PAGE_SIZE,
-              requestOptions,
-              selectedCollectionId as BookmarkScope,
-            )
-          : await fetchCollectionBookmarks(
-              selectedCollectionId,
-              null,
-              BOOKMARK_PAGE_SIZE,
-              requestOptions,
-            );
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      setBookmarks(page.items);
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-
-      if (selectedCollectionId !== 'all' && selectedCollectionId !== 'unclassified') {
-        setCollectionCountOverrides((current) => ({
-          ...current,
-          [selectedCollectionId]: page.hasNext ? Math.max(page.items.length, current[selectedCollectionId] ?? 0) : page.items.length,
-        }));
-      }
-    } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-        return;
-      }
-
-      setError(loadError instanceof Error ? loadError.message : '북마크를 불러오지 못했습니다.');
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
-  }, [mediaOnly, query, selectedCollectionId]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadInitialBookmarks(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
-  }, [loadInitialBookmarks]);
+  }, [setBookmarks]);
 
   const selectedCollection = useMemo(
     () => collections.find((collection) => collection.collectionId === selectedCollectionId),
@@ -167,55 +164,6 @@ export default function BookmarksPage() {
     setCollectionCountOverrides({});
     setCollectionCountSyncPending(false);
   }, [collectionCountSyncPending, collections]);
-
-  const handleLoadMore = async () => {
-    if (!hasNext || !nextCursor || loadingMore) {
-      return;
-    }
-
-    try {
-      setLoadingMore(true);
-      const requestOptions = {
-        q: query,
-        mediaOnly,
-      };
-      const page =
-        selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
-          ? await fetchMyBookmarks(
-              nextCursor,
-              BOOKMARK_PAGE_SIZE,
-              requestOptions,
-              selectedCollectionId as BookmarkScope,
-            )
-          : await fetchCollectionBookmarks(
-              selectedCollectionId,
-              nextCursor,
-              BOOKMARK_PAGE_SIZE,
-              requestOptions,
-            );
-
-      setBookmarks((current) => {
-        const existingPostIds = new Set(current.map((post) => post.postId));
-        const nextItems = page.items.filter((post) => !existingPostIds.has(post.postId));
-        return [...current, ...nextItems];
-      });
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-
-      if (selectedCollectionId !== 'all' && selectedCollectionId !== 'unclassified') {
-        setCollectionCountOverrides((current) => ({
-          ...current,
-          [selectedCollectionId]: page.hasNext
-            ? Math.max(current[selectedCollectionId] ?? 0, bookmarks.length + page.items.length)
-            : bookmarks.length + page.items.length,
-        }));
-      }
-    } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '북마크를 더 불러오지 못했습니다.');
-    } finally {
-      setLoadingMore(false);
-    }
-  };
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     if (updatedPost.bookmarkedByMe) {
@@ -235,38 +183,6 @@ export default function BookmarksPage() {
         updatedPost.repostCount,
       ),
     );
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
-
-    const previousLikedByMe = post.likedByMe;
-    const nextLikedByMe = !previousLikedByMe;
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setBookmarks((current) =>
-      updatePostsLikeState(current, post.postId, nextLikedByMe),
-    );
-
-    try {
-      if (previousLikedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setBookmarks((current) =>
-        updatePostsLikeState(current, post.postId, previousLikedByMe),
-      );
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -301,7 +217,7 @@ export default function BookmarksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
@@ -420,11 +336,11 @@ export default function BookmarksPage() {
           북마크를 불러오는 중...
         </div>
       ) : error ? (
-        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-          <p className="font-black text-red-500">{error}</p>
+        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+          <p className="font-black text-red-500 dark:text-red-300">{error}</p>
           <button
             type="button"
-            onClick={() => void loadInitialBookmarks()}
+            onClick={() => void reload()}
             className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
           >
             다시 시도
@@ -461,7 +377,7 @@ export default function BookmarksPage() {
                   <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
                     <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
                       <ImageIcon size={12} />
-                      Media
+                      미디어
                     </span>
                     {query.trim() ? (
                       <span className="normal-case">
@@ -495,7 +411,7 @@ export default function BookmarksPage() {
               </motion.div>
             ))}
 
-          {hasNext ? (
+          {hasNext && nextCursor ? (
             <button
               type="button"
               onClick={handleLoadMore}

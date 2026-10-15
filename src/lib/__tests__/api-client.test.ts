@@ -24,17 +24,19 @@ let api: ReturnType<typeof installFetchRoutes>;
 beforeEach(async () => {
   vi.resetModules();
   window.localStorage.clear();
+  window.sessionStorage.clear();
   api = installFetchRoutes();
   store = await import('@/lib/auth-store');
   client = await import('@/lib/api-client');
   store.setAccessToken('token-a');
+  store.commitAuthenticatedUser('user-a');
   window.localStorage.setItem(store.AUTH_USER_KEY, JSON.stringify({ id: 'user-a' }));
 });
 
 describe('apiRequest 401 처리', () => {
   it('첫 401이면 refresh 후 새 토큰으로 한 번 다시 보낸다', async () => {
     api.route('/api/v1/items', () => json(401, {}), () => json(200, { success: true, data: ['ok'] }));
-    api.route('/api/v1/auth/refresh', () => json(200, { success: true, data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { success: true, data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).resolves.toEqual(['ok']);
 
@@ -46,7 +48,7 @@ describe('apiRequest 401 처리', () => {
 
   it('재시도한 요청도 401이면 더 재시도하지 않고 세션을 종료한다', async () => {
     api.route('/api/v1/items', () => json(401, {}), () => json(401, { message: '만료' }));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
       reason: 'http',
@@ -86,6 +88,20 @@ describe('apiRequest 401 처리', () => {
   });
 });
 
+describe('isAuthError', () => {
+  it('401 status, unauthenticated reason, blocked reason을 인증 오류로 판별한다', () => {
+    expect(client.isAuthError(new client.ApiError('expired', 401))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('expired', 403, 'unauthenticated'))).toBe(true);
+    expect(client.isAuthError(new client.ApiError('blocked', 403, 'blocked'))).toBe(true);
+  });
+
+  it('일반 Error와 인증이 아닌 ApiError는 인증 오류로 판별하지 않는다', () => {
+    expect(client.isAuthError(new Error('로그인이 필요합니다.'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('forbidden', 403, 'http'))).toBe(false);
+    expect(client.isAuthError(new client.ApiError('temporary', 503, 'unavailable'))).toBe(false);
+  });
+});
+
 describe('일시 장애에서 세션 유지', () => {
   it.each([500, 503, 429])('보호 API의 %i 응답은 요청 실패만 전달한다', async (status) => {
     api.route('/api/v1/items', () => json(status, { message: 'busy' }));
@@ -101,13 +117,17 @@ describe('일시 장애에서 세션 유지', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('보호 API의 네트워크 오류는 그대로 전달하고 세션을 유지한다', async () => {
+  it('보호 API의 네트워크 오류는 unavailable로 전달하고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => {
       throw new TypeError('Failed to fetch');
     });
 
-    await expect(client.apiRequest('/api/v1/items', config)).rejects.toBeInstanceOf(TypeError);
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      reason: 'unavailable', status: 0, message: 'unavailable',
+    });
     expect(store.getAccessToken()).toBe('token-a');
+    expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
   it.each([
@@ -164,7 +184,7 @@ describe('동시 요청', () => {
     const lateFirst = deferred<Response>();
     api.route('/api/v1/a', () => json(401, {}), () => json(200, { data: 'a' }));
     api.route('/api/v1/b', () => lateFirst.promise, () => json(200, { data: 'b' }));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     const second = client.apiRequest('/api/v1/b', config);
     await expect(client.apiRequest('/api/v1/a', config)).resolves.toBe('a');
@@ -180,7 +200,7 @@ describe('동시 요청', () => {
     const lateRetry = deferred<Response>();
     api.route('/api/v1/a', () => json(401, {}), () => json(401, {}));
     api.route('/api/v1/b', () => json(401, {}), () => lateRetry.promise);
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     const first = client.apiRequest('/api/v1/a', config);
     const second = client.apiRequest('/api/v1/b', config);
@@ -194,6 +214,21 @@ describe('동시 요청', () => {
 });
 
 describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
+  it('사용자 전환 뒤 이전 요청의 네트워크 실패는 AbortError로 폐기한다', async () => {
+    let reject!: (reason: unknown) => void;
+    const late = new Promise<Response>((_resolve, fail) => { reject = fail; });
+    api.route('/api/v1/items', () => late);
+    const request = client.apiRequest('/api/v1/items', config);
+    await flush();
+    store.setAccessToken('token-new-user');
+    reject(new TypeError('Failed to fetch'));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(toError).not.toHaveBeenCalled();
+    expect(store.getAccessToken()).toBe('token-new-user');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
   it.each([
     ['성공', () => json(200, { data: 'old-user-data' })],
     ['401', () => json(401, {})],
@@ -211,6 +246,26 @@ describe('사용자 전환·로그아웃 뒤에 도착한 응답', () => {
     expect(toError).not.toHaveBeenCalled();
     expect(store.getAccessToken()).toBe('token-new-user');
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('다른 탭의 계정 변경 뒤 늦게 도착한 성공 응답은 버리고 새 공유 사용자 값은 지우지 않는다', async () => {
+    const late = deferred<Response>();
+    api.route('/api/v1/items', () => late.promise);
+
+    const request = client.apiRequest('/api/v1/items', config);
+    await flush();
+    window.localStorage.setItem(store.AUTH_USER_KEY, JSON.stringify({ id: 'user-b' }));
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: store.AUTH_USER_KEY,
+      newValue: JSON.stringify({ id: 'user-b' }),
+    }));
+    late.resolve(json(200, { data: 'old-user-data' }));
+
+    await expect(request).rejects.toMatchObject({ name: 'AbortError' });
+    expect(store.getAccessToken()).toBeNull();
+    expect(window.localStorage.getItem(store.AUTH_USER_KEY)).toContain('user-b');
+    expect(store.isLocalReauthenticationRequired()).toBe(true);
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
@@ -292,7 +347,7 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
     void store.logoutAuthSession({ notify: false });
     store.setAccessToken('token-new-login');
     api.route('/api/v1/items', () => json(401, {}), () => json(401, {}));
-    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-new-refreshed' } }));
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'token-new-refreshed', userId: 'user-a' } }));
 
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({ reason: 'http', status: 401 });
     expect(store.getAccessToken()).toBeNull();
@@ -345,6 +400,20 @@ describe('로그아웃 요청이 끝나기 전의 새 로그인', () => {
 });
 
 describe('403과 차단 계정', () => {
+  it.each([401, 403, 423])('refresh에서 차단된 계정의 %i와 차단 사유를 보존한다', async (status) => {
+    api.route('/api/v1/items', () => json(401, {}));
+    api.route('/api/v1/auth/refresh', () => json(status, { message: '정지된 계정입니다.' }));
+
+    await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
+      status, reason: 'blocked',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+    });
+    expect(api.count('/api/v1/items')).toBe(1);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+    expect(store.getAccessToken()).toBeNull();
+  });
+
   it('일반 403은 권한 오류로 끝내고 세션을 유지한다', async () => {
     api.route('/api/v1/items', () => json(403, { message: '권한이 없습니다.' }));
 
@@ -409,7 +478,7 @@ describe('요청·응답 형식', () => {
     const request = client.apiRequest('/api/v1/items', config, { signal: controller.signal });
     await flush();
     controller.abort();
-    refresh.resolve(json(200, { data: { accessToken: 'token-b' } }));
+    refresh.resolve(json(200, { data: { accessToken: 'token-b', userId: 'user-a' } }));
 
     await expect(request).rejects.toMatchObject({ name: 'AbortError' });
     expect(api.count('/api/v1/items')).toBe(1);

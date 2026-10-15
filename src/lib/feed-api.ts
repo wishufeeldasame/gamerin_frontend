@@ -1,24 +1,16 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   ApiError,
+  AUTH_REQUIRED_MESSAGE,
   type ApiClientConfig,
   type ApiRequestOptions,
   apiRequest as sendApiRequest,
 } from '@/lib/api-client';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
+import { toNumber } from '@/lib/coerce';
+import { formatRelativeTimeLabel } from '@/lib/time-format';
+import type { CursorPage } from '@/types/api';
 import type { BookmarkCollection } from '@/types/bookmark';
-
-export interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-export interface CursorPage<T> {
-  items: T[];
-  nextCursor: string | null;
-  hasNext: boolean;
-}
 
 export interface PostMedia {
   mediaId: string;
@@ -167,11 +159,6 @@ export interface BookmarkCollectionPostState {
   collection: BookmarkCollection;
 }
 
-function toNumber(value: unknown) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
-}
-
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
@@ -249,10 +236,11 @@ interface FeedRequestOptions {
 
 const FEED_CLIENT: ApiClientConfig = {
   toError: ({ reason, status, message }) => new ApiError(
-    reason === 'unauthenticated'
-      ? '로그인이 필요하거나 인증이 만료되었습니다.'
-      : message ?? 'Request failed.',
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
+      : '요청을 처리하지 못했습니다.'),
     status,
+    reason,
   ),
 };
 
@@ -261,21 +249,7 @@ function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T
 }
 
 export function formatRelativeTime(createdAt: string) {
-  const target = new Date(createdAt).getTime();
-  const diffSeconds = Math.max(1, Math.floor((Date.now() - target) / 1000));
-
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return new Date(createdAt).toLocaleDateString();
+  return formatRelativeTimeLabel(createdAt);
 }
 
 export function getInitials(name: string, fallback = 'G') {
@@ -568,7 +542,12 @@ export async function fetchFollowing(handle: string, cursor?: string | null, siz
   );
 }
 
-export async function fetchUserPosts(handle: string, cursor?: string | null, size = 20) {
+export async function fetchUserPosts(
+  handle: string,
+  cursor?: string | null,
+  size = 20,
+  options: FeedRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -578,7 +557,8 @@ export async function fetchUserPosts(handle: string, cursor?: string | null, siz
   }
 
   const page = await apiRequest<CursorPage<PostRecord>>(
-    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`
+    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`,
+    { signal: options.signal },
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }

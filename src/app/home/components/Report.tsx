@@ -9,9 +9,8 @@ import {
   createReport,
   fetchReportReasons,
   type ReportReason,
-  type ReportReasonCode,
-  type ReportTargetType,
 } from '@/lib/report-api';
+import type { ReportReasonCode, ReportTargetType } from '@/types/report';
 
 interface ReportContentModalProps {
   targetType: ReportTargetType;
@@ -127,7 +126,7 @@ export function ReportContentModal({
           aria-labelledby="report-success-title"
           className="w-full max-w-sm rounded-[22px] bg-white p-6 text-center shadow-2xl"
         >
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-[#f5b93d]">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-[#f5b93d] dark:bg-amber-950">
             <CheckCircle2 size={22} />
           </div>
           <h2 id="report-success-title" className="mt-4 text-xl font-black text-black">
@@ -164,7 +163,7 @@ export function ReportContentModal({
             type="button"
             onClick={onClose}
             aria-label="신고 모달 닫기"
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
           >
             <X size={18} />
           </button>
@@ -199,7 +198,7 @@ export function ReportContentModal({
               ) : null}
 
               {reasonsError ? (
-                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
                   <p role="alert">{reasonsError}</p>
                   <button
                     type="button"
@@ -222,7 +221,7 @@ export function ReportContentModal({
                     className={[
                       'flex h-11 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-black transition',
                       selected
-                        ? 'border-[#f5b93d] bg-amber-50 text-black'
+                        ? 'border-[#f5b93d] bg-amber-50 text-black dark:bg-amber-950 dark:!text-amber-200'
                         : 'border-zinc-100 bg-white text-black hover:border-zinc-300',
                     ].join(' ')}
                   >
@@ -251,7 +250,7 @@ export function ReportContentModal({
                   placeholder={selectedReason === 'OTHER' ? '기타 신고 사유를 자세히 입력해주세요.' : '추가로 설명할 내용이 있다면 입력해주세요.'}
                   aria-label="신고 상세 내용"
                   aria-required={selectedReason === 'OTHER'}
-                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d]"
+                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d] dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
                 />
                 <p className="mt-1 text-right text-xs font-bold text-zinc-400">
                   {customReason.length} / {REPORT_DETAILS_MAX_LENGTH}
@@ -263,7 +262,7 @@ export function ReportContentModal({
           {submitError ? (
             <p
               role="alert"
-              className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+              className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
             >
               {submitError}
             </p>
@@ -282,7 +281,7 @@ export function ReportContentModal({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit || loadingReasons || submitting}
-            className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200"
+            className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
           >
             신고 접수
           </button>
@@ -306,7 +305,7 @@ export function ReportContentModal({
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
                 aria-label="신고 확인 닫기"
-                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
               >
                 <X size={18} />
               </button>
@@ -327,7 +326,7 @@ export function ReportContentModal({
                 type="button"
                 onClick={() => void handleConfirm()}
                 disabled={submitting}
-                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300"
+                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
               >
                 {submitting ? '접수 중...' : '신고 접수'}
               </button>

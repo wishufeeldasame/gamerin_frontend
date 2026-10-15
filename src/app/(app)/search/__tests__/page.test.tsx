@@ -1,9 +1,11 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 
 const navigation = vi.hoisted(() => ({
   query: 'q=롤백&tab=all',
+  push: vi.fn(),
 }));
 
 const searchApi = vi.hoisted(() => ({
@@ -19,7 +21,7 @@ const feedApi = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => ({ push: navigation.push }),
   useSearchParams: () => new URLSearchParams(navigation.query),
 }));
 
@@ -152,6 +154,7 @@ function configureSearchResult(tab: 'all' | 'posts') {
 
 describe('SearchPage like rollback', () => {
   beforeEach(() => {
+    navigation.push.mockReset();
     searchApi.fetchSearchAccounts.mockReset();
     searchApi.fetchSearchHashtags.mockReset();
     searchApi.fetchSearchOverview.mockReset();
@@ -164,7 +167,26 @@ describe('SearchPage like rollback', () => {
       hasNext: false,
     });
     searchApi.fetchSearchHashtags.mockResolvedValue([]);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+  });
+
+  it('URL 검색어를 입력창에 표시하고 제출 시 현재 탭을 유지한다', async () => {
+    configureSearchResult('posts');
+    const view = render(<SearchPage />);
+
+    const input = screen.getByRole('searchbox', { name: '검색 페이지 검색' });
+    expect(input).toHaveValue('롤백');
+
+    fireEvent.change(input, { target: { value: ' 새 검색어 ' } });
+    fireEvent.submit(input);
+
+    expect(navigation.push).toHaveBeenCalledWith(
+      '/search?q=%EC%83%88+%EA%B2%80%EC%83%89%EC%96%B4&tab=posts',
+    );
+
+    navigation.query = 'q=뒤로가기&tab=posts';
+    view.rerender(<SearchPage />);
+
+    await waitFor(() => expect(input).toHaveValue('뒤로가기'));
   });
 
   it.each([
@@ -215,7 +237,7 @@ describe('SearchPage like rollback', () => {
         expect(renderedPost).toHaveAttribute('data-repost-count', '4');
         expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
       });
-      expect(window.alert).toHaveBeenCalledWith('좋아요 요청 실패');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
     },
   );
 });

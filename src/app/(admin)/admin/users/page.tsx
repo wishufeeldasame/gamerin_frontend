@@ -14,7 +14,7 @@ export default function AdminUsersPage() {
       <AdminShell
         activePage="users"
         title="사용자 관리"
-        description="전체 8명의 사용자"
+        description="사용자 검색과 계정 상태 및 제재 관리"
         breadcrumbs={[{ label: '관리자', href: '/admin' }, { label: '사용자 관리' }]}
       >
         <AdminUsersTable />

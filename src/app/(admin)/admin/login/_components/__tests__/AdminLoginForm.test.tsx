@@ -9,11 +9,10 @@ const auth = vi.hoisted(() => ({
   login: vi.fn(),
 }));
 const authStore = vi.hoisted(() => ({
-  assertCurrentAuthGeneration: vi.fn(),
-  getAuthGeneration: vi.fn(),
   logoutAuthSession: vi.fn(),
-  setAccessToken: vi.fn(),
-  waitForLogoutCompletion: vi.fn(),
+}));
+const authApi = vi.hoisted(() => ({
+  loginWithPassword: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -22,19 +21,10 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => auth,
 }));
-vi.mock('@/lib/api-base', () => ({
-  getApiBaseUrl: () => 'http://api.test',
-}));
 vi.mock('@/lib/auth-store', () => authStore);
+vi.mock('@/lib/auth-api', () => authApi);
 
 import { AdminLoginForm } from '../AdminLoginForm';
-
-function jsonResponse(status: number, body: unknown) {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
 
 function fillAndSubmit() {
   fireEvent.change(screen.getByLabelText('아이디'), {
@@ -46,56 +36,41 @@ function fillAndSubmit() {
   fireEvent.click(screen.getByRole('button', { name: '로그인' }));
 }
 
+const adminUser = {
+  id: 'admin-id',
+  name: '운영자',
+  nickname: '운영자',
+  gameTier: 'Unranked',
+  bio: '',
+  handle: 'operator',
+  role: 'ROLE_ADMIN',
+  status: 'ACTIVE',
+};
+
 describe('AdminLoginForm', () => {
   beforeEach(() => {
     auth.isLoggingOut = false;
-    authStore.assertCurrentAuthGeneration.mockImplementation(() => undefined);
-    authStore.getAuthGeneration.mockReturnValue(0);
+    auth.login.mockReset();
+    router.push.mockReset();
+    authStore.logoutAuthSession.mockReset();
     authStore.logoutAuthSession.mockResolvedValue(undefined);
-    authStore.waitForLogoutCompletion.mockResolvedValue(undefined);
-    vi.stubGlobal('fetch', vi.fn());
+    authApi.loginWithPassword.mockReset();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('accepts ROLE_ADMIN, stores /me data, and moves to the admin dashboard', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: { accessToken: 'admin-access-token' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: {
-            userId: 'admin-id',
-            handle: 'operator',
-            nickname: '운영자',
-            role: 'ROLE_ADMIN',
-            status: 'ACTIVE',
-          },
-        }),
-      );
+  it('accepts ROLE_ADMIN, stores the confirmed user, and moves to the admin dashboard', async () => {
+    authApi.loginWithPassword.mockResolvedValueOnce(adminUser);
 
     render(<AdminLoginForm />);
     fillAndSubmit();
 
     await waitFor(() => {
-      expect(auth.login).toHaveBeenCalledWith({
-        id: 'admin-id',
-        name: '운영자',
-        nickname: '운영자',
-        gameTier: '',
-        handle: 'operator',
-        role: 'ROLE_ADMIN',
-        status: 'ACTIVE',
-      });
+      expect(auth.login).toHaveBeenCalledWith(adminUser);
     });
-    expect(authStore.setAccessToken).toHaveBeenCalledWith('admin-access-token');
+    expect(authApi.loginWithPassword).toHaveBeenCalledWith('operator', 'password123!');
 
     await waitFor(
       () => {
@@ -106,24 +81,7 @@ describe('AdminLoginForm', () => {
   });
 
   it('rejects a USER role and clears the server/local session', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: { accessToken: 'user-access-token' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: {
-            userId: 'user-id',
-            handle: 'member',
-            nickname: '일반회원',
-            role: 'USER',
-          },
-        }),
-      );
+    authApi.loginWithPassword.mockResolvedValueOnce({ ...adminUser, role: 'USER' });
 
     render(<AdminLoginForm />);
     fillAndSubmit();
@@ -131,68 +89,52 @@ describe('AdminLoginForm', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(
       '관리자 권한이 있는 계정만 로그인할 수 있습니다.',
     );
-    expect(authStore.logoutAuthSession).toHaveBeenCalledWith();
+    expect(authStore.logoutAuthSession).toHaveBeenCalledTimes(1);
     expect(auth.login).not.toHaveBeenCalled();
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it.each(['SUSPENDED', 'DELETED'])(
-    'rejects an administrator with the %s status',
-    async (status) => {
-      vi.mocked(fetch)
-        .mockResolvedValueOnce(
-          jsonResponse(200, {
-            success: true,
-            data: { accessToken: 'blocked-admin-token' },
-          }),
-        )
-        .mockResolvedValueOnce(
-          jsonResponse(200, {
-            success: true,
-            data: {
-              userId: 'blocked-admin-id',
-              handle: 'blocked-admin',
-              nickname: '차단 관리자',
-              role: 'ROLE_ADMIN',
-              status,
-            },
-          }),
-        );
-
-      render(<AdminLoginForm />);
-      fillAndSubmit();
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        '정지되었거나 비활성화된 계정입니다.',
-      );
-      expect(authStore.logoutAuthSession).toHaveBeenCalledWith();
-      expect(auth.login).not.toHaveBeenCalled();
-    },
-  );
-
-  it('clears authentication when /auth/me fails', async () => {
-    vi.mocked(fetch)
-      .mockResolvedValueOnce(
-        jsonResponse(200, {
-          success: true,
-          data: { accessToken: 'unverified-access-token' },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse(401, {
-          success: false,
-          message: 'unauthorized',
-        }),
-      );
+  it('shows the login error without logging out (the session is cleaned by loginWithPassword)', async () => {
+    authApi.loginWithPassword.mockRejectedValueOnce(
+      new Error('정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.'),
+    );
 
     render(<AdminLoginForm />);
     fillAndSubmit();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent(
-      '관리자 권한이 있는 계정만 로그인할 수 있습니다.',
-    );
-    expect(authStore.logoutAuthSession).toHaveBeenCalledWith();
+    expect(await screen.findByRole('alert')).toHaveTextContent('정지되었거나 비활성화된 계정입니다.');
+    expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
     expect(auth.login).not.toHaveBeenCalled();
+  });
+
+  it('allows retrying after a failed login', async () => {
+    authApi.loginWithPassword
+      .mockRejectedValueOnce(new Error('아이디 또는 비밀번호가 올바르지 않습니다.'))
+      .mockResolvedValueOnce(adminUser);
+
+    render(<AdminLoginForm />);
+    fillAndSubmit();
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '로그인' }));
+
+    await waitFor(() => {
+      expect(auth.login).toHaveBeenCalledWith(adminUser);
+    });
+    expect(authApi.loginWithPassword).toHaveBeenCalledTimes(2);
+  });
+
+  it('ignores a login cancelled by a user switch', async () => {
+    authApi.loginWithPassword.mockRejectedValueOnce(new DOMException('cancelled', 'AbortError'));
+
+    render(<AdminLoginForm />);
+    fillAndSubmit();
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '로그인' })).toBeEnabled();
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
   });
 
   it('blocks a new login while a previous logout is still in progress', () => {
@@ -204,6 +146,6 @@ describe('AdminLoginForm', () => {
     });
     expect(submitButton).toBeDisabled();
     fireEvent.click(submitButton);
-    expect(fetch).not.toHaveBeenCalled();
+    expect(authApi.loginWithPassword).not.toHaveBeenCalled();
   });
 });

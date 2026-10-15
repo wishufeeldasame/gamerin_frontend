@@ -1,9 +1,12 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { motion } from 'framer-motion';
+import { createPortal } from 'react-dom';
 import {
   AtSign,
   Bell,
@@ -30,11 +33,14 @@ import {
   type NotificationIconKind,
 } from '@/lib/notification-presentation';
 import { subscribeToNotificationInvalidation } from '@/lib/notification-sync';
-import { formatRelativeTime, getInitials } from '@/lib/feed-api';
+import { getInitials } from '@/lib/feed-api';
+import { RelativeTime } from './RelativeTime';
 
 interface NotificationPanelProps {
   onClose: () => void;
   onUnreadCountChange?: (count: number) => void;
+  id?: string;
+  panelRef?: RefObject<HTMLDivElement | null>;
 }
 
 const PAGE_SIZE = 20;
@@ -71,12 +77,14 @@ function mergeNotifications(current: NotificationRecord[], incoming: Notificatio
   });
 }
 
-export function NotificationPanel({ onClose, onUnreadCountChange }: NotificationPanelProps) {
+export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }: NotificationPanelProps) {
+  const toast = useToast();
   const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCountRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
@@ -85,10 +93,15 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
   const firstPageAbortRef = useRef<AbortController | null>(null);
   const loadMoreAbortRef = useRef<AbortController | null>(null);
 
-  const syncUnreadCount = async () => {
-    const count = await fetchUnreadNotificationCount();
+  const updateUnreadCount = useCallback((count: number) => {
+    unreadCountRef.current = count;
     setUnreadCount(count);
     onUnreadCountChange?.(count);
+  }, [onUnreadCountChange]);
+
+  const syncUnreadCount = async () => {
+    const count = await fetchUnreadNotificationCount();
+    updateUnreadCount(count);
   };
 
   const loadFirstPage = useCallback(async (background = false) => {
@@ -116,8 +129,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setNotifications(mergeNotifications([], page.items));
       setNextCursor(page.nextCursor);
       setHasNext(Boolean(page.hasNext && page.nextCursor));
-      setUnreadCount(count);
-      onUnreadCountChange?.(count);
+      updateUnreadCount(count);
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
 
@@ -130,7 +142,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
         setLoading(false);
       }
     }
-  }, [onUnreadCountChange]);
+  }, [updateUnreadCount]);
 
   useEffect(() => {
     void loadFirstPage();
@@ -166,7 +178,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setHasNext(Boolean(page.hasNext && page.nextCursor));
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
-      alert(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
+      toast.error(loadError instanceof Error ? loadError.message : '알림을 더 불러오지 못했습니다.');
     } finally {
       if (loadMoreAbortRef.current === controller) {
         loadMoreAbortRef.current = null;
@@ -186,11 +198,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
         item.notificationId === notification.notificationId ? { ...item, read: true } : item,
       ),
     );
-    setUnreadCount((current) => {
-      const next = Math.max(0, current - 1);
-      onUnreadCountChange?.(next);
-      return next;
-    });
+    updateUnreadCount(Math.max(0, unreadCountRef.current - 1));
 
     try {
       await markNotificationRead(notification.notificationId);
@@ -215,7 +223,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
     try {
       await markAsRead(notification);
     } catch (readError) {
-      alert(readError instanceof Error ? readError.message : '알림 읽음 처리에 실패했습니다.');
+      toast.error(readError instanceof Error ? readError.message : '알림 읽음 처리에 실패했습니다.');
       return;
     }
 
@@ -236,24 +244,26 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setMarkingAll(true);
       await markAllNotificationsRead();
       setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-      setUnreadCount(0);
-      onUnreadCountChange?.(0);
+      updateUnreadCount(0);
       await syncUnreadCount().catch(() => undefined);
     } catch (markAllError) {
-      alert(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
+      toast.error(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
     } finally {
       setMarkingAll(false);
     }
   };
 
-  return (
+  // 헤더(z-40)의 쌓임 맥락에 갇히면 하단 탭바(z-40)에 가려지므로 body로 렌더링한다.
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
 
       <motion.div
+        id={id}
+        ref={panelRef}
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-5rem-var(--tab-bar-height)-1rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
           <div className="flex items-center gap-2">
@@ -330,7 +340,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
                       {presentation.message}
                     </p>
                     <p className="mt-1 text-[11px] font-bold text-zinc-400">
-                      {formatRelativeTime(notification.createdAt)}
+                      <RelativeTime createdAt={notification.createdAt} />
                     </p>
                   </div>
 
@@ -363,6 +373,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
           ) : null}
         </div>
       </motion.div>
-    </>
+    </>,
+    document.body,
   );
 }
