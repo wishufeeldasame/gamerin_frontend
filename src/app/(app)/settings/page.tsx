@@ -4,14 +4,19 @@ import { ChevronRight, Moon, Settings, Sun, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/app/context/AuthContext';
+import { useConfirm } from '@/app/context/ConfirmContext';
 import { useToast } from '@/app/context/ToastContext';
+import { deleteMyAccount } from '@/lib/account-api';
+import { changePassword } from '@/lib/auth-api';
+import { validatePassword } from '@/lib/auth-validation';
 import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
 
 type SettingsSection = 'account' | 'appearance';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const toast = useToast();
+  const confirm = useConfirm();
   const [activeSection, setActiveSection] = useState<SettingsSection>('account');
   const [theme, setTheme] = useState<ThemeMode>(() => loadUserSettings().theme);
   const [passwordFields, setPasswordFields] = useState({
@@ -19,13 +24,15 @@ export default function SettingsPage() {
     next: '',
     confirm: '',
   });
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
 
   const handleThemeChange = (nextTheme: ThemeMode) => {
     setTheme(nextTheme);
     saveUserSettings({ theme: nextTheme });
   };
 
-  const handlePasswordChange = () => {
+  const handlePasswordChange = async () => {
     if (!passwordFields.current || !passwordFields.next || !passwordFields.confirm) {
       toast.error('비밀번호 입력칸을 모두 채워주세요.');
       return;
@@ -36,12 +43,50 @@ export default function SettingsPage() {
       return;
     }
 
-    setPasswordFields({ current: '', next: '', confirm: '' });
-    toast.info('현재는 프론트 미리보기입니다. 비밀번호 변경 API가 연결되면 실제 저장됩니다.');
+    const passwordError = validatePassword(passwordFields.next);
+    if (passwordError) {
+      toast.error(passwordError);
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      await changePassword(passwordFields.current, passwordFields.next, passwordFields.confirm);
+      setPasswordFields({ current: '', next: '', confirm: '' });
+      toast.success('비밀번호가 변경되었습니다. 다른 기기에서는 다시 로그인해야 합니다.');
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      toast.error(error instanceof Error ? error.message : '비밀번호를 변경하지 못했습니다.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
-  const handleDeleteAccount = () => {
-    toast.info('계정 삭제 기능은 준비 중입니다. 현재 계정과 저장된 정보는 삭제되지 않습니다.');
+  const handleDeleteAccount = async () => {
+    if (isDeletingAccount) return;
+    const confirmed = await confirm({
+      message: [
+        '정말 계정을 삭제할까요? 확인하면 즉시 탈퇴되며 되돌릴 수 없습니다.',
+        '',
+        '· 작성한 게시글·댓글, 팔로우, 북마크, 알림이 삭제됩니다.',
+        '· 남은 마일리지는 소멸되며 환급되지 않습니다.',
+        '· 진행 중이거나 정산 전인 멘토링이 있으면 탈퇴할 수 없습니다.',
+      ].join('\n'),
+      confirmLabel: '탈퇴하기',
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    setIsDeletingAccount(true);
+    try {
+      await deleteMyAccount();
+      toast.success('계정이 삭제되었습니다.');
+      await logout({ redirectTo: '/login' });
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return;
+      toast.error(error instanceof Error ? error.message : '계정을 삭제하지 못했습니다.');
+      setIsDeletingAccount(false);
+    }
   };
 
   const renderAccountSection = () => (
@@ -92,30 +137,35 @@ export default function SettingsPage() {
 
       <div className="border-t border-zinc-200 pt-6">
         <h3 className="mb-4 text-lg font-bold text-black">비밀번호 변경</h3>
-        <div className="space-y-4">
-          {[
-            ['current', '현재 비밀번호'],
-            ['next', '새 비밀번호'],
-            ['confirm', '새 비밀번호 확인'],
-          ].map(([key, label]) => (
-            <label key={key} className="block">
-              <span className="mb-2 block text-sm font-semibold text-zinc-700">{label}</span>
-              <input
-                type="password"
-                value={passwordFields[key as keyof typeof passwordFields]}
-                onChange={(event) => setPasswordFields({ ...passwordFields, [key]: event.target.value })}
-                className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-              />
-            </label>
-          ))}
-          <button
-            type="button"
-            onClick={handlePasswordChange}
-            className="rounded-lg bg-black px-6 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-800"
-          >
-            비밀번호 변경
-          </button>
-        </div>
+        {user?.hasPassword === false ? (
+          <p className="text-sm text-zinc-600">소셜 로그인으로 가입한 계정은 비밀번호가 없어 변경할 수 없습니다.</p>
+        ) : (
+          <div className="space-y-4">
+            {[
+              ['current', '현재 비밀번호'],
+              ['next', '새 비밀번호'],
+              ['confirm', '새 비밀번호 확인'],
+            ].map(([key, label]) => (
+              <label key={key} className="block">
+                <span className="mb-2 block text-sm font-semibold text-zinc-700">{label}</span>
+                <input
+                  type="password"
+                  value={passwordFields[key as keyof typeof passwordFields]}
+                  onChange={(event) => setPasswordFields({ ...passwordFields, [key]: event.target.value })}
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-black transition-colors focus:border-black focus:outline-none dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                />
+              </label>
+            ))}
+            <button
+              type="button"
+              onClick={handlePasswordChange}
+              disabled={isChangingPassword}
+              className="rounded-lg bg-black px-6 py-2.5 font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              비밀번호 변경
+            </button>
+          </div>
+        )}
       </div>
 
       <div className="border-t border-zinc-200 pt-6">
@@ -125,13 +175,14 @@ export default function SettingsPage() {
             <div>
               <h4 className="mb-1 font-bold text-black">계정 삭제</h4>
               <p className="text-sm text-zinc-600">
-                계정 삭제 기능은 준비 중입니다. 현재 이 버튼으로 계정이나 저장된 정보가 삭제되지 않습니다.
+                계정과 작성한 게시글·댓글이 삭제되며 되돌릴 수 없습니다.
               </p>
             </div>
             <button
               type="button"
               onClick={handleDeleteAccount}
-              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-red-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-red-600 dark:bg-red-700 dark:hover:bg-red-800"
+              disabled={isDeletingAccount}
+              className="flex items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-red-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-red-700 dark:hover:bg-red-800"
             >
               <Trash2 className="h-4 w-4" />
               계정 삭제

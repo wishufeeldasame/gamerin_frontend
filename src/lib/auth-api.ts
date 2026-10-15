@@ -39,6 +39,8 @@ export interface AuthUser {
   profileImageUrl?: string | null;
   role?: string;
   status?: string;
+  /** false면 소셜 전용 계정이라 비밀번호가 없다. 서버가 주지 않으면 undefined. */
+  hasPassword?: boolean;
 }
 
 export const DEFAULT_GAME_TIER = 'Unranked';
@@ -69,7 +71,7 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status } = me as Record<string, unknown>;
+  const { userId, handle, nickname, role, status, hasPassword } = me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
   }
@@ -84,7 +86,19 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     name: base?.name || nickname,
     role: typeof role === 'string' ? role : undefined,
     status: typeof status === 'string' ? status : undefined,
+    hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
   };
+}
+
+/** 현재 비밀번호를 확인하고 새 비밀번호로 바꾼다. 다른 기기의 로그인은 서버에서 해제된다. */
+export async function changePassword(currentPassword: string, newPassword: string, newPasswordConfirm: string) {
+  await apiRequest<null>('/api/v1/auth/password', {
+    toError: ({ reason, status, message }) =>
+      new ApiError(message?.trim() ? message : '비밀번호를 변경하지 못했습니다.', status, reason),
+  }, {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword, newPasswordConfirm }),
+  });
 }
 
 /**
