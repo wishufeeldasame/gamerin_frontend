@@ -4,6 +4,7 @@ import { auditPost, auditVisibleText, controlContrast, installAuditFixture, type
 
 type Screen = { name: string; path: string; anonymous?: boolean; mentor?: boolean; linkedStats?: boolean; attachments?: boolean; programState?: 'apply' | 'closed' | 'applied'; fixtureMode?: AuditMode; action?: (page: Page, theme: 'light' | 'dark') => Promise<void> };
 const click = (name: string) => async (page: Page) => { await page.getByRole('button', { name, exact: true }).click(); };
+const verifySignupEmail = async (page: Page) => { await click('인증번호 받기')(page); await page.getByLabel('인증번호').fill('123456'); await click('확인')(page); await expect(page.getByText('이메일 인증이 완료되었습니다.')).toBeVisible(); };
 async function checkHover(control: Locator, theme: 'light' | 'dark', lightBackground: number[]) {
   await control.hover();
   // Measure the settled hover color, not the beginning of a CSS transition.
@@ -54,7 +55,7 @@ const screens: Screen[] = [
   { name: 'login', path: '/login', anonymous: true },
   { name: 'login-form', path: '/login', anonymous: true, action: click('ID로 로그인') },
   { name: 'signup-step1', path: '/login', anonymous: true, action: click('회원가입') },
-  { name: 'signup-step2', path: '/login', anonymous: true, action: async page => { await page.getByRole('button', { name: '회원가입', exact: true }).click(); await page.locator('input[name=nickname]').fill('테스터'); await page.locator('input[name=email]').fill('viewer@example.com'); await page.getByRole('button', { name: '다음', exact: true }).click(); } },
+  { name: 'signup-step2', path: '/login', anonymous: true, action: async page => { await page.getByRole('button', { name: '회원가입', exact: true }).click(); await page.locator('input[name=nickname]').fill('테스터'); await page.locator('input[name=email]').fill('viewer@example.com'); await verifySignupEmail(page); await page.getByRole('button', { name: '다음', exact: true }).click(); } },
   { name: 'find-id', path: '/find-id', anonymous: true },
   { name: 'find-id-result', path: '/find-id-result?maskedHandle=vi***&createdAt=2026-10-01', anonymous: true },
   { name: 'forgot-password', path: '/auth/forgot-password', anonymous: true },
@@ -75,7 +76,7 @@ const screens: Screen[] = [
   { name: 'notifications-open', path: '/home', action: click('알림') },
   { name: 'messages-new', path: '/messages', action: click('새 대화 시작') },
   { name: 'signup-invalid', path: '/login', anonymous: true, action: async page => { await click('회원가입')(page); await page.locator('input[name="nickname"]').fill('A'); await page.locator('input[name="email"]').fill('bad'); } },
-  { name: 'signup-password-match', path: '/login', anonymous: true, action: async page => { await click('회원가입')(page); await page.locator('input[name="nickname"]').fill('테스터'); await page.locator('input[name="email"]').fill('viewer@example.com'); await click('다음')(page); await page.locator('input[name="username"]').fill('viewer'); await page.locator('input[name="new-password"]').fill('Password1!'); await page.locator('input[name="new-password-confirm"]').fill('Password1!'); } },
+  { name: 'signup-password-match', path: '/login', anonymous: true, action: async page => { await click('회원가입')(page); await page.locator('input[name="nickname"]').fill('테스터'); await page.locator('input[name="email"]').fill('viewer@example.com'); await verifySignupEmail(page); await click('다음')(page); await page.locator('input[name="username"]').fill('viewer'); await page.locator('input[name="new-password"]').fill('Password1!'); await page.locator('input[name="new-password-confirm"]').fill('Password1!'); } },
   { name: 'forgot-password-success', path: '/auth/forgot-password', anonymous: true, action: async page => { await page.route('**/api/v1/auth/find-password', route => route.fulfill({ json: { success: true, data: null } })); await page.getByPlaceholder('아이디 입력').fill('viewer'); await click('비밀번호 재설정 메일 받기')(page); await expect(page.getByRole('heading', { name: '메일을 확인해 주세요' })).toBeVisible(); } },
   { name: 'reset-invalid', path: '/auth/reset-password?token=fixture', anonymous: true, action: async page => { await page.getByPlaceholder('새 비밀번호', { exact: true }).fill('short'); } },
   { name: 'login-focus', path: '/login', anonymous: true, action: async page => { await click('ID로 로그인')(page); await page.locator('input[name="username"]').focus(); } },

@@ -14,6 +14,8 @@ export async function readPublicResponseErrorMessage(response: Response, fallbac
     return message?.trim() || fallback;
   }
 
+  // 프록시의 HTML 오류 페이지(502 등)는 화면에 보여줄 문구가 아니므로 일반 텍스트만 쓴다.
+  if (!contentType.includes('text/plain')) return fallback;
   const text = await response.text().catch(() => '');
   return text.trim() || fallback;
 }

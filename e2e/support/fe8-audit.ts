@@ -40,6 +40,8 @@ export async function installAuditFixture(page: Page, theme: 'light' | 'dark', o
     if (path.endsWith('/attachments/review-video')) { await route.fulfill({ contentType: 'video/webm', body: Buffer.alloc(0) }); return; }
     if (options.anonymous && publicAuth) {
       if (mode === 'loading') { await new Promise<void>(resolve => parked.add(resolve)); }
+      if (path.endsWith('/auth/email-verifications')) { await route.fulfill({ json: { success: true, data: { expiresInSeconds: 300, resendCooldownSeconds: 60 } } }).catch(() => {}); return; }
+      if (path.endsWith('/auth/email-verifications/confirm')) { await route.fulfill({ json: { success: true, data: { verificationToken: 'fe8-verification-token', expiresInSeconds: 1800 } } }).catch(() => {}); return; }
       await route.fulfill({ status: 400, json: { success: false, message: '요청을 처리하지 못했습니다. 다시 시도해주세요.' } }).catch(() => {}); return;
     }
     // Keep SSE pending while measuring the initial failure: its onopen clears pageError.
