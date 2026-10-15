@@ -10,18 +10,36 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { fetchMyMileageBalance } from '@/lib/mileage-api';
+import {
+  cancelPayment,
+  fetchMyPayments,
+  fetchPaymentProducts,
+  readyPayment,
+  type PaymentProduct,
+  type PaymentResponse,
+} from '@/lib/payment-api';
 
 type View = 'wallet' | 'membership' | 'mentoring' | 'post';
-type PayStep = 'closed' | 'confirm' | 'processing' | 'success';
-
-const amounts = [5_000, 10_000, 30_000, 50_000] as const;
+type PayStep = 'closed' | 'confirm' | 'processing';
 const money = (value: number) => new Intl.NumberFormat('ko-KR').format(value);
+const errorMessage = (error: unknown) => (error instanceof Error ? error.message : '요청을 처리하지 못했어요.');
+const statusBadge = (status: PaymentResponse['status']) =>
+  status === 'APPROVED' ? '완료' : status === 'CANCELED' ? '취소됨' : '확인 중';
+// PC·모바일 판정. PC는 팝업이 정책이지만 시험 연동은 같은 탭으로 이동한다.
+const isMobileBrowser = () => /Mobi|Android|iPhone|iPad/.test(navigator.userAgent);
 
 export default function KakaoPayMockupPage() {
   const [view, setView] = useState<View>('wallet');
   const [dark, setDark] = useState(false);
-  const [balance, setBalance] = useState(25_000);
+  const [balance, setBalance] = useState(0);
+  const [products, setProducts] = useState<PaymentProduct[]>([]);
+  const [payments, setPayments] = useState<PaymentResponse[]>([]);
+  const [walletError, setWalletError] = useState<string | null>(null);
+  const [payError, setPayError] = useState<string | null>(null);
+  const [cancelingId, setCancelingId] = useState<string | null>(null);
+  const requestIdRef = useRef<string | null>(null);
   const [amount, setAmount] = useState<number | null>(10_000);
   const [tab, setTab] = useState<'mileage' | 'payment'>('mileage');
   const [payStep, setPayStep] = useState<PayStep>('closed');
@@ -39,13 +57,60 @@ export default function KakaoPayMockupPage() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const finishPayment = () => {
-    if (!amount) return;
+  const loadWallet = useCallback(async () => {
+    try {
+      const [productList, mileage, paymentPage] = await Promise.all([
+        fetchPaymentProducts(),
+        fetchMyMileageBalance(),
+        fetchMyPayments(),
+      ]);
+      setProducts(productList.filter((product) => product.purpose === 'MILEAGE_CHARGE'));
+      setBalance(mileage.currentBalance);
+      setPayments(paymentPage.items);
+      setWalletError(null);
+    } catch (error) {
+      setWalletError(errorMessage(error));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadWallet();
+  }, [loadWallet]);
+
+  const selectedProduct = products.find((product) => product.price === amount) ?? null;
+
+  const openPayment = () => {
+    // 같은 결제 시도의 재요청은 같은 requestId로 보내 서버가 기존 주문을 재응답하게 한다.
+    requestIdRef.current = crypto.randomUUID();
+    setPayError(null);
+    setPayStep('confirm');
+  };
+
+  const startPayment = async () => {
+    if (!selectedProduct || !requestIdRef.current) return;
     setPayStep('processing');
-    window.setTimeout(() => {
-      setBalance((current) => current + amount);
-      setPayStep('success');
-    }, 700);
+    try {
+      const order = await readyPayment(selectedProduct.productCode, requestIdRef.current);
+      const url = isMobileBrowser() ? order.mobileUrl : order.pcUrl;
+      if (!url) throw new Error('결제창을 열 수 없어요. 다시 결제해주세요.');
+      window.location.assign(url);
+    } catch (error) {
+      setPayError(errorMessage(error));
+      setPayStep('confirm');
+    }
+  };
+
+  const cancel = async (payment: PaymentResponse) => {
+    if (cancelingId || !window.confirm(`${payment.itemName} 결제를 취소할까요? 충전된 마일리지가 회수됩니다.`)) return;
+    setCancelingId(payment.orderId);
+    try {
+      await cancelPayment(payment.orderId);
+    } catch (error) {
+      window.alert(errorMessage(error));
+    } finally {
+      setCancelingId(null);
+      await loadWallet();
+    }
   };
 
   const savePost = () => {
@@ -127,7 +192,7 @@ export default function KakaoPayMockupPage() {
                   <span className="text-[11px] font-black tracking-widest text-zinc-400">CHARGE</span>
                   <h2 className="text-[22px] font-black">충전할 금액을 선택해주세요</h2>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {amounts.map((item) => {
+                    {products.map(({ price: item }) => {
                       const selected = item === amount;
                       return (
                         <button
@@ -156,8 +221,9 @@ export default function KakaoPayMockupPage() {
                     })}
                   </div>
                   <p className="text-xs font-bold text-zinc-400">1원당 1마일리지 적립 · 보너스 없음</p>
-                  <PrimaryButton disabled={!amount} onClick={() => setPayStep('confirm')}>
-                    {amount ? `카카오페이로 ${money(amount)}원 결제` : '충전 금액을 선택해주세요'}
+                  {walletError ? <p className="text-sm font-bold text-red-500">{walletError}</p> : null}
+                  <PrimaryButton disabled={!selectedProduct} onClick={openPayment}>
+                    {selectedProduct ? `카카오페이로 ${money(selectedProduct.price)}원 결제` : '충전 금액을 선택해주세요'}
                   </PrimaryButton>
                 </section>
 
@@ -182,7 +248,25 @@ export default function KakaoPayMockupPage() {
                       <History title="멘토링 신청" date="2026.10.08" amount="- 10,000 M" />
                     </>
                   ) : (
-                    <History title="마일리지 충전" date="2026.10.14 · 카카오페이" amount="10,000원" badge="완료" />
+                    payments.length === 0 ? (
+                      <p className="bg-white p-5 text-sm font-bold text-zinc-400 dark:bg-zinc-900">결제 내역이 없습니다</p>
+                    ) : (
+                      payments.map((payment) => (
+                        <History
+                          key={payment.orderId}
+                          title={payment.itemName}
+                          date={`${new Date(payment.createdAt).toLocaleString('ko-KR')} · ${payment.paymentMethodType === 'MONEY' ? '카카오페이머니' : payment.paymentMethodType === 'CARD' ? '카드' : '카카오페이'}`}
+                          amount={`${money(payment.amount ?? 0)}원`}
+                          badge={statusBadge(payment.status)}
+                          action={payment.status === 'APPROVED' ? (
+                            // 시험용: 사용자 화면에는 취소 버튼을 두지 않는다(08 문서 12-1절).
+                            <button type="button" disabled={cancelingId !== null} onClick={() => void cancel(payment)} className="rounded-lg border border-zinc-200 px-2 py-1 text-[11px] font-black disabled:opacity-50 dark:border-zinc-700">
+                              {cancelingId === payment.orderId ? '취소 중…' : '결제 취소'}
+                            </button>
+                          ) : null}
+                        />
+                      ))
+                    )
                   )}
                 </section>
               </Page>
@@ -282,18 +366,12 @@ export default function KakaoPayMockupPage() {
                 <span className="text-[11px] font-black tracking-widest text-zinc-400">KAKAOPAY</span>
                 <h2 className="text-2xl font-black">카카오페이로 결제하기</h2>
                 <div className="rounded-2xl border border-zinc-100 p-5 dark:border-zinc-800"><span className="text-xs text-zinc-500">결제 금액</span><strong className="mt-2 block text-3xl">{money(amount ?? 0)}원</strong></div>
-                <p className="text-sm leading-6 text-zinc-500">결제 완료 후 {money(amount ?? 0)} M가 충전됩니다. 실제 결제는 발생하지 않습니다.</p>
-                <PrimaryButton onClick={finishPayment}>목업 결제 완료</PrimaryButton>
+                <p className="text-sm leading-6 text-zinc-500">결제 완료 후 {money(amount ?? 0)} M가 충전됩니다. 카카오페이 결제 화면으로 이동합니다.</p>
+                {payError ? <p className="text-sm font-bold text-red-500">{payError}</p> : null}
+                <PrimaryButton onClick={() => void startPayment()}>카카오페이 결제창으로 이동</PrimaryButton>
               </>
             ) : null}
-            {payStep === 'processing' ? <Result title="결제 결과를 확인하고 있어요" description="목업 결제 상태가 곧 자동으로 갱신됩니다." pending /> : null}
-            {payStep === 'success' ? (
-              <Result
-                title={`${money(amount ?? 0)} M가 충전되었어요`}
-                description={`현재 마일리지 ${money(balance)} M · 결제 내역에서 영수증을 확인할 수 있어요.`}
-                onDone={() => setPayStep('closed')}
-              />
-            ) : null}
+            {payStep === 'processing' ? <Result title="결제를 준비하고 있어요" description="잠시 후 카카오페이 결제 화면으로 이동합니다." pending /> : null}
           </Modal>
         ) : null}
 
@@ -346,6 +424,6 @@ function SecondaryButton({ children, ...props }: React.ButtonHTMLAttributes<HTML
   return <button type="button" {...props} className="inline-flex min-h-12 w-full items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 px-5 text-sm font-black dark:border-zinc-700 dark:bg-zinc-800">{children}</button>;
 }
 
-function History({ title, date, amount, badge }: { title: string; date: string; amount: string; badge?: string }) {
-  return <div className="flex items-center justify-between border-b border-zinc-100 bg-white p-5 last:border-b-0 dark:border-zinc-800 dark:bg-zinc-900"><div><strong className="block text-sm">{title}</strong><span className="mt-1 block text-[11px] text-zinc-400">{date}</span></div><div className="flex items-center gap-2">{badge ? <em className="rounded-full bg-black px-2 py-1 text-[10px] font-black not-italic text-white dark:bg-white dark:text-black">{badge}</em> : null}<b className="text-sm">{amount}</b></div></div>;
+function History({ title, date, amount, badge, action }: { title: string; date: string; amount: string; badge?: string; action?: React.ReactNode }) {
+  return <div className="flex items-center justify-between border-b border-zinc-100 bg-white p-5 last:border-b-0 dark:border-zinc-800 dark:bg-zinc-900"><div><strong className="block text-sm">{title}</strong><span className="mt-1 block text-[11px] text-zinc-400">{date}</span></div><div className="flex items-center gap-2">{badge ? <em className="rounded-full bg-black px-2 py-1 text-[10px] font-black not-italic text-white dark:bg-white dark:text-black">{badge}</em> : null}<b className="text-sm">{amount}</b>{action}</div></div>;
 }
