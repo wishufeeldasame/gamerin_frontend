@@ -644,3 +644,25 @@ describe('가입 이메일 인증', () => {
     await expect(conflict).rejects.not.toBeInstanceOf(auth.EmailVerificationExpiredError);
   });
 });
+
+describe('가입 전 요청의 비-JSON 오류 응답', () => {
+  it('프록시 HTML 오류 페이지는 본문 대신 fallback으로 안내한다', async () => {
+    api.route('/api/v1/auth/email-verifications', () => new Response(
+      '<html><head><title>502 Bad Gateway</title></head><body>nginx</body></html>',
+      { status: 502, headers: { 'Content-Type': 'text/html' } },
+    ));
+
+    await expect(auth.requestSignupEmailVerification('demo@gamerin.test'))
+      .rejects.toMatchObject({ status: 502, message: '인증번호 발송에 실패했습니다.' });
+  });
+
+  it('일반 텍스트 오류는 본문을 안내한다', async () => {
+    api.route('/api/v1/auth/email-verifications', () => new Response(
+      '잠시 후 다시 시도해주세요.',
+      { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
+    ));
+
+    await expect(auth.requestSignupEmailVerification('demo@gamerin.test'))
+      .rejects.toMatchObject({ status: 503, message: '잠시 후 다시 시도해주세요.' });
+  });
+});
