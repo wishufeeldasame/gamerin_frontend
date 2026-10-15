@@ -34,7 +34,7 @@ let refreshRequest: {
 export type RefreshResult =
   | { status: 'refreshed'; accessToken: string; userId: string }
   // 서버가 인증을 거절했다. 세션은 이미 종료됐다. blocked면 차단·비활성 계정이라서 거절한 것이다.
-  | { status: 'rejected'; blocked?: boolean }
+  | { status: 'rejected'; blocked?: boolean; httpStatus?: number }
   // 네트워크 오류·5xx·429·잘못된 응답. 세션은 유지된다. httpStatus 0은 응답 없음.
   | { status: 'failed'; httpStatus: number }
   // 요청 도중 사용자 전환·로그아웃으로 세대가 바뀌었다.
@@ -543,7 +543,9 @@ export async function refreshAccessTokenResult(
       const blocked = isBlockedAccountResponse(response.status, payload);
       if (response.status === 401 || blocked) {
         expireAuthSession(expectedGeneration);
-        return blocked ? { status: 'rejected', blocked: true } : { status: 'rejected' };
+        return blocked
+          ? { status: 'rejected', blocked: true, httpStatus: response.status }
+          : { status: 'rejected' };
       }
 
       const nextToken = payload?.data?.accessToken;

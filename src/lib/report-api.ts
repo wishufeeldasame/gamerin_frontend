@@ -1,4 +1,4 @@
-import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 import type { ReportReasonCode, ReportStatus, ReportTargetType } from '@/types/report';
 
@@ -35,20 +35,21 @@ export interface CreatedReport {
 }
 
 export class ReportApiError extends ApiError {
-  constructor(message: string, status: number) {
-    super(message, status);
+  constructor(message: string, status: number, reason: ApiFailureReason = 'http') {
+    super(message, status, reason);
     this.name = 'ReportApiError';
   }
 }
 
 const REPORT_CLIENT: ApiClientConfig = {
   toError: ({ reason, status, message }) => new ReportApiError(
-    reason === 'unauthenticated'
-      ? '로그인이 필요하거나 인증이 만료되었습니다.'
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
       : reason === 'invalid-response'
         ? '신고 API 응답 형식이 올바르지 않습니다.'
-        : message ?? '신고 요청 처리에 실패했습니다.',
+        : '신고 요청 처리에 실패했습니다.'),
     status,
+    reason,
   ),
 };
 

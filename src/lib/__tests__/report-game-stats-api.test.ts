@@ -60,13 +60,14 @@ describe('report-api', () => {
     expect(store.getAccessToken()).toBeNull();
   });
 
-  it('refresh 거절은 기존 인증 문구와 401로 끝낸다', async () => {
+  it('refresh 거절은 공통 인증 문구와 reason을 보존하고 세션을 종료한다', async () => {
     api.route(REASONS, () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
 
     await expect(report.fetchReportReasons()).rejects.toMatchObject({
       status: 401,
-      message: '로그인이 필요하거나 인증이 만료되었습니다.',
+      reason: 'unauthenticated',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
     });
   });
 

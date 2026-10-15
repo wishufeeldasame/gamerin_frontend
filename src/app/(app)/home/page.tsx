@@ -1,14 +1,14 @@
 'use client';
 
-import { useToast } from '@/app/context/ToastContext';
-
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
-import { PostRecord, fetchFeed, likePost, unlikePost } from '@/lib/feed-api';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
+import { type PostRecord, fetchFeed } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
@@ -19,22 +19,47 @@ type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
 function HomePageContent() {
-  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
   const legacyPostId = searchParams.get('postId');
-  const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
-  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
-  const [error, setError] = useState<string | null>(null);
-  const loadMoreControllerRef = useRef<AbortController | null>(null);
-  const loadMoreBlockedRef = useRef(false);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
+    fetchFeed(activeTab, cursor, 20, { signal })
+  ), [activeTab]);
+
+  const {
+    items: posts,
+    setItems: setPosts,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    loadMoreError,
+    loadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: activeTab,
+    enabled: !legacyPostId,
+    initialErrorMessage: '피드를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+  });
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const loadMoreErrorRef = useRef(loadMoreError);
+  loadMoreErrorRef.current = loadMoreError;
+  const handleAutoLoadMore = useCallback(() => {
+    if (loadMoreErrorRef.current) return;
+    void loadMoreRef.current();
+  }, []);
+
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   useEffect(() => {
     if (!legacyPostId) return;
@@ -42,56 +67,6 @@ function HomePageContent() {
     const target = searchParams.get('target') === 'comments' ? '?target=comments' : '';
     router.replace(`/posts/${encodeURIComponent(legacyPostId)}${target}`);
   }, [legacyPostId, router, searchParams]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-
-    const loadInitialData = async () => {
-      if (legacyPostId) {
-        return;
-      }
-
-      try {
-        setLoading(true);
-        setLoadingMore(false);
-        setLoadMoreError(null);
-        loadMoreBlockedRef.current = false;
-        setError(null);
-
-        const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
-
-        if (cancelled) {
-          return;
-        }
-
-        setPosts(feedPage.items);
-        setNextCursor(feedPage.nextCursor);
-        setHasNext(feedPage.hasNext);
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-          return;
-        }
-
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '피드를 불러오지 못했습니다.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadInitialData();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      loadMoreControllerRef.current?.abort();
-      loadMoreControllerRef.current = null;
-    };
-  }, [activeTab, legacyPostId]);
 
   const handleTabChange = (tab: FeedTab) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -111,32 +86,6 @@ function HomePageContent() {
 
   const handleCreatedPost = (createdPost: PostRecord) => {
     setPosts((current) => [createdPost, ...current]);
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
-
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    setPosts((current) => updatePostsLikeState(current, post.postId, !post.likedByMe));
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setPosts((current) => updatePostsLikeState(current, post.postId, post.likedByMe));
-      toast.error(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
   };
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
@@ -166,39 +115,6 @@ function HomePageContent() {
     router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
 
-  const handleLoadMore = useCallback(async () => {
-    if (!hasNext || !nextCursor || loadMoreBlockedRef.current || loadMoreControllerRef.current) {
-      return;
-    }
-
-    const controller = new AbortController();
-    loadMoreControllerRef.current = controller;
-
-    try {
-      setLoadingMore(true);
-      const page = await fetchFeed(activeTab, nextCursor, 20, { signal: controller.signal });
-      setPosts((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-      loadMoreBlockedRef.current = false;
-      setLoadMoreError(null);
-    } catch (loadMoreError) {
-      if (loadMoreError instanceof DOMException && loadMoreError.name === 'AbortError') {
-        return;
-      }
-
-      loadMoreBlockedRef.current = true;
-      setLoadMoreError(
-        loadMoreError instanceof Error ? loadMoreError.message : '게시물을 더 불러오지 못했습니다.',
-      );
-    } finally {
-      if (loadMoreControllerRef.current === controller) {
-        loadMoreControllerRef.current = null;
-        setLoadingMore(false);
-      }
-    }
-  }, [activeTab, hasNext, nextCursor]);
-
   useEffect(() => {
     const sentinel = loadMoreSentinelRef.current;
     if (!sentinel || !hasNext || !nextCursor || loadMoreError) {
@@ -208,7 +124,7 @@ function HomePageContent() {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) {
-          void handleLoadMore();
+          handleAutoLoadMore();
         }
       },
       { rootMargin: '400px 0px' },
@@ -216,12 +132,12 @@ function HomePageContent() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [handleLoadMore, hasNext, loadMoreError, nextCursor]);
+  }, [handleAutoLoadMore, hasNext, loadMoreError, nextCursor]);
 
   return (
     <div className="flex justify-center overflow-visible">
       <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-purple-500/30 dark:bg-purple-700">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -231,7 +147,7 @@ function HomePageContent() {
               onClick={() => handleTabChange(tab.value)}
               aria-pressed={activeTab === tab.value}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
+                activeTab === tab.value ? 'text-black dark:!text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:!text-white'
               }`}
             >
               {tab.label}
@@ -253,7 +169,7 @@ function HomePageContent() {
               피드를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           ) : posts.length === 0 ? (
@@ -283,7 +199,7 @@ function HomePageContent() {
                 </motion.div>
               ))}
 
-              {hasNext ? (
+              {hasNext && nextCursor ? (
                 <div
                   ref={loadMoreSentinelRef}
                   data-testid="feed-load-more-sentinel"
@@ -296,7 +212,7 @@ function HomePageContent() {
                 <div
                   role="status"
                   aria-live="polite"
-                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-purple-200/70"
+                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-zinc-400"
                 >
                   게시물을 불러오는 중...
                 </div>
@@ -305,16 +221,13 @@ function HomePageContent() {
               {loadMoreError ? (
                 <div
                   role="alert"
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                 >
                   <span>{loadMoreError}</span>
                   <button
                     type="button"
-                    onClick={() => {
-                      loadMoreBlockedRef.current = false;
-                      setLoadMoreError(null);
-                    }}
-                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400"
+                    onClick={() => void loadMore()}
+                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300 dark:hover:border-red-400"
                   >
                     다시 시도
                   </button>

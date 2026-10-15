@@ -243,11 +243,11 @@ export function EditProfileModal({
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           className="relative bg-white w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
         >
-          <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20">
+          <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20 dark:bg-neutral-950/90">
             <div className="flex items-center gap-4">
               <button
                 onClick={onClose}
-                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black"
+                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black dark:hover:bg-neutral-800"
               >
                 <X size={24} />
               </button>
@@ -256,7 +256,7 @@ export function EditProfileModal({
             <button
               onClick={handleSave}
               disabled={saving || processingImage}
-              className="px-8 py-2.5 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all text-sm shadow-lg shadow-zinc-200 disabled:bg-zinc-300"
+              className="px-8 py-2.5 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all text-sm shadow-lg shadow-zinc-200 disabled:bg-zinc-300 dark:shadow-none dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
             >
               {processingImage ? '이미지 처리 중...' : saving ? '저장 중...' : '저장'}
             </button>
@@ -287,7 +287,7 @@ export function EditProfileModal({
                 event.stopPropagation();
                 handleResetCover();
               }}
-              className="absolute bottom-4 right-4 rounded-xl bg-white/90 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-black shadow-lg transition hover:bg-white"
+              className="absolute bottom-4 right-4 rounded-xl bg-white/90 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-black shadow-lg transition hover:bg-white dark:bg-neutral-900/90 dark:hover:bg-neutral-800"
             >
               커버 이미지 초기화
             </button>
@@ -302,7 +302,7 @@ export function EditProfileModal({
 
           <div className="px-8 -mt-16 relative z-10">
             <div className="relative w-32 h-32 group cursor-pointer" onClick={handleAvatarClick}>
-              <div className="relative w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden">
+              <div className="relative w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden dark:border-neutral-950">
                 {avatarPreview ? (
                   <Image src={avatarPreview} alt="프로필 이미지" fill unoptimized sizes="128px" className="object-cover" />
                 ) : (
@@ -332,7 +332,7 @@ export function EditProfileModal({
                 value={formData.name}
                 onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.nameMax}
-                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all"
+                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-neutral-900"
                 placeholder="이름을 입력하세요"
               />
             </div>
@@ -345,7 +345,7 @@ export function EditProfileModal({
                 value={formData.bio}
                 onChange={(event) => setFormData({ ...formData, bio: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.bioMax}
-                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none"
+                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-neutral-900"
                 placeholder="게임 이야기를 소개해 보세요"
               />
               <div className="flex justify-end pr-2">
@@ -365,7 +365,7 @@ export function EditProfileModal({
                   value={formData.location}
                   onChange={(event) => setFormData({ ...formData, location: event.target.value })}
                   maxLength={PROFILE_FIELD_LIMITS.locationMax}
-                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
+                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all dark:focus:!border-[#f5b93d] dark:focus:bg-neutral-900"
                 />
               </div>
               <div className="space-y-3">
@@ -377,7 +377,7 @@ export function EditProfileModal({
                   value={formData.website}
                   onChange={(event) => setFormData({ ...formData, website: event.target.value })}
                   maxLength={PROFILE_FIELD_LIMITS.websiteMax}
-                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
+                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all dark:focus:!border-[#f5b93d] dark:focus:bg-neutral-900"
                 />
               </div>
             </div>

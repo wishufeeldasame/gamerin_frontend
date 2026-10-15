@@ -19,6 +19,7 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
 import { createConversation } from '@/lib/message-api';
 import {
   acceptMentoringApplication,
@@ -38,7 +39,6 @@ import {
   fetchMyMentorProfile,
   fetchMentorProfile,
   finishMentoringApplication,
-  isMentoringAuthError,
   registerMentor,
   rejectMentoringApplication,
   startMentoringApplication,
@@ -210,29 +210,10 @@ function isMileageShortageError(error: unknown) {
   }
 
   const message = error.message.toLowerCase();
-  const hasMileageTerm =
-    message.includes('마일리지') || message.includes('mileage') || message.includes('balance');
-  const hasShortageTerm =
-    message.includes('부족') ||
-    message.includes('insufficient') ||
-    message.includes('shortage') ||
-    message.includes('not enough');
+  const hasMileageTerm = message.includes('마일리지');
+  const hasShortageTerm = message.includes('부족');
 
   return hasMileageTerm && hasShortageTerm;
-}
-
-function isAuthRequiredError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  const message = error.message.toLowerCase();
-
-  return (
-    message.includes('authentication is required') ||
-    message.includes('sign in again') ||
-    message.includes('token has expired')
-  );
 }
 
 function isApplicationBlockingReapply(status: ApplicationStatus) {
@@ -250,10 +231,7 @@ function isDuplicateReviewError(error: unknown) {
 
   const message = error.message.toLowerCase();
 
-  return (
-    (message.includes('이미') && message.includes('리뷰') && message.includes('작성')) ||
-    (message.includes('already') && message.includes('review'))
-  );
+  return message.includes('이미') && message.includes('리뷰') && message.includes('작성');
 }
 
 export default function MentoringPage() {
@@ -403,9 +381,9 @@ export default function MentoringPage() {
       return;
     }
 
-    if (isMentoringAuthError(error) || isAuthRequiredError(error)) {
+    if (isAuthError(error)) {
       setBannerType('auth');
-      setAuthMessage('세션이 만료되었거나 인증 상태가 올바르지 않습니다. 다시 로그인해주세요.');
+      setAuthMessage(error instanceof Error ? error.message : AUTH_REQUIRED_MESSAGE);
       setErrorMessage('');
       return;
     }
@@ -539,7 +517,7 @@ export default function MentoringPage() {
     ]);
 
     const authFailure = [menteeResult, mentorResult].find(
-      (result) => result.status === 'rejected' && isMentoringAuthError(result.reason)
+      (result) => result.status === 'rejected' && isAuthError(result.reason)
     );
 
     if (authFailure?.status === 'rejected') {
@@ -1157,15 +1135,15 @@ export default function MentoringPage() {
         {notice ? <div className="mb-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white">{notice}</div> : null}
 
         {authMessage ? (
-          <div className="mb-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-5">
+          <div className="mb-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-5 dark:border-yellow-900 dark:bg-yellow-950/40">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex gap-3">
-                <AlertCircle className="mt-0.5 shrink-0 text-yellow-700" size={20} />
+                <AlertCircle className="mt-0.5 shrink-0 text-yellow-700 dark:text-yellow-300" size={20} />
                 <div>
-                  <p className="font-black text-yellow-900">
+                  <p className="font-black text-yellow-900 dark:text-yellow-200">
                     {bannerType === 'mileage' ? '마일리지가 부족합니다' : '인증 확인이 필요합니다'}
                   </p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-yellow-800">{authMessage}</p>
+                  <p className="mt-1 text-sm font-bold leading-6 text-yellow-800 dark:text-yellow-300">{authMessage}</p>
                 </div>
               </div>
 
@@ -1191,7 +1169,7 @@ export default function MentoringPage() {
         ) : null}
 
         {errorMessage ? (
-          <div className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-sm font-black text-red-600">
+          <div className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-sm font-black text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
             {errorMessage}
           </div>
         ) : null}
@@ -1251,7 +1229,7 @@ export default function MentoringPage() {
                             <span
                               className={`rounded-full px-3 py-1 text-[11px] font-black ${
                                 program.status === 'ACTIVE'
-                                  ? 'bg-green-100 text-green-700'
+                                  ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
                                   : 'bg-zinc-100 text-zinc-500'
                               }`}
                             >
@@ -1350,7 +1328,7 @@ export default function MentoringPage() {
                     value={chargeAmount}
                     onChange={(event) => setChargeAmount(event.target.value.replace(/[^0-9]/g, ''))}
                     inputMode="numeric"
-                    className="h-12 flex-1 rounded-xl border border-zinc-200 px-4 text-sm font-bold outline-none"
+                    className="h-12 flex-1 rounded-xl border border-zinc-200 px-4 text-sm font-bold outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     placeholder="충전 금액"
                   />
                   <button
@@ -1469,7 +1447,7 @@ export default function MentoringPage() {
                                     isSelected
                                       ? 'bg-white/15 text-white'
                                       : program.status === 'ACTIVE'
-                                        ? 'bg-green-100 text-green-700'
+                                      ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
                                         : 'bg-zinc-100 text-zinc-500'
                                   }`}
                                 >
@@ -1589,14 +1567,14 @@ export default function MentoringPage() {
                       value={programForm.availableTimeDesc}
                       onChange={handleProgramFormChange}
                       placeholder="가능한 시간대"
-                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none"
+                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
                     <input
                       name="tags"
                       value={programForm.tags}
                       onChange={handleProgramFormChange}
                       placeholder="태그, 쉼표로 구분"
-                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none"
+                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
                   </div>
 
@@ -1623,7 +1601,7 @@ export default function MentoringPage() {
                     required
                     rows={7}
                     placeholder="멘토링 경험, 전문 분야, 멘티에게 전하고 싶은 메시지를 적어주세요."
-                    className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none"
+                    className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                   <button
                     type="submit"
@@ -1765,12 +1743,12 @@ export default function MentoringPage() {
                       내가 등록한 프로그램입니다.
                     </p>
                   ) : selectedProgramApplication ? (
-                    <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4">
-                      <p className="text-sm font-black text-green-800">이미 신청한 프로그램</p>
-                      <p className="mt-2 text-xs font-bold leading-5 text-green-700">
+                    <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">
+                      <p className="text-sm font-black text-green-800 dark:text-green-200">이미 신청한 프로그램</p>
+                      <p className="mt-2 text-xs font-bold leading-5 text-green-700 dark:text-green-300">
                         이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해주세요.
                       </p>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-green-700">
+                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-green-700 dark:text-green-300">
                         <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
                         <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
                       </div>
@@ -1784,7 +1762,7 @@ export default function MentoringPage() {
                     </div>
                   ) : (
                     <form onSubmit={handleApplyProgram} className="mt-5">
-                      <div className="mb-4 rounded-xl bg-yellow-50 p-4 text-xs font-bold leading-5 text-yellow-800">
+                      <div className="mb-4 rounded-xl bg-yellow-50 p-4 text-xs font-bold leading-5 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
                         신청 시 프로그램 가격만큼의 마일리지가 에스크로 보관 상태로 유지됩니다.
                       </div>
 
@@ -1796,7 +1774,7 @@ export default function MentoringPage() {
                           required
                           rows={4}
                           placeholder="원하는 멘토링 방향이나 현재 고민을 적어주세요."
-                          className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-black"
+                          className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                         />
                       </label>
 
@@ -2052,7 +2030,7 @@ export default function MentoringPage() {
                     rows={5}
                     maxLength={500}
                     placeholder="멘토링이 어땠는지 자세히 적어주세요."
-                    className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none"
+                    className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                 </label>
 
@@ -2213,7 +2191,7 @@ function ApplicationCard({
         <span>결제: {paymentLabel[application.paymentStatus] ?? application.paymentStatus}</span>
       </div>
 
-      {guide ? <p className="mt-4 rounded-xl bg-yellow-50 p-3 text-xs font-bold text-yellow-800">{guide}</p> : null}
+      {guide ? <p className="mt-4 rounded-xl bg-yellow-50 p-3 text-xs font-bold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">{guide}</p> : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
@@ -2233,7 +2211,7 @@ function ApplicationCard({
               type="button"
               onClick={onAccept}
               disabled={actionPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-blue-700"
             >
               <Check size={14} />
               수락
@@ -2242,7 +2220,7 @@ function ApplicationCard({
               type="button"
               onClick={onReject}
               disabled={actionPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+              className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-red-700"
             >
               <X size={14} />
               거절
@@ -2255,7 +2233,7 @@ function ApplicationCard({
             type="button"
             onClick={onCancel}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-red-700"
           >
             <X size={14} />
             요청 취소
@@ -2279,7 +2257,7 @@ function ApplicationCard({
             type="button"
             onClick={onFinish}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-orange-700"
           >
             <Check size={14} />
             종료 보고
@@ -2291,7 +2269,7 @@ function ApplicationCard({
             type="button"
             onClick={onComplete}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-green-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-green-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-green-700"
           >
             <CreditCard size={14} />
             완료 확정
@@ -2303,7 +2281,7 @@ function ApplicationCard({
             type="button"
             onClick={onReview}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-yellow-400 px-3 py-2 text-xs font-black text-black disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg bg-yellow-400 px-3 py-2 text-xs font-black text-black disabled:opacity-50 dark:!text-black"
           >
             <Star size={14} />
             리뷰 작성
@@ -2374,7 +2352,7 @@ function MileageTransactionPanel({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className={`text-lg font-black ${positive ? 'text-blue-600' : 'text-red-500'}`}>
+                  <p className={`text-lg font-black ${positive ? 'text-blue-600 dark:text-blue-300' : 'text-red-500'}`}>
                     {formatSignedMileage(transaction.amount)}
                   </p>
                   <p className="mt-1 text-xs font-bold text-zinc-400">

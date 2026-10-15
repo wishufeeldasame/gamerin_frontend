@@ -4,7 +4,7 @@ import { useToast } from '@/app/context/ToastContext';
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import {
@@ -39,6 +39,8 @@ import { RelativeTime } from './RelativeTime';
 interface NotificationPanelProps {
   onClose: () => void;
   onUnreadCountChange?: (count: number) => void;
+  id?: string;
+  panelRef?: RefObject<HTMLDivElement | null>;
 }
 
 const PAGE_SIZE = 20;
@@ -75,13 +77,14 @@ function mergeNotifications(current: NotificationRecord[], incoming: Notificatio
   });
 }
 
-export function NotificationPanel({ onClose, onUnreadCountChange }: NotificationPanelProps) {
+export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }: NotificationPanelProps) {
   const toast = useToast();
   const router = useRouter();
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const unreadCountRef = useRef(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [pendingReadId, setPendingReadId] = useState<string | null>(null);
@@ -90,10 +93,15 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
   const firstPageAbortRef = useRef<AbortController | null>(null);
   const loadMoreAbortRef = useRef<AbortController | null>(null);
 
-  const syncUnreadCount = async () => {
-    const count = await fetchUnreadNotificationCount();
+  const updateUnreadCount = useCallback((count: number) => {
+    unreadCountRef.current = count;
     setUnreadCount(count);
     onUnreadCountChange?.(count);
+  }, [onUnreadCountChange]);
+
+  const syncUnreadCount = async () => {
+    const count = await fetchUnreadNotificationCount();
+    updateUnreadCount(count);
   };
 
   const loadFirstPage = useCallback(async (background = false) => {
@@ -121,8 +129,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setNotifications(mergeNotifications([], page.items));
       setNextCursor(page.nextCursor);
       setHasNext(Boolean(page.hasNext && page.nextCursor));
-      setUnreadCount(count);
-      onUnreadCountChange?.(count);
+      updateUnreadCount(count);
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return;
 
@@ -135,7 +142,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
         setLoading(false);
       }
     }
-  }, [onUnreadCountChange]);
+  }, [updateUnreadCount]);
 
   useEffect(() => {
     void loadFirstPage();
@@ -191,11 +198,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
         item.notificationId === notification.notificationId ? { ...item, read: true } : item,
       ),
     );
-    setUnreadCount((current) => {
-      const next = Math.max(0, current - 1);
-      onUnreadCountChange?.(next);
-      return next;
-    });
+    updateUnreadCount(Math.max(0, unreadCountRef.current - 1));
 
     try {
       await markNotificationRead(notification.notificationId);
@@ -241,8 +244,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       setMarkingAll(true);
       await markAllNotificationsRead();
       setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
-      setUnreadCount(0);
-      onUnreadCountChange?.(0);
+      updateUnreadCount(0);
       await syncUnreadCount().catch(() => undefined);
     } catch (markAllError) {
       toast.error(markAllError instanceof Error ? markAllError.message : '전체 읽음 처리에 실패했습니다.');
@@ -257,6 +259,8 @@ export function NotificationPanel({ onClose, onUnreadCountChange }: Notification
       <div className="fixed inset-0 z-[60]" onClick={onClose} />
 
       <motion.div
+        id={id}
+        ref={panelRef}
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"

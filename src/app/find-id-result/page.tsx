@@ -26,7 +26,7 @@ function FindIdResultPageContent() {
     <div className="flex min-h-screen bg-white font-sans text-black">
       
       {/* 1. 왼쪽: GamerIN 로고 전용 영역 */}
-      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100">
+      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100 dark:border-neutral-800 dark:bg-neutral-900">
         <div className="relative w-80 h-80 flex items-center justify-center">
           <Image 
             src="/logo.png" 

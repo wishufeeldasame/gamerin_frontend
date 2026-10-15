@@ -7,6 +7,10 @@ import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { AuthStatusCard } from '@/app/auth/_components/AuthStatusCard';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { getApiBaseUrl } from '@/lib/api-base';
+import {
+  getPublicRequestErrorMessage,
+  readPublicResponseErrorMessage,
+} from '@/lib/public-request-error';
 
 const SUCCESS_MESSAGE =
   '입력한 정보가 유효하면 비밀번호 재설정 메일을 발송했습니다.';
@@ -42,14 +46,12 @@ export default function ForgotPasswordPage() {
       });
 
       if (!response.ok) {
-        throw new Error(SUBMIT_ERROR_MESSAGE);
+        throw new Error(await readPublicResponseErrorMessage(response, SUBMIT_ERROR_MESSAGE));
       }
 
       setIsSuccess(true);
     } catch (error) {
-      setError(
-        error instanceof Error ? error.message : SUBMIT_ERROR_MESSAGE
-      );
+      setError(getPublicRequestErrorMessage(error, SUBMIT_ERROR_MESSAGE));
     } finally {
       setIsSubmitting(false);
     }
