@@ -6,15 +6,18 @@ import { ChevronDown, Eye, EyeOff, X } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
-import { loginWithPassword } from '@/lib/auth-api';
-import { getApiBaseUrl } from '@/lib/api-base';
 import {
-  getPublicRequestErrorMessage,
-  readPublicResponseErrorMessage,
-} from '@/lib/public-request-error';
+  EmailVerificationExpiredError,
+  confirmSignupEmailVerification,
+  loginWithPassword,
+  requestSignupEmailVerification,
+  signUpWithPassword,
+} from '@/lib/auth-api';
+import { getApiBaseUrl } from '@/lib/api-base';
+import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
 import {
   HANDLE_MAX_LENGTH,
   NICKNAME_MAX_LENGTH,
@@ -28,6 +31,12 @@ import {
 // 백엔드 회원가입 API(SignUpRequest)에 생년월일 필드가 없어 입력을 숨기고 검증에서 뺀다.
 // 계약이 생기면 true로 바꾸고 회원가입 요청 본문에 추가한다.
 const BIRTH_DATE_ENABLED = false;
+
+const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  email_not_verified: 'Google 계정의 이메일이 인증되지 않아 계속할 수 없습니다. Google에서 이메일을 인증한 뒤 다시 시도해주세요.',
+};
+
+const formatRemaining = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
 export default function LoginPage() {
   const toast = useToast();
@@ -52,20 +61,46 @@ export default function LoginPage() {
   const [signupId, setSignupId] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
+  const [signupPending, setSignupPending] = useState(false);
+  const [oauthError, setOauthError] = useState('');
+
+  // 인증번호를 보낸 이메일과 만료·재발송 가능 시각(ms). 이메일을 고치면 처음부터 다시 인증한다.
+  const [emailCode, setEmailCode] = useState<{ email: string; expiresAt: number; resendAt: number } | null>(null);
+  const [verificationCode, setVerificationCode] = useState('');
+  const [emailVerificationToken, setEmailVerificationToken] = useState('');
+  const [verificationError, setVerificationError] = useState('');
+  const [verificationPending, setVerificationPending] = useState(false);
+  const [now, setNow] = useState(0);
+  // 이메일 수정·모달 닫기 뒤 도착한 이전 요청의 응답을 버린다.
+  const verificationRunRef = useRef(0);
 
   const nameError = validateNickname(signupName);
   const emailError = validateEmail(signupEmail);
   const handleError = validateHandle(signupId);
   const passwordError = validatePassword(signupPassword);
+  const isEmailVerified = Boolean(emailVerificationToken);
+  const codeSecondsLeft = emailCode ? Math.max(0, Math.ceil((emailCode.expiresAt - now) / 1000)) : 0;
+  const resendSecondsLeft = emailCode ? Math.max(0, Math.ceil((emailCode.resendAt - now) / 1000)) : 0;
   const isStep1Valid = Boolean(
     !nameError &&
       !emailError &&
+      isEmailVerified &&
       (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear))
   );
   const isStep2Valid =
     !handleError && !passwordError && signupPassword === signupPasswordConfirm;
 
+  const resetEmailVerification = () => {
+    verificationRunRef.current += 1;
+    setEmailCode(null);
+    setVerificationCode('');
+    setEmailVerificationToken('');
+    setVerificationError('');
+    setVerificationPending(false);
+  };
+
   const resetSignup = () => {
+    resetEmailVerification();
     setShowSignupModal(false);
     setSignupStep(1);
     setSignupName('');
@@ -76,6 +111,51 @@ export default function LoginPage() {
     setSignupId('');
     setSignupPassword('');
     setSignupPasswordConfirm('');
+  };
+
+  const handleSendVerificationCode = async () => {
+    if (emailError || verificationPending || resendSecondsLeft > 0 || isEmailVerified) return;
+    const email = signupEmail.trim();
+    const run = ++verificationRunRef.current;
+    setVerificationPending(true);
+    setVerificationError('');
+
+    try {
+      const sent = await requestSignupEmailVerification(email);
+      if (run !== verificationRunRef.current) return;
+      const sentAt = Date.now();
+      setNow(sentAt);
+      setEmailCode({
+        email,
+        expiresAt: sentAt + sent.expiresInSeconds * 1000,
+        resendAt: sentAt + sent.resendCooldownSeconds * 1000,
+      });
+      setVerificationCode('');
+    } catch (error) {
+      if (run !== verificationRunRef.current) return;
+      setVerificationError(getPublicRequestErrorMessage(error, '인증번호 발송에 실패했습니다.'));
+    } finally {
+      if (run === verificationRunRef.current) setVerificationPending(false);
+    }
+  };
+
+  const handleConfirmVerificationCode = async () => {
+    if (!emailCode || verificationPending || !/^\d{6}$/.test(verificationCode) || codeSecondsLeft === 0) return;
+    const run = ++verificationRunRef.current;
+    setVerificationPending(true);
+    setVerificationError('');
+
+    try {
+      const token = await confirmSignupEmailVerification(emailCode.email, verificationCode);
+      if (run !== verificationRunRef.current) return;
+      setEmailVerificationToken(token);
+      setVerificationCode('');
+    } catch (error) {
+      if (run !== verificationRunRef.current) return;
+      setVerificationError(getPublicRequestErrorMessage(error, '인증번호 확인에 실패했습니다.'));
+    } finally {
+      if (run === verificationRunRef.current) setVerificationPending(false);
+    }
   };
 
   const handleNextStep = (event: FormEvent<HTMLFormElement>) => {
@@ -89,31 +169,32 @@ export default function LoginPage() {
     event.preventDefault();
     if (!isStep2Valid) return;
 
-    try {
-      const response = await fetch(`${getApiBaseUrl()}/api/v1/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          handle: signupId.trim(),
-          nickname: signupName.trim(),
-          email: signupEmail.trim(),
-          password: signupPassword,
-          passwordConfirm: signupPasswordConfirm,
-          agreedToTerms: true,
-          agreedToPrivacy: true,
-        }),
-      });
+    if (signupPending) return;
+    setSignupPending(true);
 
-      if (!response.ok) {
-        throw new Error(await readPublicResponseErrorMessage(response, '회원가입에 실패했습니다.'));
-      }
+    try {
+      await signUpWithPassword({
+        handle: signupId.trim(),
+        nickname: signupName.trim(),
+        email: signupEmail.trim(),
+        password: signupPassword,
+        passwordConfirm: signupPasswordConfirm,
+        emailVerificationToken,
+      });
 
       resetSignup();
       setShowIdLogin(true);
       setLoginHandle(signupId.trim());
     } catch (error) {
+      if (error instanceof EmailVerificationExpiredError) {
+        resetEmailVerification();
+        setSignupStep(1);
+        setVerificationError(error.message);
+        return;
+      }
       toast.error(getPublicRequestErrorMessage(error, '회원가입에 실패했습니다.'));
+    } finally {
+      setSignupPending(false);
     }
   };
 
@@ -143,6 +224,19 @@ export default function LoginPage() {
   const handleGoogleLogin = () => {
     window.location.href = `${getApiBaseUrl()}/oauth2/authorization/google`;
   };
+
+  useEffect(() => {
+    if (!emailCode || isEmailVerified) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [emailCode, isEmailVerified]);
+
+  // OAuth 처리 실패 시 백엔드가 /login?error=<code>로 돌려보낸다.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('error');
+    // 상속 속성(__proto__ 등)이 조회되지 않도록 자체 속성만 쓴다.
+    if (code && Object.prototype.hasOwnProperty.call(OAUTH_ERROR_MESSAGES, code)) setOauthError(OAUTH_ERROR_MESSAGES[code]);
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady || !user) return;
@@ -178,6 +272,15 @@ export default function LoginPage() {
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
             GamerIN은 현재 개발 단계입니다. 이용 중 오류나 데이터 변경이 발생할 수 있습니다.
           </div>
+
+          {oauthError ? (
+            <p
+              role="alert"
+              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-red-700 lg:text-left dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+            >
+              {oauthError}
+            </p>
+          ) : null}
 
           <div className="flex flex-col gap-4">
             <button
@@ -315,17 +418,77 @@ export default function LoginPage() {
                   ) : null}
                 </div>
                 <div className="mb-8">
-                  <input
-                    type="email"
-                    name="email"
-                    autoComplete="email"
-                    value={signupEmail}
-                    onChange={(event) => setSignupEmail(event.target.value)}
-                    placeholder="이메일"
-                    className="w-full rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="email"
+                      name="email"
+                      autoComplete="email"
+                      value={signupEmail}
+                      onChange={(event) => {
+                        setSignupEmail(event.target.value);
+                        resetEmailVerification();
+                      }}
+                      placeholder="이메일"
+                      className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSendVerificationCode}
+                      disabled={Boolean(emailError) || verificationPending || resendSecondsLeft > 0 || isEmailVerified}
+                      className="shrink-0 rounded-xl bg-black px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                    >
+                      {!emailCode ? '인증번호 받기' : resendSecondsLeft > 0 ? `재발송 (${resendSecondsLeft}초)` : '재발송'}
+                    </button>
+                  </div>
                   {signupEmail && emailError ? (
                     <p className="ml-2 mt-2 text-sm text-red-500">{emailError}</p>
+                  ) : null}
+                  {emailCode && !isEmailVerified ? (
+                    <>
+                      <div className="mt-3 flex gap-2">
+                        <div className="relative min-w-0 flex-1">
+                          <input
+                            type="text"
+                            name="email-verification-code"
+                            inputMode="numeric"
+                            autoComplete="one-time-code"
+                            aria-label="인증번호"
+                            value={verificationCode}
+                            onChange={(event) => setVerificationCode(event.target.value.replace(/\D/g, ''))}
+                            onKeyDown={(event) => {
+                              if (event.key !== 'Enter') return;
+                              event.preventDefault();
+                              void handleConfirmVerificationCode();
+                            }}
+                            placeholder="인증번호 6자리"
+                            maxLength={6}
+                            className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-16 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                          />
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm tabular-nums text-red-500">
+                            {formatRemaining(codeSecondsLeft)}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleConfirmVerificationCode}
+                          disabled={verificationCode.length !== 6 || verificationPending || codeSecondsLeft === 0}
+                          className="shrink-0 rounded-xl bg-black px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                        >
+                          확인
+                        </button>
+                      </div>
+                      <p className="ml-2 mt-2 text-sm text-gray-500 dark:text-zinc-400">
+                        {codeSecondsLeft > 0
+                          ? `${emailCode.email}(으)로 보낸 인증번호를 입력해주세요.`
+                          : '인증번호가 만료되었습니다. 인증번호를 다시 받아주세요.'}
+                      </p>
+                    </>
+                  ) : null}
+                  {isEmailVerified ? (
+                    <p className="ml-2 mt-2 text-sm text-green-600 dark:text-green-400">이메일 인증이 완료되었습니다.</p>
+                  ) : null}
+                  {verificationError ? (
+                    <p role="alert" className="ml-2 mt-2 text-sm text-red-500">{verificationError}</p>
                   ) : null}
                 </div>
                 {BIRTH_DATE_ENABLED ? (
@@ -467,7 +630,7 @@ export default function LoginPage() {
                 ) : null}
                 <button
                   type="submit"
-                  disabled={!isStep2Valid}
+                  disabled={!isStep2Valid || signupPending}
                   className={`mt-4 w-full rounded-full py-4 text-lg font-bold transition ${
                     !isStep2Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
                   }`}

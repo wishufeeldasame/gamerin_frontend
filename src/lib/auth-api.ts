@@ -1,6 +1,6 @@
 import { getApiBaseUrl } from '@/lib/api-base';
 import { ApiError, apiRequest } from '@/lib/api-client';
-import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
+import { getPublicRequestErrorMessage, readPublicResponseErrorMessage } from '@/lib/public-request-error';
 import {
   BLOCKED_ACCOUNT_MESSAGE,
   isBlockedAccountResponse,
@@ -198,6 +198,94 @@ export async function loginWithPassword(handle: string, password: string): Promi
   }
 
   return confirmAuthSession(accessToken, generation, userId);
+}
+
+// 가입 요청이 이메일 인증 토큰 만료·사용·불일치로 거절됐다. 이메일 인증부터 다시 해야 한다.
+export class EmailVerificationExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmailVerificationExpiredError';
+  }
+}
+
+export interface EmailVerificationSent {
+  expiresInSeconds: number;
+  resendCooldownSeconds: number;
+}
+
+// 토큰 없이 보내는 가입 전 요청. 거절되면 서버 message(없으면 fallback)와 상태 코드를 담은 ApiError.
+async function postPublicAuth(path: string, payload: unknown, fallback: string): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(getPublicRequestErrorMessage(error, fallback));
+  }
+
+  if (!response.ok) {
+    throw new ApiError(await readPublicResponseErrorMessage(response, fallback), response.status);
+  }
+  const body = await response.json().catch(() => null);
+  return body?.data;
+}
+
+const positiveSeconds = (value: unknown, fallback: number) =>
+  typeof value === 'number' && value > 0 ? value : fallback;
+
+/** 가입용 이메일 인증번호를 보낸다. 이미 가입된 이메일(409)·재발송 대기(429)는 서버 message로 거절한다. */
+export async function requestSignupEmailVerification(email: string): Promise<EmailVerificationSent> {
+  const data = (await postPublicAuth('/api/v1/auth/email-verifications', { email }, '인증번호 발송에 실패했습니다.')) as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  // 값이 없으면 서버 정책(유효 5분, 재발송 60초)으로 표시한다.
+  return {
+    expiresInSeconds: positiveSeconds(data?.expiresInSeconds, 300),
+    resendCooldownSeconds: positiveSeconds(data?.resendCooldownSeconds, 60),
+  };
+}
+
+/** 인증번호를 확인하고 가입 요청에 넣을 인증 토큰을 반환한다. 불일치·만료·시도 초과는 서버 message로 거절한다. */
+export async function confirmSignupEmailVerification(email: string, code: string): Promise<string> {
+  const data = (await postPublicAuth(
+    '/api/v1/auth/email-verifications/confirm',
+    { email, code },
+    '인증번호 확인에 실패했습니다.',
+  )) as { verificationToken?: unknown } | null | undefined;
+  const token = data?.verificationToken;
+  if (typeof token !== 'string' || !token) {
+    throw new Error('인증 응답이 올바르지 않습니다. 다시 시도해주세요.');
+  }
+  return token;
+}
+
+/** 이메일 인증 토큰으로 일반 회원가입을 한다. 인증 토큰이 거절되면 EmailVerificationExpiredError. */
+export async function signUpWithPassword(params: {
+  handle: string;
+  nickname: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  emailVerificationToken: string;
+}): Promise<void> {
+  try {
+    await postPublicAuth(
+      '/api/v1/auth/signup',
+      { ...params, agreedToTerms: true, agreedToPrivacy: true },
+      '회원가입에 실패했습니다.',
+    );
+  } catch (error) {
+    // shortcut: 서버 오류 응답에 코드가 없어 메시지로 판별한다. 백엔드가 오류 코드를 주면 그것으로 바꾼다.
+    if (error instanceof ApiError && error.status === 400 && error.message.includes('이메일 인증')) {
+      throw new EmailVerificationExpiredError(error.message);
+    }
+    throw error;
+  }
 }
 
 /** 소셜 가입을 완료하고(가입 직후 로그인 상태가 된다) `/auth/me`로 확정한 사용자를 반환한다. */

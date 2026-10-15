@@ -564,3 +564,83 @@ describe('restoreAuthUser', () => {
     expect(store.getAccessToken()).toBe('other-user-token');
   });
 });
+
+describe('가입 이메일 인증', () => {
+  it('인증번호를 보내고 만료·재발송 대기 시간을 돌려준다', async () => {
+    api.route('/api/v1/auth/email-verifications', () =>
+      json(200, { success: true, data: { expiresInSeconds: 300, resendCooldownSeconds: 60 } }));
+
+    await expect(auth.requestSignupEmailVerification('demo@gamerin.test')).resolves.toEqual({
+      expiresInSeconds: 300,
+      resendCooldownSeconds: 60,
+    });
+    expect(JSON.parse(String(api.init(0)?.body))).toEqual({ email: 'demo@gamerin.test' });
+    expect(api.authorization(0)).toBeNull();
+  });
+
+  it.each([
+    [409, '이미 사용 중인 이메일입니다.'],
+    [429, '인증번호는 1분 후에 다시 요청할 수 있습니다.'],
+  ])('발송 거절(%i)은 상태 코드와 서버 message를 담는다', async (status, message) => {
+    api.route('/api/v1/auth/email-verifications', () => json(status, { success: false, message }));
+
+    await expect(auth.requestSignupEmailVerification('demo@gamerin.test')).rejects.toMatchObject({ status, message });
+  });
+
+  it('발송 네트워크 TypeError는 한국어 메시지로 거절한다', async () => {
+    api.route('/api/v1/auth/email-verifications', () => Promise.reject(new TypeError('Failed to fetch')));
+
+    await expect(auth.requestSignupEmailVerification('demo@gamerin.test')).rejects.toThrow('인증번호 발송에 실패했습니다.');
+  });
+
+  it('인증번호를 확인하고 인증 토큰을 돌려준다', async () => {
+    api.route('/api/v1/auth/email-verifications/confirm', () =>
+      json(200, { success: true, data: { verificationToken: 'verify-token', expiresInSeconds: 1800 } }));
+
+    await expect(auth.confirmSignupEmailVerification('demo@gamerin.test', '123456')).resolves.toBe('verify-token');
+    expect(JSON.parse(String(api.init(0)?.body))).toEqual({ email: 'demo@gamerin.test', code: '123456' });
+  });
+
+  it('인증번호 불일치는 서버 message로, 토큰이 없는 성공 응답은 형식 오류로 거절한다', async () => {
+    api.route(
+      '/api/v1/auth/email-verifications/confirm',
+      () => json(400, { success: false, message: '인증번호가 일치하지 않습니다. (남은 횟수: 4회)' }),
+      () => json(200, { success: true, data: {} }),
+    );
+
+    await expect(auth.confirmSignupEmailVerification('demo@gamerin.test', '000000'))
+      .rejects.toMatchObject({ status: 400, message: '인증번호가 일치하지 않습니다. (남은 횟수: 4회)' });
+    await expect(auth.confirmSignupEmailVerification('demo@gamerin.test', '123456'))
+      .rejects.toThrow('인증 응답이 올바르지 않습니다.');
+  });
+
+  const signupParams = {
+    handle: 'demo01',
+    nickname: '데모',
+    email: 'demo@gamerin.test',
+    password: 'abcd123!',
+    passwordConfirm: 'abcd123!',
+    emailVerificationToken: 'verify-token',
+  };
+
+  it('가입 요청에 이메일 인증 토큰과 약관 동의를 담는다', async () => {
+    api.route('/api/v1/auth/signup', () => json(200, { success: true, data: { userId: 'u', accessToken: 't' } }));
+
+    await expect(auth.signUpWithPassword(signupParams)).resolves.toBeUndefined();
+    expect(JSON.parse(String(api.init(0)?.body))).toEqual({ ...signupParams, agreedToTerms: true, agreedToPrivacy: true });
+    expect(store.getAccessToken()).toBeNull();
+  });
+
+  it('인증 토큰 거절은 재인증 오류로, 그 밖의 거절은 서버 message로 거절한다', async () => {
+    api.route(
+      '/api/v1/auth/signup',
+      () => json(400, { success: false, message: '이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해주세요.' }),
+      () => json(409, { success: false, message: '이미 사용 중인 이메일입니다.' }),
+    );
+
+    await expect(auth.signUpWithPassword(signupParams)).rejects.toBeInstanceOf(auth.EmailVerificationExpiredError);
+    const conflict = auth.signUpWithPassword(signupParams);
+    await expect(conflict).rejects.toMatchObject({ status: 409, message: '이미 사용 중인 이메일입니다.' });
+    await expect(conflict).rejects.not.toBeInstanceOf(auth.EmailVerificationExpiredError);
+  });
+});
