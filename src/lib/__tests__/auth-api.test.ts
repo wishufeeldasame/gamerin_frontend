@@ -59,6 +59,13 @@ describe('toAuthUser', () => {
     expect(user?.status).toBeUndefined();
   });
 
+  it('/me의 hasPassword를 반영하고, 없으면 저장된 값을 유지한다', () => {
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', hasPassword: false })?.hasPassword).toBe(false);
+    expect(
+      auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n' }, { hasPassword: true })?.hasPassword,
+    ).toBe(true);
+  });
+
   it.each([null, 'x', {}, { userId: 1, handle: 'h', nickname: 'n' }, { userId: 'u', handle: 'h' }])(
     '형식이 맞지 않으면 null이다: %j',
     (me) => {
