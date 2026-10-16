@@ -334,13 +334,13 @@ export default function SaveToCollectionModal({
                   disabled={pendingCollectionId !== null}
                   maxLength={40}
                   placeholder="모음집 이름"
-                  className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-transparent px-3 text-sm text-zinc-950 outline-none focus:border-[#f5b93d] dark:border-neutral-600 dark:text-zinc-100"
+                  className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-transparent px-3 text-sm text-zinc-950 outline-none focus:border-[#f5b93d] dark:border-neutral-600 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
                 />
                 <button
                   type="button"
                   onClick={() => void handleCreateCollection()}
                   disabled={pendingCollectionId !== null}
-                  className="rounded-md bg-[#f5b93d] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#f8c957] disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-md bg-[#f5b93d] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#f8c957] disabled:cursor-not-allowed disabled:opacity-60 dark:!text-black"
                 >
                   {pendingCollectionId === 'new' ? '저장 중...' : '만들기'}
                 </button>

@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NotificationRecord } from '@/lib/notification-api';
 
@@ -72,7 +74,40 @@ describe('NotificationPanel server synchronization', () => {
     mocks.push.mockReset();
     mocks.markNotificationRead.mockResolvedValue(undefined);
     mocks.markAllNotificationsRead.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
+  });
+
+  it('decrements concurrent reads without updating the parent during render', async () => {
+    mocks.fetchNotifications.mockResolvedValue(page([
+      notification('1', '첫 번째'), notification('2', '두 번째'),
+    ], null, false));
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(2);
+    mocks.markNotificationRead.mockReturnValue(new Promise(() => {}));
+    const errors = vi.spyOn(console, 'error');
+    function HeaderHarness() {
+      const [count, setCount] = useState(2);
+      return <>
+        <output aria-label="헤더 읽지 않은 알림">{count}</output>
+        <NotificationPanel onClose={vi.fn()} onUnreadCountChange={setCount} />
+      </>;
+    }
+    render(<HeaderHarness />);
+    const first = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
+    const second = screen.getByRole('button', { name: /두 번째님이 게시글을 좋아합니다/ });
+    act(() => { fireEvent.click(first); fireEvent.click(second); });
+    expect(screen.getByLabelText('헤더 읽지 않은 알림')).toHaveTextContent('0');
+    expect(screen.getByText('읽지 않은 알림 0개')).toBeInTheDocument();
+    expect(mocks.markNotificationRead).toHaveBeenCalledTimes(2);
+    expect(errors.mock.calls.flat().join(' ')).not.toContain('Cannot update a component');
+  });
+
+  it('알림에 ISO와 한국어 절대 시각 툴팁을 표시한다', async () => {
+    mocks.fetchNotifications.mockResolvedValue(page([notification('1', '첫 번째')], null, false));
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
+    render(<NotificationPanel onClose={vi.fn()} />);
+    await screen.findByText('첫 번째님이 게시글을 좋아합니다.');
+    const time = document.querySelector('time');
+    expect(time).toHaveAttribute('dateTime', '2026-09-18T00:00:00.000Z');
+    expect(time?.title).toMatch(/^2026년 9월 18일 (오전|오후) \d{1,2}:00$/);
   });
 
   it('replaces the first page after invalidation so removed server items disappear', async () => {
@@ -118,7 +153,7 @@ describe('NotificationPanel server synchronization', () => {
     const item = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
     fireEvent.click(item);
 
-    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('읽음 실패'));
+    await waitFor(() => expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('읽음 실패'));
     expect(screen.getByText('읽지 않은 알림 1개')).toBeInTheDocument();
     expect(mocks.push).not.toHaveBeenCalled();
   });
@@ -135,6 +170,6 @@ describe('NotificationPanel server synchronization', () => {
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/post-1'));
     expect(within(document.body).getByText('읽지 않은 알림 0개')).toBeInTheDocument();
-    expect(window.alert).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

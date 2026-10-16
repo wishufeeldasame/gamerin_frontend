@@ -1,11 +1,12 @@
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
-import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { toNumber } from '@/lib/coerce';
 import {
-  type CursorPage,
   type PostRecord,
   normalizeCursorPage,
   normalizePostRecord,
 } from '@/lib/feed-api';
+import type { CursorPage } from '@/types/api';
 
 type SearchRequestOptions = {
   signal?: AbortSignal;
@@ -55,21 +56,16 @@ interface SearchOverviewResponse {
   hashtags: SearchSection<HashtagSummary>;
 }
 
-function createAuthError() {
-  return new Error('Authentication is required or the token has expired.');
-}
-
 const COMMUNITY_CLIENT: ApiClientConfig = {
   toError: ({ reason, status, message }) =>
-    reason === 'unauthenticated' || (reason === 'http' && status === 401)
-      ? createAuthError()
-      : new Error(message ?? 'Community search request failed.'),
+    new ApiError(
+      message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+        ? AUTH_REQUIRED_MESSAGE
+        : '커뮤니티 검색 요청을 처리하지 못했습니다.'),
+      status,
+      reason,
+    ),
 };
-
-function toNumber(value: unknown) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
-}
 
 function normalizeHashtag(hashtag: HashtagSummary): HashtagSummary {
   return {

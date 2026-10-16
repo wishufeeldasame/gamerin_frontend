@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 import type { BookmarkCollection } from '@/types/bookmark';
@@ -133,7 +134,6 @@ describe('PostDetail bookmark collection synchronization', () => {
     mocks.refreshCollections.mockResolvedValue(undefined);
     mocks.removeBookmarkFromCollection.mockResolvedValue(undefined);
     mocks.unbookmarkPost.mockResolvedValue(undefined);
-    vi.spyOn(window, 'alert').mockImplementation(() => undefined);
   });
 
   it('disables remove all while collections load, then sends one delete', async () => {
@@ -254,10 +254,10 @@ describe('PostDetail bookmark collection synchronization', () => {
       expect(mocks.unbookmarkPost).toHaveBeenCalledWith('post-1');
     });
 
-    fireEvent.click(screen.getByRole('button', { name: '12' }));
+    fireEvent.click(screen.getByRole('button', { name: '좋아요 12개', pressed: false }));
     await waitFor(() => {
       expect(mocks.likePost).toHaveBeenCalledWith('post-1');
-      expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '좋아요 13개', pressed: true })).toBeInTheDocument();
     });
 
     await act(async () => {
@@ -265,9 +265,9 @@ describe('PostDetail bookmark collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
-    expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '좋아요 13개', pressed: true })).toBeInTheDocument();
     expect(
       screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL }),
     ).toBeInTheDocument();
@@ -313,10 +313,10 @@ describe('PostDetail bookmark collection synchronization', () => {
       />,
     );
 
-    fireEvent.click(await screen.findByRole('button', { name: '12' }));
+    fireEvent.click(await screen.findByRole('button', { name: '좋아요 12개', pressed: false }));
     await waitFor(() => {
       expect(mocks.likePost).toHaveBeenCalledWith('post-1');
-      expect(screen.getByRole('button', { name: '13' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '좋아요 13개', pressed: true })).toBeInTheDocument();
     });
 
     fireEvent.click(screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL }));
@@ -341,7 +341,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     await waitFor(() => {
       expect(mocks.repostPost).toHaveBeenCalledWith('post-1');
       expect(
-        screen.getByRole('button', { name: '리포스트 취소' }),
+        screen.getByRole('button', { name: '리포스트', pressed: true }),
       ).toHaveTextContent('6');
     });
 
@@ -350,13 +350,13 @@ describe('PostDetail bookmark collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('like failed');
-      expect(screen.getByRole('button', { name: '12' })).toBeInTheDocument();
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('like failed');
+      expect(screen.getByRole('button', { name: '좋아요 12개', pressed: false })).toBeInTheDocument();
       expect(
         screen.getByRole('button', { name: BOOKMARK_SAVE_LABEL }),
       ).toBeInTheDocument();
       expect(
-        screen.getByRole('button', { name: '리포스트 취소' }),
+        screen.getByRole('button', { name: '리포스트', pressed: true }),
       ).toHaveTextContent('6');
     });
 
@@ -423,7 +423,7 @@ describe('PostDetail bookmark collection synchronization', () => {
       rejectDelete(new Error('delete failed'));
     });
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
 
     await act(async () => {
@@ -436,7 +436,7 @@ describe('PostDetail bookmark collection synchronization', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('button', { name: BOOKMARK_REMOVE_LABEL })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: '리포스트 취소' })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: '리포스트', pressed: true })).toBeInTheDocument();
     });
     const confirmedPost = onPostUpdated.mock.calls.at(-1)?.[0] as PostRecord;
     expect(confirmedPost).toMatchObject({
@@ -454,7 +454,7 @@ describe('PostDetail bookmark collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: REMOVE_ALL_LABEL }));
 
     await waitFor(() => {
-      expect(window.alert).toHaveBeenCalledWith('delete failed');
+      expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('delete failed');
     });
     expect(mocks.refreshCollections).not.toHaveBeenCalled();
     expect(

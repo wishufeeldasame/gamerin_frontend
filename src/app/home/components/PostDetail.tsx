@@ -1,9 +1,14 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { usePopup } from '@/app/context/PopupContext';
+import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
@@ -15,12 +20,9 @@ import {
   deletePost,
   fetchPostDetail,
   fetchPostComments,
-  formatRelativeTime,
   getInitials,
-  likePost,
   repostPost,
   unbookmarkPost,
-  unlikePost,
   unrepostPost,
   updatePostBookmarkState,
   updatePostLikeState,
@@ -29,6 +31,9 @@ import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
+import { RelativeTime } from './RelativeTime';
+import { PostImage } from './PostImage';
+import { usePostLike } from '@/hooks/usePostLike';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -49,13 +54,18 @@ export function PostDetail({
   onPostUpdated,
   onPostDeleted,
 }: PostDetailProps) {
+  const toast = useToast();
+  const confirm = useConfirm(postId);
+  const deleteCommentLockRef = useRef(false);
+  const deletePostLockRef = useRef(false);
+  const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
   const handledScrollKeyRef = useRef<string | null>(null);
   const [post, setPost] = useState<PostRecord | null>(null);
   const latestPostRef = useRef<PostRecord | null>(post);
-  useEffect(() => {
+  useLayoutEffect(() => {
     latestPostRef.current = post;
   }, [post]);
   const [comments, setComments] = useState<CommentRecord[]>([]);
@@ -65,12 +75,37 @@ export function PostDetail({
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
+  const submittingCommentRef = useRef(false);
+  const commentRequestGenerationRef = useRef(0);
+  const commentComposingRef = useRef(false);
+  const commentCompositionEndedRef = useRef(false);
+  const commentCompositionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearCommentCompositionGuard = () => {
+    commentCompositionEndedRef.current = false;
+    if (commentCompositionTimerRef.current !== null) {
+      clearTimeout(commentCompositionTimerRef.current);
+      commentCompositionTimerRef.current = null;
+    }
+  };
+  useEffect(() => () => {
+    if (commentCompositionTimerRef.current !== null) clearTimeout(commentCompositionTimerRef.current);
+  }, []);
+  const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
+  useLayoutEffect(() => {
+    actionLifetime.active = true;
+    deletePostLockRef.current = false;
+    setDeletingPost(false);
+    return () => { actionLifetime.active = false; };
+  }, [actionLifetime]);
   const [shareOpen, setShareOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
+  const menuId = useId();
+  const { isOpen: menuOpen, toggle: toggleMenu, close: closeMenu, closeAll } = usePopup(menuId);
+  const menuTriggerRef = useRef<HTMLButtonElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
+  useDismissable({ open: menuOpen, onDismiss: closeMenu, triggerRef: menuTriggerRef, panelRef: menuPanelRef });
   const [reportPostOpen, setReportPostOpen] = useState(false);
   const [deletingPost, setDeletingPost] = useState(false);
-  const [isLikeLoading, setIsLikeLoading] = useState(false);
   const [isRepostLoading, setIsRepostLoading] = useState(false);
   const [repostError, setRepostError] = useState<string | null>(null);
   const [bookmarked, setBookmarked] = useState(false);
@@ -78,6 +113,28 @@ export function PostDetail({
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
   const loadedPostId = post?.postId;
+  const applyLikeState = useCallback((targetPostId: string, likedByMe: boolean) => {
+    const currentPost = latestPostRef.current;
+    if (!currentPost || currentPost.postId !== targetPostId) return;
+
+    const nextPost = updatePostLikeState(currentPost, likedByMe);
+    latestPostRef.current = nextPost;
+    setPost(nextPost);
+    onPostUpdated?.(nextPost);
+  }, [onPostUpdated]);
+  const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
+  const isLikeLoading = Boolean(post && likeLoadingByPostId[post.postId]);
+
+  useEffect(() => {
+    commentRequestGenerationRef.current += 1;
+    submittingCommentRef.current = false;
+    setSubmittingComment(false);
+
+    return () => {
+      commentRequestGenerationRef.current += 1;
+      submittingCommentRef.current = false;
+    };
+  }, [postId]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -139,7 +196,7 @@ export function PostDetail({
         }
 
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load post.');
+          setError(loadError instanceof Error ? loadError.message : '게시물을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -155,41 +212,9 @@ export function PostDetail({
     };
   }, [postId]);
 
-  const handleToggleLike = async () => {
-    if (!post || isLikeLoading) {
-      return;
-    }
-
-    const currentPost = latestPostRef.current ?? post;
-    const previousLikeState = {
-      likedByMe: currentPost.likedByMe,
-      likes: currentPost.likes,
-    };
-    const nextPost = updatePostLikeState(currentPost);
-    setIsLikeLoading(true);
-
-    latestPostRef.current = nextPost;
-    setPost(nextPost);
-    onPostUpdated?.(nextPost);
-
-    try {
-      if (currentPost.likedByMe) {
-        await unlikePost(currentPost.postId);
-      } else {
-        await likePost(currentPost.postId);
-      }
-    } catch (likeError) {
-      const latestPost = latestPostRef.current;
-      if (latestPost) {
-        const rollbackPost = { ...latestPost, ...previousLikeState };
-        latestPostRef.current = rollbackPost;
-        setPost(rollbackPost);
-        onPostUpdated?.(rollbackPost);
-      }
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
-    } finally {
-      setIsLikeLoading(false);
-    }
+  const handleToggleLike = () => {
+    const currentPost = latestPostRef.current;
+    if (currentPost) void toggleLike(currentPost);
   };
 
   const handleToggleRepost = async () => {
@@ -242,66 +267,91 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      const message = toggleError instanceof Error ? toggleError.message : 'Failed to update repost.';
+      const message = toggleError instanceof Error ? toggleError.message : '리포스트 상태를 변경하지 못했습니다.';
       setRepostError(message);
-      alert(message);
+      toast.error(message);
     } finally {
       setIsRepostLoading(false);
     }
   };
 
   const handleSubmitComment = async () => {
-    if (!post || !commentText.trim() || submittingComment) {
+    if (!post || post.postId !== postId || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
     if (commentText.length > MAX_COMMENT_LENGTH) {
       return;
     }
 
+    const submittedDraft = commentText;
+    const submittedPostId = post.postId;
+    const requestGeneration = commentRequestGenerationRef.current;
+    submittingCommentRef.current = true;
     try {
       setSubmittingComment(true);
-      const createdComment = await createComment(post.postId, commentText.trim());
+      const createdComment = await createComment(submittedPostId, submittedDraft.trim());
+      const currentPost = latestPostRef.current;
+      if (
+        commentRequestGenerationRef.current !== requestGeneration
+        || !currentPost
+        || currentPost.postId !== submittedPostId
+      ) {
+        return;
+      }
       const nextPost = {
-        ...post,
-        comments: post.comments + 1,
+        ...currentPost,
+        comments: currentPost.comments + 1,
       };
 
+      latestPostRef.current = nextPost;
       setPost(nextPost);
       setComments((current) => [createdComment, ...current]);
-      setCommentText('');
+      setCommentText((current) => current === submittedDraft ? '' : current);
       onPostUpdated?.(nextPost);
     } catch (commentError) {
-      alert(commentError instanceof Error ? commentError.message : 'Failed to create comment.');
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        toast.error(commentError instanceof Error ? commentError.message : '댓글을 작성하지 못했습니다.');
+      }
     } finally {
-      setSubmittingComment(false);
+      if (commentRequestGenerationRef.current === requestGeneration) {
+        submittingCommentRef.current = false;
+        setSubmittingComment(false);
+      }
     }
   };
 
   const handleDeleteComment = async (comment: CommentRecord) => {
-    if (!post || deletingCommentId) {
+    if (!post || deletingCommentId || deleteCommentLockRef.current) {
       return;
     }
 
-    const confirmed = window.confirm('댓글을 삭제할까요?');
-    if (!confirmed) {
-      setCommentMenuOpenId(null);
-      return;
-    }
-
+    deleteCommentLockRef.current = true;
+    const returnFocusTo = commentMenuButtonRefs.current.get(comment.commentId) ?? null;
+    setCommentMenuOpenId(null);
     try {
+      const confirmed = await confirm({
+        message: '댓글을 삭제할까요?', confirmLabel: '삭제', danger: true, returnFocusTo,
+      });
+      if (!confirmed) return;
       setDeletingCommentId(comment.commentId);
       await deleteComment(post.postId, comment.commentId);
       setComments((current) => current.filter((item) => item.commentId !== comment.commentId));
       const nextPost = {
-        ...post,
-        comments: Math.max(0, post.comments - 1),
+        ...(latestPostRef.current ?? post),
+        comments: Math.max(0, (latestPostRef.current ?? post).comments - 1),
       };
       setPost(nextPost);
       onPostUpdated?.(nextPost);
       setCommentMenuOpenId(null);
+      window.requestAnimationFrame(() => {
+        if (!returnFocusTo?.isConnected && document.activeElement === document.body) {
+          restoreFeedbackFocus(null);
+        }
+      });
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : '댓글 삭제에 실패했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '댓글을 삭제하지 못했습니다.');
     } finally {
+      deleteCommentLockRef.current = false;
       setDeletingCommentId(null);
     }
   };
@@ -350,7 +400,7 @@ export function PostDetail({
         setPost(rollbackPost);
         onPostUpdated?.(rollbackPost);
       }
-      alert(bookmarkError instanceof Error ? bookmarkError.message : 'Failed to update bookmark.');
+      toast.error(bookmarkError instanceof Error ? bookmarkError.message : '북마크 상태를 변경하지 못했습니다.');
       return false;
     } finally {
       setBookmarking(false);
@@ -358,40 +408,53 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || deletingPost) {
+    if (!post || post.postId !== postId || deletingPost || deletePostLockRef.current) {
       return;
     }
 
-    const confirmed = window.confirm('게시물을 삭제할까요?');
-    if (!confirmed) {
-      setMenuOpen(false);
-      return;
-    }
-
+    deletePostLockRef.current = true;
+    const submittedPostId = post.postId;
+    const isCurrent = () => actionLifetime.active;
+    closeMenu();
     try {
+      const confirmed = await confirm({
+        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        returnFocusTo: menuTriggerRef.current,
+      });
+      if (!confirmed || !isCurrent()) return;
       setDeletingPost(true);
-      await deletePost(post.postId);
-      setMenuOpen(false);
-      onPostDeleted?.(post.postId);
-      onBack();
+      await deletePost(submittedPostId);
+      if (!isCurrent()) return;
+      closeMenu();
+      if (onPostDeleted) onPostDeleted(submittedPostId);
+      else onBack();
     } catch (deleteError) {
-      alert(deleteError instanceof Error ? deleteError.message : '게시물 삭제에 실패했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
     } finally {
-      setDeletingPost(false);
+      if (isCurrent()) {
+        deletePostLockRef.current = false;
+        setDeletingPost(false);
+      }
     }
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">Loading post...</div>;
+    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>;
   }
 
   if (!post) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 pb-20 text-center">
         <button onClick={onBack} className="font-black text-zinc-500 hover:text-black">
-          Back
+          돌아가기
         </button>
-        <p className="font-black text-red-500">{error ?? 'Post not found.'}</p>
+        <p className="font-black text-red-500">{error ?? '게시물을 찾을 수 없습니다.'}</p>
+        <Link
+          href="/home"
+          className="inline-flex rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+        >
+          홈으로 돌아가기
+        </Link>
       </div>
     );
   }
@@ -410,7 +473,7 @@ export function PostDetail({
         className="group mb-8 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-zinc-400 transition-all hover:text-black"
       >
         <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-1" />
-        <span>Back to Feed</span>
+        <span>피드로 돌아가기</span>
       </button>
 
       <article className="rounded-[40px] border border-zinc-100 bg-white shadow-sm">
@@ -431,31 +494,33 @@ export function PostDetail({
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
-                  @{post.authorHandle} · {formatRelativeTime(post.createdAt)}
+                  @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
                 </p>
               </div>
             </Link>
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setMenuOpen((current) => !current)}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black"
+                ref={menuTriggerRef}
+                onClick={toggleMenu}
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
+                aria-controls={menuOpen ? menuId : undefined}
               >
                 <MoreHorizontal size={24} />
               </button>
 
               {menuOpen ? (
-                <div className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
                   {canReportPost ? (
                     <button
                       type="button"
                       onClick={() => {
-                        setMenuOpen(false);
+                        closeMenu();
                         setReportPostOpen(true);
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Flag size={15} />
                       게시물 신고
@@ -467,7 +532,7 @@ export function PostDetail({
                       type="button"
                       onClick={handleDeletePost}
                       disabled={deletingPost}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       {deletingPost ? '삭제 중...' : '삭제'}
                     </button>
@@ -475,8 +540,8 @@ export function PostDetail({
 
                   <button
                     type="button"
-                    onClick={() => setMenuOpen(false)}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                    onClick={closeMenu}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
                   >
                     취소
                   </button>
@@ -493,7 +558,7 @@ export function PostDetail({
 
           {post.media.length > 0 ? (
             <div className="mb-8 space-y-3">
-              {post.media.map((item) =>
+              {post.media.map((item, index) =>
                 item.mediaType === 'VIDEO' ? (
                   <video
                     key={item.mediaId}
@@ -503,13 +568,12 @@ export function PostDetail({
                     className="max-h-[520px] w-full rounded-[24px] bg-black object-cover"
                   />
                 ) : (
-                  <div key={item.mediaId} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
-                    <Image
+                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
+                    <PostImage
                       src={item.mediaUrl}
-                      alt="Post media"
+                      imageNumber={index + 1}
                       width={1400}
                       height={1000}
-                      unoptimized
                       className="h-auto max-h-[520px] w-full object-cover"
                     />
                   </div>
@@ -521,7 +585,10 @@ export function PostDetail({
           <div className="flex items-center justify-between border-y border-zinc-50 py-6">
             <div className="flex items-center gap-8">
               <button
+                type="button"
                 onClick={handleToggleLike}
+                aria-label={`좋아요 ${post.likes}개`}
+                aria-pressed={post.likedByMe}
                 disabled={isLikeLoading}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
@@ -538,7 +605,9 @@ export function PostDetail({
                 type="button"
                 onClick={() => void handleToggleRepost()}
                 disabled={isRepostLoading || !canRepostPost}
-                aria-label={post.isReposted ? '리포스트 취소' : '리포스트'}
+                aria-label="리포스트"
+                aria-pressed={post.isReposted}
+                aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
                 title={repostButtonTitle}
                 className={`flex items-center gap-2 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
                   post.isReposted ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'
@@ -547,21 +616,23 @@ export function PostDetail({
                 <Repeat2 size={22} />
                 <span>{post.repostCount}</span>
               </button>
+              {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
               <button
                 type="button"
-                onClick={() => setCollectionModalOpen(true)}
+                onClick={() => { closeAll(); setCollectionModalOpen(true); }}
+                aria-haspopup="dialog"
                 aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
                 disabled={bookmarking}
                 className={`flex items-center gap-2 text-sm font-black transition-all ${
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
                 }`}
               >
-                <Bookmark size={22} className={bookmarked ? 'fill-black' : ''} />
+                <Bookmark size={22} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : ''} />
               </button>
             </div>
             <button
               type="button"
-              onClick={() => setShareOpen(true)}
+              onClick={() => { closeAll(); setShareOpen(true); }}
               className="text-zinc-400 transition-all hover:text-black"
               aria-label="게시물 공유"
             >
@@ -572,15 +643,59 @@ export function PostDetail({
           <div id="comments" ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
             <div className="flex gap-4">
               <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
-                ME
+                나
               </div>
-              <div className="relative flex-1">
+              <form
+                className="relative flex-1"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void handleSubmitComment();
+                }}
+              >
                 <textarea
+                  aria-label="댓글 입력"
                   value={commentText}
                   onChange={(event) => setCommentText(event.target.value)}
+                  onCompositionStart={() => {
+                    clearCommentCompositionGuard();
+                    commentComposingRef.current = true;
+                  }}
+                  onCompositionEnd={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                    // Windows IME can end composition before dispatching the same Enter.
+                    // Protect only this event turn, not the user's next deliberate Enter.
+                    commentCompositionEndedRef.current = true;
+                    commentCompositionTimerRef.current = setTimeout(clearCommentCompositionGuard, 0);
+                  }}
+                  onBlur={() => {
+                    commentComposingRef.current = false;
+                    clearCommentCompositionGuard();
+                  }}
+                  onKeyUp={(event) => {
+                    if (event.key === 'Enter') clearCommentCompositionGuard();
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (event.shiftKey) {
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    if (commentComposingRef.current || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229) return;
+                    if (commentCompositionEndedRef.current) {
+                      event.preventDefault();
+                      clearCommentCompositionGuard();
+                      return;
+                    }
+                    event.preventDefault();
+                    event.currentTarget.form?.requestSubmit();
+                  }}
                   maxLength={MAX_COMMENT_LENGTH}
-                  placeholder="Share your thoughts..."
-                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black"
+                  placeholder="댓글을 남겨보세요..."
+                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
                   rows={3}
                 />
                 <span
@@ -591,18 +706,19 @@ export function PostDetail({
                   {commentText.length}/{MAX_COMMENT_LENGTH}
                 </span>
                 <button
-                  onClick={handleSubmitComment}
+                  type="submit"
+                  aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300"
+                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
                 >
                   <Send size={18} />
                 </button>
-              </div>
+              </form>
             </div>
 
             <div className="space-y-4">
               {comments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">No comments yet.</p>
+                <p className="text-sm font-bold text-zinc-400">아직 댓글이 없습니다.</p>
               ) : (
                 comments.map((comment) => (
                   <div
@@ -625,7 +741,7 @@ export function PostDetail({
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-sm font-black text-black">{comment.author}</span>
                         <span className="text-xs font-bold text-zinc-400">
-                          @{comment.authorHandle} · {formatRelativeTime(comment.createdAt)}
+                          @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />
                         </span>
                       </div>
                       <div className="relative">
@@ -636,8 +752,12 @@ export function PostDetail({
                               current === comment.commentId ? null : comment.commentId
                             )
                           }
-                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black"
+                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
                           aria-label="댓글 메뉴"
+                          ref={(element) => {
+                            if (element) commentMenuButtonRefs.current.set(comment.commentId, element);
+                            else commentMenuButtonRefs.current.delete(comment.commentId);
+                          }}
                           aria-expanded={commentMenuOpenId === comment.commentId}
                         >
                           <MoreHorizontal size={18} />
@@ -649,7 +769,7 @@ export function PostDetail({
                                 type="button"
                                 onClick={() => handleDeleteComment(comment)}
                                 disabled={deletingCommentId === comment.commentId}
-                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300"
+                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                               >
                                 {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
                               </button>
@@ -660,7 +780,7 @@ export function PostDetail({
                                   setCommentMenuOpenId(null);
                                   setReportComment(comment);
                                 }}
-                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50"
+                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                               >
                                 <Flag size={15} />
                                 댓글 신고
@@ -669,7 +789,7 @@ export function PostDetail({
                             <button
                               type="button"
                               onClick={() => setCommentMenuOpenId(null)}
-                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50"
+                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
                             >
                               취소
                             </button>
@@ -677,7 +797,7 @@ export function PostDetail({
                         ) : null}
                       </div>
                     </div>
-                    <p className="text-sm font-medium text-zinc-700">{comment.content}</p>
+                    <p className="whitespace-pre-wrap text-sm font-medium text-zinc-700"><HashtagText text={comment.content} linkHashtags={false} /></p>
                   </div>
                 ))
               )}
@@ -691,8 +811,13 @@ export function PostDetail({
           post={post}
           onClose={() => setShareOpen(false)}
           onShared={(sharedPost) => {
-            setPost(sharedPost);
-            onPostUpdated?.(sharedPost);
+            const currentPost = latestPostRef.current;
+            if (!actionLifetime.active || !currentPost ||
+                currentPost.postId !== sharedPost.postId || currentPost.postId !== postId) return;
+            const updatedPost = { ...currentPost, shares: sharedPost.shares };
+            latestPostRef.current = updatedPost;
+            setPost(updatedPost);
+            onPostUpdated?.(updatedPost);
           }}
         />
       ) : null}

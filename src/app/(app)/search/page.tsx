@@ -18,14 +18,14 @@ import {
 import {
   type PostRecord,
   getInitials,
-  likePost,
-  unlikePost,
 } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
   updatePostsRepostState,
 } from '@/lib/post-mutations';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -55,7 +55,7 @@ function EmptyState({ query, label }: { query: string; label: string }) {
         {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
       </h2>
       <p className="mt-2 text-sm font-bold text-zinc-400">
-        {query ? '다른 키워드로 다시 검색해 보세요.' : '상단 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
+        {query ? '다른 키워드로 다시 검색해 보세요.' : '위 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
       </p>
     </div>
   );
@@ -104,7 +104,7 @@ function HashtagCard({ hashtag }: { hashtag: HashtagSummary }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-black text-black dark:text-zinc-100">#{hashtag.name}</p>
-          <p className="text-xs font-bold text-zinc-400">{hashtag.postCount.toLocaleString()} posts</p>
+          <p className="text-xs font-bold text-zinc-400">게시물 {hashtag.postCount.toLocaleString()}개</p>
         </div>
       </div>
     </Link>
@@ -143,24 +143,81 @@ function SearchPageContent() {
   const tabParam = searchParams.get('tab');
   const activeTab = isSearchTab(tabParam) ? tabParam : 'all';
   const [overview, setOverview] = useState<SearchOverview | null>(null);
-  const [accounts, setAccounts] = useState<SimpleUserProfile[]>([]);
-  const [accountCursor, setAccountCursor] = useState<string | null>(null);
-  const [accountHasNext, setAccountHasNext] = useState(false);
-  const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [postCursor, setPostCursor] = useState<string | null>(null);
-  const [postHasNext, setPostHasNext] = useState(false);
+  const [searchInput, setSearchInput] = useState(query);
   const [hashtags, setHashtags] = useState<HashtagSummary[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
+  const [specialLoading, setSpecialLoading] = useState(false);
+  const [specialError, setSpecialError] = useState<string | null>(null);
   const loadControllerRef = useRef<AbortController | null>(null);
-  const loadMoreControllerRef = useRef<AbortController | null>(null);
+
+  const loadAccountPage = useCallback(
+    (cursor: string | null, { signal }: { signal: AbortSignal }) =>
+      fetchSearchAccounts(query, cursor, PAGE_SIZE, { signal }),
+    [query],
+  );
+  const loadPostPage = useCallback(
+    (cursor: string | null, { signal }: { signal: AbortSignal }) =>
+      fetchSearchPosts(query, cursor, PAGE_SIZE, { signal }),
+    [query],
+  );
+  const accountList = useCursorList({
+    loadPage: loadAccountPage,
+    getKey: (account: SimpleUserProfile) => account.userId,
+    queryKey: `${query}:accounts:${activeTab}`,
+    enabled: Boolean(query) && activeTab === 'accounts',
+    initialErrorMessage: '검색 결과를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '결과를 더 불러오지 못했습니다.',
+  });
+  const postList = useCursorList({
+    loadPage: loadPostPage,
+    getKey: (post: PostRecord) => post.postId,
+    queryKey: `${query}:posts:${activeTab}`,
+    enabled: Boolean(query) && activeTab === 'posts',
+    initialErrorMessage: '검색 결과를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '결과를 더 불러오지 못했습니다.',
+  });
+  const {
+    items: accounts,
+    hasNext: accountHasNext,
+    loading: accountsLoading,
+    loadingMore: accountsLoadingMore,
+    error: accountsError,
+    reload: reloadAccounts,
+    loadMore: loadMoreAccounts,
+  } = accountList;
+  const {
+    items: posts,
+    setItems: setPosts,
+    hasNext: postHasNext,
+    loading: postsLoading,
+    loadingMore: postsLoadingMore,
+    error: postsError,
+    reload: reloadPosts,
+    loadMore: loadMorePosts,
+  } = postList;
 
   const activeTabLabel = useMemo(
     () => searchTabs.find((tab) => tab.value === activeTab)?.label ?? '전체',
     [activeTab],
   );
+
+  useEffect(() => {
+    setSearchInput(query);
+  }, [query]);
+
+  const handleSearchSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const params = new URLSearchParams(searchParams.toString());
+    const nextQuery = normalizeQuery(searchInput);
+    if (nextQuery) {
+      params.set('q', nextQuery);
+    } else {
+      params.delete('q');
+    }
+
+    const nextSearch = params.toString();
+    router.push(`/search${nextSearch ? `?${nextSearch}` : ''}`);
+  };
 
   const setTab = (tab: SearchTab) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -173,43 +230,26 @@ function SearchPageContent() {
 
   const loadSearch = useCallback(async () => {
     loadControllerRef.current?.abort();
-    loadMoreControllerRef.current?.abort();
-    const controller = new AbortController();
-    loadControllerRef.current = controller;
-    loadMoreControllerRef.current = null;
-    setLoadingMore(false);
+    loadControllerRef.current = null;
 
     setOverview(null);
-    setAccounts([]);
-    setAccountCursor(null);
-    setAccountHasNext(false);
-    setPosts([]);
-    setPostCursor(null);
-    setPostHasNext(false);
     setHashtags([]);
 
-    if (!query) {
-      setError(null);
-      setLoading(false);
+    if (!query || (activeTab !== 'all' && activeTab !== 'hashtags')) {
+      setSpecialError(null);
+      setSpecialLoading(false);
       return;
     }
 
+    const controller = new AbortController();
+    loadControllerRef.current = controller;
+
     try {
-      setLoading(true);
-      setError(null);
+      setSpecialLoading(true);
+      setSpecialError(null);
 
       if (activeTab === 'all') {
         setOverview(await fetchSearchOverview(query, OVERVIEW_SIZE, { signal: controller.signal }));
-      } else if (activeTab === 'accounts') {
-        const page = await fetchSearchAccounts(query, null, PAGE_SIZE, { signal: controller.signal });
-        setAccounts(page.items);
-        setAccountCursor(page.nextCursor);
-        setAccountHasNext(Boolean(page.hasNext && page.nextCursor));
-      } else if (activeTab === 'posts') {
-        const page = await fetchSearchPosts(query, null, PAGE_SIZE, { signal: controller.signal });
-        setPosts(page.items);
-        setPostCursor(page.nextCursor);
-        setPostHasNext(Boolean(page.hasNext && page.nextCursor));
       } else {
         setHashtags(await fetchSearchHashtags(query, PAGE_SIZE, { signal: controller.signal }));
       }
@@ -218,11 +258,11 @@ function SearchPageContent() {
         return;
       }
 
-      setError(loadError instanceof Error ? loadError.message : '검색 결과를 불러오지 못했습니다.');
+      setSpecialError(loadError instanceof Error ? loadError.message : '검색 결과를 불러오지 못했습니다.');
     } finally {
       if (loadControllerRef.current === controller) {
         loadControllerRef.current = null;
-        setLoading(false);
+        setSpecialLoading(false);
       }
     }
   }, [activeTab, query]);
@@ -231,11 +271,30 @@ function SearchPageContent() {
     void loadSearch();
     return () => {
       loadControllerRef.current?.abort();
-      loadMoreControllerRef.current?.abort();
     };
   }, [loadSearch]);
 
-  const updateLikeState = (postId: string, likedByMe: boolean) => {
+
+  const handlePostUpdated = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)),
+    );
+    setOverview((current) =>
+      current
+        ? {
+            ...current,
+            posts: {
+              ...current.posts,
+              items: current.posts.items.map((post) =>
+                post.postId === updatedPost.postId ? updatedPost : post,
+              ),
+            },
+          }
+        : current,
+    );
+  };
+
+  const updateLikeState = useCallback((postId: string, likedByMe: boolean) => {
     setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
     setOverview((current) =>
       current
@@ -248,45 +307,19 @@ function SearchPageContent() {
           }
         : current,
     );
-  };
+  }, [setPosts]);
 
-  const handleToggleLike = async (post: PostRecord) => {
-    if (likeLoadingByPostId[post.postId]) {
-      return;
-    }
+  const { toggleLike, likeLoadingByPostId } = usePostLike(updateLikeState);
 
-    setLikeLoadingByPostId((current) => ({ ...current, [post.postId]: true }));
-    updateLikeState(post.postId, !post.likedByMe);
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      updateLikeState(post.postId, post.likedByMe);
-      alert(likeError instanceof Error ? likeError.message : '좋아요 상태를 변경하지 못했습니다.');
-    } finally {
-      setLikeLoadingByPostId((current) => {
-        const next = { ...current };
-        delete next[post.postId];
-        return next;
-      });
-    }
-  };
-
-  const handlePostUpdated = (updatedPost: PostRecord) => {
-    setPosts((current) => current.map((post) => (post.postId === updatedPost.postId ? updatedPost : post)));
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((post) => post.postId !== postId));
     setOverview((current) =>
       current
         ? {
             ...current,
             posts: {
               ...current.posts,
-              items: current.posts.items.map((post) =>
-                post.postId === updatedPost.postId ? updatedPost : post,
-              ),
+              items: current.posts.items.filter((post) => post.postId !== postId),
             },
           }
         : current,
@@ -335,51 +368,22 @@ function SearchPageContent() {
     );
   };
 
-  const loadMore = async () => {
-    if (loadingMore || loadMoreControllerRef.current || !query) {
-      return;
-    }
-
-    const cursor = activeTab === 'accounts' ? accountCursor : activeTab === 'posts' ? postCursor : null;
-    if (!cursor) {
-      return;
-    }
-
-    const controller = new AbortController();
-    loadMoreControllerRef.current = controller;
-
-    try {
-      setLoadingMore(true);
-      if (activeTab === 'accounts') {
-        const page = await fetchSearchAccounts(query, cursor, PAGE_SIZE, { signal: controller.signal });
-        setAccounts((current) => {
-          const seen = new Set(current.map((account) => account.userId));
-          return [...current, ...page.items.filter((account) => !seen.has(account.userId))];
-        });
-        setAccountCursor(page.nextCursor);
-        setAccountHasNext(Boolean(page.hasNext && page.nextCursor));
-      } else if (activeTab === 'posts') {
-        const page = await fetchSearchPosts(query, cursor, PAGE_SIZE, { signal: controller.signal });
-        setPosts((current) => {
-          const seen = new Set(current.map((post) => post.postId));
-          return [...current, ...page.items.filter((post) => !seen.has(post.postId))];
-        });
-        setPostCursor(page.nextCursor);
-        setPostHasNext(Boolean(page.hasNext && page.nextCursor));
-      }
-    } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-        return;
-      }
-
-      alert(loadError instanceof Error ? loadError.message : '결과를 더 불러오지 못했습니다.');
-    } finally {
-      if (loadMoreControllerRef.current === controller) {
-        loadMoreControllerRef.current = null;
-        setLoadingMore(false);
-      }
-    }
-  };
+  const loading = activeTab === 'accounts'
+    ? accountsLoading
+    : activeTab === 'posts'
+      ? postsLoading
+      : specialLoading;
+  const loadingMore = activeTab === 'accounts' ? accountsLoadingMore : postsLoadingMore;
+  const error = activeTab === 'accounts'
+    ? accountsError
+    : activeTab === 'posts'
+      ? postsError
+      : specialError;
+  const reload = activeTab === 'accounts'
+    ? reloadAccounts
+    : activeTab === 'posts'
+      ? reloadPosts
+      : loadSearch;
 
   const renderPosts = (items: PostRecord[]) => (
     <div className="space-y-4">
@@ -388,12 +392,13 @@ function SearchPageContent() {
           key={post.postId}
           post={post}
           likeLoading={Boolean(likeLoadingByPostId[post.postId])}
-          onToggleLike={handleToggleLike}
+          onToggleLike={toggleLike}
           onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
           onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
           onShare={handlePostUpdated}
           onRepostChange={handleRepostChanged}
           onBookmarkChange={handleBookmarkChanged}
+          onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
         />
       ))}
     </div>
@@ -407,6 +412,32 @@ function SearchPageContent() {
           <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
             {query ? `'${query}'에 대한 결과` : '검색어를 입력해 주세요'}
           </p>
+          <form
+            role="search"
+            onSubmit={handleSearchSubmit}
+            className="mt-5 flex h-12 w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-neutral-900"
+          >
+            <Search
+              size={19}
+              className="shrink-0 text-zinc-400"
+              aria-hidden="true"
+            />
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
+              placeholder="사용자, 게시글, 해시태그 검색"
+              aria-label="검색 페이지 검색"
+              maxLength={100}
+              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:!text-zinc-400"
+            />
+            <button
+              type="submit"
+              className="shrink-0 rounded-xl bg-black px-4 py-2 text-sm font-black text-white transition hover:bg-zinc-800 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#dca62f]"
+            >
+              검색
+            </button>
+          </form>
         </header>
 
         <nav
@@ -441,11 +472,11 @@ function SearchPageContent() {
               검색 결과를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-              <p className="font-black text-red-500">{error}</p>
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+              <p className="font-black text-red-500 dark:text-red-300">{error}</p>
               <button
                 type="button"
-                onClick={() => void loadSearch()}
+                onClick={() => void reload()}
                 className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
               >
                 다시 시도
@@ -513,7 +544,7 @@ function SearchPageContent() {
                 {accountHasNext ? (
                   <button
                     type="button"
-                    onClick={loadMore}
+                    onClick={() => void loadMoreAccounts()}
                     disabled={loadingMore}
                     className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                   >
@@ -531,7 +562,7 @@ function SearchPageContent() {
                 {postHasNext ? (
                   <button
                     type="button"
-                    onClick={loadMore}
+                    onClick={() => void loadMorePosts()}
                     disabled={loadingMore}
                     className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                   >

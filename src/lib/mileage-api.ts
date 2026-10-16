@@ -1,24 +1,7 @@
-import { type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { PageResponse } from '@/types/api';
 
 const MILEAGE_BASE = '/api/v1/mileage';
-
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
-export interface PageResponse<T> {
-  content: T[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
-  numberOfElements?: number;
-}
 
 export interface MileageBalanceResponse {
   currentBalance: number;
@@ -34,16 +17,15 @@ export interface MileageTransactionResponse {
   createdAt: string;
 }
 
-function createAuthRequiredError() {
-  return new Error('Authentication is required. Please sign in again.');
-}
-
 const MILEAGE_CLIENT: ApiClientConfig = {
   envelope: 'optional',
-  toError: ({ reason, status, message }) =>
-    reason === 'unauthenticated' || (reason === 'http' && status === 401)
-      ? createAuthRequiredError()
-      : new Error(message || 'Failed to process mileage request.'),
+  toError: ({ reason, status, message }) => new ApiError(
+    (message?.trim() ? message : undefined) ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
+      : '마일리지 요청을 처리하지 못했습니다.'),
+    status,
+    reason,
+  ),
 };
 
 function mileageRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {

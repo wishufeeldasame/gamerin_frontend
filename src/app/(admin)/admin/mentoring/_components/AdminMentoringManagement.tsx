@@ -1,512 +1,250 @@
 'use client';
 
+import { Check, EyeOff, Gamepad2, Search, Star, UserRoundCheck, WalletCards } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Check,
-  EyeOff,
-  Gamepad2,
-  Pause,
-  Play,
-  Search,
-  Star,
-  UserRoundCheck,
-  WalletCards,
-} from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
-import { AdminDemoNotice } from '../../_components/AdminDemoNotice';
-import {
-  initialApplications,
-  initialPrograms,
-  type ApplicationStatus,
-  type MentorApplication,
-  type MentoringProgram,
-  type MentoringTab,
-  type ProgramStatus,
-} from '../_data/mentoring';
+  approveAdminMentor,
+  fetchAdminMentoringPrograms,
+  fetchAdminMentoringSummary,
+  fetchAdminMentors,
+  hideAdminMentoringProgram,
+  rejectAdminMentor,
+  updateAdminProgramStatus,
+  type AdminMentorApiItem,
+  type AdminMentorStatus,
+  type AdminMentoringProgramApiItem,
+  type AdminMentoringSummary,
+  type AdminProgramStatus,
+} from '@/lib/admin-mentoring-api';
+import type { PageResponse } from '@/types/api';
+import { AdminDialog } from '../../_components/AdminDialog';
+import { AdminFilterSelect } from '../../_components/AdminFilterSelect';
+import { AdminPagination } from '../../_components/AdminPagination';
+import { AdminStatePanel } from '../../_components/AdminStatePanel';
+import { AdminToast } from '../../_components/AdminToast';
+import { mentorStatusLabels, programStatusLabels, type MentoringTab } from '../_data/mentoring';
 import { MentorApprovalDialog } from './MentorApprovalDialog';
+import { MentoringReasonDialog } from './MentoringReasonDialog';
 import { ProgramHideDialog } from './ProgramHideDialog';
-import { ProgramHiddenToast } from './ProgramHiddenToast';
 
-const baseSummaryCards = [
-  {
-    label: '승인 대기 신청',
-    icon: UserRoundCheck,
-    iconClassName: 'bg-[#fef6e7] text-[#d97706]',
-  },
-  {
-    label: '운영 중 프로그램',
-    icon: Gamepad2,
-    iconClassName: 'bg-[#eef3ff] text-[#315ef5]',
-  },
-  {
-    label: '이번 달 세션',
-    icon: Star,
-    iconClassName: 'bg-[#e7f6ee] text-[#168a4a]',
-  },
-  {
-    label: '정산 예정액',
-    icon: WalletCards,
-    iconClassName: 'bg-[#f4ebff] text-[#7f56d9]',
-  },
+const PAGE_SIZE = 20;
+const summaryCards = [
+  { label: '승인 대기 신청', field: 'pendingMentorCount', unit: '건', icon: UserRoundCheck, style: 'bg-[#fef6e7] text-[#d97706]' },
+  { label: '운영 중 프로그램', field: 'activeProgramCount', unit: '개', icon: Gamepad2, style: 'bg-[#eef3ff] text-[#315ef5]' },
+  { label: '이번 달 신청 건수', field: 'monthlySessionCount', unit: '건', icon: Star, style: 'bg-[#e7f6ee] text-[#168a4a]' },
+  { label: '보관 마일리지', field: 'escrowHeldAmount', unit: 'P', icon: WalletCards, style: 'bg-[#f4ebff] text-[#7f56d9]' },
 ] as const;
 
-function ApplicationStatusBadge({ status }: { status: ApplicationStatus }) {
-  const style = {
-    '승인 대기': 'bg-[#fef6e7] text-[#b54708] before:bg-[#d97706]',
-    '승인 완료': 'bg-[#e7f6ee] text-[#087443] before:bg-[#168a4a]',
-    반려: 'bg-[#f2f4f7] text-[#667085] before:bg-[#98a2b3]',
-  }[status];
+type Selection =
+  | { action: 'approve' | 'reject'; item: AdminMentorApiItem }
+  | { action: 'hide'; item: AdminMentoringProgramApiItem }
+  | { action: 'status'; item: AdminMentoringProgramApiItem; status: AdminProgramStatus };
 
-  return <StatusBadge label={status} className={style} />;
+function StatusBadge({ label, active }: { label: string; active: boolean }) {
+  return <span className={'inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ' + (active ? 'bg-[#e7f6ee] text-[#087443]' : 'bg-[#f2f4f7] text-[#667085]')}>{label}</span>;
 }
 
-function ProgramStatusBadge({ status }: { status: ProgramStatus }) {
-  const style = {
-    '운영 중': 'bg-[#e7f6ee] text-[#087443] before:bg-[#168a4a]',
-    일시정지: 'bg-[#fef6e7] text-[#b54708] before:bg-[#d97706]',
-    숨김: 'bg-[#f2f4f7] text-[#667085] before:bg-[#98a2b3]',
-  }[status];
-
-  return <StatusBadge label={status} className={style} />;
+function formatDate(value: string) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString('ko-KR');
 }
 
-function StatusBadge({ label, className }: { label: string; className: string }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs leading-[18px] font-semibold before:size-1.5 before:rounded-full before:content-[''] ${className}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-type ApplicationsTableProps = {
-  applications: MentorApplication[];
-  onStatusChange: (id: number, status: ApplicationStatus) => void;
-  onApproveRequest: (application: MentorApplication) => void;
-};
-
-function ApplicationsTable({ applications, onStatusChange, onApproveRequest }: ApplicationsTableProps) {
-  return (
-    <section className="min-h-[430px] overflow-hidden rounded-[20px] border border-[#e4e7ec] bg-[#fff] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px] table-fixed border-collapse">
-          <colgroup>
-            <col className="w-[28.75%]" />
-            <col className="w-[12.25%]" />
-            <col className="w-[17.55%]" />
-            <col className="w-[13.33%]" />
-            <col className="w-[14.69%]" />
-            <col className="w-[13.43%]" />
-          </colgroup>
-          <thead>
-            <tr className="h-[42px] border-b border-[#f2f4f7] bg-[#fcfcfd] text-left text-xs leading-[18px] font-bold text-[#667085]">
-              <th className="px-5 font-bold">신청자</th>
-              <th className="font-bold">주력 게임</th>
-              <th className="font-bold">경력</th>
-              <th className="font-bold">신청 시각</th>
-              <th className="font-bold">상태</th>
-              <th className="pr-5 text-right font-bold">처리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((application) => (
-              <tr
-                key={application.id}
-                className="h-[96.5px] border-b border-[#f2f4f7] last:border-b-0"
-              >
-                <td className="px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <span
-                      className="grid size-9 shrink-0 place-items-center rounded-full text-[14px] leading-[21px] font-bold text-white"
-                      style={{ backgroundColor: application.avatarColor }}
-                    >
-                      {application.initial}
-                    </span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-1.5">
-                        <span className="truncate text-[13px] leading-[19.5px] font-semibold text-[#172033]">
-                          {application.name}
-                        </span>
-                        <span className="truncate text-xs leading-[18px] text-[#667085]">
-                          @{application.handle}
-                        </span>
-                      </span>
-                      <span className="mt-1 block max-w-[250px] truncate text-xs leading-[18px] text-[#98a2b3]">
-                        {application.bio}
-                      </span>
-                    </span>
-                  </div>
-                </td>
-                <td className="pr-3 text-[13px] leading-[19.5px] text-[#344054]">
-                  {application.game}
-                </td>
-                <td className="pr-3 text-[13px] leading-[19.5px] text-[#344054]">
-                  {application.experience}
-                </td>
-                <td className="text-[13px] leading-[19.5px] text-[#98a2b3]">
-                  {application.appliedAt}
-                </td>
-                <td>
-                  <ApplicationStatusBadge status={application.status} />
-                </td>
-                <td className="pr-5 text-right">
-                  {application.status === '승인 대기' ? (
-                    <span className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled
-                        title="멘토 승인 관리 API 연결 후 사용할 수 있습니다."
-                        onClick={() => onStatusChange(application.id, '반려')}
-                        className="h-8 rounded-xl border border-[#d0d5dd] bg-[#fff] px-3 text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
-                      >
-                        반려
-                      </button>
-                      <button
-                        type="button"
-                        disabled
-                        title="멘토 승인 관리 API 연결 후 사용할 수 있습니다."
-                        onClick={() => onApproveRequest(application)}
-                        className="inline-flex h-8 items-center gap-1.5 rounded-xl bg-[#315ef5] px-3 text-xs leading-[18px] font-semibold text-white transition hover:bg-[#2448c9] disabled:cursor-not-allowed disabled:bg-[#98a2b3]"
-                      >
-                        <Check className="size-3.5" strokeWidth={2} aria-hidden="true" />
-                        승인
-                      </button>
-                    </span>
-                  ) : (
-                    <span className="text-xs leading-[18px] font-semibold text-[#98a2b3]">
-                      처리 완료
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {applications.length === 0 ? <EmptySearchResult /> : null}
-      </div>
-    </section>
-  );
-}
-
-type ProgramsTableProps = {
-  programs: MentoringProgram[];
-  onStatusChange: (id: number, status: ProgramStatus) => void;
-  onHideRequest: (program: MentoringProgram) => void;
-};
-
-function ProgramsTable({ programs, onStatusChange, onHideRequest }: ProgramsTableProps) {
-  return (
-    <section className="min-h-[324px] overflow-hidden rounded-[20px] border border-[#e4e7ec] bg-[#fff] shadow-[0_1px_2px_rgba(16,24,40,0.04)]">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[1080px] table-fixed border-collapse">
-          <colgroup>
-            <col className="w-[24%]" />
-            <col className="w-[13.2%]" />
-            <col className="w-[9.3%]" />
-            <col className="w-[6.2%]" />
-            <col className="w-[7.4%]" />
-            <col className="w-[5.7%]" />
-            <col className="w-[10.5%]" />
-            <col className="w-[23.7%]" />
-          </colgroup>
-          <thead>
-            <tr className="h-11 border-b border-[#f2f4f7] bg-[#fcfcfd] text-left text-xs leading-[18px] font-bold text-[#667085]">
-              <th className="px-5 font-bold">프로그램</th>
-              <th className="font-bold">멘토</th>
-              <th className="font-bold">가격</th>
-              <th className="font-bold">세션</th>
-              <th className="font-bold">평점</th>
-              <th className="font-bold">신고</th>
-              <th className="font-bold">상태</th>
-              <th className="pr-5 text-right font-bold">처리</th>
-            </tr>
-          </thead>
-          <tbody>
-            {programs.map((program) => (
-              <tr key={program.id} className="h-[70px] border-b border-[#f2f4f7] last:border-b-0">
-                <td className="px-5">
-                  <span className="block max-w-[240px] truncate text-[13px] leading-[19.5px] font-semibold text-[#172033]">
-                    {program.title}
-                  </span>
-                  <span className="block text-xs leading-[18px] text-[#667085]">{program.game}</span>
-                </td>
-                <td className="text-[13px] leading-[19.5px] text-[#344054]">@{program.mentor}</td>
-                <td className="text-[13px] leading-[19.5px] text-[#344054]">{program.price}</td>
-                <td className="text-[13px] leading-[19.5px] text-[#344054]">{program.sessions}회</td>
-                <td className="text-[13px] leading-[19.5px] text-[#344054]">
-                  {program.rating === null ? (
-                    <span className="text-[#98a2b3]">-</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-1">
-                      <Star className="size-3.5 fill-[#f79009] text-[#f79009]" strokeWidth={1.5} />
-                      {program.rating.toFixed(1)}
-                    </span>
-                  )}
-                </td>
-                <td
-                  className={`text-[13px] leading-[19.5px] ${
-                    program.reports > 0 ? 'font-semibold text-[#d92d20]' : 'text-[#98a2b3]'
-                  }`}
-                >
-                  {program.reports}건
-                </td>
-                <td>
-                  <ProgramStatusBadge status={program.status} />
-                </td>
-                <td className="pr-5 text-right">
-                  {program.status === '숨김' ? (
-                    <span className="text-xs leading-[18px] text-[#98a2b3]">숨김됨</span>
-                  ) : (
-                    <span className="inline-flex items-center gap-2">
-                      <button
-                        type="button"
-                        disabled
-                        title="멘토링 프로그램 관리 API 연결 후 사용할 수 있습니다."
-                        onClick={() =>
-                          onStatusChange(
-                            program.id,
-                            program.status === '운영 중' ? '일시정지' : '운영 중',
-                          )
-                        }
-                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#d0d5dd] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
-                      >
-                        {program.status === '운영 중' ? (
-                          <Pause className="size-3.5" strokeWidth={1.7} aria-hidden="true" />
-                        ) : (
-                          <Play className="size-3.5" strokeWidth={1.7} aria-hidden="true" />
-                        )}
-                        {program.status === '운영 중' ? '정지' : '재개'}
-                      </button>
-                      <button
-                        type="button"
-                        disabled
-                        title="멘토링 프로그램 관리 API 연결 후 사용할 수 있습니다."
-                        onClick={() => onHideRequest(program)}
-                        className="inline-flex h-8 items-center gap-1 rounded-2xl border border-[#fda29b] bg-[#fff] px-[13px] text-xs leading-[18px] font-semibold text-[#b42318] transition hover:bg-[#fff5f4] disabled:cursor-not-allowed disabled:border-[#e4e7ec] disabled:bg-[#f2f4f7] disabled:text-[#98a2b3]"
-                      >
-                        <EyeOff className="size-3.5" strokeWidth={1.7} aria-hidden="true" />
-                        숨김
-                      </button>
-                    </span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        {programs.length === 0 ? <EmptySearchResult /> : null}
-      </div>
-    </section>
-  );
-}
-
-function EmptySearchResult() {
-  return (
-    <div className="flex h-[160px] items-center justify-center text-sm text-[#98a2b3]">
-      검색 결과가 없습니다.
-    </div>
-  );
-}
+const actionClassName = 'inline-flex h-8 items-center gap-1.5 rounded-xl border border-[#d0d5dd] bg-white px-3 text-xs font-semibold text-[#344054] transition hover:bg-[#f9fafb] disabled:cursor-not-allowed disabled:text-[#98a2b3]';
 
 export function AdminMentoringManagement() {
   const [activeTab, setActiveTab] = useState<MentoringTab>('applications');
-  const [applications, setApplications] = useState(initialApplications);
-  const [programs, setPrograms] = useState(initialPrograms);
+  const [mentorStatus, setMentorStatus] = useState<AdminMentorStatus | ''>('');
+  const [programStatus, setProgramStatus] = useState<AdminProgramStatus | ''>('');
   const [query, setQuery] = useState('');
-  const [selectedProgram, setSelectedProgram] = useState<MentoringProgram | null>(null);
-  const [selectedApplication, setSelectedApplication] = useState<MentorApplication | null>(null);
-  const [hideToastId, setHideToastId] = useState(0);
-  const [isHideToastLeaving, setIsHideToastLeaving] = useState(false);
+  const [keyword, setKeyword] = useState('');
+  const [page, setPage] = useState(0);
+  const [mentorPage, setMentorPage] = useState<PageResponse<AdminMentorApiItem> | null>(null);
+  const [programPage, setProgramPage] = useState<PageResponse<AdminMentoringProgramApiItem> | null>(null);
+  const [dataKey, setDataKey] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [summaryReload, setSummaryReload] = useState(0);
+  const [summary, setSummary] = useState<AdminMentoringSummary | null>(null);
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const mutationLock = useRef(false);
+  const mutationController = useRef<AbortController | null>(null);
+  const dismissToast = useCallback(() => setToast(null), []);
+  const requestKey = JSON.stringify([activeTab, mentorStatus, programStatus, keyword, page, reload]);
 
   useEffect(() => {
-    if (hideToastId === 0) return;
+    const controller = new AbortController();
+    setSummaryLoading(true);
+    setSummaryError(null);
+    fetchAdminMentoringSummary(controller.signal)
+      .then((response) => { if (!controller.signal.aborted) setSummary(response); })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+        setSummaryError(error instanceof Error ? error.message : '요약 지표를 불러오지 못했습니다.');
+      })
+      .finally(() => { if (!controller.signal.aborted) setSummaryLoading(false); });
+    return () => controller.abort();
+  }, [summaryReload]);
 
-    const leavingTimer = window.setTimeout(() => setIsHideToastLeaving(true), 3000);
-    const removeTimer = window.setTimeout(() => setHideToastId(0), 3300);
-
-    return () => {
-      window.clearTimeout(leavingTimer);
-      window.clearTimeout(removeTimer);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setListError(null);
+    const applyPage = <Item,>(response: PageResponse<Item>, apply: (response: PageResponse<Item>) => void) => {
+      if (controller.signal.aborted) return;
+      if (page > 0 && page >= response.totalPages) {
+        setPage(Math.max(0, response.totalPages - 1));
+        return;
+      }
+      apply(response);
+      setDataKey(requestKey);
     };
-  }, [hideToastId]);
+    const request = activeTab === 'applications'
+      ? fetchAdminMentors({ status: mentorStatus || undefined, page, size: PAGE_SIZE, sort: 'createdAt,desc' }, controller.signal).then((response) => applyPage(response, setMentorPage))
+      : fetchAdminMentoringPrograms({ status: programStatus || undefined, keyword, page, size: PAGE_SIZE, sort: 'createdAt,desc' }, controller.signal).then((response) => applyPage(response, setProgramPage));
+    request.catch((error: unknown) => {
+      if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+      setListError(error instanceof Error ? error.message : '멘토링 목록을 불러오지 못했습니다.');
+    }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [activeTab, mentorStatus, programStatus, keyword, page, reload, requestKey]);
 
-  const pendingCount = applications.filter((application) => application.status === '승인 대기').length;
-  const runningCount = programs.filter((program) => program.status === '운영 중').length;
-  const summaryValues = [`${pendingCount}건`, `${runningCount}개`, '67회', '1,840,000원'];
+  useEffect(() => () => mutationController.current?.abort(), []);
 
-  const normalizedQuery = query.trim().toLowerCase().replace(/^@/, '');
-  const filteredApplications = useMemo(() => {
-    if (!normalizedQuery) return applications;
-
-    return applications.filter((application) =>
-      [application.name, application.handle, application.game].some((value) =>
-        value.toLowerCase().includes(normalizedQuery),
-      ),
-    );
-  }, [applications, normalizedQuery]);
-
-  const filteredPrograms = useMemo(() => {
-    if (!normalizedQuery) return programs;
-
-    return programs.filter((program) =>
-      [program.title, program.game, program.mentor].some((value) =>
-        value.toLowerCase().includes(normalizedQuery),
-      ),
-    );
-  }, [normalizedQuery, programs]);
-
-  const changeTab = (tab: MentoringTab) => {
-    setActiveTab(tab);
-    setQuery('');
+  const closeDialog = () => {
+    if (mutationLock.current) return;
+    setSelection(null);
+    setMutationError(null);
   };
-
-  const confirmMentorApproval = () => {
-    if (!selectedApplication) return;
-
-    setApplications((current) =>
-      current.map((application) =>
-        application.id === selectedApplication.id
-          ? { ...application, status: '승인 완료' }
-          : application,
-      ),
-    );
-    setSelectedApplication(null);
+  const select = (next: Selection) => { setMutationError(null); setSelection(next); };
+  const confirm = async (reason?: string) => {
+    if (!selection || mutationLock.current) return;
+    if ((selection.action === 'reject' || selection.action === 'hide') && !reason?.trim()) {
+      setMutationError('조치 사유는 필수입니다.');
+      return;
+    }
+    const selected = selection;
+    const controller = new AbortController();
+    mutationController.current = controller;
+    mutationLock.current = true;
+    setIsSubmitting(true);
+    setMutationError(null);
+    try {
+      switch (selected.action) {
+        case 'approve': await approveAdminMentor(selected.item.userId, controller.signal); break;
+        case 'reject': await rejectAdminMentor(selected.item.userId, reason!.trim(), controller.signal); break;
+        case 'hide': await hideAdminMentoringProgram(selected.item.id, reason!.trim(), controller.signal); break;
+        case 'status': await updateAdminProgramStatus(selected.item.id, selected.status, controller.signal); break;
+      }
+      if (controller.signal.aborted) return;
+      setSelection(null);
+      setToast(selected.action === 'approve' ? '멘토 신청을 승인했습니다.' : selected.action === 'reject' ? '멘토 신청을 반려했습니다.' : selected.action === 'hide' ? '프로그램을 숨김 처리했습니다.' : '프로그램 운영 상태를 변경했습니다.');
+      setReload((current) => current + 1);
+      setSummaryReload((current) => current + 1);
+    } catch (error) {
+      if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
+      setMutationError(error instanceof Error ? error.message : '처리에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      mutationLock.current = false;
+      if (!controller.signal.aborted) setIsSubmitting(false);
+    }
   };
-
-  const confirmProgramHide = (reason: string) => {
-    if (!selectedProgram) return;
-
-    setPrograms((current) =>
-      current.map((program) =>
-        program.id === selectedProgram.id
-          ? { ...program, status: '숨김', hideReason: reason }
-          : program,
-      ),
-    );
-    setSelectedProgram(null);
-    setIsHideToastLeaving(false);
-    setHideToastId((current) => current + 1);
-  };
+  const currentPage = activeTab === 'applications' ? mentorPage : programPage;
+  const listPending = loading || dataKey !== requestKey;
 
   return (
     <div className="mx-auto w-full max-w-[1200px] p-4 sm:p-6 lg:p-8">
-      <AdminDemoNotice description="멘토 승인, 프로그램 상태와 요약 통계는 관리 API 연결 전 예시입니다. 상태 변경 버튼은 비활성화되어 있습니다." />
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="멘토링 현황 요약">
-        {baseSummaryCards.map((card, index) => {
-          const Icon = card.icon;
-
-          return (
-            <article
-              key={card.label}
-              className="flex h-[82px] items-center gap-3 rounded-[20px] border border-[#e4e7ec] bg-[#fff] p-[17px] shadow-[0_1px_1px_rgba(16,24,40,0.04)]"
-            >
-              <span className={`grid size-10 shrink-0 place-items-center rounded-2xl ${card.iconClassName}`}>
-                <Icon className="size-5" strokeWidth={1.7} aria-hidden="true" />
-              </span>
-              <span>
-                <span className="block text-xs leading-[18px] font-semibold text-[#667085]">
-                  {card.label}
-                </span>
-                <span className="mt-0.5 block text-lg leading-[27px] font-bold tracking-[-0.45px] text-[#172033]">
-                  {summaryValues[index]}
-                </span>
-              </span>
-            </article>
-          );
-        })}
+        {summaryCards.map((card) => (
+          <article key={card.field} className="flex h-[82px] items-center gap-3 rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-sm">
+            <span className={'grid size-10 shrink-0 place-items-center rounded-2xl ' + card.style}><card.icon className="size-5" aria-hidden="true" /></span>
+            <span><span className="block text-xs font-semibold text-[#667085]">{card.label}</span><span className="mt-0.5 block text-lg font-bold text-[#172033]">{summaryLoading ? '불러오는 중…' : summaryError || !summary ? '—' : summary[card.field].toLocaleString('ko-KR') + card.unit}</span></span>
+          </article>
+        ))}
       </section>
+      {summaryError ? <div role="alert" className="mt-3 flex items-center gap-3 text-sm text-[#b42318]"><span>{summaryError}</span><button type="button" disabled={isSubmitting} onClick={() => setSummaryReload((current) => current + 1)} className={actionClassName}>요약 다시 시도</button></div> : null}
 
-      <section className="flex flex-col gap-3 py-4 sm:h-[84px] sm:flex-row sm:items-center sm:justify-between sm:py-0" aria-label="멘토링 관리 보기">
-        <div
-          className="flex h-12 items-center rounded-2xl bg-[#f2f4f7] p-1"
-          role="tablist"
-          aria-label="멘토링 관리 메뉴"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'applications'}
-            onClick={() => changeTab('applications')}
-            className={`h-10 w-32 rounded-xl text-[13px] leading-[19.5px] transition ${
-              activeTab === 'applications'
-                ? 'bg-[#fff] font-bold text-[#172033] shadow-[0_1px_3px_rgba(16,24,40,0.12)]'
-                : 'font-semibold text-[#667085] hover:text-[#344054]'
-            }`}
-          >
-            멘토 승인 요청
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeTab === 'programs'}
-            onClick={() => changeTab('programs')}
-            className={`h-10 w-[124px] rounded-xl text-[13px] leading-[19.5px] transition ${
-              activeTab === 'programs'
-                ? 'bg-[#fff] font-bold text-[#172033] shadow-[0_1px_3px_rgba(16,24,40,0.12)]'
-                : 'font-semibold text-[#667085] hover:text-[#344054]'
-            }`}
-          >
-            프로그램 관리
-          </button>
+      <section className="flex flex-wrap items-center justify-between gap-3 py-4" aria-label="멘토링 관리 보기">
+        <div className="flex h-12 items-center rounded-2xl bg-[#f2f4f7] p-1" role="tablist" aria-label="멘토링 관리 메뉴">
+          {([{ tab: 'applications', label: '멘토 신청' }, { tab: 'programs', label: '프로그램 관리' }] as const).map(({ tab, label }) => (
+            <button type="button" key={tab} role="tab" aria-selected={activeTab === tab} disabled={isSubmitting} onClick={() => { setActiveTab(tab); setPage(0); }} className={'h-10 w-32 rounded-xl text-[13px] ' + (activeTab === tab ? 'bg-white font-bold text-[#172033] shadow-sm' : 'text-[#667085]')}>{label}</button>
+          ))}
         </div>
-
-        <label className="relative w-full sm:w-64">
-          <span className="sr-only">
-            {activeTab === 'applications' ? '멘토 또는 게임 검색' : '프로그램 또는 멘토 검색'}
-          </span>
-          <Search
-            className="pointer-events-none absolute top-3 left-3 size-4 text-[#98a2b3]"
-            strokeWidth={1.7}
-            aria-hidden="true"
+        <div className="flex flex-wrap items-center gap-2">
+          <AdminFilterSelect
+            label="상태 전체"
+            value={activeTab === 'applications' ? mentorStatus : programStatus}
+            disabled={isSubmitting}
+            options={Object.entries(activeTab === 'applications' ? mentorStatusLabels : programStatusLabels).map(([value, label]) => ({ value, label }))}
+            onChange={(value) => { if (activeTab === 'applications') setMentorStatus(value as AdminMentorStatus | ''); else setProgramStatus(value as AdminProgramStatus | ''); setPage(0); }}
+            className="w-36"
           />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={activeTab === 'applications' ? '멘토·게임 검색' : '프로그램·멘토 검색'}
-            className="h-10 w-full rounded-2xl border border-[#d0d5dd] bg-[#fff] pr-[13px] pl-[37px] text-sm text-[#172033] outline-none transition placeholder:text-[#98a2b3] focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10"
-          />
-        </label>
+          {activeTab === 'programs' ? (
+            <form className="flex items-center gap-2" onSubmit={(event) => { event.preventDefault(); setKeyword(query.trim()); setPage(0); }}>
+              <label className="relative">
+                <span className="sr-only">프로그램 제목 또는 멘토 닉네임 검색</span>
+                <Search className="pointer-events-none absolute top-3 left-3 size-4 text-[#98a2b3]" aria-hidden="true" />
+                <input type="search" value={query} disabled={isSubmitting} onChange={(event) => setQuery(event.target.value)} placeholder="제목 · 멘토 닉네임 검색" className="h-10 w-56 rounded-2xl border border-[#d0d5dd] bg-white pr-3 pl-9 text-sm text-[#344054] outline-none focus:border-[#315ef5]" />
+              </label>
+              <button type="submit" disabled={isSubmitting} className={actionClassName}>검색</button>
+            </form>
+          ) : null}
+        </div>
       </section>
 
-      {activeTab === 'applications' ? (
-        <ApplicationsTable
-          applications={filteredApplications}
-          onApproveRequest={setSelectedApplication}
-          onStatusChange={(id, status) =>
-            setApplications((current) =>
-              current.map((application) =>
-                application.id === id ? { ...application, status } : application,
-              ),
-            )
-          }
-        />
-      ) : (
-        <ProgramsTable
-          programs={filteredPrograms}
-          onHideRequest={setSelectedProgram}
-          onStatusChange={(id, status) =>
-            setPrograms((current) =>
-              current.map((program) => (program.id === id ? { ...program, status } : program)),
-            )
-          }
-        />
-      )}
-      {selectedApplication ? (
-        <MentorApprovalDialog
-          applicantName={selectedApplication.name}
-          onCancel={() => setSelectedApplication(null)}
-          onConfirm={confirmMentorApproval}
-        />
+      <section className="overflow-hidden rounded-[20px] border border-[#e4e7ec] bg-white shadow-sm">
+        {listError ? <AdminStatePanel state="error" description={listError} onRetry={() => setReload((current) => current + 1)} /> : listPending ? <AdminStatePanel state="loading" /> : !currentPage?.content.length ? <AdminStatePanel state="empty" /> : (
+          <div className="overflow-x-auto">
+            {activeTab === 'applications' ? (
+              <table className="w-full min-w-[700px] border-collapse text-left text-[13px] text-[#344054]">
+                <thead className="h-11 bg-[#fcfcfd] text-xs text-[#667085]"><tr><th className="px-5">신청자</th><th>신청 시각</th><th>상태</th><th className="px-5 text-right">처리</th></tr></thead>
+                <tbody>{mentorPage?.content.map((mentor) => (
+                  <tr key={mentor.userId} className="h-24 border-t border-[#f2f4f7]">
+                    <td className="max-w-xs px-5 py-3"><span className="block font-semibold text-[#172033]">{mentor.name} <span className="font-normal text-[#667085]">@{mentor.handle}</span></span>{mentor.bio ? <span className="mt-1 block max-w-xs truncate text-xs text-[#98a2b3]">{mentor.bio}</span> : null}</td>
+                    <td className="pr-3 text-[#98a2b3]">{formatDate(mentor.appliedAt)}</td>
+                    <td><StatusBadge label={mentorStatusLabels[mentor.status]} active={mentor.status === 'ACTIVE'} /></td>
+                    <td className="px-5 text-right">{mentor.status === 'PENDING_APPROVAL' ? <span className="inline-flex gap-2"><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'reject', item: mentor })} className={actionClassName}>반려</button><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'approve', item: mentor })} className={actionClassName}><Check className="size-3.5" aria-hidden="true" />승인</button></span> : <span className="text-xs text-[#98a2b3]">처리 완료</span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            ) : (
+              <table className="w-full min-w-[900px] border-collapse text-left text-[13px] text-[#344054]">
+                <thead className="h-11 bg-[#fcfcfd] text-xs text-[#667085]"><tr><th className="px-5">프로그램</th><th>멘토</th><th>가격 (P)</th><th>신청 건수</th><th>멘토 평점</th><th>상태</th><th className="px-5 text-right">처리</th></tr></thead>
+                <tbody>{programPage?.content.map((program) => (
+                  <tr key={program.id} className="h-20 border-t border-[#f2f4f7]">
+                    <td className="max-w-xs px-5 py-3"><span className="block truncate font-semibold text-[#172033]">{program.title}</span><span className="block text-xs text-[#667085]">{program.game}</span></td>
+                    <td className="pr-3"><span className="block">{program.mentorNickname}</span><span className="block text-xs text-[#667085]">@{program.mentorHandle}</span></td>
+                    <td className="pr-3">{program.price === null ? '—' : program.price.toLocaleString('ko-KR')}</td>
+                    <td className="pr-3">{program.sessions.toLocaleString('ko-KR')}건</td>
+                    <td className="pr-3">{program.rating === null ? '—' : program.rating.toFixed(1)}</td>
+                    <td className="pr-3"><StatusBadge label={programStatusLabels[program.status]} active={program.status === 'ACTIVE'} />{program.isHidden ? <span className="mt-1 block text-xs text-[#b42318]">숨김</span> : null}</td>
+                    <td className="px-5 text-right">{program.isHidden ? <span className="text-xs text-[#98a2b3]">숨김 처리됨</span> : <span className="inline-flex gap-2"><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'status', item: program, status: program.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE' })} className={actionClassName}>{program.status === 'ACTIVE' ? '종료' : '운영 재개'}</button><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'hide', item: program })} className={actionClassName}><EyeOff className="size-3.5" aria-hidden="true" />숨김</button></span>}</td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        )}
+        {!listPending && !listError && currentPage ? <AdminPagination currentPage={page} totalPages={currentPage.totalPages} totalItems={currentPage.totalElements} pageSize={PAGE_SIZE} itemLabel="건" onPageChange={(next) => { if (!mutationLock.current) setPage(next); }} /> : null}
+      </section>
+
+      {selection?.action === 'approve' ? <MentorApprovalDialog applicantName={selection.item.name + ' (@' + selection.item.handle + ')'} isSubmitting={isSubmitting} error={mutationError} onCancel={closeDialog} onConfirm={() => void confirm()} /> : null}
+      {selection?.action === 'reject' ? <MentoringReasonDialog key={selection.item.userId} targetName={selection.item.name + ' (@' + selection.item.handle + ')'} action="reject" isSubmitting={isSubmitting} error={mutationError} onCancel={closeDialog} onConfirm={(reason) => void confirm(reason)} /> : null}
+      {selection?.action === 'hide' ? <ProgramHideDialog key={selection.item.id} programTitle={selection.item.title} isSubmitting={isSubmitting} error={mutationError} onCancel={closeDialog} onConfirm={(reason) => void confirm(reason)} /> : null}
+      {selection?.action === 'status' ? (
+        <AdminDialog isOpen titleId="program-status-title" onClose={closeDialog} maxWidthClassName="max-w-[448px]">
+          <h2 id="program-status-title" className="text-xl font-bold text-[#172033]">프로그램을 {selection.status === 'CLOSED' ? '종료' : '운영 재개'}하시겠습니까?</h2>
+          <p className="mt-3 text-sm text-[#667085]">{selection.item.title}</p>
+          {mutationError ? <p role="alert" className="mt-3 text-sm text-[#b42318]">{mutationError}</p> : null}
+          <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isSubmitting} onClick={closeDialog} className={actionClassName}>취소</button><button type="button" autoFocus disabled={isSubmitting} onClick={() => void confirm()} className={actionClassName}>{isSubmitting ? '처리 중…' : '상태 변경 확인'}</button></div>
+        </AdminDialog>
       ) : null}
-      {selectedProgram ? (
-        <ProgramHideDialog
-          programTitle={selectedProgram.title}
-          onCancel={() => setSelectedProgram(null)}
-          onConfirm={confirmProgramHide}
-        />
-      ) : null}
-      {hideToastId > 0 ? <ProgramHiddenToast isLeaving={isHideToastLeaving} /> : null}
+      {toast ? <AdminToast key={toast} variant="success" title={toast} onDismiss={dismissToast} /> : null}
     </div>
   );
 }

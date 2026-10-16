@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { Header } from '@/app/home/components/Header';
 import { MobileTabBar, Sidebar } from '@/app/home/components/Sidebar';
+import { PopupProvider } from '@/app/context/PopupContext';
 
 export default function AppLayout({
   children,
@@ -27,6 +28,7 @@ export default function AppLayout({
   }
 
   return (
+    <PopupProvider key={user.id}>
     <div className="min-h-screen bg-white dark:bg-black">
       <Header />
 
@@ -40,5 +42,6 @@ export default function AppLayout({
 
       <MobileTabBar />
     </div>
+    </PopupProvider>
   );
 }

@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord } from '@/lib/feed-api';
 
@@ -114,10 +115,32 @@ describe('HashtagPostsPage like rollback', () => {
     api.unlikePost.mockReset();
   });
 
+  it('shows a link back home when the hashtag request fails', async () => {
+    api.fetchHashtagPosts.mockRejectedValue(new Error('해시태그 게시글을 불러오지 못했습니다.'));
+
+    render(<HashtagPostsPage />);
+
+    expect(await screen.findByText('해시태그 게시글을 불러오지 못했습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+  });
+
+  it('다음 커서가 없으면 hasNext가 true여도 더보기를 표시하지 않는다', async () => {
+    api.fetchHashtagPosts.mockResolvedValue({
+      items: [post],
+      nextCursor: null,
+      hasNext: true,
+    });
+
+    render(<HashtagPostsPage />);
+
+    await screen.findByTestId('post-post-1');
+    expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument();
+    expect(api.fetchHashtagPosts).toHaveBeenCalledTimes(1);
+  });
+
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {
     const likeRequest = deferred<void>();
     api.likePost.mockReturnValue(likeRequest.promise);
-    const alertSpy = vi.spyOn(window, 'alert').mockImplementation(() => undefined);
 
     render(<HashtagPostsPage />);
     await screen.findByTestId('post-post-1');
@@ -153,6 +176,6 @@ describe('HashtagPostsPage like rollback', () => {
       });
       expect(screen.getByRole('button', { name: 'toggle like' })).toBeEnabled();
     });
-    expect(alertSpy).toHaveBeenCalledWith('좋아요 요청 실패');
+    expect(screen.getByRole('alert')).toHaveTextContent('좋아요 요청 실패');
   });
 });

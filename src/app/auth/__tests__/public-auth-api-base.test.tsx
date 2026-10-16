@@ -107,4 +107,54 @@ describe('공개 인증 화면의 API 주소', () => {
       '/find-id-result?maskedHandle=de***1&createdAt=2026-09-23',
     ));
   });
+
+  it.each([
+    {
+      name: '비밀번호 찾기',
+      element: <ForgotPasswordPage />,
+      submit: pages[1].submit,
+      fallback: '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    },
+    {
+      name: '비밀번호 재설정',
+      element: <ResetPasswordPage />,
+      submit: pages[2].submit,
+      fallback: '비밀번호 변경에 실패했습니다.',
+    },
+  ])('$name 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async ({ element, submit, fallback }) => {
+    vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { container } = render(element);
+
+    submit();
+    fireEvent.submit(container.querySelector('form')!);
+
+    expect(await screen.findByText(fallback)).toBeInTheDocument();
+    expect(screen.queryByText('Failed to fetch')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { name: '비밀번호 찾기', element: <ForgotPasswordPage />, submit: pages[1].submit },
+    { name: '비밀번호 재설정', element: <ResetPasswordPage />, submit: pages[2].submit },
+  ])('$name 거절은 한국어 fallback보다 서버 message를 우선 안내한다', async ({ element, submit }) => {
+    vi.mocked(fetch).mockResolvedValueOnce(json(400, { success: false, message: '서버가 전한 오류입니다.' }));
+    const { container } = render(element);
+
+    submit();
+    fireEvent.submit(container.querySelector('form')!);
+
+    expect(await screen.findByText('서버가 전한 오류입니다.')).toBeInTheDocument();
+  });
+
+  it('비밀번호 재설정은 규칙을 어긴 비밀번호를 제출 전에 막는다', () => {
+    const { container } = render(<ResetPasswordPage />);
+    const password = screen.getByPlaceholderText('새 비밀번호');
+
+    expect(password).toHaveAttribute('maxlength', '20');
+    fireEvent.change(password, { target: { value: 'abcdefgh1' } });
+    fireEvent.change(screen.getByPlaceholderText('새 비밀번호 확인'), { target: { value: 'abcdefgh1' } });
+    fireEvent.submit(container.querySelector('form')!);
+
+    expect(screen.getAllByText('비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다.').length).toBeGreaterThan(0);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 });
