@@ -51,6 +51,24 @@ describe('PaymentResultPage', () => {
     expect(paymentApi.approvePayment).toHaveBeenCalledTimes(1);
     expect(paymentApi.approvePayment).toHaveBeenCalledWith('o1', 'tok');
     expect(window.location.search).not.toContain('pg_token');
+    expect(screen.getByRole('link', { name: '지갑으로' })).toHaveAttribute('href', '/wallet');
+  });
+
+  it('멤버십 결제 완료 후 멤버십 화면으로 연결한다', async () => {
+    state.query = 'orderId=o2&result=approval&pg_token=tok';
+    paymentApi.approvePayment.mockResolvedValueOnce({
+      ...approved,
+      orderId: 'o2',
+      purpose: 'MEMBERSHIP_PASS',
+      productCode: 'MEMBERSHIP_30D',
+      itemName: 'GamerIN 멤버십',
+      amount: 9900,
+    });
+
+    render(<PaymentResultPage />);
+
+    expect(await screen.findByText('멤버십 결제가 완료되었어요')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '멤버십 보기' })).toHaveAttribute('href', '/membership');
   });
 
   it('cancel 복귀는 승인하지 않고 상태만 조회한다', async () => {

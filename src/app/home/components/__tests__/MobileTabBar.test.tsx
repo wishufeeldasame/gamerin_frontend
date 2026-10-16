@@ -21,11 +21,11 @@ describe('MobileTabBar', () => {
     mocks.pathname = '/home';
   });
 
-  it('renders the same five menu links as the sidebar, with the profile link using the handle', () => {
+  it('renders the same seven menu links as the sidebar, with the profile link using the handle', () => {
     render(<MobileTabBar />);
 
     const links = screen.getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['홈', '북마크', '메시지', '멘토링', '프로필']);
+    expect(links.map((link) => link.textContent)).toEqual(['홈', '북마크', '메시지', '멘토링', '내 지갑', '멤버십', '프로필']);
     expect(screen.getByRole('link', { name: '프로필' })).toHaveAttribute('href', '/profile/demo%2001');
   });
 

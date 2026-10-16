@@ -10,7 +10,9 @@ import { approvePayment, getPayment, type PaymentResponse } from '@/lib/payment-
 function titleOf(payment: PaymentResponse) {
   switch (payment.status) {
     case 'APPROVED':
-      return `${(payment.amount ?? 0).toLocaleString('ko-KR')} M이 충전되었어요`;
+      return payment.purpose === 'MEMBERSHIP_PASS'
+        ? '멤버십 결제가 완료되었어요'
+        : `${(payment.amount ?? 0).toLocaleString('ko-KR')} M이 충전되었어요`;
     case 'CANCELED':
       return '결제가 취소되었어요';
     case 'APPROVING':
@@ -61,6 +63,9 @@ function PaymentResult() {
   else if (error) title = '결제 결과를 확인하지 못했어요';
   else if (payment) title = titleOf(payment);
 
+  const destination = payment?.purpose === 'MEMBERSHIP_PASS' ? '/membership' : '/wallet';
+  const destinationLabel = payment?.purpose === 'MEMBERSHIP_PASS' ? '멤버십 보기' : '지갑으로';
+
   return (
     <main className="grid min-h-screen place-items-center bg-white p-5 text-zinc-900 dark:bg-[#09090b] dark:text-zinc-100">
       <section className="w-full max-w-[480px] space-y-4 rounded-2xl border border-zinc-100 bg-white p-7 dark:border-zinc-800 dark:bg-zinc-900">
@@ -83,8 +88,8 @@ function PaymentResult() {
               로그인
             </Link>
           ) : (
-            <Link href="/kakaopay-mockup" className="grid min-h-12 place-items-center rounded-xl bg-black text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black">
-              지갑으로
+            <Link href={destination} className="grid min-h-12 place-items-center rounded-xl bg-black text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black">
+              {destinationLabel}
             </Link>
           )}
         </div>
