@@ -14,7 +14,9 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
@@ -147,6 +149,10 @@ function splitProgramContent(rawContent?: string | null) {
   };
 }
 
+function MembershipBadgeInline({ active }: { active?: boolean }) {
+  return active ? <span className="ml-0.5 inline-flex align-middle"><MembershipBadge active /></span> : null;
+}
+
 function programMentorName(program: MentoringProgramResponse | MentoringProgramDetailResponse) {
   if ('mentorNickname' in program && program.mentorNickname) return program.mentorNickname;
   if ('mentorNickName' in program && program.mentorNickName) return program.mentorNickName;
@@ -232,6 +238,8 @@ export default function MentoringPage() {
   const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
   const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
   const requestedMineTab = searchParams.get('tab') === 'mine';
+  const requestedProgramId = searchParams.get('programId')?.trim() || null;
+  const openedProgramIdRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
   const [games, setGames] = useState<GameResponse[]>([]);
@@ -768,6 +776,9 @@ export default function MentoringPage() {
     }
   };
 
+  const openProgramDetailRef = useRef(openProgramDetail);
+  openProgramDetailRef.current = openProgramDetail;
+
   const handleRegisterMentor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPendingAction('register-mentor');
@@ -960,11 +971,20 @@ export default function MentoringPage() {
     }
   };
 
+  // 충전 후 원래 프로그램 상세로 돌아오게 한다. 신청은 사용자가 다시 확정한다.
   const goToMileageCharge = () => {
+    const returnTo = selectedProgram ? `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
     setShowMileageShortageModal(false);
     closeProgramDetail();
-    router.push('/wallet');
+    router.push(`/wallet?returnTo=${encodeURIComponent(returnTo)}`);
   };
+
+  useEffect(() => {
+    if (!requestedProgramId || !isAuthReady || openedProgramIdRef.current === requestedProgramId) return;
+    openedProgramIdRef.current = requestedProgramId;
+    void openProgramDetailRef.current(requestedProgramId);
+  }, [isAuthReady, requestedProgramId]);
+
   const openReviewModal = (application: MentoringApplicationResponse) => {
     clearMessages();
     setReviewTarget(application);
@@ -1187,7 +1207,7 @@ export default function MentoringPage() {
                             {splitProgramContent(program.content).content}
                           </p>
                           <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)} · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
+                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
                           </p>
                         </div>
 
@@ -1248,12 +1268,10 @@ export default function MentoringPage() {
           <section className="space-y-6">
             <section className="flex flex-col gap-5 rounded-2xl border border-zinc-100 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">KAKAOPAY WALLET</p>
-                <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h2 className="text-2xl font-black text-black">내 지갑</h2>
-                  <strong className="text-2xl font-black text-[#9a6811] dark:text-[#f5b93d]">
-                    {formatMileage(mileageBalance)}
-                  </strong>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h2 className="text-2xl font-black text-black">내 마일리지</h2>
+                  <strong className="text-2xl font-black text-black">{formatMileage(mileageBalance)}</strong>
                 </div>
                 <p className="mt-2 text-sm font-bold text-zinc-500">
                   카카오페이 충전과 전체 거래 내역은 지갑에서 확인할 수 있습니다.
@@ -1262,18 +1280,18 @@ export default function MentoringPage() {
               <div className="grid shrink-0 grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => router.push('/wallet')}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-[#f5b93d] px-4 text-sm font-black text-black"
+                  onClick={() => router.push(`/wallet?returnTo=${encodeURIComponent('/mentoring?tab=mine')}`)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
                 >
                   <Wallet size={16} />
                   충전하기
                 </button>
                 <button
                   type="button"
-                  onClick={() => router.push('/membership')}
+                  onClick={() => router.push('/wallet')}
                   className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-black text-black"
                 >
-                  멤버십
+                  전체 내역
                 </button>
               </div>
             </section>
@@ -1317,7 +1335,10 @@ export default function MentoringPage() {
             ) : mentorProfile ? (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-zinc-100 p-6">
-                  <h2 className="text-2xl font-black text-black">{mentorProfile.nickname} 멘토</h2>
+                  <h2 className="flex items-center gap-1 text-2xl font-black text-black">
+                    {mentorProfile.nickname}
+                    <MembershipBadge active={mentorProfile.membershipBadge} /> 멘토
+                  </h2>
 
                   <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                     <div className="rounded-xl bg-zinc-50 p-3">
@@ -1604,7 +1625,10 @@ export default function MentoringPage() {
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-zinc-100 p-6">
-                    <h3 className="text-2xl font-black text-black">{programMentorName(selectedProgram)} 멘토</h3>
+                    <h3 className="flex items-center gap-1 text-2xl font-black text-black">
+                      {programMentorName(selectedProgram)}
+                      <MembershipBadge active={selectedProgram.membershipBadge} /> 멘토
+                    </h3>
 
                     <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                       <div className="rounded-xl bg-zinc-50 p-3">
@@ -1648,7 +1672,7 @@ export default function MentoringPage() {
                           <article key={review.id} className="rounded-xl border border-zinc-100 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="font-black text-black">{review.menteeNickname}</p>
+                                <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
                                 <p className="mt-1 text-xs font-bold text-zinc-400">
                                   {formatDateTime(review.createdAt)}
                                 </p>
@@ -1778,7 +1802,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={goToMileageCharge}
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#f5b93d] px-4 text-sm font-black text-black"
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
                 >
                   <Wallet size={16} />
                   카카오페이로 충전
@@ -1883,7 +1907,7 @@ export default function MentoringPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-black text-black">{review.menteeNickname}</p>
+                            <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
                             <p className="mt-1 text-xs font-bold text-zinc-400">
                               {formatDateTime(review.createdAt)}
                             </p>
@@ -2104,7 +2128,8 @@ function ApplicationCard({
         <div className="min-w-0">
           <h3 className="truncate font-black text-black">{application.programTitle}</h3>
           <p className="mt-1 text-xs font-bold text-zinc-400">
-            멘토 {application.mentorNickname} · 멘티 {application.menteeNickname}
+            멘토 {application.mentorNickname}<MembershipBadgeInline active={application.mentorMembershipBadge} /> · 멘티{' '}
+            {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} />
           </p>
         </div>
         <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
@@ -2120,6 +2145,21 @@ function ApplicationCard({
         <span>금액: {formatMileage(application.appliedMileage)}</span>
         <span>결제: {paymentLabel[application.paymentStatus] ?? application.paymentStatus}</span>
       </div>
+
+      {role === 'mentor' && application.feeRateBp != null && application.feeAmount != null ? (
+        <p className="mt-2 text-xs font-bold text-zinc-500">
+          {formatMileage(application.appliedMileage)} 중 수수료 {formatMileage(application.feeAmount)}({application.feeRateBp / 100}%) · 수령{' '}
+          {formatMileage(application.payoutAmount ?? application.appliedMileage - application.feeAmount)}
+        </p>
+      ) : null}
+      {role === 'mentor' && application.nonMemberNotice ? (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-500">
+          {application.feeNotice || '멤버십이면 수수료 5%'}
+          <Link href="/membership" className="font-black text-black underline underline-offset-2 dark:text-zinc-100">
+            멤버십 보기
+          </Link>
+        </p>
+      ) : null}
 
       {guide ? <p className="mt-4 rounded-xl bg-yellow-50 p-3 text-xs font-bold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">{guide}</p> : null}
 

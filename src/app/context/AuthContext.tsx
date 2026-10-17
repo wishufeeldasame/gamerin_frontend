@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, useCallback } from 'rea
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { useRouter } from 'next/navigation';
 import { BlockedAccountError, restoreAuthUser, type AuthUser } from '@/lib/auth-api';
+import { isSameOriginOpener } from '@/lib/payment-device';
 import {
   AUTH_CLEARED_EVENT,
   AUTH_LOGOUT_STATE_EVENT,
@@ -75,6 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const bootstrapAuth = async () => {
       let savedUser: string | null;
+
+      // 팝업 결제 결과 창은 결과만 부모 창에 넘기고 닫힌다. refresh는 기존 토큰을 폐기하므로
+      // 응답 전에 창이 닫히면 부모 창 세션까지 끊긴다. 이 경우에만 refresh를 건너뛴다(08 문서 12-6절).
+      if (window.location.pathname === '/payments/result' && isSameOriginOpener()) {
+        setUser(null);
+        setIsAuthReady(true);
+        return;
+      }
 
       if (isLocalReauthenticationRequired()) {
         setUser(null);

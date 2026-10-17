@@ -34,6 +34,7 @@ import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
 import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
+import { MembershipBadge } from './MembershipBadge';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -492,6 +493,7 @@ export function PostDetail({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
+                  <MembershipBadge active={post.authorMembershipBadge} />
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
                   @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
@@ -739,7 +741,10 @@ export function PostDetail({
                   >
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-black text-black">{comment.author}</span>
+                        <span className="inline-flex items-center gap-1 text-sm font-black text-black">
+                          {comment.author}
+                          <MembershipBadge active={comment.authorMembershipBadge} />
+                        </span>
                         <span className="text-xs font-bold text-zinc-400">
                           @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />
                         </span>

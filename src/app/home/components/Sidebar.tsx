@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
+import { MembershipBadge } from './MembershipBadge';
 
 const menuItems = [
   { icon: Home, label: '홈', href: '/home' },
@@ -103,7 +104,10 @@ export function Sidebar() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black leading-tight text-black dark:text-zinc-100">{user.nickname}</p>
+                <p className="flex min-w-0 items-center gap-1 text-[13px] font-black leading-tight text-black dark:text-zinc-100">
+                  <span className="truncate">{user.nickname}</span>
+                  <MembershipBadge active={user.membershipBadge} />
+                </p>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
                   {!user.gameTier || user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                 </p>

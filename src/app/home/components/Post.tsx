@@ -28,6 +28,7 @@ import { RelativeTime } from './RelativeTime';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { PostImage } from './PostImage';
+import { MembershipBadge } from './MembershipBadge';
 
 interface PostProps {
   post: PostRecord;
@@ -275,7 +276,7 @@ export function Post({
           <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
             <Repeat2 size={15} className="text-emerald-500" />
             <span>
-              {post.reposterInfo.nickname}님이 리포스트했습니다
+              <span className="inline-flex items-center gap-1 align-middle">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>님이 리포스트했습니다
               {' · '}
               <RelativeTime createdAt={post.reposterInfo.repostedAt} />
             </span>
@@ -302,6 +303,7 @@ export function Post({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
                 <h2 className="text-[16px] font-black tracking-tight text-black">{post.author}</h2>
+                <MembershipBadge active={post.authorMembershipBadge} />
               </div>
               <span className="text-[11px] font-bold text-zinc-400">
                 @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />

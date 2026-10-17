@@ -32,6 +32,7 @@ export interface ExternalLinkCard {
 export interface ReposterInfo {
   userId: string;
   nickname: string;
+  membershipBadge?: boolean;
   repostedAt: string;
 }
 
@@ -41,6 +42,7 @@ export interface PostRecord {
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
+  authorMembershipBadge?: boolean;
   game?: string | null;
   content: string | null;
   media: PostMedia[];
@@ -65,6 +67,7 @@ export interface CommentRecord {
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
+  authorMembershipBadge?: boolean;
   content: string;
   createdAt: string;
   mine: boolean;
@@ -81,6 +84,7 @@ export interface UserProfile {
   profileImageUrl: string | null;
   gameStats: Record<string, unknown>;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
   followersCount: number;
   followingCount: number;
   postCount: number;
@@ -117,6 +121,7 @@ export interface FollowUserRecord {
   bio: string | null;
   profileImageUrl: string | null;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
   isFollowing: boolean;
   followedAt: string;
 }
