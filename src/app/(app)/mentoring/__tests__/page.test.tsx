@@ -176,7 +176,7 @@ describe('MentoringPage error handling', () => {
     render(<MentoringPage />);
 
     const dialog = await screen.findByRole('dialog', { name: '마일리지가 부족합니다' });
-    expect(within(dialog).getByRole('button', { name: '충전하기' })).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: '카카오페이로 충전' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '다시 로그인' })).not.toBeInTheDocument();
   });
 
