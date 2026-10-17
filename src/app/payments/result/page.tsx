@@ -12,12 +12,20 @@ import {
   isPaymentPending,
   type PaymentResponse,
 } from '@/lib/payment-api';
-import { PAYMENT_RESULT_MESSAGE, isSameOriginOpener, type PaymentResultMessage } from '@/lib/payment-device';
+import {
+  PAYMENT_RESULT_ACK,
+  PAYMENT_RESULT_MESSAGE,
+  PAYMENT_STANDALONE_PARAM,
+  isPaymentResultRelay,
+  type PaymentResultMessage,
+} from '@/lib/payment-device';
 import { readPaymentReturnTo } from '@/lib/payment-return';
 
 // 08 문서 12-6절: 3·5·10초, 이후 15초 간격으로 최대 2분 재조회한다.
 const POLL_DELAYS_MS = [3_000, 5_000, 10_000, 15_000];
 const POLL_LIMIT_MS = 120_000;
+// 부모 창이 새로고침·이동해 결과를 받지 못하면 팝업이 직접 처리한다.
+const RELAY_ACK_TIMEOUT_MS = 1_500;
 
 type View =
   | { kind: 'relay' }
@@ -48,7 +56,8 @@ function PaymentResult() {
   const [orderId] = useState(() => params.get('orderId'));
   const [result] = useState(() => params.get('result'));
   const [pgToken] = useState(() => params.get('pg_token'));
-  const [popupMode] = useState(() => typeof window !== 'undefined' && isSameOriginOpener());
+  const [popupMode] = useState(() => typeof window !== 'undefined' && isPaymentResultRelay());
+  const [standalone] = useState(() => params.has(PAYMENT_STANDALONE_PARAM));
   const [payment, setPayment] = useState<PaymentResponse | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,15 +70,33 @@ function PaymentResult() {
   const titleRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
-    if (orderId) window.history.replaceState(null, '', `/payments/result?orderId=${encodeURIComponent(orderId)}`);
-  }, [orderId]);
+    if (!orderId) return;
+    // standalone 표시는 남겨야 AuthContext가 이 창을 결과 전달 팝업으로 보지 않는다.
+    const suffix = standalone ? `&${PAYMENT_STANDALONE_PARAM}=1` : '';
+    window.history.replaceState(null, '', `/payments/result?orderId=${encodeURIComponent(orderId)}${suffix}`);
+  }, [orderId, standalone]);
 
   // 팝업 모드: 결과만 부모 창에 넘기고 닫는다. 승인은 부모 창이 한다.
   useEffect(() => {
     if (!popupMode || !orderId) return;
     const message: PaymentResultMessage = { type: PAYMENT_RESULT_MESSAGE, orderId, result, pgToken };
+    const handleAck = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown; orderId?: unknown } | null;
+      if (event.origin !== window.location.origin || event.source !== window.opener) return;
+      if (data?.type === PAYMENT_RESULT_ACK && data.orderId === orderId) window.close();
+    };
+    window.addEventListener('message', handleAck);
     window.opener.postMessage(message, window.location.origin);
-    window.close();
+    const fallback = window.setTimeout(() => {
+      const query = new URLSearchParams({ orderId, [PAYMENT_STANDALONE_PARAM]: '1' });
+      if (result) query.set('result', result);
+      if (pgToken) query.set('pg_token', pgToken);
+      window.location.replace(`/payments/result?${query.toString()}`);
+    }, RELAY_ACK_TIMEOUT_MS);
+    return () => {
+      window.removeEventListener('message', handleAck);
+      window.clearTimeout(fallback);
+    };
   }, [popupMode, orderId, result, pgToken]);
 
   useEffect(() => {
@@ -207,7 +234,7 @@ function PaymentResult() {
         tone = 'fail';
         title = '결제가 취소되었어요';
         actions = [historyAction];
-      } else if (current.status === 'FAILED' || current.status === 'EXPIRED' || current.status === 'READY') {
+      } else if (['FAILED', 'EXPIRED', 'READY', 'CREATED'].includes(current.status)) {
         // cancel·fail 복귀는 서버 주문이 READY로 남는다(09 문서 13-9절).
         tone = 'fail';
         title = '결제가 완료되지 않았어요';

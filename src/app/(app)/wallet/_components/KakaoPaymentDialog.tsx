@@ -5,7 +5,9 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useToast } from '@/app/context/ToastContext';
 import {
+  PAYMENT_RESULT_ACK,
   PAYMENT_RESULT_MESSAGE,
+  createRequestId,
   isMobileBrowser,
   type PaymentResultMessage,
 } from '@/lib/payment-device';
@@ -89,6 +91,8 @@ export function KakaoPaymentDialog({
       if (event.origin !== window.location.origin || event.source !== popupRef.current) return;
       const data = event.data as Partial<PaymentResultMessage> | null;
       if (data?.type !== PAYMENT_RESULT_MESSAGE || data.orderId !== orderIdRef.current) return;
+      // 받았다고 알려야 팝업이 닫힌다. 응답이 없으면 팝업이 직접 승인한다.
+      popupRef.current?.postMessage({ type: PAYMENT_RESULT_ACK, orderId: data.orderId }, window.location.origin);
       void settle(data.result === 'approval' && data.pgToken ? data.pgToken : null);
     };
     let graceTimer: number | undefined;
@@ -120,7 +124,7 @@ export function KakaoPaymentDialog({
     }
 
     // 네트워크 오류로 다시 시도할 때는 같은 requestId를 보내 서버가 기존 주문으로 응답하게 한다.
-    requestIdRef.current ??= crypto.randomUUID();
+    requestIdRef.current ??= createRequestId();
     setPhase('preparing');
     setError(null);
 
@@ -130,6 +134,10 @@ export function KakaoPaymentDialog({
 
       if (!paymentUrl) {
         popup?.close();
+        // 첫 ready가 아직 처리 중이면 같은 requestId로 다시 확인하게 둔다.
+        if (order.status === 'CREATED') {
+          throw new Error('결제를 준비하고 있어요. 잠시 후 다시 시도해주세요.');
+        }
         // 같은 requestId로 이미 승인·확인 중인 주문이면 결과만 확인한다.
         if (order.status !== 'FAILED' && order.status !== 'EXPIRED' && order.status !== 'READY') {
           router.push(resultHref(order.orderId));

@@ -158,6 +158,22 @@ test('PC 팝업을 그냥 닫으면 결제가 취소되었다고 안내한다', 
   expect(state.approve).toBe(0);
 });
 
+test('결제 중 부모 창을 새로고침하면 팝업이 직접 승인한다', async ({ context, page }) => {
+  const state = await mockWallet(context, { readyUrl: { pcUrl: `${ORIGIN}/kakao-test-window`, mobileUrl: null } });
+  await choosePackage(page);
+
+  const popupPromise = context.waitForEvent('page');
+  await page.getByRole('button', { name: '카카오페이로 결제' }).click();
+  const popup = await popupPromise;
+  await popup.waitForURL('**/kakao-test-window');
+  await page.reload();
+  await popup.goto(resultUrl('orderId=o1&result=approval&pg_token=tok'));
+
+  await expect(popup.getByRole('heading', { name: '10,000 M이 충전되었어요' })).toBeVisible();
+  await expect(popup).not.toHaveURL(/pg_token/);
+  expect(state.approve).toBe(1);
+});
+
 test.describe('모바일 웹', () => {
   test.use({ viewport: { width: 390, height: 844 }, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) Mobile/15E148' });
 

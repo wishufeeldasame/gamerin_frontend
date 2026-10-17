@@ -22,7 +22,7 @@ const product = {
 };
 
 function fakePopup() {
-  return { closed: false, close: vi.fn(), focus: vi.fn(), location: { href: '' } };
+  return { closed: false, close: vi.fn(), focus: vi.fn(), postMessage: vi.fn(), location: { href: '' } };
 }
 
 async function openPopupPayment() {
@@ -88,6 +88,29 @@ describe('KakaoPaymentDialog', () => {
     await waitFor(() => expect(router.push).toHaveBeenCalledWith('/payments/result?orderId=o1'));
     expect(paymentApi.approvePayment).toHaveBeenCalledTimes(1);
     expect(paymentApi.approvePayment).toHaveBeenCalledWith('o1', 'tok');
+    expect(popup.postMessage).toHaveBeenCalledWith({ type: 'kakaopay-result-ack', orderId: 'o1' }, window.location.origin);
+  });
+
+  it('ready 재응답이 CREATED면 같은 requestId로 다시 시도하게 하고, FAILED면 새 requestId를 만든다', async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, 'open').mockImplementation(() => fakePopup() as unknown as Window);
+    paymentApi.readyPayment
+      .mockResolvedValueOnce({ orderId: 'o1', status: 'CREATED', pcUrl: null, mobileUrl: null })
+      .mockResolvedValueOnce({ orderId: 'o1', status: 'FAILED', pcUrl: null, mobileUrl: null })
+      .mockResolvedValueOnce({ orderId: 'o2', status: 'FAILED', pcUrl: null, mobileUrl: null });
+    render(<KakaoPaymentDialog product={product} onClose={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('결제를 준비하고 있어요.');
+    await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
+    await screen.findByText('카카오페이 결제창을 열 수 없어요. 다시 시도해주세요.');
+    await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
+    await waitFor(() => expect(paymentApi.readyPayment).toHaveBeenCalledTimes(3));
+
+    const ids = paymentApi.readyPayment.mock.calls.map((call) => call[1]);
+    expect(ids[1]).toBe(ids[0]);
+    expect(ids[2]).not.toBe(ids[1]);
+    expect(router.push).not.toHaveBeenCalled();
   });
 
   it('결제 중단은 주문을 조회하고 READY면 취소 안내 후 닫는다', async () => {

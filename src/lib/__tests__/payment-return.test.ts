@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest';
-import { isMobileBrowser } from '../payment-device';
+import { createRequestId, isMobileBrowser } from '../payment-device';
 import { readPaymentReturnTo, rememberPaymentReturnTo, safeReturnTo } from '../payment-return';
 
 describe('safeReturnTo', () => {
@@ -25,6 +25,20 @@ describe('결제 복귀 경로 저장', () => {
 
     window.sessionStorage.setItem('gamerin_payment_return_to', JSON.stringify({ orderId: 'o3', returnTo: '//evil.test' }));
     expect(readPaymentReturnTo('o3')).toBeNull();
+  });
+});
+
+describe('createRequestId', () => {
+  it('randomUUID가 없는 HTTP 환경에서도 UUID v4를 만든다', () => {
+    const original = crypto.randomUUID;
+    Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: undefined });
+    try {
+      const id = createRequestId();
+      expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+      expect(createRequestId()).not.toBe(id);
+    } finally {
+      Object.defineProperty(crypto, 'randomUUID', { configurable: true, value: original });
+    }
   });
 });
 

@@ -120,9 +120,10 @@ describe('PaymentResultPage', () => {
     expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/home');
   });
 
-  it('팝업 모드는 부모 창에 결과만 넘기고 닫으며 승인하지 않는다', () => {
+  it('팝업 모드는 부모 창에 결과만 넘기고, 수신 확인을 받으면 닫으며 승인하지 않는다', () => {
     const postMessage = vi.fn();
-    setOpener({ location: { origin: window.location.origin }, postMessage });
+    const opener = { location: { origin: window.location.origin }, postMessage };
+    setOpener(opener);
     const close = vi.spyOn(window, 'close').mockImplementation(() => undefined);
     state.query = 'orderId=o1&result=approval&pg_token=tok';
     render(<PaymentResultPage />);
@@ -132,6 +133,18 @@ describe('PaymentResultPage', () => {
       { type: 'kakaopay-result', orderId: 'o1', result: 'approval', pgToken: 'tok' },
       window.location.origin,
     );
+    expect(close).not.toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'kakaopay-result-ack', orderId: 'other' }, origin: window.location.origin, source: opener as unknown as Window,
+      }));
+    });
+    expect(close).not.toHaveBeenCalled();
+    act(() => {
+      window.dispatchEvent(new MessageEvent('message', {
+        data: { type: 'kakaopay-result-ack', orderId: 'o1' }, origin: window.location.origin, source: opener as unknown as Window,
+      }));
+    });
     expect(close).toHaveBeenCalled();
     expect(paymentApi.approvePayment).not.toHaveBeenCalled();
     expect(paymentApi.getPayment).not.toHaveBeenCalled();
