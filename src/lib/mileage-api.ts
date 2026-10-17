@@ -41,10 +41,3 @@ export function fetchMyMileageTransactions(page = 0, size = 10) {
     `${MILEAGE_BASE}/me/transactions?page=${page}&size=${size}`
   );
 }
-
-export function chargeMileage(amount: number) {
-  return mileageRequest<MileageBalanceResponse>(`${MILEAGE_BASE}/charge`, {
-    method: 'POST',
-    body: JSON.stringify({ amount }),
-  });
-}

@@ -129,9 +129,9 @@ describe('mentoring-api', () => {
 
 describe('mileage-api', () => {
   it.each(['', '   ', null])('빈 서버 메시지(%j)는 상태를 보존한 한국어 fallback으로 처리한다', async (message) => {
-    api.route('/api/v1/mileage/charge', () => json(400, { message }));
+    api.route('/api/v1/mileage/me/balance', () => json(400, { message }));
 
-    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+    await expect(mileage.fetchMyMileageBalance()).rejects.toMatchObject({
       status: 400, reason: 'http', message: '마일리지 요청을 처리하지 못했습니다.',
     });
     expect(store.getAccessToken()).toBe('token-a');
@@ -162,15 +162,15 @@ describe('mileage-api', () => {
 
   it('서버 문구를 우선하고, 없으면 기존 기본 문구를 쓴다', async () => {
     api.route(
-      '/api/v1/mileage/charge',
+      '/api/v1/mileage/me/balance',
       () => json(400, { message: '충전 금액이 올바르지 않습니다.' }),
       () => json(500, {}),
     );
 
-    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+    await expect(mileage.fetchMyMileageBalance()).rejects.toMatchObject({
       name: 'ApiError', status: 400, reason: 'http', message: '충전 금액이 올바르지 않습니다.',
     });
-    await expect(mileage.chargeMileage(0)).rejects.toMatchObject({
+    await expect(mileage.fetchMyMileageBalance()).rejects.toMatchObject({
       name: 'ApiError', status: 500, reason: 'http', message: '마일리지 요청을 처리하지 못했습니다.',
     });
     expect(store.getAccessToken()).toBe('token-a');

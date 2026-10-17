@@ -35,7 +35,6 @@ const mentoringApi = vi.hoisted(() => ({
   updateMentoringProgram: vi.fn(),
 }));
 const mileageApi = vi.hoisted(() => ({
-  chargeMileage: vi.fn(),
   fetchMyMileageBalance: vi.fn(),
   fetchMyMileageTransactions: vi.fn(),
 }));

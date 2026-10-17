@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bookmark, BookOpen, Crown, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
+import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 
 const menuItems = [
@@ -11,18 +11,19 @@ const menuItems = [
   { icon: Bookmark, label: '북마크', href: '/bookmarks' },
   { icon: MessageSquare, label: '메시지', href: '/messages' },
   { icon: BookOpen, label: '멘토링', href: '/mentoring' },
-  { icon: WalletCards, label: '내 지갑', href: '/wallet' },
-  { icon: Crown, label: '멤버십', href: '/membership' },
   { icon: User, label: '프로필', href: '/profile' },
 ];
 
+// 모바일 하단 탭은 5칸을 유지하므로 지갑은 데스크톱 사이드바에만 둔다(멤버십은 지갑 화면에서 진입).
+const desktopOnlyItems = [{ icon: WalletCards, label: '내 지갑', href: '/wallet' }];
+
 // Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 메뉴·활성 규칙을 쓴다.
-function useMenuLinks() {
+function useMenuLinks(items = menuItems) {
   const pathname = usePathname();
   const { user } = useAuth();
   const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
 
-  return menuItems.map((item) => {
+  return items.map((item) => {
     const href = item.href === '/profile' ? profileHref : item.href;
     const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
     return { ...item, href, isActive };
@@ -37,13 +38,13 @@ export function MobileTabBar() {
       aria-label="주요 메뉴"
       className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-neutral-800 dark:bg-neutral-900"
     >
-      <ul className="grid h-16 grid-cols-7">
+      <ul className="grid h-16 grid-cols-5">
         {links.map((item) => (
           <li key={item.label}>
             <Link
               href={item.href}
               aria-current={item.isActive ? 'page' : undefined}
-              className={`flex h-full flex-col items-center justify-center gap-1 text-[10px] font-black sm:text-[11px] ${
+              className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-black ${
                 item.isActive ? 'text-zinc-950 dark:text-[#f5b93d]' : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
@@ -59,7 +60,7 @@ export function MobileTabBar() {
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const links = useMenuLinks();
+  const links = useMenuLinks([...menuItems, ...desktopOnlyItems]);
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">

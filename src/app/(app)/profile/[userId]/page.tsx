@@ -23,6 +23,7 @@ import {
   X,
   Loader2,
   MapPin,
+  WalletCards,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -997,6 +998,13 @@ export default function ProfilePage() {
           <div className="mb-2 flex flex-wrap justify-end gap-3">
             {isOwnProfile ? (
               <>
+            <Link
+              href="/wallet"
+              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200 lg:hidden"
+              aria-label="내 지갑"
+            >
+              <WalletCards size={20} />
+            </Link>
             <Link
               href="/settings"
               className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
