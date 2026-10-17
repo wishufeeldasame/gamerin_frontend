@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User } from 'lucide-react';
+import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
+import { MembershipBadge } from './MembershipBadge';
 
 const menuItems = [
   { icon: Home, label: '홈', href: '/home' },
@@ -14,13 +15,16 @@ const menuItems = [
   { icon: User, label: '프로필', href: '/profile' },
 ];
 
+// 모바일 하단 탭은 5칸을 유지하므로 지갑은 데스크톱 사이드바에만 둔다(멤버십은 지갑 화면에서 진입).
+const desktopOnlyItems = [{ icon: WalletCards, label: '내 지갑', href: '/wallet' }];
+
 // Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 메뉴·활성 규칙을 쓴다.
-function useMenuLinks() {
+function useMenuLinks(items = menuItems) {
   const pathname = usePathname();
   const { user } = useAuth();
   const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
 
-  return menuItems.map((item) => {
+  return items.map((item) => {
     const href = item.href === '/profile' ? profileHref : item.href;
     const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
     return { ...item, href, isActive };
@@ -57,7 +61,7 @@ export function MobileTabBar() {
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const links = useMenuLinks();
+  const links = useMenuLinks([...menuItems, ...desktopOnlyItems]);
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">
@@ -100,7 +104,10 @@ export function Sidebar() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black leading-tight text-black dark:text-zinc-100">{user.nickname}</p>
+                <p className="flex min-w-0 items-center gap-1 text-[13px] font-black leading-tight text-black dark:text-zinc-100">
+                  <span className="truncate">{user.nickname}</span>
+                  <MembershipBadge active={user.membershipBadge} />
+                </p>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
                   {!user.gameTier || user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                 </p>

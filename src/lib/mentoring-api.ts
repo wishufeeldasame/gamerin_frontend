@@ -23,6 +23,7 @@ export interface MentorProfileResponse {
   ratingAvg: number;
   reviewCount: number;
   menteeCount: number;
+  membershipBadge?: boolean;
 }
 
 export interface GameResponse {
@@ -43,6 +44,8 @@ export interface MentoringProgramResponse {
   price: number;
   tags: string[] | null;
   createdAt: string;
+  /** 멘토의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringProgramDetailResponse {
@@ -58,6 +61,8 @@ export interface MentoringProgramDetailResponse {
   price: number;
   tags: string[] | null;
   createdAt: string;
+  /** 멘토의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringApplicationResponse {
@@ -74,6 +79,15 @@ export interface MentoringApplicationResponse {
   message: string;
   createdAt: string;
   reviewed: boolean;
+  mentorMembershipBadge?: boolean;
+  menteeMembershipBadge?: boolean;
+  /** 신청 시점에 저장된 정산 수수료율(bp). 멘토 관점 응답에만 있다. */
+  feeRateBp?: number;
+  feeAmount?: number;
+  payoutAmount?: number;
+  /** 비가입 멘토에게 멤버십 수수료 안내를 보여줄지 */
+  nonMemberNotice?: boolean;
+  feeNotice?: string;
 }
 
 export interface MentoringReviewResponse {
@@ -85,6 +99,8 @@ export interface MentoringReviewResponse {
   rating: number;
   content: string;
   createdAt: string;
+  /** 리뷰 작성자(멘티)의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringProgramRequest {

@@ -45,6 +45,7 @@ describe('toAuthUser', () => {
       bio: '',
       role: 'ROLE_ADMIN',
       status: 'ACTIVE',
+      membershipBadge: false,
     });
   });
 
@@ -61,6 +62,7 @@ describe('toAuthUser', () => {
 
   it('/me의 hasPassword를 반영하고, 없으면 저장된 값을 유지한다', () => {
     expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', hasPassword: false })?.hasPassword).toBe(false);
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', membershipBadge: true })?.membershipBadge).toBe(true);
     expect(
       auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n' }, { hasPassword: true })?.hasPassword,
     ).toBe(true);
@@ -93,6 +95,7 @@ describe('loginWithPassword', () => {
       bio: '',
       role: 'USER',
       status: 'ACTIVE',
+      membershipBadge: false,
     });
   });
 

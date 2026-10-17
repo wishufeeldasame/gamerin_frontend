@@ -12,6 +12,7 @@ import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
 import { useVisiblePolling } from "@/hooks/useVisiblePolling";
 import { usePopup } from "@/app/context/PopupContext";
 import { useDismissable } from "@/hooks/useDismissable";
+import { MembershipBadge } from './MembershipBadge';
 
 const UNREAD_REFRESH_INTERVAL_MS = 60_000;
 const UNREAD_STALE_TIME_MS = 5_000;
@@ -237,7 +238,7 @@ export function Header() {
               <div className="ml-1 flex items-center gap-2 border-l border-black/10 pl-2 sm:ml-2 sm:gap-3 sm:pl-3 dark:border-white/10">
                 <div className="hidden lg:block text-right">
                    <p className="text-[11px] font-black text-black leading-none uppercase tracking-tighter dark:text-zinc-100">
-                     {user.nickname}
+                     <span className="inline-flex items-center gap-1">{user.nickname}<MembershipBadge active={user.membershipBadge} /></span>
                    </p>
                    <p className="text-[9px] font-bold text-black/60 uppercase mt-0.5 dark:text-zinc-400">
                      {user.gameTier === 'Unranked' ? '미배치' : user.gameTier}

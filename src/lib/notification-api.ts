@@ -29,6 +29,7 @@ export interface NotificationActor {
   nickname: string;
   profileImageUrl: string | null;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
 }
 
 export interface NotificationRecord<TType = NotificationType> {
