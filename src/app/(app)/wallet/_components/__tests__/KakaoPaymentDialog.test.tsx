@@ -113,16 +113,49 @@ describe('KakaoPaymentDialog', () => {
     expect(router.push).not.toHaveBeenCalled();
   });
 
-  it('결제 중단은 주문을 조회하고 READY면 취소 안내 후 닫는다', async () => {
+  it('결제 중단·팝업 종료 후 READY면 모달 안에 취소 안내를 보여주고, 다시 결제하기는 새 주문을 연다', async () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
-    vi.spyOn(window, 'open').mockReturnValue(fakePopup() as unknown as Window);
+    const open = vi.spyOn(window, 'open').mockImplementation(() => fakePopup() as unknown as Window);
+    paymentApi.readyPayment
+      .mockResolvedValueOnce({ orderId: 'o1', status: 'READY', pcUrl: 'https://kakao.test/pc1', mobileUrl: null })
+      .mockResolvedValueOnce({ orderId: 'o2', status: 'READY', pcUrl: 'https://kakao.test/pc2', mobileUrl: null });
     render(<KakaoPaymentDialog product={product} onClose={onClose} />);
     await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
     await user.click(await screen.findByRole('button', { name: '결제 중단' }));
 
-    await waitFor(() => expect(onClose).toHaveBeenCalled());
-    expect(toast.info).toHaveBeenCalledWith('결제가 취소되었습니다.');
+    expect(await screen.findByRole('dialog', { name: '결제가 취소되었습니다' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다시 결제하기' })).toHaveFocus();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(toast.info).not.toHaveBeenCalled();
+    expect(paymentApi.getPayment).toHaveBeenCalledWith('o1');
     expect(paymentApi.approvePayment).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: '다시 결제하기' }));
+    expect(await screen.findByRole('dialog', { name: '결제 진행 중' })).toBeInTheDocument();
+    expect(open).toHaveBeenCalledTimes(2);
+    const ids = paymentApi.readyPayment.mock.calls.map((call) => call[1]);
+    expect(ids[1]).not.toBe(ids[0]);
+
+    // 새 주문도 중단하면 다시 취소 안내가 나온다(이전 주문의 settled 상태가 남지 않음).
+    paymentApi.getPayment.mockResolvedValueOnce({ orderId: 'o2', status: 'READY' });
+    await user.click(screen.getByRole('button', { name: '결제 중단' }));
+    expect(await screen.findByRole('dialog', { name: '결제가 취소되었습니다' })).toBeInTheDocument();
+    expect(paymentApi.getPayment).toHaveBeenLastCalledWith('o2');
+  });
+
+  it('취소 안내에서 닫기와 Esc는 모달을 닫는다', async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    vi.spyOn(window, 'open').mockImplementation(() => fakePopup() as unknown as Window);
+    render(<KakaoPaymentDialog product={product} onClose={onClose} />);
+    await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
+    await user.click(await screen.findByRole('button', { name: '결제 중단' }));
+    await screen.findByRole('dialog', { name: '결제가 취소되었습니다' });
+
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('button', { name: '닫기' }));
+    expect(onClose).toHaveBeenCalledTimes(2);
   });
 });

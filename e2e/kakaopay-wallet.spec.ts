@@ -140,22 +140,33 @@ test('PC 팝업: 결과를 부모 창이 받아 승인하고, 팝업은 refresh 
   expect(state.refreshPages.filter((owner) => owner === popup)).toHaveLength(0);
 });
 
-test('PC 팝업을 그냥 닫으면 결제가 취소되었다고 안내한다', async ({ context, page }) => {
+test('PC 팝업을 그냥 닫으면 모달 안에 취소 안내를 보여주고 다시 결제할 수 있다', async ({ context, page }) => {
   const state = await mockWallet(context, {
     readyUrl: { pcUrl: `${ORIGIN}/kakao-test-window`, mobileUrl: null },
     paymentStatuses: ['READY'],
   });
   await choosePackage(page);
 
-  const popupPromise = context.waitForEvent('page');
+  let popupPromise = context.waitForEvent('page');
   await page.getByRole('button', { name: '카카오페이로 결제' }).click();
-  const popup = await popupPromise;
+  let popup = await popupPromise;
   await expect(page.getByRole('dialog', { name: '결제 진행 중' })).toBeVisible();
   await popup.close();
 
-  await expect(page.getByText('결제가 취소되었습니다.')).toBeVisible();
-  await expect(page.getByRole('dialog')).toHaveCount(0);
+  const canceled = page.getByRole('dialog', { name: '결제가 취소되었습니다' });
+  await expect(canceled).toBeVisible();
+  await expect(canceled.getByRole('button', { name: '다시 결제하기' })).toBeFocused();
   expect(state.approve).toBe(0);
+
+  popupPromise = context.waitForEvent('page');
+  await canceled.getByRole('button', { name: '다시 결제하기' }).click();
+  popup = await popupPromise;
+  await expect(page.getByRole('dialog', { name: '결제 진행 중' })).toBeVisible();
+  await popup.close();
+  await expect(canceled).toBeVisible();
+
+  await canceled.getByRole('button', { name: '닫기' }).click();
+  await expect(page.getByRole('dialog')).toHaveCount(0);
 });
 
 test('결제 중 부모 창을 새로고침하면 팝업이 직접 승인한다', async ({ context, page }) => {

@@ -21,7 +21,7 @@ const POPUP_BLOCKED_MESSAGE = '팝업이 차단되었습니다. 브라우저 주
 // 팝업이 결과를 보내고 바로 닫히면 closed 감지가 message보다 먼저 올 수 있어 잠시 기다린다.
 const CLOSED_GRACE_MS = 500;
 
-type Phase = 'confirm' | 'preparing' | 'waiting';
+type Phase = 'confirm' | 'preparing' | 'waiting' | 'canceled';
 
 function errorMessage(error: unknown) {
   return error instanceof Error ? error.message : '결제 요청을 처리하지 못했어요.';
@@ -73,8 +73,9 @@ export function KakaoPaymentDialog({
     try {
       const payment = await getPayment(orderId);
       if (payment.status === 'READY' || payment.status === 'FAILED' || payment.status === 'EXPIRED') {
-        toast.info('결제가 취소되었습니다.');
-        onClose();
+        // 토스트는 놓치기 쉬워 모달 안에 취소 상태를 남긴다.
+        popupRef.current = null;
+        setPhase('canceled');
         return;
       }
       router.push(resultHref(orderId));
@@ -110,7 +111,10 @@ export function KakaoPaymentDialog({
   }, [phase, settle]);
 
   const startPayment = async () => {
-    if (phase !== 'confirm') return;
+    if (phase !== 'confirm' && phase !== 'canceled') return;
+    // 다시 결제하기: 이전 주문의 결과 처리 상태를 버리고 새 주문으로 시작한다.
+    orderIdRef.current = null;
+    settledRef.current = false;
     const mobile = isMobileBrowser();
     let popup: Window | null = null;
 
@@ -175,7 +179,7 @@ export function KakaoPaymentDialog({
     if (event.key === 'Escape') {
       event.stopPropagation();
       if (phase === 'waiting') stopPayment();
-      else if (phase === 'confirm') onClose();
+      else if (phase === 'confirm' || phase === 'canceled') onClose();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -193,7 +197,9 @@ export function KakaoPaymentDialog({
     }
   };
 
-  const title = phase === 'waiting'
+  const title = phase === 'canceled'
+    ? '결제가 취소되었습니다'
+    : phase === 'waiting'
     ? '결제 진행 중'
     : phase === 'preparing'
       ? '결제를 준비하고 있어요'
@@ -202,7 +208,7 @@ export function KakaoPaymentDialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5"
-      onMouseDown={phase === 'confirm' ? onClose : undefined}
+      onMouseDown={phase === 'confirm' || phase === 'canceled' ? onClose : undefined}
     >
       <section
         ref={panelRef}
@@ -234,6 +240,33 @@ export function KakaoPaymentDialog({
             <Loader2 className="animate-spin text-zinc-400" size={36} />
             <p className="text-sm font-bold text-zinc-500">잠시 후 카카오페이 결제 화면으로 이동합니다.</p>
           </div>
+        ) : phase === 'canceled' ? (
+          <>
+            <p className="mt-5 text-sm font-bold text-zinc-500" aria-live="polite">
+              카카오페이 결제창이 닫혀 결제가 진행되지 않았어요.
+            </p>
+            {error ? (
+              <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
+                {error}
+              </p>
+            ) : null}
+            <div className="mt-6 grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => void startPayment()}
+                className="h-12 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+              >
+                다시 결제하기
+              </button>
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-12 rounded-xl border border-zinc-200 px-4 text-sm font-black text-black dark:border-neutral-700 dark:text-zinc-100"
+              >
+                닫기
+              </button>
+            </div>
+          </>
         ) : phase === 'waiting' ? (
           <>
             <div className="mt-5 space-y-1 text-sm font-bold text-zinc-500" aria-live="polite">
