@@ -6,9 +6,9 @@ import { fetchPaymentProducts, type PaymentProduct } from '@/lib/payment-api';
 import { KakaoPaymentDialog } from '../wallet/_components/KakaoPaymentDialog';
 
 const benefits = [
-  { icon: Sparkles, title: '광고 없이 집중', description: '피드와 상세 화면을 더 깔끔하게 이용할 수 있어요.' },
-  { icon: Crown, title: '전용 프로필 배지', description: '닉네임 옆 멤버십 왕관으로 존재감을 보여주세요.' },
-  { icon: BellRing, title: '빠른 멘토링 알림', description: '새로운 멘토링 모집 소식을 먼저 확인할 수 있어요.' },
+  { icon: Sparkles, title: '광고 없이 집중', description: '광고 방해 없이 쾌적하게 이용하세요.' },
+  { icon: Crown, title: '전용 프로필 배지', description: '전용 배지로 멤버십 회원임을 알려보세요.' },
+  { icon: BellRing, title: '멘토링 수수료 할인', description: '멤버십 회원에게 더 낮은 수수료율이 적용됩니다.' },
 ];
 
 export default function MembershipPage() {
@@ -29,7 +29,7 @@ export default function MembershipPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  const price = product?.price ?? 9_900;
+  const price = product?.price ?? 4_900;
 
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
