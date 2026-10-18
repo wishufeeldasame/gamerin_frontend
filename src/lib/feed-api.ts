@@ -59,6 +59,10 @@ export interface PostRecord {
   savedCollectionIds?: string[];
   mine: boolean;
   createdAt: string;
+  /** 작성자 본인 응답에만 있다(#92). 수정 가능 마감 시각 */
+  editableUntil?: string | null;
+  /** 작성자 본인 응답에만 있다(#92). 0이면 수정 가능, 1이면 이미 수정함 */
+  editCount?: number | null;
 }
 
 export interface CommentRecord {
@@ -340,6 +344,15 @@ export async function createMultipartPost(formData: FormData) {
 export async function fetchPostDetail(postId: string, options: FeedRequestOptions = {}) {
   const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
     signal: options.signal,
+  });
+  return normalizePostRecord(post);
+}
+
+/** 멤버십 혜택: 본문만 수정한다(#92). 서버가 수정된 상세 게시물을 돌려준다. */
+export async function updatePostContent(postId: string, content: string) {
+  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ content }),
   });
   return normalizePostRecord(post);
 }

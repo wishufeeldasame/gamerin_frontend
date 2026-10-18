@@ -29,6 +29,7 @@ import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { PostImage } from './PostImage';
 import { MembershipBadge } from './MembershipBadge';
+import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 interface PostProps {
   post: PostRecord;
@@ -110,7 +111,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 }
 
 export function Post({
-  post,
+  post: postProp,
   likeLoading = false,
   onToggleLike,
   onOpenDetail,
@@ -121,6 +122,15 @@ export function Post({
   onRepostChange,
   onDelete,
 }: PostProps) {
+  // 수정한 본문은 목록을 다시 불러오기 전까지 이 카드에서 바로 보여준다.
+  const [edited, setEdited] = useState<PostRecord | null>(null);
+  const post = useMemo(
+    () => (edited && edited.postId === postProp.postId
+      ? { ...postProp, content: edited.content, editCount: edited.editCount, editableUntil: edited.editableUntil }
+      : postProp),
+    [edited, postProp],
+  );
+  const [editOpen, setEditOpen] = useState(false);
   const toast = useToast();
   const confirm = useConfirm(post.postId);
   const deleteLockRef = useRef(false);
@@ -156,6 +166,7 @@ export function Post({
   } = useRepost(post, onRepostChange);
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
   const canReportPost = !canDeletePost;
+  const editable = canEditPost(post);
   const canRepostPost = !post.mine;
   const repostButtonTitle = post.mine
     ? '본인 게시글은 리포스트할 수 없습니다.'
@@ -340,6 +351,25 @@ export function Post({
                   </button>
                 ) : null}
 
+                {editable ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      closeMenu();
+                      void requestPostEdit({
+                        hasMembership: Boolean(user?.membershipBadge),
+                        confirm,
+                        goToMembership: () => window.location.assign('/membership'),
+                        openEditor: () => setEditOpen(true),
+                        returnFocusTo: menuTriggerRef.current,
+                      });
+                    }}
+                    className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                  >
+                    수정
+                  </button>
+                ) : null}
+
                 {canDeletePost ? (
                   <button
                     type="button"
@@ -467,6 +497,18 @@ export function Post({
         onClose={() => setCollectionModalOpen(false)}
         onBookmarkStateChange={handleBookmarkStateChange}
       />
+
+      {editOpen ? (
+        <EditPostModal
+          post={post}
+          onClose={() => setEditOpen(false)}
+          onSaved={(saved) => {
+            setEdited(saved);
+            setEditOpen(false);
+            toast.success('게시물을 수정했어요.');
+          }}
+        />
+      ) : null}
 
       {reportOpen ? (
         <ReportContentModal
