@@ -161,13 +161,14 @@ function toTime(createdAt: string | null) {
 }
 
 // 보낸 사람에게도 SSE·폴링으로 같은 메시지가 전송 응답보다 먼저 올 수 있다.
-// 요청 중인 임시 메시지와 본문·첨부(종류·파일명)가 같은 내 메시지가 기준 시각 이후에 있으면 서버 사본이 도착한 것으로 보고 임시 메시지를 숨긴다.
+// 요청을 보낸(요청 중이거나 실패한) 임시 메시지와 본문·첨부(종류·파일명)가 같은 내 메시지가 기준 시각 이후에 있으면
+// 서버 사본이 도착한 것으로 보고 임시 메시지를 숨긴다. 응답만 실패하고 서버에는 저장된 경우도 여기서 정리된다.
 // 동일성을 확신할 수 없으면 숨기지 않는다(잠깐 중복이 보이는 쪽이 보내는 중인 메시지가 사라지는 쪽보다 낫다).
 export function hideDeliveredPendingMessages(pending: PendingChatMessage[], messages: ChatMessage[]) {
   const claimedIds = new Set<string>();
 
   return pending.filter((item) => {
-    if (item.status !== 'sending' || !item.afterCreatedAt) return true;
+    if (item.status === 'queued' || !item.afterCreatedAt) return true;
 
     const after = toTime(item.afterCreatedAt);
     const delivered = messages.find(

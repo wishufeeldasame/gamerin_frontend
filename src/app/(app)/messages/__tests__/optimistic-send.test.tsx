@@ -258,4 +258,90 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
     expect(screen.getAllByText('전달됨')).toHaveLength(1);
   });
+
+  it('응답이 먼저 실패하고 SSE로 서버 사본이 늦게 오면 실패 말풍선을 정리한다', async () => {
+    api.sendConversationMessage.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    const { input } = await renderPage();
+    await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
+
+    send(input, '늦게 전달');
+    expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
+
+    const delivered = serverMessage('m-1', '늦게 전달', '2026-10-05T12:01:00.000Z');
+    act(() => {
+      streamListeners['message-created']({
+        data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: delivered, messageId: 'm-1' }),
+      });
+    });
+
+    expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
+    expect(screen.getAllByText('늦게 전달')).toHaveLength(1);
+
+    // 서버 메시지가 삭제돼도 정리된 실패 말풍선이 되살아나지 않는다.
+    act(() => {
+      streamListeners['message-deleted']({
+        data: JSON.stringify({ type: 'message-deleted', conversationId: 'conv-1', message: null, messageId: 'm-1' }),
+      });
+    });
+    expect(screen.queryByText('늦게 전달')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
+  });
+
+  it('실패 뒤 같은 내용을 새로 보내 성공해도 이전 실패 항목은 남긴다', async () => {
+    api.sendConversationMessage
+      .mockRejectedValueOnce(new ApiError('서버 오류', 500))
+      .mockResolvedValueOnce(serverMessage('m-2', '같은 내용', '2026-10-05T12:02:00.000Z'));
+    const { input } = await renderPage();
+
+    send(input, '같은 내용');
+    expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
+
+    send(input, '같은 내용');
+    await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText('전송 중...')).not.toBeInTheDocument());
+
+    expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
+    expect(screen.getAllByText('같은 내용')).toHaveLength(2);
+  });
+
+  it('재시도 중 원래 요청의 SSE가 늦게 와도 재시도 성공 응답을 별도 메시지로 반영한다', async () => {
+    const retry = deferred<ChatMessage>();
+    api.sendConversationMessage.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockReturnValueOnce(retry.promise);
+    const { input } = await renderPage();
+    await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
+
+    send(input, '두 번 저장');
+    fireEvent.click(await screen.findByRole('button', { name: '재시도' }));
+    await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
+
+    const original = serverMessage('m-1', '두 번 저장', '2026-10-05T12:01:00.000Z');
+    act(() => {
+      streamListeners['message-created']({
+        data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: original, messageId: 'm-1' }),
+      });
+    });
+    await act(async () => retry.resolve(serverMessage('m-2', '두 번 저장', '2026-10-05T12:01:01.000Z')));
+
+    expect(screen.getAllByText('두 번 저장')).toHaveLength(2);
+    expect(screen.queryByText('전송 중...')).not.toBeInTheDocument();
+  });
+
+  it('서버가 오류로 응답한 실패 항목은 같은 내용의 다른 메시지가 와도 남긴다', async () => {
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('요청이 너무 많습니다.', 429));
+    const { input } = await renderPage();
+    await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
+
+    send(input, '다른 탭과 같은 내용');
+    expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
+
+    const otherTab = serverMessage('m-7', '다른 탭과 같은 내용', '2026-10-05T12:01:00.000Z');
+    act(() => {
+      streamListeners['message-created']({
+        data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: otherTab, messageId: 'm-7' }),
+      });
+    });
+
+    expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
+    expect(screen.getAllByText('다른 탭과 같은 내용')).toHaveLength(2);
+  });
 });

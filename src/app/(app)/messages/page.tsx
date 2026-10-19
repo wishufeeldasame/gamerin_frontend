@@ -24,7 +24,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
+import { ApiError, isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
   createConversation,
@@ -1228,6 +1228,19 @@ export default function MessagesPage() {
     user,
   ]);
 
+  // 응답이 실패한 뒤 SSE·폴링으로 서버 사본이 확인된 항목은 상태에서도 지워, 서버 메시지가 삭제돼도 다시 나타나지 않게 한다.
+  // 요청 중인 항목은 성공 응답을 실제 ID로 병합해야 하므로 렌더에서만 숨기고 남긴다.
+  useEffect(() => {
+    for (const [conversationId, items] of Object.entries(pendingRef.current)) {
+      const visible = hideDeliveredPendingMessages(items, messagesByConversation[conversationId] ?? []);
+      const delivered = items.filter((item) => item.status === 'failed' && !visible.includes(item));
+      if (delivered.length === 0) continue;
+
+      revokeAttachmentUrls(delivered.flatMap((item) => item.attachments));
+      updatePendingMessages(conversationId, (current) => current.filter((item) => !delivered.includes(item)));
+    }
+  }, [messagesByConversation, revokeAttachmentUrls, updatePendingMessages]);
+
   const discardPendingMessages = (conversationId: string, pendingId?: string) => {
     const targets = (pendingRef.current[conversationId] ?? []).filter((item) => !pendingId || item.id === pendingId);
     revokeAttachmentUrls(targets.flatMap((item) => item.attachments));
@@ -1252,8 +1265,12 @@ export default function MessagesPage() {
       const afterCreatedAt = loadedMessages
         ? latestCreatedAt(loadedMessages.at(-1)?.createdAt, lastSentCreatedAt) ?? new Date(0).toISOString()
         : latestCreatedAt(lastSentCreatedAt);
+      // 새 전송이 시작되면 이전 실패 항목의 대조 범위를 닫아, 이후 같은 내용의 별도 전송을 그 결과로 오인하지 않게 한다.
       updatePendingMessages(conversationId, (items) =>
-        items.map((item) => (item.id === pendingId ? { ...item, status: 'sending', afterCreatedAt } : item))
+        items.map((item) => {
+          if (item.id === pendingId) return { ...item, status: 'sending', afterCreatedAt };
+          return item.status === 'failed' ? { ...item, afterCreatedAt: null } : item;
+        })
       );
 
       try {
@@ -1279,16 +1296,24 @@ export default function MessagesPage() {
         // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
         const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
         if (
+          !(error instanceof ApiError) &&
           sendingItem &&
           hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
         ) {
           discardPendingMessages(conversationId, pendingId);
           return;
         }
+        // 서버가 HTTP 오류로 응답했다면 저장되지 않았으므로 이후 같은 내용의 메시지를 이 요청의 결과로 보지 않는다.
+        // 응답을 받지 못한 경우(네트워크 오류 등)만 늦게 오는 서버 사본과 대조한다.
         updatePendingMessages(conversationId, (items) =>
           items.map((item) =>
             item.id === pendingId
-              ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.') }
+              ? {
+                  ...item,
+                  status: 'failed',
+                  errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
+                  afterCreatedAt: error instanceof ApiError ? null : item.afterCreatedAt,
+                }
               : item
           )
         );

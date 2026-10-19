@@ -92,7 +92,7 @@ describe('hideDeliveredPendingMessages', () => {
     expect(hideDeliveredPendingMessages(pending, [delivered])).toEqual([]);
   });
 
-  it('기준 시각 이전 메시지, 상대 메시지, 대기·실패 상태는 서버 사본으로 보지 않는다', () => {
+  it('기준 시각 이전 메시지, 상대 메시지, 대기 상태, 기준 시각 없는 항목은 서버 사본으로 보지 않는다', () => {
     const older = { ...createMessage('older', '2026-10-05T11:59:59.000Z'), text: 'hello' };
     const fromRecipient = { ...createMessage('other', '2026-10-05T12:00:01.000Z'), text: 'hello', senderId: 'user-2' };
     const pending = [
@@ -106,6 +106,13 @@ describe('hideDeliveredPendingMessages', () => {
       'queued',
       'failed',
     ]);
+  });
+
+  it('응답이 실패한 뒤 서버 사본이 늦게 도착해도 실패 항목을 숨긴다', () => {
+    const pending = [createPending('failed', 'hello', 'failed', '2026-10-05T12:00:00.000Z')];
+    const delivered = { ...createMessage('server-1', '2026-10-05T12:00:01.000Z'), text: 'hello' };
+
+    expect(hideDeliveredPendingMessages(pending, [delivered])).toEqual([]);
   });
 
   it('기준 시각을 모르면(이력 로딩 전 제출) 같은 내용의 과거 메시지가 와도 숨기지 않는다', () => {
