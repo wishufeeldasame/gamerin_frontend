@@ -64,8 +64,23 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
-function serverMessage(id: string, text: string, createdAt: string): ChatMessage {
-  return { id, senderId: 'me', text, createdAt, read: false, deliveryStatus: 'sent', attachments: [], sharedPost: null };
+function serverMessage(id: string, text: string, createdAt: string, clientMessageId: string | null = null): ChatMessage {
+  return {
+    id,
+    senderId: 'me',
+    text,
+    createdAt,
+    read: false,
+    deliveryStatus: 'sent',
+    attachments: [],
+    sharedPost: null,
+    clientMessageId,
+  };
+}
+
+// 화면이 n번째 전송 요청에 붙인 clientMessageId. 서버 사본은 이 값을 돌려준다.
+function sentClientMessageId(call = 0): string {
+  return api.sendConversationMessage.mock.calls[call][0].clientMessageId;
 }
 
 async function renderPage() {
@@ -138,7 +153,7 @@ describe('MessagesPage 낙관적 전송', () => {
     send(input, '안녕');
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(1));
 
-    const delivered = serverMessage('m-1', '안녕', '2026-10-05T12:01:00.000Z');
+    const delivered = serverMessage('m-1', '안녕', '2026-10-05T12:01:00.000Z', sentClientMessageId());
     act(() => {
       streamListeners['message-created']({
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: delivered, messageId: 'm-1' }),
@@ -151,7 +166,7 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(screen.getAllByText('안녕')).toHaveLength(1);
   });
 
-  it('검열 거부는 정책 위반 문구와 재시도를 남기고 재시도는 같은 내용을 다시 보낸다', async () => {
+  it('검열 거부는 정책 위반 문구와 재시도를 남기고 재시도는 같은 내용과 clientMessageId로 다시 보낸다', async () => {
     api.sendConversationMessage
       .mockRejectedValueOnce(new ApiError('Content violates moderation policy: harassment', 422))
       .mockResolvedValueOnce(serverMessage('m-1', '다시', '2026-10-05T12:01:00.000Z'));
@@ -166,6 +181,8 @@ describe('MessagesPage 낙관적 전송', () => {
 
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
     expect(api.sendConversationMessage).toHaveBeenLastCalledWith(expect.objectContaining({ content: '다시' }));
+    expect(sentClientMessageId(0)).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(sentClientMessageId(1)).toBe(sentClientMessageId(0));
     await waitFor(() => expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument());
     expect(screen.getAllByText('다시')).toHaveLength(1);
   });
@@ -255,7 +272,7 @@ describe('MessagesPage 낙관적 전송', () => {
     send(input, '전달됨');
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(1));
 
-    const delivered = serverMessage('m-1', '전달됨', '2026-10-05T12:01:00.000Z');
+    const delivered = serverMessage('m-1', '전달됨', '2026-10-05T12:01:00.000Z', sentClientMessageId());
     act(() => {
       streamListeners['message-created']({
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: delivered, messageId: 'm-1' }),
@@ -275,7 +292,7 @@ describe('MessagesPage 낙관적 전송', () => {
     send(input, '늦게 전달');
     expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
 
-    const delivered = serverMessage('m-1', '늦게 전달', '2026-10-05T12:01:00.000Z');
+    const delivered = serverMessage('m-1', '늦게 전달', '2026-10-05T12:01:00.000Z', sentClientMessageId());
     act(() => {
       streamListeners['message-created']({
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: delivered, messageId: 'm-1' }),
@@ -310,9 +327,10 @@ describe('MessagesPage 낙관적 전송', () => {
 
     expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
     expect(screen.getAllByText('같은 내용')).toHaveLength(2);
+    expect(sentClientMessageId(1)).not.toBe(sentClientMessageId(0));
   });
 
-  it('재시도 중 원래 요청의 SSE가 늦게 와도 재시도 성공 응답을 별도 메시지로 반영한다', async () => {
+  it('재시도 중 원래 요청의 SSE가 늦게 오고 서버가 같은 메시지를 돌려주면 한 번만 표시한다', async () => {
     const retry = deferred<ChatMessage>();
     api.sendConversationMessage.mockRejectedValueOnce(new ApiError('메시지 요청을 처리하지 못했습니다.', 0, 'unavailable')).mockReturnValueOnce(retry.promise);
     const { input } = await renderPage();
@@ -322,27 +340,28 @@ describe('MessagesPage 낙관적 전송', () => {
     fireEvent.click(await screen.findByRole('button', { name: '재시도' }));
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
 
-    const original = serverMessage('m-1', '두 번 저장', '2026-10-05T12:01:00.000Z');
+    expect(sentClientMessageId(1)).toBe(sentClientMessageId(0));
+    const original = serverMessage('m-1', '두 번 저장', '2026-10-05T12:01:00.000Z', sentClientMessageId());
     act(() => {
       streamListeners['message-created']({
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: original, messageId: 'm-1' }),
       });
     });
-    await act(async () => retry.resolve(serverMessage('m-2', '두 번 저장', '2026-10-05T12:01:01.000Z')));
+    await act(async () => retry.resolve(original));
 
-    expect(screen.getAllByText('두 번 저장')).toHaveLength(2);
+    expect(screen.getAllByText('두 번 저장')).toHaveLength(1);
     expect(screen.queryByText('전송 중...')).not.toBeInTheDocument();
   });
 
-  it('서버가 오류로 응답한 실패 항목은 같은 내용의 다른 메시지가 와도 남긴다', async () => {
-    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('요청이 너무 많습니다.', 429));
+  it('저장 여부를 모르는 실패 항목도 다른 탭에서 보낸 같은 내용의 메시지로는 숨기지 않는다', async () => {
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('메시지 요청을 처리하지 못했습니다.', 0, 'unavailable'));
     const { input } = await renderPage();
     await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
 
     send(input, '다른 탭과 같은 내용');
     expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
 
-    const otherTab = serverMessage('m-7', '다른 탭과 같은 내용', '2026-10-05T12:01:00.000Z');
+    const otherTab = serverMessage('m-7', '다른 탭과 같은 내용', '2026-10-05T12:01:00.000Z', crypto.randomUUID());
     act(() => {
       streamListeners['message-created']({
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: otherTab, messageId: 'm-7' }),

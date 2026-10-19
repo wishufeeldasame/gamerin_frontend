@@ -94,17 +94,42 @@ describe('message-api 요청', () => {
         deliveryStatus: 'sent',
         attachments: [{ id: 'a-1', type: 'image', name: 'a.png', url: '/uploads/message-attachments/a.png' }],
         sharedPost: null,
+        clientMessageId: 'key-1',
       },
     }));
 
     const sent = await message.sendConversationMessage({
       conversationId: 'c-1',
       attachments: [new File(['x'], 'a.png', { type: 'image/png' })],
+      clientMessageId: 'key-1',
     });
 
     expect(api.init(0)?.body).toBeInstanceOf(FormData);
+    expect((api.init(0)?.body as FormData).get('clientMessageId')).toBe('key-1');
     expect(new Headers(api.init(0)?.headers).has('Content-Type')).toBe(false);
     expect(sent.attachments[0].url).toBe('http://api.test/uploads/message-attachments/a.png');
+    expect(sent.clientMessageId).toBe('key-1');
+  });
+
+  it('본문 메시지는 JSON에 clientMessageId를 담고, 응답에 없으면 null로 둔다', async () => {
+    api.route('/api/v1/messages/conversations/c-1/messages', () => json(200, {
+      success: true,
+      data: {
+        id: 'm-1',
+        senderId: 'user-2',
+        text: 'hi',
+        createdAt: '2026-09-18T00:00:00Z',
+        read: false,
+        deliveryStatus: 'sent',
+        attachments: [],
+        sharedPost: null,
+      },
+    }));
+
+    const sent = await message.sendConversationMessage({ conversationId: 'c-1', content: ' hi ', clientMessageId: 'key-2' });
+
+    expect(JSON.parse(api.init(0)?.body as string)).toEqual({ content: 'hi', sharedPostId: null, clientMessageId: 'key-2' });
+    expect(sent.clientMessageId).toBeNull();
   });
 });
 
