@@ -1293,18 +1293,19 @@ export default function MessagesPage() {
         updateConversationPreviewWithMessage(conversationId, sentMessage);
         void loadConversations({ silent: true });
       } catch (error) {
+        // 4xx는 서버가 거절해 저장되지 않은 것이 확실하다. 네트워크 오류(status 0)·5xx는 저장 여부를 알 수 없다.
+        const rejectedByServer = error instanceof ApiError && error.status >= 400 && error.status < 500;
         // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
         const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
         if (
-          !(error instanceof ApiError) &&
+          !rejectedByServer &&
           sendingItem &&
           hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
         ) {
           discardPendingMessages(conversationId, pendingId);
           return;
         }
-        // 서버가 HTTP 오류로 응답했다면 저장되지 않았으므로 이후 같은 내용의 메시지를 이 요청의 결과로 보지 않는다.
-        // 응답을 받지 못한 경우(네트워크 오류 등)만 늦게 오는 서버 사본과 대조한다.
+        // 서버가 거절했다면 이후 같은 내용의 메시지를 이 요청의 결과로 보지 않고, 저장 여부를 모를 때만 늦게 오는 서버 사본과 대조한다.
         updatePendingMessages(conversationId, (items) =>
           items.map((item) =>
             item.id === pendingId
@@ -1312,7 +1313,7 @@ export default function MessagesPage() {
                   ...item,
                   status: 'failed',
                   errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
-                  afterCreatedAt: error instanceof ApiError ? null : item.afterCreatedAt,
+                  afterCreatedAt: rejectedByServer ? null : item.afterCreatedAt,
                 }
               : item
           )

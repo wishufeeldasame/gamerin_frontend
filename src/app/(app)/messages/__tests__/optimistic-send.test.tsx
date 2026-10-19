@@ -253,14 +253,14 @@ describe('MessagesPage 낙관적 전송', () => {
         data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1', message: delivered, messageId: 'm-1' }),
       });
     });
-    await act(async () => request.reject(new TypeError('Failed to fetch')));
+    await act(async () => request.reject(new ApiError('메시지 요청을 처리하지 못했습니다.', 0, 'unavailable')));
 
     expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
     expect(screen.getAllByText('전달됨')).toHaveLength(1);
   });
 
   it('응답이 먼저 실패하고 SSE로 서버 사본이 늦게 오면 실패 말풍선을 정리한다', async () => {
-    api.sendConversationMessage.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('메시지 요청을 처리하지 못했습니다.', 0, 'unavailable'));
     const { input } = await renderPage();
     await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
 
@@ -306,7 +306,7 @@ describe('MessagesPage 낙관적 전송', () => {
 
   it('재시도 중 원래 요청의 SSE가 늦게 와도 재시도 성공 응답을 별도 메시지로 반영한다', async () => {
     const retry = deferred<ChatMessage>();
-    api.sendConversationMessage.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockReturnValueOnce(retry.promise);
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('메시지 요청을 처리하지 못했습니다.', 0, 'unavailable')).mockReturnValueOnce(retry.promise);
     const { input } = await renderPage();
     await waitFor(() => expect(streamListeners['message-created']).toBeDefined());
 
