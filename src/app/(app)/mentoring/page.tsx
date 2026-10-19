@@ -3,8 +3,6 @@ import { useConfirm } from '@/app/context/ConfirmContext';
 
 import {
   AlertCircle,
-  ArrowDownLeft,
-  ArrowUpRight,
   Check,
   Clock3,
   CreditCard,
@@ -16,7 +14,9 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
@@ -51,14 +51,9 @@ import {
   type MentorProfileResponse,
   type PaymentStatus,
 } from '@/lib/mentoring-api';
-import {
-  chargeMileage,
-  fetchMyMileageBalance,
-  fetchMyMileageTransactions,
-  type MileageTransactionResponse,
-} from '@/lib/mileage-api';
-import type { PageResponse } from '@/types/api';
+import { fetchMyMileageBalance } from '@/lib/mileage-api';
 
+import type { PageResponse } from '@/types/api';
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
 type MentoringBannerType = 'auth' | 'mileage' | null;
 
@@ -115,10 +110,6 @@ function formatMileage(value: number) {
   return `${Number(value || 0).toLocaleString()} M`;
 }
 
-function formatSignedMileage(value: number) {
-  const amount = Number(value || 0);
-  return `${amount > 0 ? '+' : ''}${amount.toLocaleString()} M`;
-}
 
 function formatDateTime(value: string) {
   const date = new Date(value);
@@ -156,6 +147,10 @@ function splitProgramContent(rawContent?: string | null) {
     method: methodMatch?.[1]?.trim() ?? '',
     content: contentMatch?.[1]?.trim() ?? safeContent,
   };
+}
+
+function MembershipBadgeInline({ active }: { active?: boolean }) {
+  return active ? <span className="ml-0.5 inline-flex align-middle"><MembershipBadge active /></span> : null;
 }
 
 function programMentorName(program: MentoringProgramResponse | MentoringProgramDetailResponse) {
@@ -243,6 +238,8 @@ export default function MentoringPage() {
   const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
   const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
   const requestedMineTab = searchParams.get('tab') === 'mine';
+  const requestedProgramId = searchParams.get('programId')?.trim() || null;
+  const openedProgramIdRef = useRef<string | null>(null);
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
   const [games, setGames] = useState<GameResponse[]>([]);
@@ -273,10 +270,6 @@ export default function MentoringPage() {
   const [mentorApplications, setMentorApplications] = useState<MentoringApplicationResponse[]>([]);
   const [applicationsLoaded, setApplicationsLoaded] = useState(false);
   const [mileageBalance, setMileageBalance] = useState(0);
-  const [mileageTransactions, setMileageTransactions] = useState<MileageTransactionResponse[]>([]);
-  const [mileagePage, setMileagePage] = useState<PageResponse<MileageTransactionResponse> | null>(null);
-  const [mileageLoading, setMileageLoading] = useState(false);
-  const [chargeAmount, setChargeAmount] = useState('10000');
 
   const [reviewTarget, setReviewTarget] = useState<MentoringApplicationResponse | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -537,29 +530,15 @@ export default function MentoringPage() {
   const loadMileageData = useCallback(async () => {
     if (!currentUserId) {
       setMileageBalance(0);
-      setMileageTransactions([]);
-      setMileagePage(null);
       return;
     }
 
-    setMileageLoading(true);
-
     try {
-      const [balance, transactions] = await Promise.all([
-        fetchMyMileageBalance(),
-        fetchMyMileageTransactions(0, 10),
-      ]);
-
+      const balance = await fetchMyMileageBalance();
       setMileageBalance(balance.currentBalance ?? 0);
-      setMileageTransactions(transactions.content ?? []);
-      setMileagePage(transactions);
     } catch (error) {
       setMileageBalance(0);
-      setMileageTransactions([]);
-      setMileagePage(null);
       showError(error);
-    } finally {
-      setMileageLoading(false);
     }
   }, [currentUserId, showError]);
 
@@ -797,6 +776,9 @@ export default function MentoringPage() {
     }
   };
 
+  const openProgramDetailRef = useRef(openProgramDetail);
+  openProgramDetailRef.current = openProgramDetail;
+
   const handleRegisterMentor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setPendingAction('register-mentor');
@@ -989,35 +971,19 @@ export default function MentoringPage() {
     }
   };
 
-  const handleChargeMileage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const amount = Number(chargeAmount);
-    if (Number.isNaN(amount) || amount <= 0) {
-      setErrorMessage('충전 금액을 올바르게 입력해주세요.');
-      return;
-    }
-
-    setPendingAction('charge-mileage');
-    clearMessages();
-
-    try {
-      const result = await chargeMileage(amount);
-      setMileageBalance(result.currentBalance ?? 0);
-      showNotice('마일리지를 충전했습니다.');
-      await loadMileageData();
-    } catch (error) {
-      showError(error);
-    } finally {
-      setPendingAction('');
-    }
-  };
-
+  // 충전 후 원래 프로그램 상세로 돌아오게 한다. 신청은 사용자가 다시 확정한다.
   const goToMileageCharge = () => {
+    const returnTo = selectedProgram ? `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
     setShowMileageShortageModal(false);
     closeProgramDetail();
-    changeTab('mine');
+    router.push(`/wallet?returnTo=${encodeURIComponent(returnTo)}`);
   };
+
+  useEffect(() => {
+    if (!requestedProgramId || !isAuthReady || openedProgramIdRef.current === requestedProgramId) return;
+    openedProgramIdRef.current = requestedProgramId;
+    void openProgramDetailRef.current(requestedProgramId);
+  }, [isAuthReady, requestedProgramId]);
 
   const openReviewModal = (application: MentoringApplicationResponse) => {
     clearMessages();
@@ -1150,10 +1116,10 @@ export default function MentoringPage() {
               {bannerType === 'mileage' ? (
                 <button
                   type="button"
-                  onClick={() => changeTab('mine')}
+                  onClick={goToMileageCharge}
                   className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
                 >
-                  충전하기
+                  카카오페이로 충전
                 </button>
               ) : (
                 <button
@@ -1241,7 +1207,7 @@ export default function MentoringPage() {
                             {splitProgramContent(program.content).content}
                           </p>
                           <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)} · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
+                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
                           </p>
                         </div>
 
@@ -1300,48 +1266,35 @@ export default function MentoringPage() {
 
         {activeTab === 'mine' ? (
           <section className="space-y-6">
-            <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-2xl border border-zinc-100 bg-white p-5">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
-                    <h2 className="mt-1 text-2xl font-black text-black">내 마일리지</h2>
-                  </div>
-                  <div className="rounded-2xl bg-zinc-100 p-3 text-zinc-700">
-                    <Wallet size={20} />
-                  </div>
+            <section className="flex flex-col gap-5 rounded-2xl border border-zinc-100 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <h2 className="text-2xl font-black text-black">내 마일리지</h2>
+                  <strong className="text-2xl font-black text-black">{formatMileage(mileageBalance)}</strong>
                 </div>
-                <p className="mt-5 text-3xl font-black text-black">{formatMileage(mileageBalance)}</p>
                 <p className="mt-2 text-sm font-bold text-zinc-500">
-                  멘토링 결제, 환불, 정산 내역이 여기에 바로 반영됩니다.
+                  카카오페이 충전과 전체 거래 내역은 지갑에서 확인할 수 있습니다.
                 </p>
               </div>
-
-              <form onSubmit={handleChargeMileage} className="rounded-2xl border border-zinc-100 bg-white p-5">
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">테스트 충전</p>
-                <h2 className="mt-1 text-2xl font-black text-black">가상 충전</h2>
-                <p className="mt-2 text-sm font-bold text-zinc-500">
-                  잔액이 부족할 때 테스트용으로 바로 충전할 수 있습니다.
-                </p>
-                <div className="mt-5 flex flex-col gap-3 sm:flex-row">
-                  <input
-                    value={chargeAmount}
-                    onChange={(event) => setChargeAmount(event.target.value.replace(/[^0-9]/g, ''))}
-                    inputMode="numeric"
-                    className="h-12 flex-1 rounded-xl border border-zinc-200 px-4 text-sm font-bold outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                    placeholder="충전 금액"
-                  />
-                  <button
-                    type="submit"
-                    disabled={pendingAction === 'charge-mileage'}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-black text-white disabled:bg-zinc-200"
-                  >
-                    <Plus size={16} />
-                    {pendingAction === 'charge-mileage' ? '충전 중...' : '충전하기'}
-                  </button>
-                </div>
-              </form>
-            </div>
+              <div className="grid shrink-0 grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => router.push(`/wallet?returnTo=${encodeURIComponent('/mentoring?tab=mine')}`)}
+                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                >
+                  <Wallet size={16} />
+                  충전하기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => router.push('/wallet')}
+                  className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-black text-black"
+                >
+                  전체 내역
+                </button>
+              </div>
+            </section>
 
             <div className="grid gap-6 lg:grid-cols-2">
               <ApplicationList
@@ -1370,11 +1323,6 @@ export default function MentoringPage() {
               />
             </div>
 
-            <MileageTransactionPanel
-              transactions={mileageTransactions}
-              loading={mileageLoading}
-              totalElements={mileagePage?.totalElements ?? 0}
-            />
           </section>
         ) : null}
 
@@ -1387,7 +1335,10 @@ export default function MentoringPage() {
             ) : mentorProfile ? (
               <div className="space-y-6">
                 <div className="rounded-2xl border border-zinc-100 p-6">
-                  <h2 className="text-2xl font-black text-black">{mentorProfile.nickname} 멘토</h2>
+                  <h2 className="flex items-center gap-1 text-2xl font-black text-black">
+                    {mentorProfile.nickname}
+                    <MembershipBadge active={mentorProfile.membershipBadge} /> 멘토
+                  </h2>
 
                   <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                     <div className="rounded-xl bg-zinc-50 p-3">
@@ -1674,7 +1625,10 @@ export default function MentoringPage() {
                   </div>
 
                   <div className="mt-5 rounded-2xl border border-zinc-100 p-6">
-                    <h3 className="text-2xl font-black text-black">{programMentorName(selectedProgram)} 멘토</h3>
+                    <h3 className="flex items-center gap-1 text-2xl font-black text-black">
+                      {programMentorName(selectedProgram)}
+                      <MembershipBadge active={selectedProgram.membershipBadge} /> 멘토
+                    </h3>
 
                     <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                       <div className="rounded-xl bg-zinc-50 p-3">
@@ -1718,7 +1672,7 @@ export default function MentoringPage() {
                           <article key={review.id} className="rounded-xl border border-zinc-100 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="font-black text-black">{review.menteeNickname}</p>
+                                <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
                                 <p className="mt-1 text-xs font-bold text-zinc-400">
                                   {formatDateTime(review.createdAt)}
                                 </p>
@@ -1816,7 +1770,7 @@ export default function MentoringPage() {
                       마일리지가 부족합니다
                     </p>
                     <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">
-                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 충전 후 다시 신청해주세요.
+                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 카카오페이로 충전 후 다시 신청해주세요.
                     </p>
                   </div>
                 </div>
@@ -1848,10 +1802,10 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={goToMileageCharge}
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white"
+                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
                 >
                   <Wallet size={16} />
-                  충전하기
+                  카카오페이로 충전
                 </button>
               </div>
             </div>
@@ -1953,7 +1907,7 @@ export default function MentoringPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="font-black text-black">{review.menteeNickname}</p>
+                            <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
                             <p className="mt-1 text-xs font-bold text-zinc-400">
                               {formatDateTime(review.createdAt)}
                             </p>
@@ -2174,7 +2128,8 @@ function ApplicationCard({
         <div className="min-w-0">
           <h3 className="truncate font-black text-black">{application.programTitle}</h3>
           <p className="mt-1 text-xs font-bold text-zinc-400">
-            멘토 {application.mentorNickname} · 멘티 {application.menteeNickname}
+            멘토 {application.mentorNickname}<MembershipBadgeInline active={application.mentorMembershipBadge} /> · 멘티{' '}
+            {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} />
           </p>
         </div>
         <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
@@ -2190,6 +2145,21 @@ function ApplicationCard({
         <span>금액: {formatMileage(application.appliedMileage)}</span>
         <span>결제: {paymentLabel[application.paymentStatus] ?? application.paymentStatus}</span>
       </div>
+
+      {role === 'mentor' && application.feeRateBp != null && application.feeAmount != null ? (
+        <p className="mt-2 text-xs font-bold text-zinc-500">
+          {formatMileage(application.appliedMileage)} 중 수수료 {formatMileage(application.feeAmount)}({application.feeRateBp / 100}%) · 수령{' '}
+          {formatMileage(application.payoutAmount ?? application.appliedMileage - application.feeAmount)}
+        </p>
+      ) : null}
+      {role === 'mentor' && application.nonMemberNotice ? (
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-500">
+          {application.feeNotice || '멤버십이면 수수료 5%'}
+          <Link href="/membership" className="font-black text-black underline underline-offset-2 dark:text-zinc-100">
+            멤버십 보기
+          </Link>
+        </p>
+      ) : null}
 
       {guide ? <p className="mt-4 rounded-xl bg-yellow-50 p-3 text-xs font-bold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">{guide}</p> : null}
 
@@ -2301,73 +2271,5 @@ function ApplicationCard({
         ) : null}
       </div>
     </article>
-  );
-}
-
-function MileageTransactionPanel({
-  transactions,
-  loading,
-  totalElements,
-}: {
-  transactions: MileageTransactionResponse[];
-  loading: boolean;
-  totalElements: number;
-}) {
-  return (
-    <section className="rounded-2xl border border-zinc-100 bg-white p-5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">거래 내역</p>
-          <h2 className="mt-1 text-2xl font-black text-black">마일리지 거래 내역</h2>
-        </div>
-        <p className="text-sm font-bold text-zinc-500">총 {totalElements.toLocaleString()}건</p>
-      </div>
-
-      {loading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Loader2 className="animate-spin text-zinc-400" />
-        </div>
-      ) : transactions.length > 0 ? (
-        <div className="mt-5 space-y-3">
-          {transactions.map((transaction) => {
-            const positive = transaction.amount >= 0;
-
-            return (
-              <article
-                key={transaction.id}
-                className="flex flex-col gap-3 rounded-xl border border-zinc-100 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`rounded-xl p-2 ${
-                      positive ? 'bg-blue-50 text-blue-600' : 'bg-red-50 text-red-500'
-                    }`}
-                  >
-                    {positive ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
-                  </div>
-                  <div>
-                    <p className="font-black text-black">{transaction.typeDescription}</p>
-                    <p className="mt-1 text-sm font-bold text-zinc-500">{transaction.description}</p>
-                    <p className="mt-1 text-xs font-bold text-zinc-400">{formatDateTime(transaction.createdAt)}</p>
-                  </div>
-                </div>
-                <div className="text-right">
-                  <p className={`text-lg font-black ${positive ? 'text-blue-600 dark:text-blue-300' : 'text-red-500'}`}>
-                    {formatSignedMileage(transaction.amount)}
-                  </p>
-                  <p className="mt-1 text-xs font-bold text-zinc-400">
-                    잔액 {formatMileage(transaction.balanceAfter)}
-                  </p>
-                </div>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="mt-5 rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
-          거래 내역이 아직 없습니다.
-        </p>
-      )}
-    </section>
   );
 }

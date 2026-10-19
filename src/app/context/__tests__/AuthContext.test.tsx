@@ -145,6 +145,27 @@ describe('AuthProvider session clearing', () => {
       expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
     });
 
+    it('팝업으로 열린 결제 결과 창은 refresh를 0회 보낸다', async () => {
+      window.history.pushState(null, '', '/payments/result?orderId=o1');
+      Object.defineProperty(window, 'opener', {
+        configurable: true,
+        value: { location: { origin: window.location.origin } },
+      });
+      onTestFinished(() => {
+        Object.defineProperty(window, 'opener', { configurable: true, value: null });
+        window.history.pushState(null, '', '/');
+      });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(authStore.refreshAccessTokenResult).not.toHaveBeenCalled();
+      expect(apiClient.apiRequest).not.toHaveBeenCalled();
+      expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
+      expect(window.localStorage.getItem(authStore.AUTH_USER_KEY)).not.toBeNull();
+    });
+
     it('refresh 일시 장애면 로그아웃하지 않고, 검증되지 않은 사용자도 복원하지 않는다', async () => {
       authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus: 503 });
 

@@ -25,6 +25,7 @@ export interface SimpleUserProfile {
   bio: string | null;
   profileImageUrl: string | null;
   verifiedBadge: boolean;
+  membershipBadge: boolean;
   isFollowing?: boolean;
 }
 
@@ -35,6 +36,7 @@ interface SimpleUserProfileResponse {
   bio?: string | null;
   profileImageUrl: string | null;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
 }
 
 export interface SearchSection<T> {
@@ -82,6 +84,7 @@ function normalizeUserProfile(profile: SimpleUserProfileResponse): SimpleUserPro
     bio: profile.bio ?? null,
     profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     verifiedBadge: Boolean(profile.verifiedBadge),
+    membershipBadge: Boolean(profile.membershipBadge),
   };
 }
 

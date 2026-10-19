@@ -35,6 +35,7 @@ import {
 import { subscribeToNotificationInvalidation } from '@/lib/notification-sync';
 import { getInitials } from '@/lib/feed-api';
 import { RelativeTime } from './RelativeTime';
+import { MembershipBadge } from './MembershipBadge';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -337,6 +338,9 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
 
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium leading-snug text-zinc-700 dark:text-zinc-200">
+                      {notification.actor?.membershipBadge ? (
+                        <span className="mr-1 inline-flex align-middle"><MembershipBadge active /></span>
+                      ) : null}
                       {presentation.message}
                     </p>
                     <p className="mt-1 text-[11px] font-bold text-zinc-400">

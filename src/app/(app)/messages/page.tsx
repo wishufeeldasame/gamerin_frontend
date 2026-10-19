@@ -51,6 +51,7 @@ import {
 import { invalidateNotifications } from '@/lib/notification-sync';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -172,8 +173,9 @@ function ConversationCard({
             }`}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-black">
-              <HighlightedText text={conversation.recipient.name} query={query} />
+            <p className="flex min-w-0 items-center gap-1 text-sm font-black">
+              <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
+              <MembershipBadge active={conversation.recipient.membershipBadge} />
             </p>
             <p
               className={`truncate text-[11px] font-bold tracking-widest ${
@@ -291,7 +293,10 @@ function NewChatPicker({
                 className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white"
               />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-black text-black">{recipient.name}</span>
+                <span className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                  <span className="truncate">{recipient.name}</span>
+                  <MembershipBadge active={recipient.membershipBadge} />
+                </span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
                   {recipient.handle}
                 </span>
