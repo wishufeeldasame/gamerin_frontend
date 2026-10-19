@@ -36,6 +36,11 @@ vi.mock('@/lib/notification-sync', () => ({
   invalidateNotifications: vi.fn(),
 }));
 
+// jsdom은 이미지를 디코딩하지 못하므로 업로드 전 JPEG 변환은 그대로 통과시킨다.
+vi.mock('@/lib/profile-image-compression', () => ({
+  convertImageForUpload: vi.fn(async (file: File) => file),
+}));
+
 type Listener = (event: { data: string }) => void;
 
 const conversation: Conversation = {
@@ -171,6 +176,7 @@ describe('MessagesPage 낙관적 전송', () => {
     const imageInput = container.querySelector('input[type="file"][multiple]') as HTMLInputElement;
 
     fireEvent.change(imageInput, { target: { files: [new File(['a'], 'shot.png', { type: 'image/png' })] } });
+    await screen.findByAltText('shot.png');
     fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
 
     expect(await screen.findByText('전송 실패 · 서버 오류')).toBeInTheDocument();
@@ -191,10 +197,12 @@ describe('MessagesPage 낙관적 전송', () => {
     const imageInput = container.querySelector('input[type="file"][multiple]') as HTMLInputElement;
 
     fireEvent.change(imageInput, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
     fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
     await waitFor(() => expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:dm-1'));
 
     fireEvent.change(imageInput, { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } });
+    await screen.findByAltText('b.png');
     fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
 

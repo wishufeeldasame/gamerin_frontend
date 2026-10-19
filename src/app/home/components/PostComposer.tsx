@@ -9,6 +9,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import { getInitials } from '@/lib/feed-api';
 import type { PostDraft } from '@/hooks/usePendingPosts';
 import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
+import { convertImageForUpload, isHeicFile } from '@/lib/profile-image-compression';
 
 interface PostComposerProps {
   onSubmit?: (draft: PostDraft) => void;
@@ -40,7 +41,7 @@ type ActiveHashtagQuery = {
 
 function isImageFile(file: File) {
   const type = file.type.toLowerCase();
-  return type === 'image/jpeg' || type === 'image/png' || /\.(jpe?g|png)$/i.test(file.name);
+  return type === 'image/jpeg' || type === 'image/png' || /\.(jpe?g|png)$/i.test(file.name) || isHeicFile(file);
 }
 
 function isVideoFile(file: File) {
@@ -194,6 +195,9 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(null);
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [preparingImages, setPreparingImages] = useState(false);
+  // 변환 중에 선택이 바뀌면 늦게 끝난 변환 결과를 버린다.
+  const imageSelectionSeqRef = useRef(0);
   const [activeHashtagQuery, setActiveHashtagQuery] = useState<ActiveHashtagQuery | null>(null);
   const [hashtagSuggestions, setHashtagSuggestions] = useState<HashtagSummary[]>([]);
   const [loadingHashtagSuggestions, setLoadingHashtagSuggestions] = useState(false);
@@ -268,6 +272,8 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   };
 
   const clearImageSelection = () => {
+    imageSelectionSeqRef.current += 1;
+    setPreparingImages(false);
     setImageFiles([]);
     setImagePreviewUrls([]);
     if (imageInputRef.current) {
@@ -346,7 +352,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     });
   };
 
-  const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length > MAX_IMAGE_COUNT) {
       toast.error(`이미지는 최대 ${MAX_IMAGE_COUNT}개까지 업로드할 수 있습니다.`);
@@ -361,17 +367,39 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
       return;
     }
 
-    if (files.some((file) => file.size > MAX_IMAGE_FILE_SIZE_BYTES)) {
-      toast.error('사진 파일은 장당 20MB 이하여야 합니다.');
+    const seq = ++imageSelectionSeqRef.current;
+    setPreparingImages(true);
+    try {
+      // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
+      const converted = await Promise.all(files.map(convertImageForUpload));
+      if (seq !== imageSelectionSeqRef.current) {
+        return;
+      }
+
+      if (converted.some((file) => file.size > MAX_IMAGE_FILE_SIZE_BYTES)) {
+        toast.error('사진 파일은 장당 20MB 이하여야 합니다.');
+        if (imageInputRef.current) {
+          imageInputRef.current.value = '';
+        }
+        return;
+      }
+
+      clearVideoSelection();
+      setImageFiles(converted);
+      setImagePreviewUrls(converted.map((file) => makeObjectUrl(file)));
+    } catch (error) {
+      if (seq !== imageSelectionSeqRef.current) {
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : '사진을 준비하지 못했습니다.');
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
       }
-      return;
+    } finally {
+      if (seq === imageSelectionSeqRef.current) {
+        setPreparingImages(false);
+      }
     }
-
-    clearVideoSelection();
-    setImageFiles(files);
-    setImagePreviewUrls(files.map((file) => makeObjectUrl(file)));
   };
 
   const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -414,14 +442,25 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     }
   };
 
-  const handleThumbnailUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
-    if (!file) {
+  const handleThumbnailUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0] ?? null;
+    if (!selected) {
       return;
     }
 
-    if (!isImageFile(file)) {
+    if (!isImageFile(selected)) {
       toast.error('동영상 썸네일은 JPEG 또는 PNG 파일이어야 합니다.');
+      if (thumbnailInputRef.current) {
+        thumbnailInputRef.current.value = '';
+      }
+      return;
+    }
+
+    let file: File;
+    try {
+      file = await convertImageForUpload(selected);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '썸네일을 준비하지 못했습니다.');
       if (thumbnailInputRef.current) {
         thumbnailInputRef.current.value = '';
       }
@@ -444,6 +483,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   const canSubmit =
     Boolean(user) &&
     !generatingThumbnails &&
+    !preparingImages &&
     Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = () => {
@@ -629,6 +669,12 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                   </div>
                 )}
               </div>
+            </div>
+          ) : null}
+
+          {preparingImages ? (
+            <div role="status" className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
+              사진을 준비하고 있습니다...
             </div>
           ) : null}
 
