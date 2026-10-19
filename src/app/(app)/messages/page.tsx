@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  RotateCw,
   Search,
   Send,
   ShieldCheck,
@@ -23,7 +24,8 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { isAuthError } from '@/lib/api-client';
+import { ApiError, isAuthError, toUploadErrorMessage } from '@/lib/api-client';
+import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
   createConversation,
   deleteConversationMessage,
@@ -42,12 +44,17 @@ import {
   ChatMessage,
   Conversation,
   MessageRecipient,
+  PendingChatAttachment,
+  PendingChatMessage,
   formatChatTime,
   formatMessageDate,
   getInitials,
+  hideDeliveredPendingMessages,
+  latestCreatedAt,
   mergeMessages,
   shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
+import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 import { invalidateNotifications } from '@/lib/notification-sync';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
@@ -60,13 +67,7 @@ const CONVERSATION_PREVIEW_COUNT = 5;
 const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
 
-type DraftAttachment = {
-  id: string;
-  type: 'image' | 'video';
-  name: string;
-  file: File;
-  previewUrl: string;
-};
+type DraftAttachment = PendingChatAttachment;
 
 type ExpandedImage = {
   url: string;
@@ -561,6 +562,84 @@ function MessageBubble({
   );
 }
 
+function PendingMessageBubble({
+  pendingMessage,
+  onRetry,
+  onDiscard,
+  onOpenImage,
+}: {
+  pendingMessage: PendingChatMessage;
+  onRetry: () => void;
+  onDiscard: () => void;
+  onOpenImage: (image: ExpandedImage) => void;
+}) {
+  const failed = pendingMessage.status === 'failed';
+  const hasVideo = pendingMessage.attachments.some((attachment) => attachment.type === 'video');
+
+  return (
+    <div className="flex items-end justify-end gap-3" data-pending-message-id={pendingMessage.id}>
+      <div className="flex max-w-[76%] flex-col items-end">
+        <div
+          className={`rounded-[28px] rounded-br-none px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+            failed ? 'bg-black/60 text-white ring-2 ring-red-400' : 'bg-black/70 text-white'
+          }`}
+        >
+          {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
+          {pendingMessage.attachments.length > 0 ? (
+            <div className="mt-3 grid gap-2">
+              {pendingMessage.attachments.map((attachment) => (
+                <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
+                  {attachment.type === 'video' ? (
+                    <video src={attachment.previewUrl} muted controls className="max-h-80 w-full bg-black object-cover" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onOpenImage({ url: attachment.previewUrl, name: attachment.name })}
+                      className="block w-full cursor-zoom-in"
+                      aria-label={`${attachment.name} 확대 보기`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={attachment.previewUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {failed ? (
+          <div role="alert" className="mt-2 flex flex-wrap items-center justify-end gap-2 text-xs font-bold text-red-500 dark:text-red-300">
+            <CircleAlert size={13} className="shrink-0" />
+            <span>전송 실패 · {pendingMessage.errorMessage}</span>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-white px-2.5 py-1 font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300"
+            >
+              <RotateCw size={12} />
+              재시도
+            </button>
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1 font-black text-zinc-500 transition hover:border-zinc-400 hover:text-black"
+            >
+              <Trash2 size={12} />
+              삭제
+            </button>
+          </div>
+        ) : (
+          <div role="status" className="mt-2 flex items-center gap-1 text-[10px] font-black text-zinc-400">
+            <Loader2 size={12} className="animate-spin" />
+            <span>{hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -574,6 +653,11 @@ export default function MessagesPage() {
   const handledMessageDeepLinkRef = useRef('');
   const activeConversationIdRef = useRef('');
   const attachmentsRef = useRef<DraftAttachment[]>([]);
+  // 전송 대기열이 렌더 전에도 최신 임시 메시지를 읽도록 state와 함께 갱신한다.
+  const pendingRef = useRef<Record<string, PendingChatMessage[]>>({});
+  const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const lastSentCreatedAtRef = useRef<Record<string, string>>({});
+  const messagesRef = useRef<Record<string, ChatMessage[]>>({});
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
@@ -587,7 +671,7 @@ export default function MessagesPage() {
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [pendingByConversation, setPendingByConversation] = useState<Record<string, PendingChatMessage[]>>({});
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -608,12 +692,31 @@ export default function MessagesPage() {
     () => (activeConversationId ? messagesByConversation[activeConversationId] ?? [] : []),
     [activeConversationId, messagesByConversation],
   );
-  const latestMessageId = activeMessages.at(-1)?.id ?? '';
+  const activePendingMessages = useMemo(
+    () => hideDeliveredPendingMessages(
+      activeConversationId ? pendingByConversation[activeConversationId] ?? [] : [],
+      activeMessages,
+    ),
+    [activeConversationId, activeMessages, pendingByConversation],
+  );
+  // 새 서버 메시지뿐 아니라 임시 메시지가 추가되거나 실패로 바뀌어 재시도 버튼이 생길 때도 맨 아래로 스크롤한다.
+  const latestPendingMessage = activePendingMessages.at(-1);
+  const latestServerMessageId = activeMessages.at(-1)?.id ?? '';
+  const latestMessageId = latestPendingMessage
+    ? `${latestServerMessageId}|${latestPendingMessage.id}:${latestPendingMessage.status}`
+    : latestServerMessageId;
+  useUnloadWarning(
+    Object.values(pendingByConversation).some((items) => items.some((item) => item.status !== 'failed'))
+  );
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
+
+  useEffect(() => {
+    messagesRef.current = messagesByConversation;
+  }, [messagesByConversation]);
 
   const requestedMessageIsLoaded =
     activeConversationId === requestedConversationId &&
@@ -687,8 +790,21 @@ export default function MessagesPage() {
   useEffect(() => {
     return () => {
       revokeAttachmentUrls(attachmentsRef.current);
+      revokeAttachmentUrls(Object.values(pendingRef.current).flat().flatMap((item) => item.attachments));
+      // 대기열에 남은 메시지가 화면을 떠난 뒤 전송되지 않도록 비운다.
+      pendingRef.current = {};
     };
   }, [revokeAttachmentUrls]);
+
+  const updatePendingMessages = useCallback(
+    (conversationId: string, updater: (items: PendingChatMessage[]) => PendingChatMessage[]) => {
+      const next = { ...pendingRef.current, [conversationId]: updater(pendingRef.current[conversationId] ?? []) };
+      if (next[conversationId].length === 0) delete next[conversationId];
+      pendingRef.current = next;
+      setPendingByConversation(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -1112,39 +1228,136 @@ export default function MessagesPage() {
     user,
   ]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  // 응답이 실패한 뒤 SSE·폴링으로 서버 사본이 확인된 항목은 상태에서도 지워, 서버 메시지가 삭제돼도 다시 나타나지 않게 한다.
+  // 요청 중인 항목은 성공 응답을 실제 ID로 병합해야 하므로 렌더에서만 숨기고 남긴다.
+  useEffect(() => {
+    for (const [conversationId, items] of Object.entries(pendingRef.current)) {
+      const visible = hideDeliveredPendingMessages(items, messagesByConversation[conversationId] ?? []);
+      const delivered = items.filter((item) => item.status === 'failed' && !visible.includes(item));
+      if (delivered.length === 0) continue;
+
+      revokeAttachmentUrls(delivered.flatMap((item) => item.attachments));
+      updatePendingMessages(conversationId, (current) => current.filter((item) => !delivered.includes(item)));
+    }
+  }, [messagesByConversation, revokeAttachmentUrls, updatePendingMessages]);
+
+  const discardPendingMessages = (conversationId: string, pendingId?: string) => {
+    const targets = (pendingRef.current[conversationId] ?? []).filter((item) => !pendingId || item.id === pendingId);
+    revokeAttachmentUrls(targets.flatMap((item) => item.attachments));
+    updatePendingMessages(conversationId, (items) => items.filter((item) => !targets.includes(item)));
+  };
+
+  // 대기열로 한 번에 하나씩 보내 연속 전송해도 서버 저장 순서가 보낸 순서와 같도록 한다.
+  const enqueuePendingMessage = (conversationId: string, pendingId: string) => {
+    sendQueueRef.current = sendQueueRef.current.then(async () => {
+      const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+      // 대화방을 나가거나 화면을 떠나 임시 메시지가 사라졌으면 보내지 않는다.
+      if (!target || target.status !== 'queued') return;
+      if (!isCurrentAuthGeneration(target.authGeneration)) {
+        discardPendingMessages(conversationId, pendingId);
+        return;
+      }
+
+      // 요청 직전까지 존재한 메시지는 이 요청의 결과일 수 없으므로 그 최신 시각을 기준으로 삼는다.
+      // 이력을 아직 불러오지 못했으면 기준을 몰라 null로 두고, 불러왔는데 비어 있으면 처음부터 기준으로 삼는다.
+      const loadedMessages = messagesRef.current[conversationId];
+      const lastSentCreatedAt = lastSentCreatedAtRef.current[conversationId];
+      const afterCreatedAt = loadedMessages
+        ? latestCreatedAt(loadedMessages.at(-1)?.createdAt, lastSentCreatedAt) ?? new Date(0).toISOString()
+        : latestCreatedAt(lastSentCreatedAt);
+      // 새 전송이 시작되면 이전 실패 항목의 대조 범위를 닫아, 이후 같은 내용의 별도 전송을 그 결과로 오인하지 않게 한다.
+      updatePendingMessages(conversationId, (items) =>
+        items.map((item) => {
+          if (item.id === pendingId) return { ...item, status: 'sending', afterCreatedAt };
+          return item.status === 'failed' ? { ...item, afterCreatedAt: null } : item;
+        })
+      );
+
+      try {
+        const sentMessage = await sendConversationMessage({
+          conversationId,
+          content: target.text,
+          attachments: target.attachments.map((attachment) => attachment.file),
+        });
+
+        lastSentCreatedAtRef.current[conversationId] =
+          latestCreatedAt(lastSentCreatedAtRef.current[conversationId], sentMessage.createdAt) ?? sentMessage.createdAt;
+        if (!pendingRef.current[conversationId]?.some((item) => item.id === pendingId)) return;
+
+        revokeAttachmentUrls(target.attachments);
+        updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: mergeMessages(current[conversationId] ?? [], [sentMessage]),
+        }));
+        updateConversationPreviewWithMessage(conversationId, sentMessage);
+        void loadConversations({ silent: true });
+      } catch (error) {
+        // 4xx는 서버가 거절해 저장되지 않은 것이 확실하다. 네트워크 오류(status 0)·5xx는 저장 여부를 알 수 없다.
+        const rejectedByServer = error instanceof ApiError && error.status >= 400 && error.status < 500;
+        // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
+        const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+        if (
+          !rejectedByServer &&
+          sendingItem &&
+          hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
+        ) {
+          discardPendingMessages(conversationId, pendingId);
+          return;
+        }
+        // 서버가 거절했다면 이후 같은 내용의 메시지를 이 요청의 결과로 보지 않고, 저장 여부를 모를 때만 늦게 오는 서버 사본과 대조한다.
+        updatePendingMessages(conversationId, (items) =>
+          items.map((item) =>
+            item.id === pendingId
+              ? {
+                  ...item,
+                  status: 'failed',
+                  errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
+                  afterCreatedAt: rejectedByServer ? null : item.afterCreatedAt,
+                }
+              : item
+          )
+        );
+      }
+    });
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!activeConversation || sending) return;
+    if (!activeConversation) return;
 
     const trimmedMessage = message.trim();
     if (!trimmedMessage && attachments.length === 0) return;
     if (message.length > MAX_MESSAGE_LENGTH) return;
 
-    try {
-      setSending(true);
-      setComposerError('');
+    const conversationId = activeConversation.id;
+    const pendingMessage: PendingChatMessage = {
+      id: `pending-${createAttachmentId()}`,
+      text: trimmedMessage,
+      // 미리보기 URL의 소유권을 임시 메시지로 넘기므로 아래에서 해제하지 않고 비운다.
+      attachments,
+      status: 'queued',
+      errorMessage: null,
+      afterCreatedAt: null,
+      authGeneration: getAuthGeneration(),
+    };
 
-      const sentMessage = await sendConversationMessage({
-        conversationId: activeConversation.id,
-        content: trimmedMessage,
-        attachments: attachments.map((attachment) => attachment.file),
-      });
+    updatePendingMessages(conversationId, (items) => [...items, pendingMessage]);
+    setComposerError('');
+    setMessage('');
+    setAttachments([]);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    setAttachmentMenuOpen(false);
+    enqueuePendingMessage(conversationId, pendingMessage.id);
+  };
 
-      setMessagesByConversation((current) => ({
-        ...current,
-        [activeConversation.id]: mergeMessages(current[activeConversation.id] ?? [], [sentMessage]),
-      }));
-      updateConversationPreviewWithMessage(activeConversation.id, sentMessage);
-      setMessage('');
-      clearAttachments();
-      setAttachmentMenuOpen(false);
-      void loadConversations({ silent: true });
-    } catch (error) {
-      setComposerError(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.');
-    } finally {
-      setSending(false);
-    }
+  const handleRetryPendingMessage = (conversationId: string, pendingId: string) => {
+    updatePendingMessages(conversationId, (items) =>
+      items.map((item) => (item.id === pendingId ? { ...item, status: 'queued', errorMessage: null } : item))
+    );
+    enqueuePendingMessage(conversationId, pendingId);
   };
 
   const handleLoadOlderMessages = async () => {
@@ -1206,6 +1419,7 @@ export default function MessagesPage() {
         delete next[removedConversationId];
         return next;
       });
+      discardPendingMessages(removedConversationId);
       setActiveConversationId('');
       setMobileView('list');
       setHeaderMenuOpen(false);
@@ -1511,7 +1725,7 @@ export default function MessagesPage() {
                     메시지를 불러오는 중...
                   </div>
                 </div>
-              ) : activeMessages.length > 0 ? (
+              ) : activeMessages.length > 0 || activePendingMessages.length > 0 ? (
                 <div className="space-y-6">
                   {activeMessages.map((chatMessage, index) => {
                     return (
@@ -1552,6 +1766,15 @@ export default function MessagesPage() {
                       </Fragment>
                     );
                   })}
+                  {activePendingMessages.map((pendingMessage) => (
+                    <PendingMessageBubble
+                      key={pendingMessage.id}
+                      pendingMessage={pendingMessage}
+                      onRetry={() => handleRetryPendingMessage(activeConversation.id, pendingMessage.id)}
+                      onDiscard={() => discardPendingMessages(activeConversation.id, pendingMessage.id)}
+                      onOpenImage={handleOpenImage}
+                    />
+                  ))}
                 </div>
               ) : (
                 <div className="flex h-full items-center justify-center">
@@ -1682,7 +1905,6 @@ export default function MessagesPage() {
                   onChange={(event) => setMessage(event.target.value)}
                   maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
-                  disabled={sending}
                   className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
                 />
                 <span
@@ -1694,15 +1916,11 @@ export default function MessagesPage() {
                 </span>
                 <button
                   type="submit"
-                  disabled={(!message.trim() && attachments.length === 0) || sending}
+                  disabled={!message.trim() && attachments.length === 0}
               className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
                   aria-label="메시지 전송"
                 >
-                  {sending ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  ) : (
-                    <Send size={20} />
-                  )}
+                  <Send size={20} />
                 </button>
               </div>
             </form>
