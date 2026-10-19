@@ -59,6 +59,15 @@ export async function convertImageForUpload(file: File): Promise<File> {
   return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() });
 }
 
+// 고해상도 사진을 한꺼번에 디코딩하면 iOS 탭이 메모리 부족으로 다시 로드되므로 한 장씩 변환한다.
+export async function convertImagesForUpload(files: File[]): Promise<File[]> {
+  const converted: File[] = [];
+  for (const file of files) {
+    converted.push(await convertImageForUpload(file));
+  }
+  return converted;
+}
+
 export async function compressProfileImage(file: File, target: ProfileImageUploadTarget) {
   if (!ACCEPTED_IMAGE_TYPES.has(file.type) && !isHeicFile(file)) {
     throw new Error('JPEG 또는 PNG 이미지만 업로드할 수 있습니다.');

@@ -9,7 +9,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import { getInitials } from '@/lib/feed-api';
 import type { PostDraft } from '@/hooks/usePendingPosts';
 import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
-import { convertImageForUpload, isHeicFile } from '@/lib/profile-image-compression';
+import { convertImageForUpload, convertImagesForUpload, isHeicFile } from '@/lib/profile-image-compression';
 
 interface PostComposerProps {
   onSubmit?: (draft: PostDraft) => void;
@@ -198,6 +198,8 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   const [preparingImages, setPreparingImages] = useState(false);
   // 변환 중에 선택이 바뀌면 늦게 끝난 변환 결과를 버린다.
   const imageSelectionSeqRef = useRef(0);
+  const [preparingThumbnail, setPreparingThumbnail] = useState(false);
+  const thumbnailUploadSeqRef = useRef(0);
   const [activeHashtagQuery, setActiveHashtagQuery] = useState<ActiveHashtagQuery | null>(null);
   const [hashtagSuggestions, setHashtagSuggestions] = useState<HashtagSummary[]>([]);
   const [loadingHashtagSuggestions, setLoadingHashtagSuggestions] = useState(false);
@@ -282,6 +284,8 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   };
 
   const clearVideoSelection = () => {
+    thumbnailUploadSeqRef.current += 1;
+    setPreparingThumbnail(false);
     setVideoFile(null);
     setVideoPreviewUrl(null);
     clearThumbnailSelection();
@@ -371,7 +375,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     setPreparingImages(true);
     try {
       // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
-      const converted = await Promise.all(files.map(convertImageForUpload));
+      const converted = await convertImagesForUpload(files);
       if (seq !== imageSelectionSeqRef.current) {
         return;
       }
@@ -456,16 +460,26 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
       return;
     }
 
+    const seq = ++thumbnailUploadSeqRef.current;
+    setPreparingThumbnail(true);
     let file: File;
     try {
       file = await convertImageForUpload(selected);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '썸네일을 준비하지 못했습니다.');
-      if (thumbnailInputRef.current) {
-        thumbnailInputRef.current.value = '';
+      if (seq === thumbnailUploadSeqRef.current) {
+        setPreparingThumbnail(false);
+        toast.error(error instanceof Error ? error.message : '썸네일을 준비하지 못했습니다.');
+        if (thumbnailInputRef.current) {
+          thumbnailInputRef.current.value = '';
+        }
       }
       return;
     }
+    // 변환 중 동영상이 바뀌었으면 이전 동영상의 썸네일을 붙이지 않는다.
+    if (seq !== thumbnailUploadSeqRef.current) {
+      return;
+    }
+    setPreparingThumbnail(false);
 
     if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
       toast.error('동영상 썸네일은 20MB 이하여야 합니다.');
@@ -484,6 +498,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     Boolean(user) &&
     !generatingThumbnails &&
     !preparingImages &&
+    !preparingThumbnail &&
     Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = () => {

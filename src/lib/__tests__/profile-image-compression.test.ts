@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { compressProfileImage, convertImageForUpload } from '@/lib/profile-image-compression';
+import { compressProfileImage, convertImageForUpload, convertImagesForUpload } from '@/lib/profile-image-compression';
 
 // jsdom은 이미지 디코딩과 canvas를 구현하지 않으므로 브라우저 동작을 흉내 낸다.
 let decodeFails = false;
 let naturalSize = { width: 8064, height: 6048 };
 const drawImage = vi.fn();
+let activeDecodes = 0;
+let maxActiveDecodes = 0;
 
 class MockImage {
   onload: (() => void) | null = null;
@@ -13,7 +15,16 @@ class MockImage {
   naturalHeight = naturalSize.height;
 
   set src(_value: string) {
-    queueMicrotask(() => (decodeFails ? this.onerror?.() : this.onload?.()));
+    activeDecodes += 1;
+    maxActiveDecodes = Math.max(maxActiveDecodes, activeDecodes);
+    setTimeout(() => {
+      activeDecodes -= 1;
+      if (decodeFails) {
+        this.onerror?.();
+      } else {
+        this.onload?.();
+      }
+    });
   }
 }
 
@@ -21,6 +32,8 @@ beforeEach(() => {
   decodeFails = false;
   naturalSize = { width: 8064, height: 6048 };
   drawImage.mockClear();
+  activeDecodes = 0;
+  maxActiveDecodes = 0;
   vi.stubGlobal('Image', MockImage);
   URL.createObjectURL = vi.fn(() => 'blob:mock');
   URL.revokeObjectURL = vi.fn();
@@ -76,6 +89,17 @@ describe('convertImageForUpload', () => {
     await expect(
       convertImageForUpload(new File(['x'], 'broken.jpg', { type: 'image/jpeg' }))
     ).rejects.toThrow('이미지를 읽을 수 없습니다.');
+  });
+});
+
+describe('convertImagesForUpload', () => {
+  it('메모리 사용을 줄이기 위해 여러 장을 한 장씩 디코딩한다', async () => {
+    const files = ['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg'].map((name) => new File(['x'], name, { type: 'image/jpeg' }));
+
+    const result = await convertImagesForUpload(files);
+
+    expect(result.map((file) => file.name)).toEqual(['a.jpg', 'b.jpg', 'c.jpg', 'd.jpg']);
+    expect(maxActiveDecodes).toBe(1);
   });
 });
 

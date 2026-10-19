@@ -56,7 +56,7 @@ import {
 } from '@/lib/message-store';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 import { invalidateNotifications } from '@/lib/notification-sync';
-import { convertImageForUpload } from '@/lib/profile-image-compression';
+import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
@@ -1452,12 +1452,13 @@ export default function MessagesPage() {
         return;
       }
 
-      clearAttachments();
+      // 실패 후 같은 파일을 다시 골라도 change 이벤트가 나도록 비운다.
+      if (imageInputRef.current) imageInputRef.current.value = '';
       const seq = ++imageSelectionSeqRef.current;
       setPreparingImages(true);
       try {
         // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
-        const converted = await Promise.all(files.slice(0, 4).map(convertImageForUpload));
+        const converted = await convertImagesForUpload(files.slice(0, 4));
         if (seq !== imageSelectionSeqRef.current) return;
 
         if (converted.some((file) => file.size > 20 * 1024 * 1024)) {
@@ -1465,6 +1466,8 @@ export default function MessagesPage() {
           return;
         }
 
+        // 변환이 성공한 뒤에만 기존 첨부를 바꿔 실패해도 이전 첨부가 남게 한다.
+        clearAttachments();
         setAttachments(
           converted.map((file) => ({
             id: createAttachmentId(),

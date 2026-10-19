@@ -38,7 +38,7 @@ vi.mock('@/lib/notification-sync', () => ({
 
 // jsdom은 이미지를 디코딩하지 못하므로 업로드 전 JPEG 변환은 그대로 통과시킨다.
 vi.mock('@/lib/profile-image-compression', () => ({
-  convertImageForUpload: vi.fn(async (file: File) => file),
+  convertImagesForUpload: vi.fn(async (files: File[]) => files),
 }));
 
 type Listener = (event: { data: string }) => void;
