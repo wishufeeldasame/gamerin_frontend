@@ -24,7 +24,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { ApiError, isAuthError, toUploadErrorMessage } from '@/lib/api-client';
+import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
   createConversation,
@@ -46,11 +46,11 @@ import {
   MessageRecipient,
   PendingChatAttachment,
   PendingChatMessage,
+  createClientId,
   formatChatTime,
   formatMessageDate,
   getInitials,
   hideDeliveredPendingMessages,
-  latestCreatedAt,
   mergeMessages,
   shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
@@ -73,14 +73,6 @@ type ExpandedImage = {
   url: string;
   name: string;
 };
-
-function createAttachmentId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
 function getLastPreview(conversation: Conversation) {
   const lastMessage = conversation.messages.at(-1);
@@ -656,7 +648,6 @@ export default function MessagesPage() {
   // 전송 대기열이 렌더 전에도 최신 임시 메시지를 읽도록 state와 함께 갱신한다.
   const pendingRef = useRef<Record<string, PendingChatMessage[]>>({});
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const lastSentCreatedAtRef = useRef<Record<string, string>>({});
   const messagesRef = useRef<Record<string, ChatMessage[]>>({});
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -1258,19 +1249,8 @@ export default function MessagesPage() {
         return;
       }
 
-      // 요청 직전까지 존재한 메시지는 이 요청의 결과일 수 없으므로 그 최신 시각을 기준으로 삼는다.
-      // 이력을 아직 불러오지 못했으면 기준을 몰라 null로 두고, 불러왔는데 비어 있으면 처음부터 기준으로 삼는다.
-      const loadedMessages = messagesRef.current[conversationId];
-      const lastSentCreatedAt = lastSentCreatedAtRef.current[conversationId];
-      const afterCreatedAt = loadedMessages
-        ? latestCreatedAt(loadedMessages.at(-1)?.createdAt, lastSentCreatedAt) ?? new Date(0).toISOString()
-        : latestCreatedAt(lastSentCreatedAt);
-      // 새 전송이 시작되면 이전 실패 항목의 대조 범위를 닫아, 이후 같은 내용의 별도 전송을 그 결과로 오인하지 않게 한다.
       updatePendingMessages(conversationId, (items) =>
-        items.map((item) => {
-          if (item.id === pendingId) return { ...item, status: 'sending', afterCreatedAt };
-          return item.status === 'failed' ? { ...item, afterCreatedAt: null } : item;
-        })
+        items.map((item) => (item.id === pendingId ? { ...item, status: 'sending' } : item))
       );
 
       try {
@@ -1278,10 +1258,9 @@ export default function MessagesPage() {
           conversationId,
           content: target.text,
           attachments: target.attachments.map((attachment) => attachment.file),
+          clientMessageId: target.id,
         });
 
-        lastSentCreatedAtRef.current[conversationId] =
-          latestCreatedAt(lastSentCreatedAtRef.current[conversationId], sentMessage.createdAt) ?? sentMessage.createdAt;
         if (!pendingRef.current[conversationId]?.some((item) => item.id === pendingId)) return;
 
         revokeAttachmentUrls(target.attachments);
@@ -1293,28 +1272,19 @@ export default function MessagesPage() {
         updateConversationPreviewWithMessage(conversationId, sentMessage);
         void loadConversations({ silent: true });
       } catch (error) {
-        // 4xx는 서버가 거절해 저장되지 않은 것이 확실하다. 네트워크 오류(status 0)·5xx는 저장 여부를 알 수 없다.
-        const rejectedByServer = error instanceof ApiError && error.status >= 400 && error.status < 500;
         // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
         const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
         if (
-          !rejectedByServer &&
           sendingItem &&
           hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
         ) {
           discardPendingMessages(conversationId, pendingId);
           return;
         }
-        // 서버가 거절했다면 이후 같은 내용의 메시지를 이 요청의 결과로 보지 않고, 저장 여부를 모를 때만 늦게 오는 서버 사본과 대조한다.
         updatePendingMessages(conversationId, (items) =>
           items.map((item) =>
             item.id === pendingId
-              ? {
-                  ...item,
-                  status: 'failed',
-                  errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
-                  afterCreatedAt: rejectedByServer ? null : item.afterCreatedAt,
-                }
+              ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.') }
               : item
           )
         );
@@ -1333,13 +1303,12 @@ export default function MessagesPage() {
 
     const conversationId = activeConversation.id;
     const pendingMessage: PendingChatMessage = {
-      id: `pending-${createAttachmentId()}`,
+      id: createClientId(),
       text: trimmedMessage,
       // 미리보기 URL의 소유권을 임시 메시지로 넘기므로 아래에서 해제하지 않고 비운다.
       attachments,
       status: 'queued',
       errorMessage: null,
-      afterCreatedAt: null,
       authGeneration: getAuthGeneration(),
     };
 
@@ -1453,7 +1422,7 @@ export default function MessagesPage() {
       clearAttachments();
       setAttachments(
         files.slice(0, 4).map((file) => ({
-          id: createAttachmentId(),
+          id: createClientId(),
           type: 'image',
           name: file.name,
           file,
@@ -1479,7 +1448,7 @@ export default function MessagesPage() {
     clearAttachments();
     setAttachments([
       {
-        id: createAttachmentId(),
+        id: createClientId(),
         type: 'video',
         name: video.name,
         file: video,
