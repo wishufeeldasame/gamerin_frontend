@@ -275,6 +275,42 @@ describe('메시지 화면 실시간 연결과 폴링 복구', () => {
     expect(mocks.messages).toHaveBeenCalledTimes(3);
   });
 
+  it('같은 내용의 5초 폴링 응답으로는 맨 아래로 다시 스크롤하지 않는다', async () => {
+    vi.useFakeTimers();
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    mocks.messages.mockResolvedValue({
+      items: [{
+        id: 'message-1',
+        senderId: 'recipient-1',
+        text: 'same message',
+        createdAt: conversation.updatedAt,
+        read: true,
+        deliveryStatus: 'sent' as const,
+        attachments: [],
+        sharedPost: null,
+      }],
+      nextCursor: null,
+      hasNext: false,
+    });
+    const endScrollCount = () =>
+      scrollIntoView.mock.calls.filter(([options]) => options?.block === 'end').length;
+
+    render(<MessagesPage />);
+    await flushAsyncWork();
+    fireEvent.click(screen.getByRole('button', { name: /대화상대/ }));
+    await flushAsyncWork();
+    expect(screen.getByText('same message')).toBeInTheDocument();
+    const initialCount = endScrollCount();
+    expect(initialCount).toBeGreaterThan(0);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+    expect(mocks.messages.mock.calls.length).toBeGreaterThanOrEqual(3);
+    expect(endScrollCount()).toBe(initialCount);
+  });
+
   it('사용자 전환 후 늦게 완료된 이전 SSE 연결은 닫는다', async () => {
     const pendingStream = deferred<ReturnType<typeof createEventSource>>();
     const staleEventSource = createEventSource();
