@@ -40,6 +40,7 @@ interface PostProps {
   onShare?: (post: PostRecord) => void;
   onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
   onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
+  onCollectionChange?: (post: PostRecord, collectionId: string, containsPost: boolean) => void;
   onRepostChange?: (post: PostRecord) => void;
   onDelete?: (post: PostRecord) => void;
 }
@@ -119,6 +120,7 @@ export function Post({
   onShare,
   onBookmarkChange,
   onBookmarkSuccess,
+  onCollectionChange,
   onRepostChange,
   onDelete,
 }: PostProps) {
@@ -495,6 +497,9 @@ export function Post({
         postId={post.postId}
         isBookmarked={bookmarked}
         onClose={() => setCollectionModalOpen(false)}
+        onCollectionChange={(collectionId, containsPost) =>
+          onCollectionChange?.(post, collectionId, containsPost)
+        }
         onBookmarkStateChange={handleBookmarkStateChange}
       />
 

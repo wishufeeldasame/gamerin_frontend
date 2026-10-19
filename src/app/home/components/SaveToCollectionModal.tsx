@@ -10,6 +10,7 @@ interface SaveToCollectionModalProps {
   postId: string;
   isBookmarked?: boolean;
   onClose: () => void;
+  onCollectionChange?: (collectionId: string, containsPost: boolean) => void;
   onBookmarkStateChange?: (
     isBookmarked: boolean,
     options?: { skipRequest?: boolean },
@@ -21,6 +22,7 @@ export default function SaveToCollectionModal({
   postId,
   isBookmarked = false,
   onClose,
+  onCollectionChange,
   onBookmarkStateChange,
 }: SaveToCollectionModalProps) {
   const titleId = useId();
@@ -180,6 +182,7 @@ export default function SaveToCollectionModal({
               : collection,
           ),
         );
+        onCollectionChange?.(collectionId, false);
       } else {
         await addBookmarkToCollection(collectionId, postId);
         setCollections((current) =>
@@ -195,6 +198,7 @@ export default function SaveToCollectionModal({
         );
         setIsPostBookmarked(true);
         await onBookmarkStateChange?.(true, { skipRequest: true });
+        onCollectionChange?.(collectionId, true);
       }
     } catch (updateError) {
       setError(

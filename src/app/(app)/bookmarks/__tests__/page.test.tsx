@@ -46,6 +46,7 @@ vi.mock('@/app/home/components/Post', () => ({
     onRepostChange,
     onBookmarkSuccess,
     onBookmarkChange,
+    onCollectionChange,
   }: {
     post: PostRecord;
     likeLoading?: boolean;
@@ -53,6 +54,7 @@ vi.mock('@/app/home/components/Post', () => ({
     onRepostChange?: (post: PostRecord) => void;
     onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
     onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
+    onCollectionChange?: (post: PostRecord, collectionId: string, containsPost: boolean) => void;
   }) => (
     <div
       data-testid={'post-' + post.postId}
@@ -93,6 +95,18 @@ vi.mock('@/app/home/components/Post', () => ({
         onClick={() => onBookmarkSuccess?.(post, true)}
       >
         complete bookmark
+      </button>
+      <button
+        type="button"
+        onClick={() => onCollectionChange?.(post, 'collection-a', false)}
+      >
+        remove from collection a
+      </button>
+      <button
+        type="button"
+        onClick={() => onCollectionChange?.(post, 'collection-a', true)}
+      >
+        add to collection a
       </button>
       <button
         type="button"
@@ -230,19 +244,7 @@ describe('BookmarksPage state synchronization', () => {
     const { rerender } = render(<BookmarksPage />);
     await screen.findByTestId('post-post-1');
 
-    await selectCollection('모음집 A');
-    await waitFor(() => {
-      expect(
-        within(getCollectionButton('모음집 A')).getByText('1개 게시물'),
-      ).toBeInTheDocument();
-    });
-
     await selectCollection('모음집 B');
-    await waitFor(() => {
-      expect(
-        within(getCollectionButton('모음집 B')).getByText('1개 게시물'),
-      ).toBeInTheDocument();
-    });
 
     await selectCollection('모음집 A');
     fireEvent.click(
@@ -254,10 +256,10 @@ describe('BookmarksPage state synchronization', () => {
     expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
     expect(screen.getAllByText('동기화 중')).toHaveLength(2);
     expect(
-      within(getCollectionButton('모음집 A')).queryByText('1개 게시물'),
+      within(getCollectionButton('모음집 A')).queryByText('5개 게시물'),
     ).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 B')).queryByText('1개 게시물'),
+      within(getCollectionButton('모음집 B')).queryByText('4개 게시물'),
     ).not.toBeInTheDocument();
 
     bookmarkContext.collections = [
@@ -290,8 +292,62 @@ describe('BookmarksPage state synchronization', () => {
 
     expect(screen.queryByText('동기화 중')).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 A')).getByText('1개 게시물'),
+      within(getCollectionButton('모음집 A')).getByText('5개 게시물'),
     ).toBeInTheDocument();
+  });
+
+  it('keeps server bookmarkCount when a collection page or search returns fewer items', async () => {
+    api.fetchCollectionBookmarks.mockResolvedValue({
+      items: [post],
+      nextCursor: 'next',
+      hasNext: true,
+    });
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+    await selectCollection('모음집 A');
+
+    fireEvent.change(screen.getByPlaceholderText('게시물, 작성자, 게임 검색'), {
+      target: { value: '없는 검색어' },
+    });
+    api.fetchCollectionBookmarks.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
+    await waitFor(() => {
+      expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
+    });
+
+    expect(
+      within(getCollectionButton('모음집 A')).getByText('5개 게시물'),
+    ).toBeInTheDocument();
+  });
+
+  it('removes a post from the selected collection list when it is removed from that collection', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+
+    fireEvent.click(screen.getByRole('button', { name: 'remove from collection a' }));
+    expect(screen.getByTestId('post-post-1')).toBeInTheDocument();
+
+    await selectCollection('모음집 A');
+    fireEvent.click(screen.getByRole('button', { name: 'remove from collection a' }));
+    expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
+  });
+
+  it('removes a post from the unclassified list when it is added to a collection', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+
+    fireEvent.click(screen.getByRole('button', { name: /미분류/ }));
+    await waitFor(() => {
+      expect(api.fetchMyBookmarks).toHaveBeenLastCalledWith(
+        null,
+        expect.any(Number),
+        expect.anything(),
+        'unclassified',
+      );
+      expect(screen.getByTestId('post-post-1')).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: 'add to collection a' }));
+    expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
   });
 
   it('keeps newer like and repost fields when bookmark rollback uses a stale post', async () => {

@@ -18,7 +18,6 @@ import {
   updatePostsLikeState,
   updatePostsRepostState,
 } from '@/lib/post-mutations';
-import type { CursorPage } from '@/types/api';
 
 type PostDetailTarget = 'post' | 'comments';
 
@@ -51,7 +50,6 @@ export default function BookmarksPage() {
   const [query, setQuery] = useState('');
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
-  const [collectionCountOverrides, setCollectionCountOverrides] = useState<Record<string, number>>({});
   const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
   const collectionCountSyncBaseRef = useRef(collections);
 
@@ -77,21 +75,6 @@ export default function BookmarksPage() {
         );
   }, [mediaOnly, query, selectedCollectionId]);
 
-  const handlePageLoaded = useCallback((
-    page: CursorPage<PostRecord>,
-    { items }: { append: boolean; items: PostRecord[] },
-  ) => {
-    if (selectedCollectionId === 'all' || selectedCollectionId === 'unclassified') return;
-
-    const hasMore = Boolean(page.hasNext && page.nextCursor);
-    setCollectionCountOverrides((current) => ({
-      ...current,
-      [selectedCollectionId]: hasMore
-        ? Math.max(items.length, current[selectedCollectionId] ?? 0)
-        : items.length,
-    }));
-  }, [selectedCollectionId]);
-
   const bookmarkQueryKey = useMemo(
     () => JSON.stringify([selectedCollectionId, query, mediaOnly]),
     [mediaOnly, query, selectedCollectionId],
@@ -112,7 +95,6 @@ export default function BookmarksPage() {
     queryKey: bookmarkQueryKey,
     initialErrorMessage: '북마크를 불러오지 못했습니다.',
     loadMoreErrorMessage: '북마크를 더 불러오지 못했습니다.',
-    onPageLoaded: handlePageLoaded,
   });
 
   const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
@@ -161,7 +143,6 @@ export default function BookmarksPage() {
       return;
     }
 
-    setCollectionCountOverrides({});
     setCollectionCountSyncPending(false);
   }, [collectionCountSyncPending, collections]);
 
@@ -289,8 +270,6 @@ export default function BookmarksPage() {
 
           {collections.map((collection) => {
             const isSelected = selectedCollectionId === collection.collectionId;
-            const displayCount =
-              collectionCountOverrides[collection.collectionId] ?? collection.bookmarkCount;
 
             return (
               <button
@@ -309,7 +288,7 @@ export default function BookmarksPage() {
                     {collection.name}
                   </strong>
                   <small className="mt-1 block text-xs font-bold opacity-60">
-                    {collectionCountSyncPending ? '동기화 중' : `${displayCount}개 게시물`}
+                    {collectionCountSyncPending ? '동기화 중' : `${collection.bookmarkCount}개 게시물`}
                   </small>
                 </span>
               </button>
@@ -400,6 +379,15 @@ export default function BookmarksPage() {
                   onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                   onBookmarkChange={handleBookmarkChanged}
+                  onCollectionChange={(changedPost, collectionId, containsPost) => {
+                    // 현재 보고 있는 모음집·미분류 조건에서 벗어난 게시물만 목록에서 뺀다.
+                    if (
+                      (!containsPost && collectionId === selectedCollectionId) ||
+                      (containsPost && selectedCollectionId === 'unclassified')
+                    ) {
+                      removeBookmark(changedPost.postId);
+                    }
+                  }}
                   onBookmarkSuccess={(changedPost, bookmarked) => {
                     if (!bookmarked) {
                       collectionCountSyncBaseRef.current = collections;

@@ -615,6 +615,12 @@ export default function MessagesPage() {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
 
+  const requestedMessageIsLoaded =
+    activeConversationId === requestedConversationId &&
+    Boolean(requestedMessageId) &&
+    activeMessages.some((message) => message.id === requestedMessageId);
+
+  // 폴링 응답·이전 메시지 추가로는 스크롤하지 않도록 최신 메시지 ID 변경에만 반응한다.
   useLayoutEffect(() => {
     if (!activeConversationId || !latestMessageId) return;
 
@@ -626,14 +632,10 @@ export default function MessagesPage() {
       setHighlightedMessageId(null);
     }
 
-    const requestedMessageIsLoaded =
-      activeConversationId === requestedConversationId &&
-      requestedMessageId &&
-      activeMessages.some((message) => message.id === requestedMessageId);
     if (requestedMessageIsLoaded) return;
 
     messageEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [activeConversationId, activeMessages, latestMessageId, requestedConversationId, requestedMessageId]);
+  }, [activeConversationId, latestMessageId, requestedConversationId, requestedMessageId, requestedMessageIsLoaded]);
 
   useLayoutEffect(() => {
     if (
