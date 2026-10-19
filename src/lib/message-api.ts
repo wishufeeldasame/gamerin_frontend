@@ -62,6 +62,7 @@ type MessagePayload = {
   deliveryStatus: 'sent';
   attachments: AttachmentPayload[];
   sharedPost: SharedPostPayload | null;
+  clientMessageId?: string | null;
 };
 
 type AttachmentPayload = {
@@ -123,6 +124,7 @@ function toMessage(payload: MessagePayload): ChatMessage {
     deliveryStatus: payload.deliveryStatus,
     attachments: (payload.attachments ?? []).map(toAttachment),
     sharedPost: toSharedPost(payload.sharedPost),
+    clientMessageId: payload.clientMessageId ?? null,
   };
 }
 
@@ -258,14 +260,20 @@ export async function sendConversationMessage(payload: {
   content?: string;
   sharedPostId?: string | null;
   attachments?: File[];
+  // 재시도해도 같은 값을 보내면 서버가 처음 저장한 메시지를 돌려준다.
+  clientMessageId?: string;
 }) {
-  const { conversationId, attachments = [], content = '', sharedPostId = null } = payload;
+  const { conversationId, attachments = [], content = '', sharedPostId = null, clientMessageId } = payload;
 
   if (attachments.length > 0) {
     const formData = new FormData();
 
     if (content.trim()) {
       formData.append('content', content.trim());
+    }
+
+    if (clientMessageId) {
+      formData.append('clientMessageId', clientMessageId);
     }
 
     for (const attachment of attachments) {
@@ -285,6 +293,7 @@ export async function sendConversationMessage(payload: {
     body: JSON.stringify({
       content: content.trim(),
       sharedPostId,
+      clientMessageId,
     }),
   });
 
