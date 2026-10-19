@@ -56,6 +56,7 @@ import {
 } from '@/lib/message-store';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 import { invalidateNotifications } from '@/lib/notification-sync';
+import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
@@ -659,6 +660,9 @@ export default function MessagesPage() {
   const [conversationListExpanded, setConversationListExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [preparingImages, setPreparingImages] = useState(false);
+  // 변환 중에 첨부를 비우거나 대화방을 바꾸면 늦게 끝난 변환 결과를 버린다.
+  const imageSelectionSeqRef = useRef(0);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
@@ -765,6 +769,8 @@ export default function MessagesPage() {
   }, []);
 
   const clearAttachments = useCallback(() => {
+    imageSelectionSeqRef.current += 1;
+    setPreparingImages(false);
     setAttachments((current) => {
       revokeAttachmentUrls(current);
       return [];
@@ -1298,6 +1304,7 @@ export default function MessagesPage() {
     if (!activeConversation) return;
 
     const trimmedMessage = message.trim();
+    if (preparingImages) return;
     if (!trimmedMessage && attachments.length === 0) return;
     if (message.length > MAX_MESSAGE_LENGTH) return;
 
@@ -1400,7 +1407,7 @@ export default function MessagesPage() {
     }
   };
 
-  const pushDraftAttachments = (files: File[], type: 'image' | 'video') => {
+  const pushDraftAttachments = async (files: File[], type: 'image' | 'video') => {
     setComposerError('');
 
     if (type === 'image') {
@@ -1414,21 +1421,37 @@ export default function MessagesPage() {
         return;
       }
 
-      if (files.some((file) => file.size > 20 * 1024 * 1024)) {
-        setComposerError('이미지 파일은 최대 20MB까지 업로드할 수 있습니다.');
-        return;
-      }
+      // 실패 후 같은 파일을 다시 골라도 change 이벤트가 나도록 비운다.
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      const seq = ++imageSelectionSeqRef.current;
+      setPreparingImages(true);
+      try {
+        // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
+        const converted = await convertImagesForUpload(files.slice(0, 4));
+        if (seq !== imageSelectionSeqRef.current) return;
 
-      clearAttachments();
-      setAttachments(
-        files.slice(0, 4).map((file) => ({
-          id: createClientId(),
-          type: 'image',
-          name: file.name,
-          file,
-          previewUrl: URL.createObjectURL(file),
-        }))
-      );
+        if (converted.some((file) => file.size > 20 * 1024 * 1024)) {
+          setComposerError('이미지 파일은 최대 20MB까지 업로드할 수 있습니다.');
+          return;
+        }
+
+        // 변환이 성공한 뒤에만 기존 첨부를 바꿔 실패해도 이전 첨부가 남게 한다.
+        clearAttachments();
+        setAttachments(
+          converted.map((file) => ({
+            id: createClientId(),
+            type: 'image',
+            name: file.name,
+            file,
+            previewUrl: URL.createObjectURL(file),
+          }))
+        );
+      } catch (error) {
+        if (seq !== imageSelectionSeqRef.current) return;
+        setComposerError(error instanceof Error ? error.message : '이미지를 준비하지 못했습니다.');
+      } finally {
+        if (seq === imageSelectionSeqRef.current) setPreparingImages(false);
+      }
       return;
     }
 
@@ -1459,13 +1482,13 @@ export default function MessagesPage() {
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    pushDraftAttachments(files, 'image');
+    void pushDraftAttachments(files, 'image');
     setAttachmentMenuOpen(false);
   };
 
   const handleVideoSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    pushDraftAttachments(files, 'video');
+    void pushDraftAttachments(files, 'video');
     setAttachmentMenuOpen(false);
   };
 
@@ -1767,6 +1790,12 @@ export default function MessagesPage() {
                 </div>
               ) : null}
 
+              {preparingImages ? (
+                <div role="status" className="mx-auto mb-3 max-w-4xl rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                  이미지를 준비하고 있습니다...
+                </div>
+              ) : null}
+
               {attachments.length > 0 ? (
                 <div className="mx-auto mb-3 flex max-w-4xl flex-wrap gap-3">
                   {attachments.map((attachment) => (
@@ -1822,7 +1851,7 @@ export default function MessagesPage() {
                   ref={imageInputRef}
                   type="file"
                   multiple
-                  accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
+                  accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
                   className="hidden"
                   onChange={handleImageSelect}
                 />
@@ -1885,7 +1914,7 @@ export default function MessagesPage() {
                 </span>
                 <button
                   type="submit"
-                  disabled={!message.trim() && attachments.length === 0}
+                  disabled={preparingImages || (!message.trim() && attachments.length === 0)}
               className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
                   aria-label="메시지 전송"
                 >
