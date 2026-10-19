@@ -41,6 +41,8 @@ export interface AuthUser {
   status?: string;
   /** false면 소셜 전용 계정이라 비밀번호가 없다. 서버가 주지 않으면 undefined. */
   hasPassword?: boolean;
+  /** 현재 유효한 멤버십 여부(왕관 배지). */
+  membershipBadge?: boolean;
 }
 
 export const DEFAULT_GAME_TIER = 'Unranked';
@@ -71,7 +73,7 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status, hasPassword } = me as Record<string, unknown>;
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge } = me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
   }
@@ -87,6 +89,7 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     role: typeof role === 'string' ? role : undefined,
     status: typeof status === 'string' ? status : undefined,
     hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
+    membershipBadge: membershipBadge === true,
   };
 }
 

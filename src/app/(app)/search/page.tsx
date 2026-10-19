@@ -26,6 +26,7 @@ import {
 } from '@/lib/post-mutations';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -82,7 +83,10 @@ function AccountCard({ account }: { account: SimpleUserProfile }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-black text-black dark:text-zinc-100">{account.nickname}</p>
+        <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
+          <span className="truncate">{account.nickname}</span>
+          <MembershipBadge active={account.membershipBadge} />
+        </p>
         <p className="truncate text-xs font-bold text-zinc-400">@{account.handle}</p>
         {account.bio ? (
           <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500">{account.bio}</p>

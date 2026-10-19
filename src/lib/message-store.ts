@@ -9,6 +9,7 @@ export type MessageRecipient = {
   role: string;
   online: boolean;
   profileImageUrl?: string | null;
+  membershipBadge?: boolean;
 };
 
 export type SharedPostPreview = {

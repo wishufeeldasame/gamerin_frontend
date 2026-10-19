@@ -34,6 +34,8 @@ import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
 import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
+import { MembershipBadge } from './MembershipBadge';
+import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 const MAX_COMMENT_LENGTH = 300;
 
@@ -98,6 +100,7 @@ export function PostDetail({
     return () => { actionLifetime.active = false; };
   }, [actionLifetime]);
   const [shareOpen, setShareOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const menuId = useId();
   const { isOpen: menuOpen, toggle: toggleMenu, close: closeMenu, closeAll } = usePopup(menuId);
@@ -461,6 +464,7 @@ export function PostDetail({
 
   const canDeletePost = post.mine || Boolean(user?.handle && user.handle === post.authorHandle);
   const canReportPost = !canDeletePost;
+  const editable = canEditPost(post);
   const canRepostPost = !post.mine;
   const repostButtonTitle = post.mine
     ? '본인 게시글은 리포스트할 수 없습니다.'
@@ -492,6 +496,7 @@ export function PostDetail({
               <div>
                 <div className="flex items-center gap-2">
                   <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
+                  <MembershipBadge active={post.authorMembershipBadge} />
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
                   @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
@@ -524,6 +529,25 @@ export function PostDetail({
                     >
                       <Flag size={15} />
                       게시물 신고
+                    </button>
+                  ) : null}
+
+                  {editable ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        closeMenu();
+                        void requestPostEdit({
+                          hasMembership: Boolean(user?.membershipBadge),
+                          confirm,
+                          goToMembership: () => window.location.assign('/membership'),
+                          openEditor: () => setEditOpen(true),
+                          returnFocusTo: menuTriggerRef.current,
+                        });
+                      }}
+                      className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                    >
+                      수정
                     </button>
                   ) : null}
 
@@ -739,7 +763,10 @@ export function PostDetail({
                   >
                     <div className="mb-2 flex items-start justify-between gap-3">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className="text-sm font-black text-black">{comment.author}</span>
+                        <span className="inline-flex items-center gap-1 text-sm font-black text-black">
+                          {comment.author}
+                          <MembershipBadge active={comment.authorMembershipBadge} />
+                        </span>
                         <span className="text-xs font-bold text-zinc-400">
                           @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />
                         </span>
@@ -832,6 +859,22 @@ export function PostDetail({
           content={reportComment.content}
           emptyContentLabel="댓글 내용 없음"
           onClose={() => setReportComment(null)}
+        />
+      ) : null}
+      {editOpen ? (
+        <EditPostModal
+          post={post}
+          onClose={() => setEditOpen(false)}
+          onSaved={(saved) => {
+            const current = latestPostRef.current ?? post;
+            // 좋아요·북마크 등 최신 화면 상태는 유지하고 본문과 수정 정보만 바꾼다.
+            const nextPost = { ...current, content: saved.content, editCount: saved.editCount, editableUntil: saved.editableUntil };
+            latestPostRef.current = nextPost;
+            setPost(nextPost);
+            onPostUpdated?.(nextPost);
+            setEditOpen(false);
+            toast.success('게시물을 수정했어요.');
+          }}
         />
       ) : null}
       {reportPostOpen ? (

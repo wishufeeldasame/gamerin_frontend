@@ -23,6 +23,7 @@ import {
   X,
   Loader2,
   MapPin,
+  WalletCards,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -65,6 +66,7 @@ import {
 } from '@/lib/game-stats-api';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
@@ -998,6 +1000,13 @@ export default function ProfilePage() {
             {isOwnProfile ? (
               <>
             <Link
+              href="/wallet"
+              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200 lg:hidden"
+              aria-label="내 지갑"
+            >
+              <WalletCards size={20} />
+            </Link>
+            <Link
               href="/settings"
               className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
               aria-label="설정"
@@ -1074,7 +1083,10 @@ export default function ProfilePage() {
 
         <div className="space-y-4">
           <div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">{profile.nickname}</h1>
+            <h1 className="flex items-center gap-2 text-4xl font-black uppercase italic tracking-tighter text-black">
+              {profile.nickname}
+              <MembershipBadge active={profile.membershipBadge} />
+            </h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="font-bold tracking-tight text-zinc-400">@{profile.handle}</p>
               {!isOwnProfile && profile.followsViewer ? (
@@ -1468,8 +1480,9 @@ export default function ProfilePage() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-black">
-                              {followUserRecord.nickname}
+                            <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                              <span className="truncate">{followUserRecord.nickname}</span>
+                              <MembershipBadge active={followUserRecord.membershipBadge} />
                             </p>
                             <p className="truncate text-xs font-bold text-zinc-400">
                               @{followUserRecord.handle}
