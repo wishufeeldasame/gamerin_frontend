@@ -1,0 +1,175 @@
+import { ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { notifyAdminAuthorizationFailure } from '@/lib/admin-auth';
+import type { PageResponse } from '@/types/api';
+import type { ReportReasonCode, ReportStatus, ReportTargetType } from '@/types/report';
+
+const ADMIN_REPORTS_BASE = '/api/v1/admin/reports';
+
+export type AdminPenaltyType =
+  | 'WARNING'
+  | 'SUSPENSION_3D'
+  | 'SUSPENSION_7D'
+  | 'SUSPENSION_30D'
+  | 'PERMANENT_BAN';
+
+export interface AdminReportApiItem {
+  id: string;
+  reportCode: string;
+  reporterId: string;
+  reporterNickname: string;
+  reporterHandle?: string | null;
+  targetType: ReportTargetType;
+  targetId: string;
+  targetSnippet: string | null;
+  reasonCode: ReportReasonCode;
+  reasonLabel: string;
+  details: string | null;
+  status: ReportStatus;
+  assignedAdminId: string | null;
+  assignedAdminNickname: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminReportApiUser {
+  id: string;
+  nickname: string;
+  handle: string;
+  joinedAt: string;
+  reportsReceived: number;
+  activeSanction: string | null;
+}
+
+export interface AdminReportDetailResponse {
+  report: AdminReportApiItem;
+  reporter: AdminReportApiUser;
+  targetUser: AdminReportApiUser | null;
+  contentHidden: boolean;
+}
+
+export interface AdminReportSearchParams {
+  status?: ReportStatus;
+  targetType?: ReportTargetType;
+  reasonCode?: ReportReasonCode;
+  keyword?: string;
+  page?: number;
+  size?: number;
+  sort?: 'createdAt,desc' | 'createdAt,asc';
+}
+
+export interface AdminReportResolutionRequest {
+  decision: 'RESOLVED' | 'REJECTED';
+  hideTargetContent: boolean;
+  penaltyType: AdminPenaltyType | null;
+  reason: string;
+  internalMemo: string | null;
+}
+
+export class AdminReportApiError extends ApiError {
+  constructor(message: string, status: number) {
+    super(message, status);
+    this.name = 'AdminReportApiError';
+  }
+}
+
+// toError는 요청 세대가 현재일 때만 호출되므로, 이전 사용자의 요청은 관리자 가드에 알리지 않는다.
+const ADMIN_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) => {
+    if (reason === 'unauthenticated') {
+      notifyAdminAuthorizationFailure(401);
+      return new AdminReportApiError('관리자 로그인이 필요합니다.', 401);
+    }
+
+    if (reason === 'blocked') {
+      notifyAdminAuthorizationFailure(401);
+      return new AdminReportApiError(message ?? '관리자 요청 처리에 실패했습니다.', status);
+    }
+
+    if (reason === 'invalid-response') {
+      return new AdminReportApiError('관리자 신고 API 응답 형식이 올바르지 않습니다.', status);
+    }
+
+    if (reason === 'http' && (status === 401 || status === 403)) {
+      notifyAdminAuthorizationFailure(status);
+    }
+
+    const fallbackMessage =
+      reason === 'http' && status === 403
+        ? '관리자 권한이 필요한 기능입니다.'
+        : '관리자 요청 처리에 실패했습니다.';
+    return new AdminReportApiError(message ?? fallbackMessage, status);
+  },
+};
+
+export function adminApiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(path, ADMIN_CLIENT, options);
+}
+
+export function fetchAdminReports(params: AdminReportSearchParams, signal?: AbortSignal) {
+  const searchParams = new URLSearchParams();
+  if (params.status) searchParams.set('status', params.status);
+  if (params.targetType) searchParams.set('targetType', params.targetType);
+  if (params.reasonCode) searchParams.set('reasonCode', params.reasonCode);
+  if (params.keyword?.trim()) searchParams.set('keyword', params.keyword.trim());
+  searchParams.set('page', String(params.page ?? 0));
+  searchParams.set('size', String(params.size ?? 20));
+  searchParams.set('sort', params.sort ?? 'createdAt,desc');
+
+  return adminApiRequest<PageResponse<AdminReportApiItem>>(
+    `${ADMIN_REPORTS_BASE}?${searchParams.toString()}`,
+    { signal },
+  );
+}
+
+export function updateAdminReportStatus(
+  reportId: string,
+  status: ReportStatus,
+  signal?: AbortSignal,
+) {
+  return adminApiRequest<AdminReportApiItem>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportId)}/status`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+      signal,
+    },
+  );
+}
+
+export function fetchAdminReportDetail(
+  reportCode: string,
+  signal?: AbortSignal,
+): Promise<AdminReportDetailResponse> {
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/detail`,
+    { signal },
+  );
+}
+
+export function startAdminReportReview(
+  reportCode: string,
+): Promise<AdminReportDetailResponse> {
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/start-review`,
+    { method: 'POST' },
+  );
+}
+
+export function resolveAdminReport(
+  reportCode: string,
+  request: AdminReportResolutionRequest,
+): Promise<AdminReportDetailResponse> {
+  return adminApiRequest<AdminReportDetailResponse>(
+    `${ADMIN_REPORTS_BASE}/${encodeURIComponent(reportCode)}/resolve`,
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        decision: request.decision,
+        hideTargetContent: request.decision === 'RESOLVED' && request.hideTargetContent,
+        penaltyType: request.decision === 'RESOLVED' ? request.penaltyType : null,
+        reason: request.reason,
+        internalMemo: request.internalMemo,
+      }),
+    },
+  );
+}

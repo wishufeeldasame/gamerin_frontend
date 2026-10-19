@@ -1,113 +1,117 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
+import { PendingPostCard } from '@/app/home/components/PendingPostCard';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
-import { PostRecord, fetchFeed, likePost, unlikePost, updatePostLikeState } from '@/lib/feed-api';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePendingPosts } from '@/hooks/usePendingPosts';
+import { usePostLike } from '@/hooks/usePostLike';
+import { type PostRecord, fetchFeed } from '@/lib/feed-api';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
 type FeedTab = 'all' | 'following';
 type PostDetailTarget = 'post' | 'comments';
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<FeedTab>('all');
-  const [posts, setPosts] = useState<PostRecord[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const loadMoreControllerRef = useRef<AbortController | null>(null);
+  const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
+  const legacyPostId = searchParams.get('postId');
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
+    fetchFeed(activeTab, cursor, 20, { signal })
+  ), [activeTab]);
+
+  const {
+    items: posts,
+    setItems: setPosts,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    loadMoreError,
+    loadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: activeTab,
+    enabled: !legacyPostId,
+    initialErrorMessage: '피드를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+  });
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const loadMoreErrorRef = useRef(loadMoreError);
+  loadMoreErrorRef.current = loadMoreError;
+  const handleAutoLoadMore = useCallback(() => {
+    if (loadMoreErrorRef.current) return;
+    void loadMoreRef.current();
+  }, []);
+
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   useEffect(() => {
-    const postId = searchParams.get('postId');
-    if (!postId) return;
+    if (!legacyPostId) return;
 
     const target = searchParams.get('target') === 'comments' ? '?target=comments' : '';
-    router.replace(`/posts/${encodeURIComponent(postId)}${target}`);
-  }, [router, searchParams]);
+    router.replace(`/posts/${encodeURIComponent(legacyPostId)}${target}`);
+  }, [legacyPostId, router, searchParams]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-
-    const loadInitialData = async () => {
-      try {
-        setLoading(true);
-        setLoadingMore(false);
-        setError(null);
-
-        const feedPage = await fetchFeed(activeTab, null, 20, { signal: controller.signal });
-
-        if (cancelled) {
-          return;
-        }
-
-        setPosts(feedPage.items);
-        setNextCursor(feedPage.nextCursor);
-        setHasNext(feedPage.hasNext);
-      } catch (loadError) {
-        if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-          return;
-        }
-
-        if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load feed.');
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    loadInitialData();
-
-    return () => {
-      cancelled = true;
-      controller.abort();
-      loadMoreControllerRef.current?.abort();
-      loadMoreControllerRef.current = null;
-    };
-  }, [activeTab]);
-
-  const handleCreatedPost = (createdPost: PostRecord) => {
-    setPosts((current) => [createdPost, ...current]);
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    const optimistic = updatePostLikeState(post);
-
-    setPosts((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
-    );
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setPosts((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
+  const handleTabChange = (tab: FeedTab) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('postId');
+    params.delete('target');
+    if (tab === 'following') {
+      params.set('tab', 'following');
+    } else {
+      params.delete('tab');
     }
+
+    const nextSearch = params.toString();
+    router.push(`/home${nextSearch ? `?${nextSearch}` : ''}`, { scroll: false });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   };
+
+  const handleCreatedPost = useCallback((createdPost: PostRecord) => {
+    setPosts((current) => [createdPost, ...current.filter((item) => item.postId !== createdPost.postId)]);
+  }, [setPosts]);
+  const {
+    pendingPosts,
+    submit: handleSubmitPost,
+    retry: handleRetryPost,
+    discard: handleDiscardPost,
+  } = usePendingPosts(handleCreatedPost);
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) =>
       current.map((item) => (item.postId === updatedPost.postId ? updatedPost : item))
     );
   };
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
 
-  const handleBookmarkChanged = (updatedPost: PostRecord) => {
-    handlePostUpdated(updatedPost);
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -119,48 +123,39 @@ export default function HomePage() {
     router.push(`/posts/${encodeURIComponent(postId)}${search}`);
   };
 
-  const handleLoadMore = async () => {
-    if (!hasNext || !nextCursor || loadingMore) {
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasNext || !nextCursor || loadMoreError) {
       return;
     }
 
-    loadMoreControllerRef.current?.abort();
-    const controller = new AbortController();
-    loadMoreControllerRef.current = controller;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          handleAutoLoadMore();
+        }
+      },
+      { rootMargin: '400px 0px' },
+    );
 
-    try {
-      setLoadingMore(true);
-      const page = await fetchFeed(activeTab, nextCursor, 20, { signal: controller.signal });
-      setPosts((current) => [...current, ...page.items]);
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-    } catch (loadMoreError) {
-      if (loadMoreError instanceof DOMException && loadMoreError.name === 'AbortError') {
-        return;
-      }
-
-      alert(loadMoreError instanceof Error ? loadMoreError.message : 'Failed to load more posts.');
-    } finally {
-      if (loadMoreControllerRef.current === controller) {
-        loadMoreControllerRef.current = null;
-        setLoadingMore(false);
-      }
-    }
-  };
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleAutoLoadMore, hasNext, loadMoreError, nextCursor]);
 
   return (
     <div className="flex justify-center overflow-visible">
       <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-purple-500/30 dark:bg-purple-700">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
           ].map((tab) => (
             <button
               key={tab.value}
-              onClick={() => setActiveTab(tab.value)}
+              onClick={() => handleTabChange(tab.value)}
+              aria-pressed={activeTab === tab.value}
               className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
-                activeTab === tab.value ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-purple-200/70 dark:hover:text-white'
+                activeTab === tab.value ? 'text-black dark:!text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:!text-white'
               }`}
             >
               {tab.label}
@@ -175,14 +170,27 @@ export default function HomePage() {
         </div>
 
         <div className="space-y-6 p-4">
-          <PostComposer onCreated={handleCreatedPost} />
+          <PostComposer onSubmit={handleSubmitPost} />
+
+          {pendingPosts.length > 0 ? (
+            <div className="space-y-4">
+              {pendingPosts.map((pendingPost) => (
+                <PendingPostCard
+                  key={pendingPost.id}
+                  pendingPost={pendingPost}
+                  onRetry={handleRetryPost}
+                  onDiscard={handleDiscardPost}
+                />
+              ))}
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
               피드를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500">
+            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           ) : posts.length === 0 ? (
@@ -200,25 +208,51 @@ export default function HomePage() {
                 >
                   <Post
                     post={post}
+                    likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                     onToggleLike={handleToggleLike}
                     onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                     onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                     onShare={handlePostUpdated}
+                    onRepostChange={handleRepostChanged}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
                     onBookmarkChange={handleBookmarkChanged}
                   />
                 </motion.div>
               ))}
 
-              {hasNext ? (
-                <button
-                  type="button"
-                  onClick={handleLoadMore}
-                  disabled={loadingMore}
-                  className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+              {hasNext && nextCursor ? (
+                <div
+                  ref={loadMoreSentinelRef}
+                  data-testid="feed-load-more-sentinel"
+                  aria-hidden="true"
+                  className="h-px"
+                />
+              ) : null}
+
+              {loadingMore ? (
+                <div
+                  role="status"
+                  aria-live="polite"
+                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-zinc-400"
                 >
-                  {loadingMore ? '불러오는 중...' : '더 보기'}
-                </button>
+                  게시물을 불러오는 중...
+                </div>
+              ) : null}
+
+              {loadMoreError ? (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                >
+                  <span>{loadMoreError}</span>
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300 dark:hover:border-red-400"
+                  >
+                    다시 시도
+                  </button>
+                </div>
               ) : null}
             </div>
           )}
@@ -229,5 +263,13 @@ export default function HomePage() {
         <RightSidebar />
       </aside>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
   );
 }

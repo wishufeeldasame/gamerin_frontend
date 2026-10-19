@@ -1,28 +1,27 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bookmark, ImageIcon, Search } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
-  PostRecord,
+  fetchCollectionBookmarks,
   fetchMyBookmarks,
-  likePost,
-  unlikePost,
-  updatePostLikeState,
 } from '@/lib/feed-api';
+import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
+import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
 
-type BookmarkFilter = 'all' | 'media';
 type PostDetailTarget = 'post' | 'comments';
 
 const BOOKMARK_PAGE_SIZE = 20;
-
-const filterOptions: { value: BookmarkFilter; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'media', label: '미디어' },
-];
-
 function HighlightedText({ text, query }: { text: string; query: string }) {
   const keyword = query.trim();
   if (!keyword) return <>{text}</>;
@@ -47,14 +46,66 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
 
 export default function BookmarksPage() {
   const router = useRouter();
-  const [bookmarks, setBookmarks] = useState<PostRecord[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { collections, loading: collectionsLoading } = useBookmarkCollections();
   const [query, setQuery] = useState('');
-  const [filter, setFilter] = useState<BookmarkFilter>('all');
+  const [mediaOnly, setMediaOnly] = useState(false);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
+  const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
+  const collectionCountSyncBaseRef = useRef(collections);
+  // 모음집 변경 응답이 늦게 와도 전환 후 목록을 건드리지 않도록 최신 선택값을 본다.
+  const selectedCollectionIdRef = useRef(selectedCollectionId);
+  useEffect(() => {
+    selectedCollectionIdRef.current = selectedCollectionId;
+  }, [selectedCollectionId]);
+
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => {
+    const requestOptions = {
+      signal,
+      q: query,
+      mediaOnly,
+    };
+
+    return selectedCollectionId === 'all' || selectedCollectionId === 'unclassified'
+      ? fetchMyBookmarks(
+          cursor,
+          BOOKMARK_PAGE_SIZE,
+          requestOptions,
+          selectedCollectionId as BookmarkScope,
+        )
+      : fetchCollectionBookmarks(
+          selectedCollectionId,
+          cursor,
+          BOOKMARK_PAGE_SIZE,
+          requestOptions,
+        );
+  }, [mediaOnly, query, selectedCollectionId]);
+
+  const bookmarkQueryKey = useMemo(
+    () => JSON.stringify([selectedCollectionId, query, mediaOnly]),
+    [mediaOnly, query, selectedCollectionId],
+  );
+  const {
+    items: bookmarks,
+    setItems: setBookmarks,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    reload,
+    loadMore: handleLoadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: bookmarkQueryKey,
+    initialErrorMessage: '북마크를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '북마크를 더 불러오지 못했습니다.',
+  });
+
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setBookmarks((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setBookmarks]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   const upsertBookmark = useCallback((post: PostRecord) => {
     setBookmarks((current) => {
@@ -65,94 +116,40 @@ export default function BookmarksPage() {
 
       return current.map((item) => (item.postId === post.postId ? post : item));
     });
-  }, []);
+  }, [setBookmarks]);
 
   const removeBookmark = useCallback((postId: string) => {
     setBookmarks((current) => current.filter((post) => post.postId !== postId));
-  }, []);
+  }, [setBookmarks]);
 
-  const loadInitialBookmarks = useCallback(async (signal?: AbortSignal) => {
-    try {
-      setLoading(true);
-      setLoadingMore(false);
-      setError(null);
-
-      const page = await fetchMyBookmarks(null, BOOKMARK_PAGE_SIZE, { signal });
-
-      if (signal?.aborted) {
-        return;
-      }
-
-      setBookmarks(page.items);
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-    } catch (loadError) {
-      if (loadError instanceof DOMException && loadError.name === 'AbortError') {
-        return;
-      }
-
-      setError(loadError instanceof Error ? loadError.message : '북마크를 불러오지 못했습니다.');
-    } finally {
-      if (!signal?.aborted) {
-        setLoading(false);
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    void loadInitialBookmarks(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
-  }, [loadInitialBookmarks]);
-
-  const visibleBookmarks = useMemo(() => {
-    const keyword = query.trim().toLowerCase();
-
-    return bookmarks
-      .filter((post) => {
-        if (filter === 'media') return post.media.length > 0;
-        return true;
-      })
-      .filter((post) => {
-        if (!keyword) return true;
-
-        return [
-          post.author,
-          post.authorHandle,
-          post.game ?? '',
-          post.content ?? '',
-        ]
-          .join(' ')
-          .toLowerCase()
-          .includes(keyword);
-      });
-  }, [bookmarks, filter, query]);
-
-  const handleLoadMore = async () => {
-    if (!hasNext || !nextCursor || loadingMore) {
+  const handleBookmarkChanged = useCallback((changedPost: PostRecord, bookmarked = changedPost.bookmarkedByMe) => {
+    if (!bookmarked) {
       return;
     }
 
-    try {
-      setLoadingMore(true);
-      const page = await fetchMyBookmarks(nextCursor, BOOKMARK_PAGE_SIZE);
+    setBookmarks((current) => {
+      const exists = current.some((post) => post.postId === changedPost.postId);
+      return exists
+        ? updatePostsBookmarkState(current, changedPost.postId, true)
+        : [changedPost, ...current];
+    });
+  }, [setBookmarks]);
 
-      setBookmarks((current) => {
-        const existingPostIds = new Set(current.map((post) => post.postId));
-        const nextItems = page.items.filter((post) => !existingPostIds.has(post.postId));
-        return [...current, ...nextItems];
-      });
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-    } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : '북마크를 더 불러오지 못했습니다.');
-    } finally {
-      setLoadingMore(false);
+  const selectedCollection = useMemo(
+    () => collections.find((collection) => collection.collectionId === selectedCollectionId),
+    [collections, selectedCollectionId],
+  );
+
+  useEffect(() => {
+    if (
+      !collectionCountSyncPending ||
+      collections === collectionCountSyncBaseRef.current
+    ) {
+      return;
     }
-  };
+
+    setCollectionCountSyncPending(false);
+  }, [collectionCountSyncPending, collections]);
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     if (updatedPost.bookmarkedByMe) {
@@ -163,25 +160,15 @@ export default function BookmarksPage() {
     removeBookmark(updatedPost.postId);
   };
 
-  const handleToggleLike = async (post: PostRecord) => {
-    const optimistic = updatePostLikeState(post);
-
+  const handleRepostChanged = (updatedPost: PostRecord) => {
     setBookmarks((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
+      updatePostsRepostState(
+        current,
+        updatedPost.postId,
+        updatedPost.isReposted,
+        updatedPost.repostCount,
+      ),
     );
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setBookmarks((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
-    }
   };
 
   const handlePostDeleted = (postId: string) => {
@@ -216,37 +203,128 @@ export default function BookmarksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:text-zinc-500 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {filterOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={`rounded-2xl px-4 py-2 text-xs font-black transition ${
-                  filter === option.value ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setMediaOnly((current) => !current)}
+            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition ${
+              mediaOnly
+                ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black'
+                : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+            }`}
+          >
+            <ImageIcon size={14} />
+            미디어만 보기
+          </button>
+
         </div>
       </div>
+
+      <section className="mb-10" aria-label="북마크 모음집">
+        <div className="mb-4 flex items-end justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-black text-black dark:text-zinc-100">모음집</h2>
+            <p className="mt-1 text-xs font-bold text-zinc-400">
+              저장한 게시물을 모음집별로 확인하세요.
+            </p>
+          </div>
+          <span className="text-xs font-black text-zinc-400">
+            {collectionsLoading ? '불러오는 중' : `${collections.length}개`}
+          </span>
+        </div>
+
+        <div className="flex gap-3 overflow-x-auto pb-2">
+          <button
+            type="button"
+            onClick={() => setSelectedCollectionId('all')}
+            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+              selectedCollectionId === 'all'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+            }`}
+          >
+            <Bookmark size={20} className="fill-current" />
+            <span>
+              <strong className="block text-sm font-black">전체 북마크</strong>
+              <small className="mt-1 block text-xs font-bold opacity-60">
+                {bookmarks.length}개 게시물
+              </small>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedCollectionId('unclassified')}
+            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+              selectedCollectionId === 'unclassified'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+            }`}
+          >
+            <Folder size={20} className={selectedCollectionId === 'unclassified' ? 'fill-current' : 'text-zinc-400'} />
+            <span>
+              <strong className="block text-sm font-black">미분류</strong>
+              <small className="mt-1 block text-xs font-bold opacity-60">
+                모음집 없는 북마크
+              </small>
+            </span>
+          </button>
+
+          {collections.map((collection) => {
+            const isSelected = selectedCollectionId === collection.collectionId;
+
+            return (
+              <button
+                key={collection.collectionId}
+                type="button"
+                onClick={() => setSelectedCollectionId(collection.collectionId)}
+                className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+                  isSelected
+                    ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                    : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+                }`}
+              >
+                <Folder size={20} className={isSelected ? 'fill-current' : 'text-zinc-400'} />
+                  <span className="min-w-0">
+                    <strong className="block truncate text-sm font-black">
+                    {collection.name}
+                  </strong>
+                  <small className="mt-1 block text-xs font-bold opacity-60">
+                    {collectionCountSyncPending ? '동기화 중' : `${collection.bookmarkCount}개 게시물`}
+                  </small>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {selectedCollection ? (
+        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
+          <Folder size={16} />
+          <span>{selectedCollection.name}</span>
+        </div>
+      ) : selectedCollectionId === 'unclassified' ? (
+        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
+          <Folder size={16} />
+          <span>미분류 북마크</span>
+        </div>
+      ) : null}
+
 
       {loading ? (
         <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
           북마크를 불러오는 중...
         </div>
       ) : error ? (
-        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center">
-          <p className="font-black text-red-500">{error}</p>
+        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+          <p className="font-black text-red-500 dark:text-red-300">{error}</p>
           <button
             type="button"
-            onClick={() => void loadInitialBookmarks()}
+            onClick={() => void reload()}
             className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
           >
             다시 시도
@@ -257,63 +335,77 @@ export default function BookmarksPage() {
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
             <Bookmark size={30} />
           </div>
-          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">아직 저장한 게시물이 없어요</h2>
+          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">
+            {selectedCollection || selectedCollectionId === 'unclassified' || query.trim() || mediaOnly
+              ? '표시할 북마크가 없어요'
+              : '아직 저장한 게시물이 없어요'}
+          </h2>
           <p className="mt-3 text-sm font-bold text-zinc-400 dark:text-zinc-500">
-            피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.
+            {selectedCollection || selectedCollectionId === 'unclassified'
+              ? '선택한 모음집 조건에 맞는 게시물이 없습니다.'
+              : query.trim() || mediaOnly
+                ? '검색어나 필터 조건을 바꿔보세요.'
+                : '피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.'}
           </p>
-        </div>
-      ) : visibleBookmarks.length === 0 ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
-          검색 결과가 없습니다.
         </div>
       ) : (
         <div className="space-y-4">
-          {visibleBookmarks.map((post, index) => (
-            <motion.div
-              key={post.postId}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.04 }}
-            >
-              {post.media.length > 0 ? (
-                <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                  <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
-                    <ImageIcon size={12} />
-                    Media
-                  </span>
-                  {query.trim() ? (
-                    <span className="normal-case">
-                      <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+          {bookmarks.map((post, index) => (
+              <motion.div
+                key={post.postId}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.04 }}
+              >
+                {post.media.length > 0 ? (
+                  <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                    <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                      <ImageIcon size={12} />
+                      미디어
                     </span>
-                  ) : null}
-                </div>
-              ) : query.trim() ? (
-                <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
-                  <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
-                </div>
-              ) : null}
-              <Post
-                post={post}
-                onToggleLike={handleToggleLike}
-                onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
-                onShare={handlePostUpdated}
-                onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                onBookmarkChange={(changedPost, bookmarked) => {
-                  if (bookmarked) {
-                    upsertBookmark(changedPost);
-                  }
-                }}
-                onBookmarkSuccess={(changedPost, bookmarked) => {
-                  if (!bookmarked) {
-                    removeBookmark(changedPost.postId);
-                  }
-                }}
-              />
-            </motion.div>
-          ))}
+                    {query.trim() ? (
+                      <span className="normal-case">
+                        <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+                      </span>
+                    ) : null}
+                  </div>
+                ) : query.trim() ? (
+                  <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
+                    <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
+                  </div>
+                ) : null}
+                <Post
+                  post={post}
+                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                  onToggleLike={handleToggleLike}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onShare={handlePostUpdated}
+                  onRepostChange={handleRepostChanged}
+                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                  onBookmarkChange={handleBookmarkChanged}
+                  onCollectionChange={(changedPost, collectionId, containsPost) => {
+                    // 현재 보고 있는 모음집·미분류 조건에서 벗어난 게시물만 목록에서 뺀다.
+                    const currentCollectionId = selectedCollectionIdRef.current;
+                    if (
+                      (!containsPost && collectionId === currentCollectionId) ||
+                      (containsPost && currentCollectionId === 'unclassified')
+                    ) {
+                      removeBookmark(changedPost.postId);
+                    }
+                  }}
+                  onBookmarkSuccess={(changedPost, bookmarked) => {
+                    if (!bookmarked) {
+                      collectionCountSyncBaseRef.current = collections;
+                      setCollectionCountSyncPending(true);
+                      removeBookmark(changedPost.postId);
+                    }
+                  }}
+                />
+              </motion.div>
+            ))}
 
-          {hasNext ? (
+          {hasNext && nextCursor ? (
             <button
               type="button"
               onClick={handleLoadMore}

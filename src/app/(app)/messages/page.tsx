@@ -3,6 +3,8 @@
 import {
   ArrowLeft,
   CheckCheck,
+  ChevronDown,
+  ChevronUp,
   CircleAlert,
   Ellipsis,
   ImagePlus,
@@ -10,6 +12,7 @@ import {
   Loader2,
   MessageSquare,
   Plus,
+  RotateCw,
   Search,
   Send,
   ShieldCheck,
@@ -19,15 +22,16 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
+import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
   createConversation,
   deleteConversationMessage,
   fetchMessageAttachmentBlob,
   fetchConversationList,
   fetchConversationMessages,
-  isMessageAuthError,
   leaveConversation,
   markConversationRead,
   openMessageEventSource,
@@ -40,35 +44,36 @@ import {
   ChatMessage,
   Conversation,
   MessageRecipient,
+  PendingChatAttachment,
+  PendingChatMessage,
+  createClientId,
   formatChatTime,
-  formatConversationTime,
+  formatMessageDate,
   getInitials,
+  hideDeliveredPendingMessages,
   mergeMessages,
+  shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
+import { useUnloadWarning } from '@/hooks/useUnloadWarning';
+import { invalidateNotifications } from '@/lib/notification-sync';
+import { convertImagesForUpload } from '@/lib/profile-image-compression';
+import MessageDateSeparator from './MessageDateSeparator';
+import { RelativeTime } from '@/app/home/components/RelativeTime';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 
 const MESSAGE_PAGE_SIZE = 30;
+
+const MAX_MESSAGE_LENGTH = 2000;
+const CONVERSATION_PREVIEW_COUNT = 5;
 const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
-type DraftAttachment = {
-  id: string;
-  type: 'image' | 'video';
-  name: string;
-  file: File;
-  previewUrl: string;
-};
+
+type DraftAttachment = PendingChatAttachment;
 
 type ExpandedImage = {
   url: string;
   name: string;
 };
-
-function createAttachmentId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return crypto.randomUUID();
-  }
-
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
 
 function getLastPreview(conversation: Conversation) {
   const lastMessage = conversation.messages.at(-1);
@@ -148,7 +153,7 @@ function ConversationCard({
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
           ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
-          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50'
+          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-neutral-800'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -162,21 +167,22 @@ function ConversationCard({
             }`}
           />
           <div className="min-w-0">
-            <p className="truncate text-sm font-black">
-              <HighlightedText text={conversation.recipient.name} query={query} />
+            <p className="flex min-w-0 items-center gap-1 text-sm font-black">
+              <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
+              <MembershipBadge active={conversation.recipient.membershipBadge} />
             </p>
             <p
-              className={`truncate text-[11px] font-bold uppercase tracking-widest ${
+              className={`truncate text-[11px] font-bold tracking-widest ${
                 active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
               }`}
             >
-              <HighlightedText text={conversation.recipient.role} query={query} />
+              <HighlightedText text={conversation.recipient.handle} query={query} />
             </p>
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/45' : 'text-zinc-300'}`}>
-            {formatConversationTime(conversation.updatedAt)}
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/70' : 'text-zinc-300'}`}>
+            <RelativeTime createdAt={conversation.updatedAt} />
           </span>
           {conversation.unreadCount > 0 ? (
             <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-[10px] font-black text-black">
@@ -239,7 +245,7 @@ function NewChatPicker({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black"
+          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
           aria-label="새 대화 닫기"
         >
           <X size={16} />
@@ -252,7 +258,7 @@ function NewChatPicker({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="이름 또는 핸들 검색"
-          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black"
+          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
         />
       </label>
 
@@ -262,7 +268,7 @@ function NewChatPicker({
           검색 중...
         </div>
       ) : errorMessage ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {errorMessage}
         </div>
       ) : recipients.length > 0 ? (
@@ -281,9 +287,12 @@ function NewChatPicker({
                 className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white"
               />
               <span className="min-w-0">
-                <span className="block truncate text-sm font-black text-black">{recipient.name}</span>
+                <span className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                  <span className="truncate">{recipient.name}</span>
+                  <MembershipBadge active={recipient.membershipBadge} />
+                </span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
-                  {recipient.handle} · {recipient.role}
+                  {recipient.handle}
                 </span>
               </span>
             </button>
@@ -353,7 +362,7 @@ function ImageLightbox({
         <img
           src={image.url}
           alt={image.name}
-          className="max-h-[88vh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
+          className="max-h-[88dvh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
         />
         <p className="mt-3 text-center text-sm font-bold text-white/80">{image.name}</p>
       </div>
@@ -375,7 +384,7 @@ function AttachmentGrid({
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
           <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
-          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500">{attachment.name}</p>
+          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">{attachment.name}</p>
         </div>
       ))}
     </div>
@@ -482,7 +491,7 @@ function MessageBubble({
           name={recipientName}
           imageUrl={recipientImageUrl}
           sizes="32px"
-          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black"
+          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black dark:bg-neutral-700"
         />
       ) : null}
 
@@ -497,7 +506,7 @@ function MessageBubble({
                 type="button"
                 onClick={onDelete}
                 disabled={actionLoading}
-                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                 aria-label="메시지 삭제"
               >
                 <Trash2 size={16} className="-translate-x-[1px] shrink-0" />
@@ -521,7 +530,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500"
+              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-neutral-800"
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -530,7 +539,7 @@ function MessageBubble({
         </div>
 
         <div
-          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 ${
+          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 dark:text-zinc-400 ${
             mine ? 'justify-end' : 'justify-start'
           }`}
         >
@@ -546,6 +555,84 @@ function MessageBubble({
   );
 }
 
+function PendingMessageBubble({
+  pendingMessage,
+  onRetry,
+  onDiscard,
+  onOpenImage,
+}: {
+  pendingMessage: PendingChatMessage;
+  onRetry: () => void;
+  onDiscard: () => void;
+  onOpenImage: (image: ExpandedImage) => void;
+}) {
+  const failed = pendingMessage.status === 'failed';
+  const hasVideo = pendingMessage.attachments.some((attachment) => attachment.type === 'video');
+
+  return (
+    <div className="flex items-end justify-end gap-3" data-pending-message-id={pendingMessage.id}>
+      <div className="flex max-w-[76%] flex-col items-end">
+        <div
+          className={`rounded-[28px] rounded-br-none px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+            failed ? 'bg-black/60 text-white ring-2 ring-red-400' : 'bg-black/70 text-white'
+          }`}
+        >
+          {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
+          {pendingMessage.attachments.length > 0 ? (
+            <div className="mt-3 grid gap-2">
+              {pendingMessage.attachments.map((attachment) => (
+                <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
+                  {attachment.type === 'video' ? (
+                    <video src={attachment.previewUrl} muted controls className="max-h-80 w-full bg-black object-cover" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => onOpenImage({ url: attachment.previewUrl, name: attachment.name })}
+                      className="block w-full cursor-zoom-in"
+                      aria-label={`${attachment.name} 확대 보기`}
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={attachment.previewUrl} alt={attachment.name} className="max-h-80 w-full object-cover" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {failed ? (
+          <div role="alert" className="mt-2 flex flex-wrap items-center justify-end gap-2 text-xs font-bold text-red-500 dark:text-red-300">
+            <CircleAlert size={13} className="shrink-0" />
+            <span>전송 실패 · {pendingMessage.errorMessage}</span>
+            <button
+              type="button"
+              onClick={onRetry}
+              className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-white px-2.5 py-1 font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300"
+            >
+              <RotateCw size={12} />
+              재시도
+            </button>
+            <button
+              type="button"
+              onClick={onDiscard}
+              className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1 font-black text-zinc-500 transition hover:border-zinc-400 hover:text-black"
+            >
+              <Trash2 size={12} />
+              삭제
+            </button>
+          </div>
+        ) : (
+          <div role="status" className="mt-2 flex items-center gap-1 text-[10px] font-black text-zinc-400">
+            <Loader2 size={12} className="animate-spin" />
+            <span>{hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -555,7 +642,14 @@ export default function MessagesPage() {
   const attachmentMenuRef = useRef<HTMLDivElement | null>(null);
   const headerMenuRef = useRef<HTMLDivElement | null>(null);
   const messageEndRef = useRef<HTMLDivElement | null>(null);
+  const messageElementRefs = useRef(new Map<string, HTMLDivElement>());
+  const handledMessageDeepLinkRef = useRef('');
   const activeConversationIdRef = useRef('');
+  const attachmentsRef = useRef<DraftAttachment[]>([]);
+  // 전송 대기열이 렌더 전에도 최신 임시 메시지를 읽도록 state와 함께 갱신한다.
+  const pendingRef = useRef<Record<string, PendingChatMessage[]>>({});
+  const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const messagesRef = useRef<Record<string, ChatMessage[]>>({});
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messagesByConversation, setMessagesByConversation] = useState<Record<string, ChatMessage[]>>({});
@@ -563,12 +657,16 @@ export default function MessagesPage() {
   const [hasNextByConversation, setHasNextByConversation] = useState<Record<string, boolean>>({});
   const [activeConversationId, setActiveConversationId] = useState('');
   const [query, setQuery] = useState('');
+  const [conversationListExpanded, setConversationListExpanded] = useState(false);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
+  const [preparingImages, setPreparingImages] = useState(false);
+  // 변환 중에 첨부를 비우거나 대화방을 바꾸면 늦게 끝난 변환 결과를 버린다.
+  const imageSelectionSeqRef = useRef(0);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const [loadingMessages, setLoadingMessages] = useState(false);
   const [loadingOlderMessages, setLoadingOlderMessages] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [pendingByConversation, setPendingByConversation] = useState<Record<string, PendingChatMessage[]>>({});
   const [attachmentMenuOpen, setAttachmentMenuOpen] = useState(false);
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
@@ -576,27 +674,93 @@ export default function MessagesPage() {
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
-  const [, setIsAuthError] = useState(false);
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
+  const requestedMessageId = searchParams.get('messageId') ?? '';
   const requestedRecipientHandle = searchParams.get('recipient') ?? '';
   const requestedRecipientRef = useRef('');
 
   const activeConversation = conversations.find((conversation) => conversation.id === activeConversationId) ?? null;
-  const activeMessages = activeConversationId ? messagesByConversation[activeConversationId] ?? [] : [];
-  const latestMessageId = activeMessages.at(-1)?.id ?? '';
+  const activeMessages = useMemo(
+    () => (activeConversationId ? messagesByConversation[activeConversationId] ?? [] : []),
+    [activeConversationId, messagesByConversation],
+  );
+  const activePendingMessages = useMemo(
+    () => hideDeliveredPendingMessages(
+      activeConversationId ? pendingByConversation[activeConversationId] ?? [] : [],
+      activeMessages,
+    ),
+    [activeConversationId, activeMessages, pendingByConversation],
+  );
+  // 새 서버 메시지뿐 아니라 임시 메시지가 추가되거나 실패로 바뀌어 재시도 버튼이 생길 때도 맨 아래로 스크롤한다.
+  const latestPendingMessage = activePendingMessages.at(-1);
+  const latestServerMessageId = activeMessages.at(-1)?.id ?? '';
+  const latestMessageId = latestPendingMessage
+    ? `${latestServerMessageId}|${latestPendingMessage.id}:${latestPendingMessage.status}`
+    : latestServerMessageId;
+  useUnloadWarning(
+    Object.values(pendingByConversation).some((items) => items.some((item) => item.status !== 'failed'))
+  );
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
   useEffect(() => {
     activeConversationIdRef.current = activeConversationId;
   }, [activeConversationId]);
 
+  useEffect(() => {
+    messagesRef.current = messagesByConversation;
+  }, [messagesByConversation]);
+
+  const requestedMessageIsLoaded =
+    activeConversationId === requestedConversationId &&
+    Boolean(requestedMessageId) &&
+    activeMessages.some((message) => message.id === requestedMessageId);
+
+  // 폴링 응답·이전 메시지 추가로는 스크롤하지 않도록 최신 메시지 ID 변경에만 반응한다.
   useLayoutEffect(() => {
     if (!activeConversationId || !latestMessageId) return;
 
+    const requestedDeepLinkKey = `${requestedConversationId}:${requestedMessageId}`;
+    if (
+      handledMessageDeepLinkRef.current &&
+      handledMessageDeepLinkRef.current !== requestedDeepLinkKey
+    ) {
+      setHighlightedMessageId(null);
+    }
+
+    if (requestedMessageIsLoaded) return;
+
     messageEndRef.current?.scrollIntoView({ block: 'end' });
-  }, [activeConversationId, latestMessageId]);
+  }, [activeConversationId, latestMessageId, requestedConversationId, requestedMessageId, requestedMessageIsLoaded]);
+
+  useLayoutEffect(() => {
+    if (
+      !requestedConversationId ||
+      !requestedMessageId ||
+      activeConversationId !== requestedConversationId
+    ) {
+      return;
+    }
+
+    const deepLinkKey = `${requestedConversationId}:${requestedMessageId}`;
+    if (handledMessageDeepLinkRef.current === deepLinkKey) return;
+
+    const messageElement = messageElementRefs.current.get(requestedMessageId);
+    if (!messageElement) return;
+
+    handledMessageDeepLinkRef.current = deepLinkKey;
+    messageElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setHighlightedMessageId(requestedMessageId);
+  }, [activeConversationId, activeMessages, requestedConversationId, requestedMessageId]);
+
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+
+    const timer = window.setTimeout(() => setHighlightedMessageId(null), 2200);
+    return () => window.clearTimeout(timer);
+  }, [highlightedMessageId]);
 
   const revokeAttachmentUrls = useCallback((targets: DraftAttachment[]) => {
     for (const target of targets) {
@@ -605,6 +769,8 @@ export default function MessagesPage() {
   }, []);
 
   const clearAttachments = useCallback(() => {
+    imageSelectionSeqRef.current += 1;
+    setPreparingImages(false);
     setAttachments((current) => {
       revokeAttachmentUrls(current);
       return [];
@@ -614,7 +780,28 @@ export default function MessagesPage() {
     if (videoInputRef.current) videoInputRef.current.value = '';
   }, [revokeAttachmentUrls]);
 
-  useEffect(() => () => revokeAttachmentUrls(attachments), [attachments, revokeAttachmentUrls]);
+  useEffect(() => {
+    attachmentsRef.current = attachments;
+  }, [attachments]);
+
+  useEffect(() => {
+    return () => {
+      revokeAttachmentUrls(attachmentsRef.current);
+      revokeAttachmentUrls(Object.values(pendingRef.current).flat().flatMap((item) => item.attachments));
+      // 대기열에 남은 메시지가 화면을 떠난 뒤 전송되지 않도록 비운다.
+      pendingRef.current = {};
+    };
+  }, [revokeAttachmentUrls]);
+
+  const updatePendingMessages = useCallback(
+    (conversationId: string, updater: (items: PendingChatMessage[]) => PendingChatMessage[]) => {
+      const next = { ...pendingRef.current, [conversationId]: updater(pendingRef.current[conversationId] ?? []) };
+      if (next[conversationId].length === 0) delete next[conversationId];
+      pendingRef.current = next;
+      setPendingByConversation(next);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!attachmentMenuOpen) return;
@@ -671,7 +858,6 @@ export default function MessagesPage() {
       const data = await fetchConversationList();
       setConversations(data);
       setPageError('');
-      setIsAuthError(false);
       setActiveConversationId((current) => {
         if (current && data.some((conversation) => conversation.id === current)) {
           return current;
@@ -681,7 +867,6 @@ export default function MessagesPage() {
       });
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화 목록을 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (!options?.silent) {
         setLoadingConversations(false);
@@ -714,10 +899,8 @@ export default function MessagesPage() {
         [conversationId]: page.hasNext,
       }));
       setPageError('');
-      setIsAuthError(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '메시지를 불러오지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     } finally {
       if (options?.cursor) {
         setLoadingOlderMessages(false);
@@ -793,11 +976,8 @@ export default function MessagesPage() {
             conversation.id === activeConversation.id ? { ...conversation, unreadCount: 0 } : conversation
           )
         );
-      } catch (error) {
-        if (isMessageAuthError(error)) {
-          setIsAuthError(true);
-        }
-      }
+        invalidateNotifications('conversation-read');
+      } catch {}
     };
 
     void markRead();
@@ -830,6 +1010,7 @@ export default function MessagesPage() {
     const connect = async () => {
       try {
         const nextEventSource = await openMessageEventSource();
+
         if (cancelled) {
           nextEventSource.close();
           return;
@@ -844,6 +1025,7 @@ export default function MessagesPage() {
 
         nextEventSource.addEventListener('message-created', (event) => {
           const realtimeEvent = parseMessageRealtimeEvent((event as MessageEvent).data);
+          invalidateNotifications('message-created');
           const realtimeMessage = realtimeEvent.message;
           if (realtimeMessage && activeConversationIdRef.current === realtimeEvent.conversationId) {
             setMessagesByConversation((current) => ({
@@ -869,18 +1051,17 @@ export default function MessagesPage() {
             eventSource = null;
           }
 
-          if (!cancelled && scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          if (!cancelled) {
+            scheduleReconnect();
           }
         };
       } catch (error) {
         if (!cancelled) {
-          const authError = isMessageAuthError(error);
-          setIsAuthError(authError);
+          const authError = isAuthError(error);
           if (authError) {
             setPageError(error instanceof Error ? error.message : '실시간 메시지 연결에 실패했습니다.');
-          } else if (scheduleReconnect()) {
-            setPageError('실시간 메시지 연결이 일시적으로 끊겼습니다. 잠시 후 자동으로 다시 연결됩니다.');
+          } else {
+            scheduleReconnect();
           }
         }
       }
@@ -910,11 +1091,34 @@ export default function MessagesPage() {
       [
         conversation.recipient.name,
         conversation.recipient.handle,
-        conversation.recipient.role,
         getLastPreview(conversation),
       ].some((value) => value.toLowerCase().includes(normalized))
     );
   }, [conversations, query]);
+  const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
+  const visibleConversations = useMemo(() => {
+    if (!hasHiddenConversations || conversationListExpanded) {
+      return filteredConversations;
+    }
+
+    const previewConversations = filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT);
+    const activeConversationInList = filteredConversations.find(
+      (conversation) => conversation.id === activeConversationId
+    );
+
+    if (
+      activeConversationInList === undefined ||
+      previewConversations.some((conversation) => conversation.id === activeConversationInList.id)
+    ) {
+      return previewConversations;
+    }
+
+    return [...previewConversations.slice(0, CONVERSATION_PREVIEW_COUNT - 1), activeConversationInList];
+  }, [activeConversationId, conversationListExpanded, filteredConversations, hasHiddenConversations]);
+
+  useEffect(() => {
+    setConversationListExpanded(false);
+  }, [query]);
 
   const handleSelectConversation = (conversationId: string) => {
     setActiveConversationId(conversationId);
@@ -949,7 +1153,6 @@ export default function MessagesPage() {
       setPageError('');
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-      setIsAuthError(isMessageAuthError(error));
     }
   };
 
@@ -1008,7 +1211,6 @@ export default function MessagesPage() {
       } catch (error) {
         requestedRecipientRef.current = '';
         setPageError(error instanceof Error ? error.message : '대화를 시작하지 못했습니다.');
-        setIsAuthError(isMessageAuthError(error));
       }
     };
 
@@ -1023,39 +1225,115 @@ export default function MessagesPage() {
     user,
   ]);
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  // 응답이 실패한 뒤 SSE·폴링으로 서버 사본이 확인된 항목은 상태에서도 지워, 서버 메시지가 삭제돼도 다시 나타나지 않게 한다.
+  // 요청 중인 항목은 성공 응답을 실제 ID로 병합해야 하므로 렌더에서만 숨기고 남긴다.
+  useEffect(() => {
+    for (const [conversationId, items] of Object.entries(pendingRef.current)) {
+      const visible = hideDeliveredPendingMessages(items, messagesByConversation[conversationId] ?? []);
+      const delivered = items.filter((item) => item.status === 'failed' && !visible.includes(item));
+      if (delivered.length === 0) continue;
+
+      revokeAttachmentUrls(delivered.flatMap((item) => item.attachments));
+      updatePendingMessages(conversationId, (current) => current.filter((item) => !delivered.includes(item)));
+    }
+  }, [messagesByConversation, revokeAttachmentUrls, updatePendingMessages]);
+
+  const discardPendingMessages = (conversationId: string, pendingId?: string) => {
+    const targets = (pendingRef.current[conversationId] ?? []).filter((item) => !pendingId || item.id === pendingId);
+    revokeAttachmentUrls(targets.flatMap((item) => item.attachments));
+    updatePendingMessages(conversationId, (items) => items.filter((item) => !targets.includes(item)));
+  };
+
+  // 대기열로 한 번에 하나씩 보내 연속 전송해도 서버 저장 순서가 보낸 순서와 같도록 한다.
+  const enqueuePendingMessage = (conversationId: string, pendingId: string) => {
+    sendQueueRef.current = sendQueueRef.current.then(async () => {
+      const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+      // 대화방을 나가거나 화면을 떠나 임시 메시지가 사라졌으면 보내지 않는다.
+      if (!target || target.status !== 'queued') return;
+      if (!isCurrentAuthGeneration(target.authGeneration)) {
+        discardPendingMessages(conversationId, pendingId);
+        return;
+      }
+
+      updatePendingMessages(conversationId, (items) =>
+        items.map((item) => (item.id === pendingId ? { ...item, status: 'sending' } : item))
+      );
+
+      try {
+        const sentMessage = await sendConversationMessage({
+          conversationId,
+          content: target.text,
+          attachments: target.attachments.map((attachment) => attachment.file),
+          clientMessageId: target.id,
+        });
+
+        if (!pendingRef.current[conversationId]?.some((item) => item.id === pendingId)) return;
+
+        revokeAttachmentUrls(target.attachments);
+        updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
+        setMessagesByConversation((current) => ({
+          ...current,
+          [conversationId]: mergeMessages(current[conversationId] ?? [], [sentMessage]),
+        }));
+        updateConversationPreviewWithMessage(conversationId, sentMessage);
+        void loadConversations({ silent: true });
+      } catch (error) {
+        // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
+        const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+        if (
+          sendingItem &&
+          hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
+        ) {
+          discardPendingMessages(conversationId, pendingId);
+          return;
+        }
+        updatePendingMessages(conversationId, (items) =>
+          items.map((item) =>
+            item.id === pendingId
+              ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.') }
+              : item
+          )
+        );
+      }
+    });
+  };
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!activeConversation || sending) return;
+    if (!activeConversation) return;
 
     const trimmedMessage = message.trim();
+    if (preparingImages) return;
     if (!trimmedMessage && attachments.length === 0) return;
+    if (message.length > MAX_MESSAGE_LENGTH) return;
 
-    try {
-      setSending(true);
-      setComposerError('');
+    const conversationId = activeConversation.id;
+    const pendingMessage: PendingChatMessage = {
+      id: createClientId(),
+      text: trimmedMessage,
+      // 미리보기 URL의 소유권을 임시 메시지로 넘기므로 아래에서 해제하지 않고 비운다.
+      attachments,
+      status: 'queued',
+      errorMessage: null,
+      authGeneration: getAuthGeneration(),
+    };
 
-      const sentMessage = await sendConversationMessage({
-        conversationId: activeConversation.id,
-        content: trimmedMessage,
-        attachments: attachments.map((attachment) => attachment.file),
-      });
+    updatePendingMessages(conversationId, (items) => [...items, pendingMessage]);
+    setComposerError('');
+    setMessage('');
+    setAttachments([]);
+    if (imageInputRef.current) imageInputRef.current.value = '';
+    if (videoInputRef.current) videoInputRef.current.value = '';
+    setAttachmentMenuOpen(false);
+    enqueuePendingMessage(conversationId, pendingMessage.id);
+  };
 
-      setMessagesByConversation((current) => ({
-        ...current,
-        [activeConversation.id]: mergeMessages(current[activeConversation.id] ?? [], [sentMessage]),
-      }));
-      updateConversationPreviewWithMessage(activeConversation.id, sentMessage);
-      setMessage('');
-      clearAttachments();
-      setAttachmentMenuOpen(false);
-      void loadConversations({ silent: true });
-    } catch (error) {
-      setComposerError(error instanceof Error ? error.message : '메시지 전송에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
-    } finally {
-      setSending(false);
-    }
+  const handleRetryPendingMessage = (conversationId: string, pendingId: string) => {
+    updatePendingMessages(conversationId, (items) =>
+      items.map((item) => (item.id === pendingId ? { ...item, status: 'queued', errorMessage: null } : item))
+    );
+    enqueuePendingMessage(conversationId, pendingId);
   };
 
   const handleLoadOlderMessages = async () => {
@@ -1086,7 +1364,6 @@ export default function MessagesPage() {
       void loadMessages(activeConversation.id, { silent: true });
     } catch (error) {
       setComposerError(error instanceof Error ? error.message : '메시지 삭제에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
@@ -1118,6 +1395,7 @@ export default function MessagesPage() {
         delete next[removedConversationId];
         return next;
       });
+      discardPendingMessages(removedConversationId);
       setActiveConversationId('');
       setMobileView('list');
       setHeaderMenuOpen(false);
@@ -1125,12 +1403,11 @@ export default function MessagesPage() {
       setMessageActionLoading(false);
     } catch (error) {
       setPageError(error instanceof Error ? error.message : '대화방 나가기에 실패했습니다.');
-      setIsAuthError(isMessageAuthError(error));
       setMessageActionLoading(false);
     }
   };
 
-  const pushDraftAttachments = (files: File[], type: 'image' | 'video') => {
+  const pushDraftAttachments = async (files: File[], type: 'image' | 'video') => {
     setComposerError('');
 
     if (type === 'image') {
@@ -1144,21 +1421,37 @@ export default function MessagesPage() {
         return;
       }
 
-      if (files.some((file) => file.size > 20 * 1024 * 1024)) {
-        setComposerError('이미지 파일은 최대 20MB까지 업로드할 수 있습니다.');
-        return;
-      }
+      // 실패 후 같은 파일을 다시 골라도 change 이벤트가 나도록 비운다.
+      if (imageInputRef.current) imageInputRef.current.value = '';
+      const seq = ++imageSelectionSeqRef.current;
+      setPreparingImages(true);
+      try {
+        // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
+        const converted = await convertImagesForUpload(files.slice(0, 4));
+        if (seq !== imageSelectionSeqRef.current) return;
 
-      clearAttachments();
-      setAttachments(
-        files.slice(0, 4).map((file) => ({
-          id: createAttachmentId(),
-          type: 'image',
-          name: file.name,
-          file,
-          previewUrl: URL.createObjectURL(file),
-        }))
-      );
+        if (converted.some((file) => file.size > 20 * 1024 * 1024)) {
+          setComposerError('이미지 파일은 최대 20MB까지 업로드할 수 있습니다.');
+          return;
+        }
+
+        // 변환이 성공한 뒤에만 기존 첨부를 바꿔 실패해도 이전 첨부가 남게 한다.
+        clearAttachments();
+        setAttachments(
+          converted.map((file) => ({
+            id: createClientId(),
+            type: 'image',
+            name: file.name,
+            file,
+            previewUrl: URL.createObjectURL(file),
+          }))
+        );
+      } catch (error) {
+        if (seq !== imageSelectionSeqRef.current) return;
+        setComposerError(error instanceof Error ? error.message : '이미지를 준비하지 못했습니다.');
+      } finally {
+        if (seq === imageSelectionSeqRef.current) setPreparingImages(false);
+      }
       return;
     }
 
@@ -1178,7 +1471,7 @@ export default function MessagesPage() {
     clearAttachments();
     setAttachments([
       {
-        id: createAttachmentId(),
+        id: createClientId(),
         type: 'video',
         name: video.name,
         file: video,
@@ -1189,13 +1482,13 @@ export default function MessagesPage() {
 
   const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    pushDraftAttachments(files, 'image');
+    void pushDraftAttachments(files, 'image');
     setAttachmentMenuOpen(false);
   };
 
   const handleVideoSelect = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.target.files ?? []);
-    pushDraftAttachments(files, 'video');
+    void pushDraftAttachments(files, 'video');
     setAttachmentMenuOpen(false);
   };
 
@@ -1225,7 +1518,7 @@ export default function MessagesPage() {
 
   if (!isAuthReady) {
     return (
-      <div className="flex h-[calc(100vh-4rem)] items-center justify-center bg-white">
+      <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] items-center justify-center bg-white">
         <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
           <Loader2 size={18} className="animate-spin" />
           메시지 화면을 불러오는 중...
@@ -1235,7 +1528,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4rem)] overflow-hidden bg-white">
+    <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] overflow-hidden bg-white">
       <section
         className={`w-full flex-col border-r border-zinc-100 bg-white md:flex md:w-[380px] ${
           mobileView === 'chat' ? 'hidden' : 'flex'
@@ -1245,9 +1538,16 @@ export default function MessagesPage() {
           <div className="mb-6 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
-              <p className="mt-1 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                {conversations.length} conversations
-              </p>
+              <div className="mt-1 flex items-center gap-2">
+                <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                  대화 {conversations.length}개
+                </p>
+                {hasHiddenConversations ? (
+                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
+                    {visibleConversations.length}/{filteredConversations.length}
+                  </span>
+                ) : null}
+              </div>
             </div>
             <button
               type="button"
@@ -1268,7 +1568,7 @@ export default function MessagesPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="대화 또는 사용자 검색"
-              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black"
+              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
             />
           </label>
         </div>
@@ -1282,7 +1582,7 @@ export default function MessagesPage() {
           ) : null}
 
           {pageError ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {pageError}
             </div>
           ) : null}
@@ -1293,15 +1593,30 @@ export default function MessagesPage() {
               대화 목록을 불러오는 중...
             </div>
           ) : filteredConversations.length > 0 ? (
-            filteredConversations.map((conversation) => (
-              <ConversationCard
-                key={conversation.id}
-                conversation={conversation}
-                active={conversation.id === activeConversationId}
-                query={query}
-                onSelect={() => handleSelectConversation(conversation.id)}
-              />
-            ))
+            <>
+              {visibleConversations.map((conversation) => (
+                <ConversationCard
+                  key={conversation.id}
+                  conversation={conversation}
+                  active={conversation.id === activeConversationId}
+                  query={query}
+                  onSelect={() => handleSelectConversation(conversation.id)}
+                />
+              ))}
+
+              {hasHiddenConversations ? (
+                <div className="flex justify-center pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setConversationListExpanded((current) => !current)}
+                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-xs font-black text-black shadow-sm transition hover:border-black hover:shadow-md"
+                  >
+                    {conversationListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    {conversationListExpanded ? '가리기' : '더보기'}
+                  </button>
+                </div>
+              ) : null}
+            </>
           ) : (
             <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
@@ -1312,18 +1627,18 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex ${
+        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-neutral-950 ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-8 py-5 backdrop-blur-md">
-              <div className="flex items-center gap-4">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-neutral-900/95">
+              <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
-                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden"
+                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-neutral-800"
                   aria-label="대화 목록으로 돌아가기"
                 >
                   <ArrowLeft size={22} />
@@ -1339,19 +1654,19 @@ export default function MessagesPage() {
                     <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-4 border-white bg-green-500" />
                   ) : null}
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-lg font-black leading-none tracking-tight text-black">
+                    <p className="truncate text-lg font-black leading-none tracking-tight text-black">
                       {activeConversation.recipient.name}
                     </p>
-                    <ShieldCheck size={16} className="text-blue-500" />
+                    <ShieldCheck size={16} className="shrink-0 text-blue-500" />
                   </div>
                   <p
-                    className={`mt-1 text-[11px] font-black uppercase tracking-widest ${
+                    className={`mt-1 text-[11px] font-black tracking-widest ${
                       activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
                     }`}
                   >
-                    {activeConversation.recipient.online ? 'Online now' : activeConversation.recipient.role}
+                    {activeConversation.recipient.online ? '접속 중' : activeConversation.recipient.handle}
                   </p>
                 </div>
               </div>
@@ -1360,7 +1675,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setHeaderMenuOpen((current) => !current)}
-                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
+                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
                   aria-label="대화방 옵션"
                 >
                   <Ellipsis size={24} />
@@ -1371,7 +1686,7 @@ export default function MessagesPage() {
                       type="button"
                       onClick={() => void handleLeaveActiveConversation()}
                       disabled={messageActionLoading}
-                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Trash2 size={16} />
                       대화방 나가기
@@ -1381,7 +1696,7 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-4 md:p-8">
               {hasNextMessages ? (
                 <div className="mb-6 flex justify-center">
                   <button
@@ -1402,22 +1717,53 @@ export default function MessagesPage() {
                     메시지를 불러오는 중...
                   </div>
                 </div>
-              ) : activeMessages.length > 0 ? (
+              ) : activeMessages.length > 0 || activePendingMessages.length > 0 ? (
                 <div className="space-y-6">
-                  {activeMessages.map((chatMessage) => (
-                    <MessageBubble
-                      key={chatMessage.id}
-                      chatMessage={chatMessage}
-                      mine={chatMessage.senderId === 'me'}
-                      recipientName={activeConversation.recipient.name}
-                      recipientImageUrl={activeConversation.recipient.profileImageUrl}
-                      isActionOpen={messageActionId === chatMessage.id}
-                      actionLoading={messageActionLoading}
-                      onToggleAction={() =>
-                        setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
-                      }
-                      onDelete={() => void handleDeleteMessage(chatMessage.id)}
-                      onOpenPost={handleOpenPost}
+                  {activeMessages.map((chatMessage, index) => {
+                    return (
+                      <Fragment key={chatMessage.id}>
+                        {shouldShowMessageDateSeparator(activeMessages, index) ? (
+                          <MessageDateSeparator label={formatMessageDate(chatMessage.createdAt)} />
+                        ) : null}
+                        <div
+                          ref={(element) => {
+                            if (element) {
+                              messageElementRefs.current.set(chatMessage.id, element);
+                            } else {
+                              messageElementRefs.current.delete(chatMessage.id);
+                            }
+                          }}
+                          data-message-id={chatMessage.id}
+                          className={`rounded-[32px] transition-[box-shadow,background-color] duration-500 ${
+                            highlightedMessageId === chatMessage.id
+                              ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
+                              : ''
+                          }`}
+                        >
+                          <MessageBubble
+                            chatMessage={chatMessage}
+                            mine={chatMessage.senderId === 'me'}
+                            recipientName={activeConversation.recipient.name}
+                            recipientImageUrl={activeConversation.recipient.profileImageUrl}
+                            isActionOpen={messageActionId === chatMessage.id}
+                            actionLoading={messageActionLoading}
+                            onToggleAction={() =>
+                              setMessageActionId((current) => (current === chatMessage.id ? null : chatMessage.id))
+                            }
+                            onDelete={() => void handleDeleteMessage(chatMessage.id)}
+                            onOpenPost={handleOpenPost}
+                            onOpenImage={handleOpenImage}
+                          />
+                        </div>
+                      </Fragment>
+                    );
+                  })}
+                  {activePendingMessages.map((pendingMessage) => (
+                    <PendingMessageBubble
+                      key={pendingMessage.id}
+                      pendingMessage={pendingMessage}
+                      onRetry={() => handleRetryPendingMessage(activeConversation.id, pendingMessage.id)}
+                      onDiscard={() => discardPendingMessages(activeConversation.id, pendingMessage.id)}
                       onOpenImage={handleOpenImage}
                     />
                   ))}
@@ -1436,11 +1782,17 @@ export default function MessagesPage() {
               <div ref={messageEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-6">
+            <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-3 md:p-6">
               {composerError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   <CircleAlert size={16} className="shrink-0" />
                   <span>{composerError}</span>
+                </div>
+              ) : null}
+
+              {preparingImages ? (
+                <div role="status" className="mx-auto mb-3 max-w-4xl rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                  이미지를 준비하고 있습니다...
                 </div>
               ) : null}
 
@@ -1499,7 +1851,7 @@ export default function MessagesPage() {
                   ref={imageInputRef}
                   type="file"
                   multiple
-                  accept="image/*,.jpg,.jpeg,.png,.gif,.webp"
+                  accept="image/jpeg,image/png,image/gif,image/webp,.jpg,.jpeg,.png,.gif,.webp"
                   className="hidden"
                   onChange={handleImageSelect}
                 />
@@ -1513,7 +1865,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
-                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200"
+                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-neutral-800"
                   aria-label="첨부 메뉴"
                 >
                   <Plus size={20} />
@@ -1523,7 +1875,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <ImagePlus size={18} />
                       사진 추가
@@ -1531,7 +1883,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <Video size={18} />
                       동영상 추가
@@ -1539,7 +1891,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={clearAttachments}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
                     >
                       <X size={18} />
                       첨부 지우기
@@ -1549,21 +1901,24 @@ export default function MessagesPage() {
                 <input
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
+                  maxLength={MAX_MESSAGE_LENGTH}
                   placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
-                  disabled={sending}
-                  className="flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400"
+                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
                 />
+                <span
+                  className={`shrink-0 text-xs font-bold ${
+                    message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                  }`}
+                >
+                  {message.length}/{MAX_MESSAGE_LENGTH}
+                </span>
                 <button
                   type="submit"
-                  disabled={(!message.trim() && attachments.length === 0) || sending}
-                  className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100"
+                  disabled={preparingImages || (!message.trim() && attachments.length === 0)}
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
                   aria-label="메시지 전송"
                 >
-                  {sending ? (
-                    <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
-                  ) : (
-                    <Send size={20} />
-                  )}
+                  <Send size={20} />
                 </button>
               </div>
             </form>

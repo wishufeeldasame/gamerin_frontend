@@ -10,6 +10,7 @@ export default function PostPermalinkPage() {
   const searchParams = useSearchParams();
   const postId = params.postId;
   const initialScrollTarget = searchParams.get('target') === 'comments' ? 'comments' : undefined;
+  const initialCommentId = searchParams.get('commentId')?.trim() || undefined;
 
   return (
     <div className="flex justify-center overflow-visible">
@@ -19,6 +20,7 @@ export default function PostPermalinkPage() {
             postId={postId}
             onBack={() => router.back()}
             initialScrollTarget={initialScrollTarget}
+            initialCommentId={initialCommentId}
             onPostDeleted={() => router.push('/home')}
           />
         </div>

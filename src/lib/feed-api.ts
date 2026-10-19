@@ -1,19 +1,16 @@
-import { ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
+import {
+  ApiError,
+  AUTH_REQUIRED_MESSAGE,
+  type ApiClientConfig,
+  type ApiRequestOptions,
+  apiRequest as sendApiRequest,
+} from '@/lib/api-client';
 import type { ProfileImageUploadTarget } from '@/lib/profile-image-compression';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
-
-export interface ApiEnvelope<T> {
-  success: boolean;
-  data: T;
-  message?: string;
-}
-
-export interface CursorPage<T> {
-  items: T[];
-  nextCursor: string | null;
-  hasNext: boolean;
-}
+import { toNumber } from '@/lib/coerce';
+import { formatRelativeTimeLabel } from '@/lib/time-format';
+import type { CursorPage } from '@/types/api';
+import type { BookmarkCollection } from '@/types/bookmark';
 
 export interface PostMedia {
   mediaId: string;
@@ -32,12 +29,20 @@ export interface ExternalLinkCard {
   thumbnailUrl: string | null;
 }
 
+export interface ReposterInfo {
+  userId: string;
+  nickname: string;
+  membershipBadge?: boolean;
+  repostedAt: string;
+}
+
 export interface PostRecord {
   postId: string;
   author: string;
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
+  authorMembershipBadge?: boolean;
   game?: string | null;
   content: string | null;
   media: PostMedia[];
@@ -45,10 +50,19 @@ export interface PostRecord {
   likes: number;
   comments: number;
   shares: number;
+  isReposted: boolean;
+  repostCount: number;
+  reposterInfo?: ReposterInfo | null;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
+  isSaved?: boolean;
+  savedCollectionIds?: string[];
   mine: boolean;
   createdAt: string;
+  /** 작성자 본인 응답에만 있다(#92). 수정 가능 마감 시각 */
+  editableUntil?: string | null;
+  /** 작성자 본인 응답에만 있다(#92). 0이면 수정 가능, 1이면 이미 수정함 */
+  editCount?: number | null;
 }
 
 export interface CommentRecord {
@@ -57,6 +71,7 @@ export interface CommentRecord {
   authorHandle: string;
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
+  authorMembershipBadge?: boolean;
   content: string;
   createdAt: string;
   mine: boolean;
@@ -73,12 +88,14 @@ export interface UserProfile {
   profileImageUrl: string | null;
   gameStats: Record<string, unknown>;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
   followersCount: number;
   followingCount: number;
   postCount: number;
   mediaPostCount: number;
   mediaItemCount: number;
   followedByMe?: boolean;
+  followsViewer?: boolean;
 }
 
 type UserProfilePayload = UserProfile & {
@@ -108,6 +125,7 @@ export interface FollowUserRecord {
   bio: string | null;
   profileImageUrl: string | null;
   verifiedBadge: boolean;
+  membershipBadge?: boolean;
   isFollowing: boolean;
   followedAt: string;
 }
@@ -129,54 +147,55 @@ export interface ShareResponse {
   shares: number;
 }
 
-function toNumber(value: unknown) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? numericValue : 0;
+export interface RepostActionResponse {
+  postId: string;
+  isReposted: boolean;
+  repostCount: number;
+  repostedAt: string | null;
+}
+
+export type BookmarkScope = 'all' | 'unclassified';
+
+export interface BookmarkRequestOptions extends FeedRequestOptions {
+  q?: string;
+  mediaOnly?: boolean;
+}
+
+export interface BookmarkCollectionPostState {
+  postId: string;
+  bookmarkedByMe: boolean;
+  collectionIds: string[];
+  collection: BookmarkCollection;
 }
 
 function normalizePostMedia(media: PostMedia): PostMedia {
   return {
     ...media,
-    mediaUrl: normalizeAssetUrl(media.mediaUrl) ?? media.mediaUrl,
-    thumbnailUrl: normalizeAssetUrl(media.thumbnailUrl),
+    mediaUrl: toAbsoluteAssetUrl(media.mediaUrl) ?? media.mediaUrl,
+    thumbnailUrl: toAbsoluteAssetUrl(media.thumbnailUrl),
     sortOrder: toNumber(media.sortOrder),
   };
 }
 
-function normalizeAssetUrl(value?: string | null) {
-  const url = value?.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-}
-
-function normalizePostRecord(post: PostRecord): PostRecord {
+export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
-    authorProfileImageUrl: normalizeAssetUrl(post.authorProfileImageUrl),
+    authorProfileImageUrl: toAbsoluteAssetUrl(post.authorProfileImageUrl),
     content: post.content ?? null,
     media: Array.isArray(post.media) ? post.media.map(normalizePostMedia) : [],
     likes: toNumber(post.likes),
     comments: toNumber(post.comments),
     shares: toNumber(post.shares),
+    isReposted: Boolean(post.isReposted),
+    repostCount: toNumber(post.repostCount),
+    reposterInfo: post.reposterInfo ?? null,
     likedByMe: Boolean(post.likedByMe),
     bookmarkedByMe: Boolean(post.bookmarkedByMe),
     mine: Boolean(post.mine),
   };
 }
 
-function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
+export function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) => T): CursorPage<T> {
   return {
     items: Array.isArray(page.items) ? page.items.map(normalizeItem) : [],
     nextCursor: page.nextCursor ?? null,
@@ -187,8 +206,8 @@ function normalizeCursorPage<T>(page: CursorPage<T>, normalizeItem: (item: T) =>
 function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
   return {
     ...profile,
-    coverImageUrl: normalizeAssetUrl(profile.coverImageUrl),
-    profileImageUrl: normalizeAssetUrl(profile.profileImageUrl),
+    coverImageUrl: toAbsoluteAssetUrl(profile.coverImageUrl),
+    profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     followedByMe: profile.followedByMe ?? profile.isFollowing ?? profile.following ?? false,
   };
 }
@@ -196,78 +215,50 @@ function normalizeUserProfile(profile: UserProfilePayload): UserProfile {
 function normalizeProfileImageUpload(response: ProfileImageUploadResponse): ProfileImageUploadResponse {
   return {
     ...response,
-    imageUrl: normalizeAssetUrl(response.imageUrl) ?? response.imageUrl,
+    imageUrl: toAbsoluteAssetUrl(response.imageUrl) ?? response.imageUrl,
   };
 }
 
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
-};
+function normalizeBookmarkCollection(collection: BookmarkCollection): BookmarkCollection {
+  return {
+    ...collection,
+    coverImageUrl: toAbsoluteAssetUrl(collection.coverImageUrl),
+    bookmarkCount: toNumber(collection.bookmarkCount),
+    containsPost: Boolean(collection.containsPost),
+  };
+}
+
+function normalizeBookmarkCollectionPostState(
+  state: BookmarkCollectionPostState,
+): BookmarkCollectionPostState {
+  return {
+    ...state,
+    bookmarkedByMe: Boolean(state.bookmarkedByMe),
+    collectionIds: Array.isArray(state.collectionIds) ? state.collectionIds : [],
+    collection: normalizeBookmarkCollection(state.collection),
+  };
+}
 
 interface FeedRequestOptions {
   signal?: AbortSignal;
 }
 
-async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
+const FEED_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) => new ApiError(
+    message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+      ? AUTH_REQUIRED_MESSAGE
+      : '요청을 처리하지 못했습니다.'),
+    status,
+    reason,
+  ),
+};
 
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
-
-    if (!accessToken) {
-      throw new Error('로그인이 필요하거나 인증이 만료되었습니다.');
-    }
-
-    result = await send(accessToken);
-  }
-
-  if (!result.response.ok) {
-    throw new Error(result.payload?.message ?? 'Request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return sendApiRequest<T>(path, FEED_CLIENT, options);
 }
 
 export function formatRelativeTime(createdAt: string) {
-  const target = new Date(createdAt).getTime();
-  const diffSeconds = Math.max(1, Math.floor((Date.now() - target) / 1000));
-
-  if (diffSeconds < 60) return `${diffSeconds}s ago`;
-
-  const diffMinutes = Math.floor(diffSeconds / 60);
-  if (diffMinutes < 60) return `${diffMinutes}m ago`;
-
-  const diffHours = Math.floor(diffMinutes / 60);
-  if (diffHours < 24) return `${diffHours}h ago`;
-
-  const diffDays = Math.floor(diffHours / 24);
-  if (diffDays < 7) return `${diffDays}d ago`;
-
-  return new Date(createdAt).toLocaleDateString();
+  return formatRelativeTimeLabel(createdAt);
 }
 
 export function getInitials(name: string, fallback = 'G') {
@@ -288,6 +279,20 @@ export function updatePostBookmarkState(post: PostRecord, bookmarkedByMe = !post
   return {
     ...post,
     bookmarkedByMe,
+  };
+}
+
+export function updatePostRepostState(
+  post: PostRecord,
+  isReposted = !post.isReposted,
+): PostRecord {
+  return {
+    ...post,
+    isReposted,
+    repostCount: Math.max(
+      0,
+      post.repostCount + (isReposted === post.isReposted ? 0 : isReposted ? 1 : -1),
+    ),
   };
 }
 
@@ -343,6 +348,15 @@ export async function fetchPostDetail(postId: string, options: FeedRequestOption
   return normalizePostRecord(post);
 }
 
+/** 멤버십 혜택: 본문만 수정한다(#92). 서버가 수정된 상세 게시물을 돌려준다. */
+export async function updatePostContent(postId: string, content: string) {
+  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ content }),
+  });
+  return normalizePostRecord(post);
+}
+
 export async function deletePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}`, {
     method: 'DELETE',
@@ -361,6 +375,18 @@ export async function unlikePost(postId: string) {
   });
 }
 
+export async function repostPost(postId: string) {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
+    method: 'POST',
+  });
+}
+
+export async function unrepostPost(postId: string) {
+  return apiRequest<RepostActionResponse>(`/api/v1/posts/${postId}/reposts`, {
+    method: 'DELETE',
+  });
+}
+
 export async function bookmarkPost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}/bookmarks`, {
     method: 'POST',
@@ -371,6 +397,69 @@ export async function unbookmarkPost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}/bookmarks`, {
     method: 'DELETE',
   });
+}
+
+export async function fetchBookmarkCollections(postId?: string | null) {
+  const search = new URLSearchParams();
+  if (postId) {
+    search.set('postId', postId);
+  }
+
+  const suffix = search.size > 0 ? `?${search.toString()}` : '';
+  const collections = await apiRequest<BookmarkCollection[]>(`/api/v1/bookmark-collections${suffix}`);
+  return Array.isArray(collections) ? collections.map(normalizeBookmarkCollection) : [];
+}
+
+export async function createBookmarkCollection(name: string, initialPostId?: string | null) {
+  const collection = await apiRequest<BookmarkCollection>('/api/v1/bookmark-collections', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      initialPostId: initialPostId || undefined,
+    }),
+  });
+
+  return normalizeBookmarkCollection(collection);
+}
+
+export async function renameBookmarkCollection(collectionId: string, name: string) {
+  const collection = await apiRequest<BookmarkCollection>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ name }),
+    },
+  );
+
+  return normalizeBookmarkCollection(collection);
+}
+
+export async function deleteBookmarkCollection(collectionId: string) {
+  await apiRequest<null>(`/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function addPostToBookmarkCollection(collectionId: string, postId: string) {
+  const state = await apiRequest<BookmarkCollectionPostState>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks/${encodeURIComponent(postId)}`,
+    {
+      method: 'PUT',
+    },
+  );
+
+  return normalizeBookmarkCollectionPostState(state);
+}
+
+export async function removePostFromBookmarkCollection(collectionId: string, postId: string) {
+  const state = await apiRequest<BookmarkCollectionPostState>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks/${encodeURIComponent(postId)}`,
+    {
+      method: 'DELETE',
+    },
+  );
+
+  return normalizeBookmarkCollectionPostState(state);
 }
 
 export async function sharePost(postId: string, target: ShareTarget = 'COPY_LINK') {
@@ -471,7 +560,12 @@ export async function fetchFollowing(handle: string, cursor?: string | null, siz
   );
 }
 
-export async function fetchUserPosts(handle: string, cursor?: string | null, size = 20) {
+export async function fetchUserPosts(
+  handle: string,
+  cursor?: string | null,
+  size = 20,
+  options: FeedRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -481,7 +575,8 @@ export async function fetchUserPosts(handle: string, cursor?: string | null, siz
   }
 
   const page = await apiRequest<CursorPage<PostRecord>>(
-    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`
+    `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`,
+    { signal: options.signal },
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }
@@ -500,7 +595,45 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   );
 }
 
-export async function fetchMyBookmarks(cursor?: string | null, size = 20, options: FeedRequestOptions = {}) {
+function appendBookmarkSearchParams(search: URLSearchParams, options: BookmarkRequestOptions) {
+  if (options.q?.trim()) {
+    search.set('q', options.q.trim());
+  }
+
+  if (typeof options.mediaOnly === 'boolean') {
+    search.set('mediaOnly', String(options.mediaOnly));
+  }
+}
+
+export async function fetchMyBookmarks(
+  cursor?: string | null,
+  size = 20,
+  options: BookmarkRequestOptions = {},
+  scope: BookmarkScope = 'all',
+) {
+  const search = new URLSearchParams({
+    scope,
+    size: String(size),
+  });
+
+  if (cursor) {
+    search.set('cursor', cursor);
+  }
+
+  appendBookmarkSearchParams(search, options);
+
+  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
+    signal: options.signal,
+  });
+  return normalizeCursorPage(page, normalizePostRecord);
+}
+
+export async function fetchCollectionBookmarks(
+  collectionId: string,
+  cursor?: string | null,
+  size = 20,
+  options: BookmarkRequestOptions = {},
+) {
   const search = new URLSearchParams({
     size: String(size),
   });
@@ -509,8 +642,13 @@ export async function fetchMyBookmarks(cursor?: string | null, size = 20, option
     search.set('cursor', cursor);
   }
 
-  const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/users/me/bookmarks?${search.toString()}`, {
-    signal: options.signal,
-  });
+  appendBookmarkSearchParams(search, options);
+
+  const page = await apiRequest<CursorPage<PostRecord>>(
+    `/api/v1/bookmark-collections/${encodeURIComponent(collectionId)}/bookmarks?${search.toString()}`,
+    {
+      signal: options.signal,
+    },
+  );
   return normalizeCursorPage(page, normalizePostRecord);
 }

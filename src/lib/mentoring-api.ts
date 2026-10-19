@@ -1,6 +1,6 @@
-import { ensureAccessToken, getAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { PageResponse } from '@/types/api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const MENTORING_BASE = '/api/v1/mentoring';
 
 export type MentorStatus = 'ACTIVE' | 'INACTIVE' | string;
@@ -15,24 +15,6 @@ export type ApplicationStatus =
   | 'CANCELLED';
 export type PaymentStatus = 'PENDING' | 'ESCROW_HELD' | 'SETTLED' | 'REFUNDED';
 
-export interface ApiEnvelope<T> {
-  success?: boolean;
-  data?: T;
-  message?: string;
-}
-
-export interface PageResponse<T> {
-  content: T[];
-  totalPages: number;
-  totalElements: number;
-  number: number;
-  size: number;
-  first?: boolean;
-  last?: boolean;
-  empty?: boolean;
-  numberOfElements?: number;
-}
-
 export interface MentorProfileResponse {
   userId: string;
   nickname: string;
@@ -41,6 +23,12 @@ export interface MentorProfileResponse {
   ratingAvg: number;
   reviewCount: number;
   menteeCount: number;
+  membershipBadge?: boolean;
+}
+
+export interface GameResponse {
+  code: string;
+  name: string;
 }
 
 export interface MentoringProgramResponse {
@@ -56,6 +44,8 @@ export interface MentoringProgramResponse {
   price: number;
   tags: string[] | null;
   createdAt: string;
+  /** 멘토의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringProgramDetailResponse {
@@ -71,6 +61,8 @@ export interface MentoringProgramDetailResponse {
   price: number;
   tags: string[] | null;
   createdAt: string;
+  /** 멘토의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringApplicationResponse {
@@ -87,6 +79,15 @@ export interface MentoringApplicationResponse {
   message: string;
   createdAt: string;
   reviewed: boolean;
+  mentorMembershipBadge?: boolean;
+  menteeMembershipBadge?: boolean;
+  /** 신청 시점에 저장된 정산 수수료율(bp). 멘토 관점 응답에만 있다. */
+  feeRateBp?: number;
+  feeAmount?: number;
+  payoutAmount?: number;
+  /** 비가입 멘토에게 멤버십 수수료 안내를 보여줄지 */
+  nonMemberNotice?: boolean;
+  feeNotice?: string;
 }
 
 export interface MentoringReviewResponse {
@@ -98,6 +99,8 @@ export interface MentoringReviewResponse {
   rating: number;
   content: string;
   createdAt: string;
+  /** 리뷰 작성자(멘티)의 멤버십 배지 */
+  membershipBadge?: boolean;
 }
 
 export interface MentoringProgramRequest {
@@ -118,126 +121,47 @@ export interface MentoringProgramUpdateRequest {
   tags: string[];
 }
 
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
+type RequestOptions = ApiRequestOptions & {
   authRequired?: boolean;
 };
 
-export class MentoringAuthError extends Error {
-  constructor() {
-    super('로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.');
-    this.name = 'MentoringAuthError';
-  }
-}
-
-export class MentoringApiError extends Error {
-  constructor(
-    message: string,
-    public readonly status: number
-  ) {
-    super(message);
+export class MentoringApiError extends ApiError {
+  constructor(message: string, status: number, reason: ApiFailureReason = 'http') {
+    super(message, status, reason);
     this.name = 'MentoringApiError';
   }
-}
-
-export function isMentoringAuthError(error: unknown): error is MentoringAuthError {
-  return (
-    error instanceof MentoringAuthError ||
-    (error instanceof Error &&
-      (error.message.includes('로그인이 필요') ||
-        error.message.includes('Authentication is required') ||
-        error.message.includes('sign in again') ||
-        error.message.includes('token has expired')))
-  );
 }
 
 export function isMentoringNotFoundError(error: unknown): error is MentoringApiError {
   return error instanceof MentoringApiError && error.status === 404;
 }
 
-async function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+// authRequired: false는 미리 refresh하지 않고 토큰 없이도 보낸다는 뜻일 뿐, 서버가 공개로 허용한다는 뜻은 아니다.
+// backend SecurityConfig에서 /api/v1/mentoring/** 는 모두 인증이 필요하다.
+function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const { authRequired = true, ...fetchOptions } = options;
 
-  const send = async (accessToken?: string | null) => {
-    const headers = new Headers(options.headers);
+  return apiRequest<T>(
+    path,
+    {
+      authRequired,
+      envelope: 'optional',
+      toError: ({ reason, status, message }) => {
+        const serverMessage = message?.trim() ? message : undefined;
+        if (reason === 'http' && status === 404) {
+          return new MentoringApiError(serverMessage ?? '멘토링 정보를 찾을 수 없습니다.', status, reason);
+        }
 
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
-    }
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${API_BASE}${path}`, {
-      ...fetchOptions,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | T | null;
-    return { response, payload };
-  };
-
-  let accessToken = authRequired
-    ? await ensureAccessToken()
-    : getAccessToken();
-
-  if (!accessToken && authRequired) {
-    throw new MentoringAuthError();
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    const refreshedToken = await refreshAccessToken();
-
-    if (!refreshedToken) {
-      if (authRequired) {
-        throw new MentoringAuthError();
-      }
-    } else {
-      accessToken = refreshedToken;
-      result = await send(accessToken);
-
-      if (!authRequired && result.response.status === 401) {
-        result = await send(null);
-      }
-    }
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 404) {
-      const message =
-        result.payload &&
-        typeof result.payload === 'object' &&
-        'message' in result.payload &&
-        typeof result.payload.message === 'string'
-          ? result.payload.message
-          : 'Mentoring resource was not found.';
-      throw new MentoringApiError(message, result.response.status);
-    }
-
-    if (result.response.status === 401) {
-      if (!authRequired) {
-        throw new Error('멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-      }
-
-      throw new MentoringAuthError();
-    }
-
-    const message =
-      result.payload && typeof result.payload === 'object' && 'message' in result.payload
-        ? result.payload.message
-        : null;
-    throw new Error(message || '멘토링 요청 처리에 실패했습니다.');
-  }
-
-  if (result.payload && typeof result.payload === 'object' && 'data' in result.payload) {
-    return (result.payload as ApiEnvelope<T>).data as T;
-  }
-
-  return result.payload as T;
+        const fallback = reason === 'unauthenticated' || reason === 'blocked' || status === 401
+          ? AUTH_REQUIRED_MESSAGE
+          : authRequired
+            ? '멘토링 요청 처리에 실패했습니다.'
+            : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+        return new MentoringApiError(serverMessage ?? fallback, status, reason);
+      },
+    },
+    fetchOptions,
+  );
 }
 
 export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
@@ -252,6 +176,10 @@ export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
     empty: true,
     numberOfElements: 0,
   };
+}
+
+export function fetchGames() {
+  return mentoringRequest<GameResponse[]>('/api/v1/games');
 }
 
 export function registerMentor(payload: { about: string }) {
