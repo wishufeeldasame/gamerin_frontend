@@ -557,3 +557,13 @@ describe('요청·응답 형식', () => {
     expect(api.authorization(0)).toBe('Bearer token-a');
   });
 });
+
+describe('toUploadErrorMessage', () => {
+  it('검열 거부(422)는 서버 영문 사유 대신 정책 위반 문구로 바꾼다', () => {
+    const rejected = new client.ApiError('Content violates moderation policy: harassment', 422);
+
+    expect(client.toUploadErrorMessage(rejected, 'fallback')).toBe(client.MODERATION_REJECTED_MESSAGE);
+    expect(client.toUploadErrorMessage(new client.ApiError('서버 오류', 500), 'fallback')).toBe('서버 오류');
+    expect(client.toUploadErrorMessage('unknown', 'fallback')).toBe('fallback');
+  });
+});

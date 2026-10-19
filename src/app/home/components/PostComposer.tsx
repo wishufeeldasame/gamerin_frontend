@@ -6,11 +6,12 @@ import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Hash, ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
+import { getInitials } from '@/lib/feed-api';
+import type { PostDraft } from '@/hooks/usePendingPosts';
 import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
 
 interface PostComposerProps {
-  onCreated?: (post: PostRecord) => void;
+  onSubmit?: (draft: PostDraft) => void;
 }
 
 interface ThumbnailOption {
@@ -176,7 +177,7 @@ async function generateThumbnailOptions(file: File) {
   }
 }
 
-export function PostComposer({ onCreated }: PostComposerProps) {
+export function PostComposer({ onSubmit }: PostComposerProps) {
   const toast = useToast();
   const { user } = useAuth();
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -192,7 +193,6 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
   const [activeHashtagQuery, setActiveHashtagQuery] = useState<ActiveHashtagQuery | null>(null);
   const [hashtagSuggestions, setHashtagSuggestions] = useState<HashtagSummary[]>([]);
@@ -443,11 +443,10 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
   const canSubmit =
     Boolean(user) &&
-    !submitting &&
     !generatingThumbnails &&
     Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!user || !canSubmit) {
       return;
     }
@@ -457,40 +456,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       return;
     }
 
-    try {
-      setSubmitting(true);
-
-      let createdPost: PostRecord;
-      if (hasFiles) {
-        const formData = new FormData();
-        if (content.trim()) {
-          formData.append('content', content.trim());
-        }
-
-        imageFiles.forEach((file) => formData.append('mediaFiles', file));
-
-        if (videoFile) {
-          formData.append('mediaFiles', videoFile);
-          if (selectedThumbnail) {
-            formData.append('thumbnailFile', selectedThumbnail.file);
-          }
-        }
-
-        createdPost = await createMultipartPost(formData);
-      } else {
-        createdPost = await createJsonPost({
-          content: content.trim(),
-          externalLinkUrl: externalLinkUrl.trim(),
-        });
-      }
-
-      onCreated?.(createdPost);
-      resetComposer();
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : '게시글 작성에 실패했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
+    // 작성창은 바로 비우고 업로드는 피드의 임시 카드가 이어받는다.
+    onSubmit?.({
+      content: content.trim(),
+      externalLinkUrl: externalLinkUrl.trim(),
+      imageFiles,
+      videoFile,
+      thumbnailFile: videoFile ? selectedThumbnail?.file ?? null : null,
+    });
+    resetComposer();
   };
 
   return (
@@ -738,7 +712,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                 canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-neutral-800 dark:text-zinc-500'
               }`}
             >
-              {submitting ? '게시 중...' : '게시'}
+              게시
             </button>
           </div>
         </div>

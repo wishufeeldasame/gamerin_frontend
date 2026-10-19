@@ -35,6 +35,14 @@ export class ApiError extends Error {
   }
 }
 
+export const MODERATION_REJECTED_MESSAGE = '운영 정책에 맞지 않는 내용이 있어 올릴 수 없습니다. 내용을 수정해 주세요.';
+
+// 서버 검열 거부(422)는 영문 사유를 그대로 보여주지 않고 정책 위반 문구로 바꾼다.
+export function toUploadErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof ApiError && error.status === 422) return MODERATION_REJECTED_MESSAGE;
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
 export interface ApiFailure {
   reason: ApiFailureReason;
   status: number;

@@ -4,9 +4,11 @@ import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
+import { PendingPostCard } from '@/app/home/components/PendingPostCard';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { useCursorList } from '@/hooks/useCursorList';
+import { usePendingPosts } from '@/hooks/usePendingPosts';
 import { usePostLike } from '@/hooks/usePostLike';
 import { type PostRecord, fetchFeed } from '@/lib/feed-api';
 import {
@@ -84,9 +86,15 @@ function HomePageContent() {
     window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   };
 
-  const handleCreatedPost = (createdPost: PostRecord) => {
-    setPosts((current) => [createdPost, ...current]);
-  };
+  const handleCreatedPost = useCallback((createdPost: PostRecord) => {
+    setPosts((current) => [createdPost, ...current.filter((item) => item.postId !== createdPost.postId)]);
+  }, [setPosts]);
+  const {
+    pendingPosts,
+    submit: handleSubmitPost,
+    retry: handleRetryPost,
+    discard: handleDiscardPost,
+  } = usePendingPosts(handleCreatedPost);
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) =>
@@ -162,7 +170,20 @@ function HomePageContent() {
         </div>
 
         <div className="space-y-6 p-4">
-          <PostComposer onCreated={handleCreatedPost} />
+          <PostComposer onSubmit={handleSubmitPost} />
+
+          {pendingPosts.length > 0 ? (
+            <div className="space-y-4">
+              {pendingPosts.map((pendingPost) => (
+                <PendingPostCard
+                  key={pendingPost.id}
+                  pendingPost={pendingPost}
+                  onRetry={handleRetryPost}
+                  onDiscard={handleDiscardPost}
+                />
+              ))}
+            </div>
+          ) : null}
 
           {loading ? (
             <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">

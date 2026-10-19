@@ -46,6 +46,27 @@ export type Conversation = {
   updatedAt: string;
 };
 
+export type PendingChatAttachment = {
+  id: string;
+  type: 'image' | 'video';
+  name: string;
+  file: File;
+  previewUrl: string;
+};
+
+// 서버 응답 전까지 보낸 사람 화면에만 보이는 임시 메시지. queued는 직렬 전송 대기, sending은 요청 중이다.
+export type PendingChatMessage = {
+  id: string;
+  text: string;
+  attachments: PendingChatAttachment[];
+  status: 'queued' | 'sending' | 'failed';
+  errorMessage: string | null;
+  // 이 시각 이후에 생긴 내 메시지만 이 임시 메시지의 서버 사본으로 본다. null이면 기준을 몰라 숨기지 않는다.
+  afterCreatedAt: string | null;
+  // 제출 당시 인증 세대. 로그아웃·사용자 전환 뒤에는 다른 계정으로 보내지 않는다.
+  authGeneration: number;
+};
+
 export type MessageCursorPage = {
   items: ChatMessage[];
   nextCursor: string | null;
@@ -133,4 +154,44 @@ export function mergeMessages(existing: ChatMessage[], incoming: ChatMessage[]) 
     if (createdDiff !== 0) return createdDiff;
     return left.id.localeCompare(right.id);
   });
+}
+
+function toTime(createdAt: string | null) {
+  return createdAt ? new Date(createdAt).getTime() : Number.NEGATIVE_INFINITY;
+}
+
+// 보낸 사람에게도 SSE·폴링으로 같은 메시지가 전송 응답보다 먼저 올 수 있다.
+// 요청 중인 임시 메시지와 본문·첨부(종류·파일명)가 같은 내 메시지가 기준 시각 이후에 있으면 서버 사본이 도착한 것으로 보고 임시 메시지를 숨긴다.
+// 동일성을 확신할 수 없으면 숨기지 않는다(잠깐 중복이 보이는 쪽이 보내는 중인 메시지가 사라지는 쪽보다 낫다).
+export function hideDeliveredPendingMessages(pending: PendingChatMessage[], messages: ChatMessage[]) {
+  const claimedIds = new Set<string>();
+
+  return pending.filter((item) => {
+    if (item.status !== 'sending' || !item.afterCreatedAt) return true;
+
+    const after = toTime(item.afterCreatedAt);
+    const delivered = messages.find(
+      (message) =>
+        !claimedIds.has(message.id) &&
+        message.senderId === 'me' &&
+        toTime(message.createdAt) > after &&
+        (message.text ?? '') === item.text &&
+        message.attachments.length === item.attachments.length &&
+        message.attachments.every(
+          (attachment, index) =>
+            attachment.type === item.attachments[index]?.type && attachment.name === item.attachments[index]?.name
+        )
+    );
+    if (!delivered) return true;
+
+    claimedIds.add(delivered.id);
+    return false;
+  });
+}
+
+export function latestCreatedAt(...values: (string | null | undefined)[]) {
+  return values.reduce<string | null>(
+    (latest, value) => (value && toTime(value) > toTime(latest) ? value : latest),
+    null
+  );
 }
