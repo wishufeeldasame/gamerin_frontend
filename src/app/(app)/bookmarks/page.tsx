@@ -52,6 +52,11 @@ export default function BookmarksPage() {
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
   const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
   const collectionCountSyncBaseRef = useRef(collections);
+  // 모음집 변경 응답이 늦게 와도 전환 후 목록을 건드리지 않도록 최신 선택값을 본다.
+  const selectedCollectionIdRef = useRef(selectedCollectionId);
+  useEffect(() => {
+    selectedCollectionIdRef.current = selectedCollectionId;
+  }, [selectedCollectionId]);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => {
     const requestOptions = {
@@ -381,9 +386,10 @@ export default function BookmarksPage() {
                   onBookmarkChange={handleBookmarkChanged}
                   onCollectionChange={(changedPost, collectionId, containsPost) => {
                     // 현재 보고 있는 모음집·미분류 조건에서 벗어난 게시물만 목록에서 뺀다.
+                    const currentCollectionId = selectedCollectionIdRef.current;
                     if (
-                      (!containsPost && collectionId === selectedCollectionId) ||
-                      (containsPost && selectedCollectionId === 'unclassified')
+                      (!containsPost && collectionId === currentCollectionId) ||
+                      (containsPost && currentCollectionId === 'unclassified')
                     ) {
                       removeBookmark(changedPost.postId);
                     }

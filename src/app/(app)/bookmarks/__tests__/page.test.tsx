@@ -11,6 +11,12 @@ const api = vi.hoisted(() => ({
   unlikePost: vi.fn(),
 }));
 
+const capturedPostProps = vi.hoisted(() => ({
+  onCollectionChange: undefined as
+    | ((post: PostRecord, collectionId: string, containsPost: boolean) => void)
+    | undefined,
+}));
+
 const bookmarkContext = vi.hoisted(() => ({
   collections: [] as BookmarkCollection[],
   loading: false,
@@ -55,7 +61,9 @@ vi.mock('@/app/home/components/Post', () => ({
     onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
     onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
     onCollectionChange?: (post: PostRecord, collectionId: string, containsPost: boolean) => void;
-  }) => (
+  }) => {
+    capturedPostProps.onCollectionChange = onCollectionChange;
+    return (
     <div
       data-testid={'post-' + post.postId}
       data-likes={String(post.likes)}
@@ -126,7 +134,8 @@ vi.mock('@/app/home/components/Post', () => ({
         rollback bookmark
       </button>
     </div>
-  ),
+    );
+  },
 }));
 
 import BookmarksPage from '../page';
@@ -329,6 +338,21 @@ describe('BookmarksPage state synchronization', () => {
     await selectCollection('모음집 A');
     fireEvent.click(screen.getByRole('button', { name: 'remove from collection a' }));
     expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
+  });
+
+  it('ignores a late collection change response after switching to another collection', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+    await selectCollection('모음집 A');
+    const staleOnCollectionChange = capturedPostProps.onCollectionChange;
+
+    api.fetchCollectionBookmarks.mockClear();
+    await selectCollection('모음집 B');
+    act(() => {
+      staleOnCollectionChange?.(post, 'collection-a', false);
+    });
+
+    expect(screen.getByTestId('post-post-1')).toBeInTheDocument();
   });
 
   it('removes a post from the unclassified list when it is added to a collection', async () => {
