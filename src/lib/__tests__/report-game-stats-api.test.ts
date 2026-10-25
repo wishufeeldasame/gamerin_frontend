@@ -93,6 +93,26 @@ describe('report-api', () => {
 });
 
 describe('game-stats-api', () => {
+  it('Riot ID 연결과 LoL 요약 조회, 해제의 서버 계약을 사용한다', async () => {
+    const summary = { gameName: 'League of Legends', connected: true, tierLabel: 'GOLD I', kda: 3.25, winRate: 60, games: 20 };
+    api.route('/api/v1/riot/connect', () => json(200, { success: true, data: { connected: true, riotId: '소환사#KR1' } }));
+    api.route('/api/v1/riot/lol/me', () => json(200, { success: true, data: summary }));
+    api.route('/api/v1/riot/disconnect', () => json(200, { success: true, data: null }));
+
+    await expect(gameStats.connectRiot('소환사#KR1')).resolves.toMatchObject({ connected: true });
+    expect(api.init(0)).toMatchObject({ method: 'POST', body: JSON.stringify({ riotId: '소환사#KR1' }) });
+    expect(new Headers(api.init(0)?.headers).get('Authorization')).toBe('Bearer token-a');
+    await expect(gameStats.fetchLolSummary()).resolves.toEqual(summary);
+    await expect(gameStats.disconnectGameStats('LOL')).resolves.toBeNull();
+    expect(api.init(2)?.method).toBe('DELETE');
+  });
+
+  it.each([403, 404, 409, 429, 502, 503])('Riot %s 오류는 서버 안내와 로그인 상태를 보존한다', async (status) => {
+    api.route('/api/v1/riot/connect', () => json(status, { success: false, message: 'Riot 연동 실패 안내' }));
+    await expect(gameStats.connectRiot('소환사#KR1')).rejects.toMatchObject({ status, message: 'Riot 연동 실패 안내' });
+    expect(store.getAccessToken()).toBe('token-a');
+  });
+
   it('GameStatsApiError의 (status, message) 생성자와 기존 문구를 보존한다', async () => {
     api.route('/api/v1/pubg/me', () => json(404, {}), () => json(502, { message: 'PUBG API 오류' }));
 
