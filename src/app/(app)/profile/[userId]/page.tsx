@@ -24,6 +24,7 @@ import {
   Loader2,
   MapPin,
   WalletCards,
+  Gamepad2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -88,6 +89,22 @@ const GAME_STATS_UI_CONFIG: Record<
     disconnectable: true,
   },
 };
+
+const GAME_ICON_MAP: Record<string, { url: string; invertInDark?: boolean }> = {
+  PUBG: { url: '/images/games/pubg.png' },
+  R6: { url: '/images/games/rainbow6.png', invertInDark: true },
+  'RAINBOW SIX SIEGE': { url: '/images/games/rainbow6.png', invertInDark: true },
+  'LEAGUE OF LEGENDS': { url: '/images/games/lol.png' },
+  LOL: { url: '/images/games/lol.png' },
+  VALORANT: { url: '/images/games/valorant.png' },
+  'OVERWATCH 2': { url: '/images/games/overwatch2.png' },
+  CS2: { url: '/images/games/cs2.png', invertInDark: true },
+  'APEX LEGENDS': { url: '/images/games/apexlegend.png', invertInDark: true },
+};
+
+function getGameIconMeta(gameName: string) {
+  return GAME_ICON_MAP[gameName.trim().toUpperCase()] ?? null;
+}
 
 function withImageCacheBust(imageUrl: string | null | undefined) {
   if (!imageUrl) {
@@ -1205,37 +1222,53 @@ export default function ProfilePage() {
                   아직 연결된 게임 전적이 없습니다.
                 </div>
               ) : (
-                gameStatEntries.map((entry) => (
-                  <div
-                    key={entry.gameName}
-                    className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
-                  >
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="h-12 w-12 shrink-0 rounded-xl bg-zinc-300" />
-                      <div className="min-w-0">
-                        <p className="text-xl font-black text-black">{entry.gameName}</p>
-                        {entry.detail ? (
-                          <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                gameStatEntries.map((entry) => {
+                  const iconMeta = getGameIconMeta(entry.gameName);
+
+                  return (
+                    <div
+                      key={entry.gameName}
+                      className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white p-1">
+                          {iconMeta ? (
+                            <Image
+                              src={iconMeta.url}
+                              alt={`${entry.gameName} 아이콘`}
+                              fill
+                              sizes="48px"
+                              className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
+                            />
+                          ) : (
+                            <Gamepad2 size={24} className="text-zinc-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xl font-black text-black">{entry.gameName}</p>
+                          {entry.detail ? (
+                            <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                          ) : null}
+                          <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2 text-right">
+                        <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
+                        {isOwnProfile && entry.disconnectGameName ? (
+                          <button
+                            type="button"
+                            onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         ) : null}
-                        <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2 text-right">
-                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
-                      {isOwnProfile && entry.disconnectGameName ? (
-                        <button
-                          type="button"
-                          onClick={() => setDisconnectTarget(entry.disconnectGameName)}
-                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
-                          aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
