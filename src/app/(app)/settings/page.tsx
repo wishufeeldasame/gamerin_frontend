@@ -232,7 +232,7 @@ export default function SettingsPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <div className="sticky top-16 z-10 border-b border-zinc-200 bg-white px-6 py-4">
         <div className="flex items-center gap-3">
           <Settings className="h-6 w-6 text-black" />
@@ -255,7 +255,7 @@ export default function SettingsPage() {
                     aria-current={active ? 'page' : undefined}
                     onClick={() => setActiveSection(item.id)}
                     className={`flex w-full items-center justify-between rounded-lg px-4 py-3 transition-colors ${
-                      active ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-700 hover:bg-zinc-100 dark:hover:bg-neutral-800'
+                      active ? 'bg-black text-white dark:bg-[#f5b93d]/12 dark:text-[#f5b93d] dark:shadow-[inset_3px_0_0_#f5b93d]' : 'text-zinc-700 hover:bg-zinc-100 dark:hover:bg-surface-elevated'
                     }`}
                   >
                     <span className="flex items-center gap-3">

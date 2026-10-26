@@ -217,14 +217,14 @@ export function KakaoPaymentDialog({
         aria-labelledby="kakao-payment-title"
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
-        className="relative w-full max-w-[460px] rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900 sm:p-7"
+        className="relative w-full max-w-[460px] rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-line dark:bg-surface sm:p-7"
       >
         {phase === 'confirm' ? (
           <button
             type="button"
             onClick={onClose}
             aria-label="결제창 닫기"
-            className="absolute right-4 top-4 grid size-9 place-items-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-neutral-800 dark:text-zinc-300"
+            className="absolute right-4 top-4 grid size-9 place-items-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-surface-elevated dark:text-zinc-300"
           >
             <X size={17} />
           </button>
@@ -292,7 +292,7 @@ export function KakaoPaymentDialog({
           </>
         ) : (
           <>
-            <div className="mt-6 rounded-2xl bg-zinc-50 p-5 dark:bg-neutral-800">
+            <div className="mt-6 rounded-2xl bg-zinc-50 p-5 dark:bg-surface-elevated">
               <p className="text-xs font-bold text-zinc-500">{product.name}</p>
               <p className="mt-2 text-3xl font-black text-black dark:text-zinc-100">
                 {product.price.toLocaleString('ko-KR')}원
@@ -314,7 +314,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-12 rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-600 dark:bg-neutral-800 dark:text-zinc-300"
+                className="h-12 rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-600 dark:bg-surface-elevated dark:text-zinc-300"
               >
                 취소
               </button>

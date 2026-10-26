@@ -525,7 +525,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   return (
     <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex gap-4">
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
           {user?.profileImageUrl ? (
             <Image
               src={user.profileImageUrl}
@@ -567,7 +567,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                       key={hashtag.hashtagId}
                       type="button"
                       onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                     >
                       <span className="font-black text-zinc-900">#{hashtag.name}</span>
                       <span className="text-xs font-bold text-zinc-400">
@@ -770,7 +770,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
               disabled={!canSubmit}
               onClick={handleSubmit}
               className={`inline-flex h-11 items-center justify-center rounded-2xl px-7 text-lg font-medium text-white transition ${
-                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-neutral-800 dark:text-zinc-500'
+                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-surface-elevated dark:text-zinc-500'
               }`}
             >
               게시

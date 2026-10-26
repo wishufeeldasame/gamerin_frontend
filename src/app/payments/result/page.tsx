@@ -251,7 +251,7 @@ function PaymentResult() {
   const Icon = tone === 'success' ? CheckCircle2 : tone === 'fail' ? AlertCircle : tone === 'lock' ? Lock : Loader2;
 
   return (
-    <main className="grid min-h-screen place-items-center bg-white p-5 text-zinc-900 dark:bg-[#09090b] dark:text-zinc-100">
+    <main className="grid min-h-screen place-items-center bg-background p-5 text-zinc-900 dark:text-zinc-100">
       <section className="w-full max-w-[480px] space-y-4 rounded-2xl border border-zinc-100 bg-white p-7 dark:border-zinc-800 dark:bg-zinc-900">
         <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">KAKAOPAY</span>
         <Icon

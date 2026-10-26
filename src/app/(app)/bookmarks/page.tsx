@@ -184,7 +184,7 @@ export default function BookmarksPage() {
     <div className="mx-auto max-w-4xl px-6 py-10">
       <div className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-lg dark:bg-neutral-900 dark:text-[#f5b93d]">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-lg dark:bg-surface dark:text-[#f5b93d]">
             <Bookmark size={24} className="fill-current" />
           </div>
           <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black dark:text-zinc-100">북마크</h1>
@@ -203,7 +203,7 @@ export default function BookmarksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-neutral-900 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-surface dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
@@ -213,7 +213,7 @@ export default function BookmarksPage() {
             className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition ${
               mediaOnly
                 ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black'
-                : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-neutral-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+                : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-surface dark:text-zinc-400 dark:hover:text-zinc-100'
             }`}
           >
             <ImageIcon size={14} />
@@ -242,8 +242,8 @@ export default function BookmarksPage() {
             onClick={() => setSelectedCollectionId('all')}
             className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
               selectedCollectionId === 'all'
-                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
-                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
             }`}
           >
             <Bookmark size={20} className="fill-current" />
@@ -260,8 +260,8 @@ export default function BookmarksPage() {
             onClick={() => setSelectedCollectionId('unclassified')}
             className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
               selectedCollectionId === 'unclassified'
-                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
-                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
+                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
             }`}
           >
             <Folder size={20} className={selectedCollectionId === 'unclassified' ? 'fill-current' : 'text-zinc-400'} />
@@ -283,8 +283,8 @@ export default function BookmarksPage() {
                 onClick={() => setSelectedCollectionId(collection.collectionId)}
                 className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
                   isSelected
-                    ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
-                    : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-100 dark:hover:border-neutral-600'
+                    ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
+                    : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
                 }`}
               >
                 <Folder size={20} className={isSelected ? 'fill-current' : 'text-zinc-400'} />
@@ -316,7 +316,7 @@ export default function BookmarksPage() {
 
 
       {loading ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-500">
+        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-500">
           북마크를 불러오는 중...
         </div>
       ) : error ? (
@@ -331,7 +331,7 @@ export default function BookmarksPage() {
           </button>
         </div>
       ) : bookmarks.length === 0 ? (
-        <div className="rounded-[36px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="rounded-[36px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
             <Bookmark size={30} />
           </div>
@@ -359,7 +359,7 @@ export default function BookmarksPage() {
               >
                 {post.media.length > 0 ? (
                   <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
-                    <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                    <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-surface dark:text-zinc-400">
                       <ImageIcon size={12} />
                       미디어
                     </span>
@@ -410,7 +410,7 @@ export default function BookmarksPage() {
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-neutral-800 dark:bg-neutral-900 dark:text-zinc-400 dark:hover:border-[#f5b93d] dark:hover:text-zinc-100 dark:disabled:text-zinc-700"
+              className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-line dark:bg-surface dark:text-zinc-400 dark:hover:border-[#f5b93d] dark:hover:text-zinc-100 dark:disabled:text-zinc-700"
             >
               {loadingMore ? '불러오는 중...' : '더 보기'}
             </button>

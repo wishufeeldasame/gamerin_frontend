@@ -152,8 +152,8 @@ function ConversationCard({
       onClick={onSelect}
       className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
         active
-          ? 'bg-black text-white shadow-xl dark:bg-[#f5b93d] dark:text-black'
-          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-neutral-800'
+          ? 'bg-black text-white shadow-xl dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none dark:ring-1 dark:ring-[#f5b93d]/45'
+          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-surface-elevated'
       }`}
     >
       <div className="mb-2 flex items-start justify-between gap-3">
@@ -163,7 +163,7 @@ function ConversationCard({
             imageUrl={conversation.recipient.profileImageUrl}
             sizes="48px"
             className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white dark:bg-black dark:text-white' : 'bg-black text-white'
+              active ? 'bg-zinc-800 text-white dark:bg-avatar dark:text-zinc-200' : 'bg-black text-white dark:bg-avatar dark:text-zinc-200'
             }`}
           />
           <div className="min-w-0">
@@ -173,7 +173,7 @@ function ConversationCard({
             </p>
             <p
               className={`truncate text-[11px] font-bold tracking-widest ${
-                active ? 'text-white/55 dark:text-black/60' : 'text-zinc-400'
+                active ? 'text-white/55 dark:text-zinc-400' : 'text-zinc-400'
               }`}
             >
               <HighlightedText text={conversation.recipient.handle} query={query} />
@@ -181,7 +181,7 @@ function ConversationCard({
           </div>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-black/70' : 'text-zinc-300'}`}>
+          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-zinc-400' : 'text-zinc-300'}`}>
             <RelativeTime createdAt={conversation.updatedAt} />
           </span>
           {conversation.unreadCount > 0 ? (
@@ -191,7 +191,7 @@ function ConversationCard({
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-black/70' : 'text-zinc-500'}`}>
+      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-zinc-400' : 'text-zinc-500'}`}>
         <HighlightedText text={getLastPreview(conversation)} query={query} />
       </p>
     </button>
@@ -245,7 +245,7 @@ function NewChatPicker({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
+          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-surface-elevated"
           aria-label="새 대화 닫기"
         >
           <X size={16} />
@@ -284,7 +284,7 @@ function NewChatPicker({
                 name={recipient.name}
                 imageUrl={recipient.profileImageUrl}
                 sizes="40px"
-                className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white"
+                className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200"
               />
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
@@ -384,7 +384,7 @@ function AttachmentGrid({
       {attachments.map((attachment) => (
         <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
           <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
-          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">{attachment.name}</p>
+          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-surface dark:text-zinc-400">{attachment.name}</p>
         </div>
       ))}
     </div>
@@ -517,7 +517,7 @@ function MessageBubble({
           <div
             className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
               mine
-                ? 'rounded-br-none bg-black text-white'
+                ? 'rounded-br-none bg-black text-white dark:bg-[#f5b93d] dark:text-[#1a1406]'
                 : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
             }`}
           >
@@ -530,7 +530,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-neutral-800"
+              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-surface-elevated"
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -574,7 +574,7 @@ function PendingMessageBubble({
       <div className="flex max-w-[76%] flex-col items-end">
         <div
           className={`rounded-[28px] rounded-br-none px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
-            failed ? 'bg-black/60 text-white ring-2 ring-red-400' : 'bg-black/70 text-white'
+            failed ? 'bg-black/60 text-white ring-2 ring-red-400 dark:bg-[#f5b93d]/50 dark:text-[#1a1406]' : 'bg-black/70 text-white dark:bg-[#f5b93d]/60 dark:text-[#1a1406]'
           }`}
         >
           {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
@@ -1528,7 +1528,7 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] overflow-hidden bg-white">
+    <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] overflow-hidden bg-background">
       <section
         className={`w-full flex-col border-r border-zinc-100 bg-white md:flex md:w-[380px] ${
           mobileView === 'chat' ? 'hidden' : 'flex'
@@ -1552,7 +1552,7 @@ export default function MessagesPage() {
             <button
               type="button"
               onClick={() => setShowNewChat((current) => !current)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white shadow-lg transition hover:scale-105"
+              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white shadow-lg transition hover:scale-105 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none dark:ring-1 dark:ring-line"
               aria-label="새 대화 시작"
             >
               <Plus size={20} />
@@ -1627,18 +1627,18 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-neutral-950 ${
+        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-background ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-neutral-900/95">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-surface/95">
               <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
-                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-neutral-800"
+                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-surface-elevated"
                   aria-label="대화 목록으로 돌아가기"
                 >
                   <ArrowLeft size={22} />
@@ -1648,7 +1648,7 @@ export default function MessagesPage() {
                     name={activeConversation.recipient.name}
                     imageUrl={activeConversation.recipient.profileImageUrl}
                     sizes="48px"
-                    className="h-12 w-12 rounded-2xl bg-black text-sm font-black text-white shadow-lg"
+                    className="h-12 w-12 rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-lg"
                   />
                   {activeConversation.recipient.online ? (
                     <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-4 border-white bg-green-500" />
@@ -1675,7 +1675,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setHeaderMenuOpen((current) => !current)}
-                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
                   aria-label="대화방 옵션"
                 >
                   <Ellipsis size={24} />
@@ -1791,7 +1791,7 @@ export default function MessagesPage() {
               ) : null}
 
               {preparingImages ? (
-                <div role="status" className="mx-auto mb-3 max-w-4xl rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500 dark:bg-neutral-900 dark:text-zinc-400">
+                <div role="status" className="mx-auto mb-3 max-w-4xl rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500 dark:bg-surface dark:text-zinc-400">
                   이미지를 준비하고 있습니다...
                 </div>
               ) : null}
@@ -1865,7 +1865,7 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
-                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-neutral-800"
+                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-surface-elevated"
                   aria-label="첨부 메뉴"
                 >
                   <Plus size={20} />
@@ -1875,7 +1875,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
                     >
                       <ImagePlus size={18} />
                       사진 추가
@@ -1883,7 +1883,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
                     >
                       <Video size={18} />
                       동영상 추가
@@ -1891,7 +1891,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={clearAttachments}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
                     >
                       <X size={18} />
                       첨부 지우기
@@ -1915,7 +1915,7 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={preparingImages || (!message.trim() && attachments.length === 0)}
-              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:disabled:bg-neutral-800"
+              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:bg-[#f5b93d] dark:text-[#1a1406] dark:shadow-none dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
                   aria-label="메시지 전송"
                 >
                   <Send size={20} />

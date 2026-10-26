@@ -140,7 +140,7 @@ export function Header() {
   }, [mobileSearchOpen]);
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-b border-[#d69a1f] bg-[#f5b93d] dark:border-neutral-800 dark:bg-neutral-900">
+    <header className="fixed inset-x-0 top-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-b border-[#d69a1f] bg-[#f5b93d] dark:border-line dark:bg-surface">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-4 sm:px-6">
         {/* 로고 영역 */}
         <div className="min-w-0 flex-1 lg:max-w-[240px]">
@@ -158,7 +158,7 @@ export function Header() {
           <div
             className={`${
               mobileSearchOpen
-                ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-neutral-800 dark:bg-neutral-900'
+                ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-line dark:bg-surface'
                 : 'hidden'
             } flex-1 justify-start md:static md:flex md:border-0 md:bg-transparent md:p-0 md:dark:bg-transparent`}
           >
@@ -166,7 +166,7 @@ export function Header() {
               onSubmit={handleSearchSubmit}
               role="search"
               data-escape-owner={mobileSearchOpen ? 'search' : undefined}
-              className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-neutral-800 dark:shadow-none"
+              className="flex h-10 w-full max-w-[385px] items-center gap-3 rounded-xl border border-black/10 bg-[#f3f1f7] px-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.65)] dark:border-neutral-700 dark:bg-surface-elevated dark:shadow-none"
             >
               <Search size={18} className="text-zinc-500 dark:text-zinc-400" strokeWidth={2.1} />
               <input
@@ -214,7 +214,7 @@ export function Header() {
               >
                 <Bell size={18} strokeWidth={2.1} />
                 {notificationUnreadCount > 0 ? (
-                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#f5b93d] bg-red-600 px-1 text-[9px] font-black leading-none text-white dark:border-neutral-900">
+                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#f5b93d] bg-red-600 px-1 text-[9px] font-black leading-none text-white dark:border-surface">
                     {notificationUnreadCount}
                   </span>
                 ) : null}
@@ -244,7 +244,7 @@ export function Header() {
                      {user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                    </p>
                 </div>
-                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white shadow-lg dark:ring-1 dark:ring-white/10">
+                <div className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-lg dark:ring-1 dark:ring-white/10">
                   {user.profileImageUrl ? (
                     <Image
                       src={user.profileImageUrl}

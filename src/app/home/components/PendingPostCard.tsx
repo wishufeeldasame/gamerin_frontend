@@ -24,12 +24,12 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
       aria-busy={!failed}
       aria-label={failed ? '업로드 실패한 게시물' : '업로드 중인 게시물'}
       className={`overflow-hidden rounded-[32px] border bg-white shadow-sm ${
-        failed ? 'border-red-200 dark:border-red-900' : 'border-zinc-100 dark:border-neutral-800'
+        failed ? 'border-red-200 dark:border-red-900' : 'border-zinc-100 dark:border-line'
       }`}
     >
       <div className="p-5">
         <div className="mb-4 flex items-center gap-4">
-          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white shadow-inner">
+          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-inner">
             {user?.profileImageUrl ? (
               <Image src={user.profileImageUrl} alt={author} fill unoptimized sizes="48px" className="object-cover" />
             ) : (
@@ -76,7 +76,7 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
       ) : null}
 
       {failed ? (
-        <div className="flex justify-end gap-2 border-t border-zinc-50 px-6 py-3 dark:border-neutral-800">
+        <div className="flex justify-end gap-2 border-t border-zinc-50 px-6 py-3 dark:border-line">
           <button
             type="button"
             onClick={() => onRetry(pendingPost.id)}

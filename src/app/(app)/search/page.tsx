@@ -50,7 +50,7 @@ function normalizeQuery(value: string) {
 
 function EmptyState({ query, label }: { query: string; label: string }) {
   return (
-    <div className="rounded-[32px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-neutral-800 dark:bg-neutral-900">
+    <div className="rounded-[32px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
       <Search className="mx-auto text-zinc-300 dark:text-zinc-600" size={30} />
       <h2 className="mt-4 text-xl font-black text-zinc-900 dark:text-zinc-100">
         {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
@@ -66,9 +66,9 @@ function AccountCard({ account }: { account: SimpleUserProfile }) {
   return (
     <Link
       href={`/profile/${encodeURIComponent(account.handle)}`}
-      className="flex items-center gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-neutral-800 dark:bg-neutral-900"
+      className="flex items-center gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-line dark:bg-surface"
     >
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white">
+      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
         {account.profileImageUrl ? (
           <Image
             src={account.profileImageUrl}
@@ -100,7 +100,7 @@ function HashtagCard({ hashtag }: { hashtag: HashtagSummary }) {
   return (
     <Link
       href={`/hashtags/${encodeURIComponent(hashtag.name)}`}
-      className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-emerald-300 dark:border-neutral-800 dark:bg-neutral-900"
+      className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-emerald-300 dark:border-line dark:bg-surface"
     >
       <div className="flex min-w-0 items-center gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
@@ -419,7 +419,7 @@ function SearchPageContent() {
           <form
             role="search"
             onSubmit={handleSearchSubmit}
-            className="mt-5 flex h-12 w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-neutral-900"
+            className="mt-5 flex h-12 w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-surface"
           >
             <Search
               size={19}
@@ -445,7 +445,7 @@ function SearchPageContent() {
         </header>
 
         <nav
-          className="grid grid-cols-4 border-b border-zinc-200 dark:border-neutral-800"
+          className="grid grid-cols-4 border-b border-zinc-200 dark:border-line"
           aria-label="검색 결과 유형"
         >
           {searchTabs.map((tab) => {
@@ -472,7 +472,7 @@ function SearchPageContent() {
 
         <section className="mt-8 min-h-72" aria-live="polite">
           {loading ? (
-            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-neutral-800 dark:bg-neutral-900">
+            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface">
               검색 결과를 불러오는 중...
             </div>
           ) : error ? (

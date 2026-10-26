@@ -963,7 +963,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl bg-white pb-20">
+    <div className="mx-auto min-h-screen max-w-4xl bg-background pb-20">
       <div className="relative h-56 overflow-hidden bg-zinc-950">
         <Image
           src={displayedCover}
@@ -1050,7 +1050,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => setProfileReportMenuOpen(false)}
-                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                       >
                         취소
                       </button>
@@ -1190,7 +1190,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => void handleRefreshStats()}
                     disabled={isRefreshing}
-                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
+                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
                     aria-label="연결된 게임 전적 새로고침"
                   >
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
@@ -1370,7 +1370,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => setDisconnectTarget(null)}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
               >
                 취소
               </button>
@@ -1378,7 +1378,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => void handleDisconnectGame()}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800"
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated"
               >
                 {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
               </button>
@@ -1427,7 +1427,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={closeFollowList}
-                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
                 aria-label="닫기"
               >
                 <X size={20} />
@@ -1458,14 +1458,14 @@ export default function ProfilePage() {
                     return (
                       <div
                         key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                       >
                         <Link
                           href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
                           onClick={closeFollowList}
                           className="flex min-w-0 flex-1 items-center gap-3"
                         >
-                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white">
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
                             {followUserRecord.profileImageUrl ? (
                               <Image
                                 src={followUserRecord.profileImageUrl}

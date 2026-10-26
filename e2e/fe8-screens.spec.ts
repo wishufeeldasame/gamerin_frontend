@@ -104,7 +104,7 @@ async function checkIconHovers(page: Page, theme: 'light' | 'dark') {
     const exposed = await button.evaluate(el => { const rect = el.getBoundingClientRect(); const top = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2); return !!top && el.contains(top); });
     if (!exposed) continue;
     const classes = (await button.getAttribute('class')) ?? '';
-    if (!/dark:hover:bg-(neutral-800|red-950\/40)/.test(classes)) continue;
+    if (!/dark:hover:bg-(surface-elevated|red-950\/40)/.test(classes)) continue;
     const color = classes.match(/(?:^|\s)hover:bg-(white|zinc-50|zinc-100|zinc-200|red-50)(?:\s|$)/)?.[1];
     if (color) await checkHover(button, theme, colors[color]);
   }
