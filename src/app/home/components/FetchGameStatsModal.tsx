@@ -2,7 +2,8 @@
 
 import { useToast } from '@/app/context/ToastContext';
 
-import { X, ShieldCheck, Gamepad2 } from 'lucide-react';
+import Image from 'next/image';
+import { X, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -22,15 +23,17 @@ type ConnectableGame = 'PUBG' | 'R6';
 const availableGames: Array<{
   name: string;
   description: string;
+  iconUrl: string;
+  invertInDark?: boolean;
   connectableGame?: ConnectableGame;
 }> = [
-  { name: 'League of Legends', description: '등급, 승률, 킬/데스/어시스트 비율 연동' },
-  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동' },
-  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동' },
-  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', connectableGame: 'PUBG' },
-  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', connectableGame: 'R6' },
-  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률 연동' },
-  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율 연동' },
+  { name: 'League of Legends', description: '등급, 승률, 킬/데스/어시스트 비율 연동', iconUrl: '/images/games/lol.png' },
+  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동', iconUrl: '/images/games/valorant.png' },
+  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동', iconUrl: '/images/games/overwatch2.png' },
+  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
+  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/rainbow6.png', invertInDark: true, connectableGame: 'R6' },
+  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률 연동', iconUrl: '/images/games/cs2.png', invertInDark: true },
+  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율 연동', iconUrl: '/images/games/apexlegend.png', invertInDark: true },
 ];
 
 interface FetchGameStatsModalProps {
@@ -213,8 +216,14 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                 className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-neutral-900 dark:hover:!border-neutral-600 dark:hover:bg-neutral-800"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-4">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-100 bg-white shadow-sm transition-all group-hover:bg-black group-hover:text-white dark:text-zinc-100">
-                    <Gamepad2 size={20} />
+                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-100 bg-white p-1 shadow-sm">
+                    <Image
+                      src={game.iconUrl}
+                      alt={`${game.name} 아이콘`}
+                      fill
+                      sizes="44px"
+                      className={`object-contain p-1 ${game.invertInDark ? 'dark:invert' : ''}`}
+                    />
                   </div>
                   <div className="min-w-0">
                     <h3 className="mb-1 text-[15px] font-black leading-none text-black">{game.name}</h3>
