@@ -102,7 +102,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === normalized.toLowerCase() ? (
-          <mark key={`${part}-${index}`} className="rounded bg-[#f5b93d]/40 px-0.5 text-inherit">
+          <mark key={`${part}-${index}`} className="rounded bg-[#f5b93d]/40 px-0.5 text-inherit dark:bg-[#f5b93d] dark:text-[#1a1406]">
             {part}
           </mark>
         ) : (
@@ -574,7 +574,7 @@ function PendingMessageBubble({
       <div className="flex max-w-[76%] flex-col items-end">
         <div
           className={`rounded-[28px] rounded-br-none px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
-            failed ? 'bg-black/60 text-white ring-2 ring-red-400 dark:bg-[#f5b93d]/50 dark:text-[#1a1406]' : 'bg-black/70 text-white dark:bg-[#f5b93d]/60 dark:text-[#1a1406]'
+            failed ? 'bg-black/60 text-white ring-2 ring-red-400 dark:bg-[#b8892c] dark:text-[#1a1406]' : 'bg-black/70 text-white dark:bg-[#c99a35] dark:text-[#1a1406]'
           }`}
         >
           {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
