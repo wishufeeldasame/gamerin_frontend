@@ -23,7 +23,7 @@ const errorMessage = (error: unknown) =>
 // 08 문서 12-7절. CREATED·READY·FAILED·EXPIRED는 결제가 일어나지 않아 목록에서 뺀다.
 const PAYMENT_BADGE: Partial<Record<PaymentResponse['status'], { label: string; className: string }>> = {
   APPROVED: { label: '완료', className: 'bg-black text-white dark:bg-zinc-100 dark:text-black' },
-  CANCELED: { label: '취소됨', className: 'bg-zinc-100 text-zinc-500 dark:bg-neutral-800 dark:text-zinc-400' },
+  CANCELED: { label: '취소됨', className: 'bg-zinc-100 text-zinc-500 dark:bg-surface-elevated dark:text-zinc-400' },
   APPROVING: { label: '확인 중', className: 'bg-amber-50 text-amber-700 dark:bg-[#2a2112] dark:text-[#f5b93d]' },
   CANCELING: { label: '확인 중', className: 'bg-amber-50 text-amber-700 dark:bg-[#2a2112] dark:text-[#f5b93d]' },
   NEEDS_REVIEW: { label: '확인 중', className: 'bg-amber-50 text-amber-700 dark:bg-[#2a2112] dark:text-[#f5b93d]' },
@@ -124,18 +124,18 @@ function WalletContent() {
           <h1 className="text-3xl font-black tracking-tight text-black dark:text-zinc-100">내 지갑</h1>
           <p className="mt-2 text-sm font-bold text-zinc-500">카카오페이로 충전하고 멘토링에 바로 사용하세요.</p>
         </div>
-        <Link href="/membership" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-black text-black dark:border-neutral-700 dark:bg-neutral-900 dark:text-zinc-100">
+        <Link href="/membership" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-black text-black dark:border-neutral-700 dark:bg-surface dark:text-zinc-100">
           <Crown size={17} className="text-amber-600 dark:text-[#f5b93d]" /> 멤버십 혜택 <ChevronRight size={16} />
         </Link>
       </header>
 
       {returnTo ? (
-        <p className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm font-bold text-zinc-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-zinc-300">
+        <p className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm font-bold text-zinc-600 dark:border-neutral-700 dark:bg-surface dark:text-zinc-300">
           충전 후 멘토링 신청으로 돌아갑니다.
         </p>
       ) : null}
 
-      <section className="mt-7 rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:p-7">
+      <section className="mt-7 rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-line dark:bg-surface sm:p-7">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-bold text-zinc-500">현재 마일리지</p>
@@ -147,7 +147,7 @@ function WalletContent() {
           <WalletCards className="text-zinc-400" size={30} aria-hidden="true" />
         </div>
 
-        <div className="mt-6 border-t border-zinc-100 pt-6 dark:border-neutral-800">
+        <div className="mt-6 border-t border-zinc-100 pt-6 dark:border-line">
           <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">충전 금액 선택</p>
           <h2 id="charge-package-title" className="mt-1 text-xl font-black text-black dark:text-zinc-100">얼마를 충전할까요?</h2>
           {loading ? (
@@ -170,7 +170,7 @@ function WalletContent() {
                       'relative flex min-h-16 items-center justify-between rounded-xl border px-4 py-3 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2',
                       selected
                         ? 'border-black bg-zinc-50 ring-1 ring-black dark:border-[#f5b93d] dark:bg-[#2a2112] dark:ring-[#f5b93d]'
-                        : 'border-zinc-200 bg-white hover:border-zinc-400 dark:border-neutral-700 dark:bg-neutral-900',
+                        : 'border-zinc-200 bg-white hover:border-zinc-400 dark:border-neutral-700 dark:bg-surface',
                     ].join(' ')}
                   >
                     <span>
@@ -187,7 +187,7 @@ function WalletContent() {
               })}
             </div>
           ) : (
-            <p className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm font-bold text-zinc-500 dark:bg-neutral-800">
+            <p className="mt-5 rounded-xl bg-zinc-50 p-5 text-sm font-bold text-zinc-500 dark:bg-surface-elevated">
               현재 선택할 수 있는 충전 상품이 없습니다.
             </p>
           )}
@@ -209,8 +209,8 @@ function WalletContent() {
         </div>
       </section>
 
-      <section className="mt-6 overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <div role="tablist" className="grid grid-cols-2 border-b border-zinc-100 p-1.5 dark:border-neutral-800">
+      <section className="mt-6 overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-sm dark:border-line dark:bg-surface">
+        <div role="tablist" className="grid grid-cols-2 border-b border-zinc-100 p-1.5 dark:border-line">
           {(['mileage', 'payment'] as const).map((item) => (
             <button
               type="button"
@@ -252,7 +252,7 @@ function WalletContent() {
             type="button"
             onClick={() => void loadMore()}
             disabled={loadingMore}
-            className="flex h-12 w-full items-center justify-center gap-2 border-t border-zinc-100 text-sm font-black text-zinc-500 disabled:text-zinc-300 dark:border-neutral-800"
+            className="flex h-12 w-full items-center justify-center gap-2 border-t border-zinc-100 text-sm font-black text-zinc-500 disabled:text-zinc-300 dark:border-line"
           >
             {loadingMore ? <Loader2 className="animate-spin" size={16} /> : null}
             더 보기
@@ -275,7 +275,7 @@ function HistoryRow({ title, description, amount, positive, badge }: {
   badge?: { label: string; className: string };
 }) {
   return (
-    <article className="flex items-center justify-between gap-4 border-b border-zinc-100 p-4 last:border-b-0 dark:border-neutral-800 sm:p-5">
+    <article className="flex items-center justify-between gap-4 border-b border-zinc-100 p-4 last:border-b-0 dark:border-line sm:p-5">
       <div className="min-w-0">
         <p className="flex min-w-0 items-center gap-2 text-sm font-black text-black dark:text-zinc-100">
           <span className="truncate">{title}</span>

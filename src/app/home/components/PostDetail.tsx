@@ -489,7 +489,7 @@ export function PostDetail({
                   <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
                 </div>
               ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-black text-lg font-black text-white shadow-xl">
+                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-black text-lg font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-xl">
                   {getInitials(post.author)}
                 </div>
               )}
@@ -508,7 +508,7 @@ export function PostDetail({
                 type="button"
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
@@ -545,7 +545,7 @@ export function PostDetail({
                           returnFocusTo: menuTriggerRef.current,
                         });
                       }}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                      className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                     >
                       수정
                     </button>
@@ -565,7 +565,7 @@ export function PostDetail({
                   <button
                     type="button"
                     onClick={closeMenu}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
+                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
                   >
                     취소
                   </button>
@@ -733,7 +733,7 @@ export function PostDetail({
                   type="submit"
                   aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
+                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
                 >
                   <Send size={18} />
                 </button>
@@ -758,7 +758,7 @@ export function PostDetail({
                     className={`scroll-mt-24 rounded-2xl border p-4 transition-colors duration-500 ${
                       initialCommentId === comment.commentId && highlightedCommentId === comment.commentId
                         ? 'border-sky-300 bg-sky-50 dark:border-sky-500 dark:bg-sky-500/10'
-                        : 'border-zinc-100 bg-zinc-50 dark:border-neutral-800 dark:bg-neutral-900'
+                        : 'border-zinc-100 bg-zinc-50 dark:border-line dark:bg-surface'
                     }`}
                   >
                     <div className="mb-2 flex items-start justify-between gap-3">
@@ -779,7 +779,7 @@ export function PostDetail({
                               current === comment.commentId ? null : comment.commentId
                             )
                           }
-                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black dark:hover:bg-neutral-800"
+                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black dark:hover:bg-surface-elevated"
                           aria-label="댓글 메뉴"
                           ref={(element) => {
                             if (element) commentMenuButtonRefs.current.set(comment.commentId, element);
@@ -816,7 +816,7 @@ export function PostDetail({
                             <button
                               type="button"
                               onClick={() => setCommentMenuOpenId(null)}
-                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
+                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
                             >
                               취소
                             </button>

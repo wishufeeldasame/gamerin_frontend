@@ -76,7 +76,7 @@ export default function HashtagPostsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-8">
-      <header className="mb-8 rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+      <header className="mb-8 rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm dark:border-line dark:bg-surface">
         <div className="flex items-center gap-4">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
             <Hash size={24} />

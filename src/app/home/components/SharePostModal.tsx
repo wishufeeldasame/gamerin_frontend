@@ -137,7 +137,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
           <button
             type="button"
             onClick={onClose}
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
             aria-label="닫기"
           >
             <X size={20} />
@@ -147,7 +147,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
         <div className="min-h-0 space-y-5 overflow-y-auto p-6">
           <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
             <div className="mb-3 flex items-center gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200">
                 {getInitials(post.author)}
               </div>
               <div className="min-w-0">
@@ -253,7 +253,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             type="button"
             onClick={() => void handleSend()}
             disabled={!canSend}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-neutral-800"
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-black text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:disabled:bg-surface-elevated"
           >
             {sent ? (
               <>

@@ -124,7 +124,7 @@ export function ConfirmProvider({ children, scopeKey }: { children: ReactNode; s
                 }
               }
             }}
-            className='m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-neutral-950 shadow-xl backdrop:bg-black/50 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
+            className='m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-neutral-950 shadow-xl backdrop:bg-black/50 dark:border-neutral-700 dark:bg-surface dark:text-neutral-50'
           >
             <h2 id={titleId} className='text-lg font-bold'>작업 확인</h2>
             <p id={descriptionId} className='mt-3 whitespace-pre-wrap break-words text-sm leading-6'>{active.options.message}</p>

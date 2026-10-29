@@ -248,7 +248,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-white px-5 py-8 font-sans text-black sm:px-8">
+    <main className="flex min-h-screen items-center justify-center bg-background px-5 py-8 font-sans text-black sm:px-8">
       <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1fr_380px] lg:gap-16">
         <section className="flex justify-center lg:justify-start">
           <div className="relative flex h-44 w-44 items-center justify-center sm:h-64 sm:w-64 lg:h-80 lg:w-80">
@@ -342,7 +342,7 @@ export default function LoginPage() {
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {loginError ? <p className="text-sm font-semibold text-red-500">{loginError}</p> : null}
+                {loginError ? <p className="text-sm font-semibold text-red-500 dark:text-red-400">{loginError}</p> : null}
                 <button
                   type="submit"
                   disabled={loginLoading || isLoggingOut}
@@ -388,7 +388,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={resetSignup}
-              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
               aria-label="회원가입 닫기"
             >
               <X size={22} />
