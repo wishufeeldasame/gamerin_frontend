@@ -163,7 +163,7 @@ export function ReportContentModal({
             type="button"
             onClick={onClose}
             aria-label="신고 모달 닫기"
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
           >
             <X size={18} />
           </button>
@@ -174,7 +174,7 @@ export function ReportContentModal({
             <p className="mb-3 text-xs font-black text-zinc-400">신고 대상</p>
             <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
               <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200">
                   {getInitials(author)}
                 </div>
                 <div className="min-w-0">
@@ -281,7 +281,7 @@ export function ReportContentModal({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit || loadingReasons || submitting}
-            className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
+            className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
           >
             신고 접수
           </button>
@@ -305,7 +305,7 @@ export function ReportContentModal({
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
                 aria-label="신고 확인 닫기"
-                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
+                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
               >
                 <X size={18} />
               </button>
@@ -326,7 +326,7 @@ export function ReportContentModal({
                 type="button"
                 onClick={() => void handleConfirm()}
                 disabled={submitting}
-                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
+                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
               >
                 {submitting ? '접수 중...' : '신고 접수'}
               </button>

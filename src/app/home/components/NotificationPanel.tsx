@@ -264,9 +264,9 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
         ref={panelRef}
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-line dark:bg-surface"
       >
-        <div className="sticky top-0 flex items-center justify-between border-b border-zinc-100 bg-white p-5 dark:border-neutral-800 dark:bg-neutral-900">
+        <div className="sticky top-0 flex items-center justify-between border-b border-zinc-100 bg-white p-5 dark:border-line dark:bg-surface">
           <div className="flex items-center gap-2">
             <Bell size={18} className="text-black dark:text-zinc-100" />
             <div>
@@ -277,7 +277,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800 dark:hover:text-zinc-100"
+            className="rounded-full p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated dark:hover:text-zinc-100"
             aria-label="알림 닫기"
           >
             <X size={20} />
@@ -312,12 +312,12 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
                   type="button"
                   onClick={() => void handleNotificationClick(notification)}
                   disabled={pending}
-                  className={`flex w-full cursor-pointer items-start gap-4 border-b border-zinc-50 p-5 text-left transition hover:bg-zinc-50 disabled:cursor-wait dark:border-neutral-800 dark:hover:bg-neutral-800 ${
+                  className={`flex w-full cursor-pointer items-start gap-4 border-b border-zinc-50 p-5 text-left transition hover:bg-zinc-50 disabled:cursor-wait dark:border-line dark:hover:bg-surface-elevated ${
                     !notification.read ? 'bg-[#f5b93d]/10' : ''
                   } ${!href ? 'cursor-default' : ''}`}
                 >
                   <div className="relative shrink-0">
-                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-black text-xs font-black text-white shadow-lg">
+                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-lg">
                       {notification.actor?.profileImageUrl ? (
                         <Image
                           src={notification.actor.profileImageUrl}
@@ -332,7 +332,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
                       )}
                     </div>
                     {!notification.read ? (
-                      <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-red-500 dark:border-neutral-900" />
+                      <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-red-500 dark:border-surface" />
                     ) : null}
                   </div>
 
@@ -355,12 +355,12 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
           )}
         </div>
 
-        <div className="flex items-center gap-2 bg-zinc-50 p-4 dark:bg-neutral-950">
+        <div className="flex items-center gap-2 bg-zinc-50 p-4 dark:bg-background">
           <button
             type="button"
             onClick={() => void handleMarkAllAsRead()}
             disabled={unreadCount === 0 || markingAll}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-xs font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:disabled:bg-neutral-800 dark:disabled:text-zinc-500"
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-xs font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
           >
             {markingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
             모두 읽음
@@ -370,7 +370,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
               type="button"
               onClick={() => void loadMore()}
               disabled={loadingMore}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-neutral-700 dark:bg-neutral-900 dark:text-zinc-300 dark:hover:border-zinc-400"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-neutral-700 dark:bg-surface dark:text-zinc-300 dark:hover:border-zinc-400"
             >
               {loadingMore ? '로딩 중' : '더보기'}
             </button>

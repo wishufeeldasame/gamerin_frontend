@@ -31,11 +31,11 @@ export default function AppLayout({
   return (
     <PopupProvider key={user.id}>
     <PendingPostsProvider>
-    <div className="min-h-screen bg-white dark:bg-black">
+    <div className="min-h-screen bg-background">
       <Header />
 
       <div className="flex max-w-[1440px] mx-auto pt-16">
-        <aside className="hidden lg:block w-64 h-[calc(100vh-4rem)] sticky top-16 border-r border-zinc-100 p-4 dark:border-neutral-800 dark:bg-neutral-900">
+        <aside className="hidden lg:block w-64 h-[calc(100vh-4rem)] sticky top-16 border-r border-zinc-100 p-4 dark:border-line dark:bg-surface">
           <Sidebar />
         </aside>
 

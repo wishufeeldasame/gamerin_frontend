@@ -129,7 +129,7 @@ export function EditPostModal({
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-neutral-800 dark:bg-neutral-900"
+        className="w-full max-w-lg rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-line dark:bg-surface"
       >
         <div className="flex items-baseline justify-between gap-3">
           <h2 id="edit-post-title" className="text-xl font-black text-black dark:text-zinc-100">게시물 수정</h2>

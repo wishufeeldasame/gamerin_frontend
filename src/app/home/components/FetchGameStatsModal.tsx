@@ -213,7 +213,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
             {availableGames.map((game) => (
               <div
                 key={game.name}
-                className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-neutral-900 dark:hover:!border-neutral-600 dark:hover:bg-neutral-800"
+                className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-surface dark:hover:!border-neutral-600 dark:hover:bg-surface-elevated"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-4">
                   <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-100 bg-white p-1 shadow-sm">
@@ -236,7 +236,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   disabled={connectingGame !== null || promptGame !== null}
                   className={`shrink-0 whitespace-nowrap rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
                     connectingGame === game.name || promptGame !== null
-                      ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-neutral-800'
+                      ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-surface-elevated'
                       : 'bg-black text-white hover:bg-zinc-800 active:scale-95'
                   }`}
                 >
@@ -290,7 +290,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                     }}
                     placeholder={promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
                     aria-invalid={Boolean(playerNameError)}
-                    className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white dark:placeholder:!text-zinc-400 dark:focus:bg-neutral-900 ${
+                    className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white dark:placeholder:!text-zinc-400 dark:focus:bg-surface ${
                       playerNameError
                         ? 'border-red-300 focus:border-red-500 dark:!border-red-400 dark:focus:!border-red-400'
                         : 'border-zinc-200 focus:border-black dark:focus:!border-[#f5b93d]'

@@ -165,8 +165,8 @@ function HomePageContent() {
 
   return (
     <div className="flex justify-center overflow-visible">
-      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900">
+      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-line">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
