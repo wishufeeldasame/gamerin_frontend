@@ -75,6 +75,14 @@ describe('공통 토스트', () => {
     advance(1);
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+  it('상단 배치 알림은 하단 목록과 분리된 상단 중앙 영역에 표시한다', () => {
+    render(<Tree />);
+    act(() => { toast.success('업로드 완료', { placement: 'top' }); toast.info('하단 안내'); });
+    const top = screen.getByLabelText('상단 알림');
+    expect(within(top).getByRole('status')).toHaveTextContent('업로드 완료');
+    expect(within(screen.getByLabelText('알림')).getByRole('status')).toHaveTextContent('하단 안내');
+    expect(within(screen.getByLabelText('알림')).queryByText('업로드 완료')).not.toBeInTheDocument();
+  });
   it('hover와 focus가 겹쳐도 모두 끝날 때만 남은 시간을 재개한다', () => {
     vi.useFakeTimers();
     render(<Tree />);
@@ -97,7 +105,7 @@ describe('공통 토스트', () => {
   it('동일 알림을 합치고 최대 3개, 초과는 FIFO로 표시하며 대기 시간은 차감하지 않는다', () => {
     vi.useFakeTimers();
     render(<Tree />);
-    act(() => { ['1','2','3','4','4','5'].forEach(toast.info); });
+    act(() => { ['1','2','3','4','4','5'].forEach((message) => toast.info(message)); });
     expect(screen.getAllByRole('status')).toHaveLength(3);
     expect(screen.queryByText('4')).not.toBeInTheDocument();
     advance(3000);
