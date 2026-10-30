@@ -332,13 +332,43 @@ export async function createJsonPost(payload: {
   return normalizePostRecord(post);
 }
 
-export async function createMultipartPost(formData: FormData) {
-  const post = await apiRequest<PostRecord>('/api/v1/posts', {
+export type PostVideoJobStatus = 'QUEUED' | 'PROCESSING' | 'COMPLETED' | 'FAILED';
+
+// 영상 게시물은 서버가 재인코딩을 마친 뒤 만들어진다. 그 전까지는 처리 작업 상태만 내려온다.
+export type PostVideoJob = {
+  jobId: string;
+  status: PostVideoJobStatus;
+  errorMessage: string | null;
+  post: PostRecord | null;
+};
+
+export type MultipartPostResult =
+  | { kind: 'post'; post: PostRecord }
+  | { kind: 'videoJob'; job: PostVideoJob };
+
+function normalizePostVideoJob(job: PostVideoJob): PostVideoJob {
+  return { ...job, post: job.post ? normalizePostRecord(job.post) : null };
+}
+
+export async function createMultipartPost(formData: FormData): Promise<MultipartPostResult> {
+  const data = await apiRequest<PostRecord | PostVideoJob>('/api/v1/posts', {
     method: 'POST',
     body: formData,
   });
 
-  return normalizePostRecord(post);
+  // 영상 게시물은 202와 처리 작업으로 응답한다.
+  if (data && typeof data === 'object' && 'jobId' in data) {
+    return { kind: 'videoJob', job: normalizePostVideoJob(data) };
+  }
+  return { kind: 'post', post: normalizePostRecord(data as PostRecord) };
+}
+
+export async function fetchPostVideoJob(jobId: string, options: FeedRequestOptions = {}) {
+  const job = await apiRequest<PostVideoJob>(`/api/v1/posts/video-jobs/${encodeURIComponent(jobId)}`, {
+    signal: options.signal,
+  });
+
+  return normalizePostVideoJob(job);
 }
 
 export async function fetchPostDetail(postId: string, options: FeedRequestOptions = {}) {

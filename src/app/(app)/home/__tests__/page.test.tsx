@@ -123,7 +123,32 @@ vi.mock('@/app/home/components/Post', () => ({
   ),
 }));
 
+// 완료된 업로드를 직접 전달할 수 있게 홈 화면이 등록한 구독 함수를 붙잡는다.
+const pendingPostsSpy = vi.hoisted(() => ({ listener: null as ((post: PostRecord) => void) | null }));
+vi.mock('@/app/context/PendingPostsContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/app/context/PendingPostsContext')>();
+  return {
+    ...actual,
+    usePendingPostsContext: () => {
+      const context = actual.usePendingPostsContext();
+      return {
+        ...context,
+        subscribeCreated: (listener: (post: PostRecord) => void) => {
+          pendingPostsSpy.listener = listener;
+          return context.subscribeCreated(listener);
+        },
+      };
+    },
+  };
+});
+
 import HomePage from '../page';
+import { PendingPostsProvider } from '@/app/context/PendingPostsContext';
+
+// 실제 앱처럼 (app) 레이아웃의 업로드 상태 Provider 안에서 렌더링한다.
+function HomeUnderTest() {
+  return <PendingPostsProvider><HomePage /></PendingPostsProvider>;
+}
 
 const initialPost: PostRecord = {
   postId: 'post-1',
@@ -182,9 +207,23 @@ describe('HomePage like rollback', () => {
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
   });
 
+  it('첫 피드를 불러오는 중에 업로드가 끝나도 늦게 온 피드 응답이 새 게시물을 지우지 않는다', async () => {
+    const feed = createDeferred<{ items: PostRecord[]; nextCursor: null; hasNext: boolean }>();
+    api.fetchFeed.mockReturnValueOnce(feed.promise);
+    const uploaded = { ...initialPost, postId: 'uploaded-video', content: '방금 올린 영상' };
+    render(<HomeUnderTest />);
+    await waitFor(() => expect(pendingPostsSpy.listener).not.toBeNull());
+
+    act(() => pendingPostsSpy.listener?.(uploaded));
+    await act(async () => feed.resolve({ items: [initialPost], nextCursor: null, hasNext: false }));
+
+    expect(await screen.findByTestId('post-uploaded-video')).toBeInTheDocument();
+    expect(screen.getByTestId('post-post-1')).toBeInTheDocument();
+  });
+
   it('URL에서 팔로잉 탭을 복원하고 잘못된 탭 값은 추천으로 처리한다', async () => {
     navigation.query = 'tab=following';
-    const view = render(<HomePage />);
+    const view = render(<HomeUnderTest />);
 
     await waitFor(() => expect(api.fetchFeed).toHaveBeenCalledWith(
       'following',
@@ -196,7 +235,7 @@ describe('HomePage like rollback', () => {
 
     api.fetchFeed.mockClear();
     navigation.query = 'tab=unknown';
-    view.rerender(<HomePage />);
+    view.rerender(<HomeUnderTest />);
 
     await waitFor(() => expect(api.fetchFeed).toHaveBeenCalledWith(
       'all',
@@ -208,7 +247,7 @@ describe('HomePage like rollback', () => {
   });
 
   it('탭을 URL에 기록하고 문서 스크롤을 맨 위로 이동한다', async () => {
-    render(<HomePage />);
+    render(<HomeUnderTest />);
     await screen.findByTestId('post-post-1');
 
     fireEvent.click(screen.getByRole('button', { name: '팔로잉' }));
@@ -219,7 +258,7 @@ describe('HomePage like rollback', () => {
 
   it('모션 감소 설정에서는 탭 전환 스크롤을 애니메이션하지 않는다', async () => {
     vi.mocked(window.matchMedia).mockReturnValue({ matches: true } as MediaQueryList);
-    render(<HomePage />);
+    render(<HomeUnderTest />);
     await screen.findByTestId('post-post-1');
 
     fireEvent.click(screen.getByRole('button', { name: '팔로잉' }));
@@ -229,7 +268,7 @@ describe('HomePage like rollback', () => {
 
   it('기존 게시글 딥링크는 피드를 요청하지 않고 상세 화면으로 이동한다', async () => {
     navigation.query = 'postId=post%2F1&target=comments';
-    render(<HomePage />);
+    render(<HomeUnderTest />);
 
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith(
       '/posts/post%2F1?target=comments',
@@ -242,13 +281,13 @@ describe('HomePage like rollback', () => {
     [new Error('Request failed.'), 'Request failed.'],
   ])('피드 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
     api.fetchFeed.mockRejectedValue(error);
-    render(<HomePage />);
+    render(<HomeUnderTest />);
     expect(await screen.findByText(message)).toBeInTheDocument();
   });
 
   it('좋아요의 알 수 없는 오류를 한국어로 안내하고 기존 상태로 롤백한다', async () => {
     api.likePost.mockRejectedValue('unknown failure');
-    render(<HomePage />);
+    render(<HomeUnderTest />);
     const renderedPost = await screen.findByTestId('post-post-1');
     fireEvent.click(screen.getByRole('button', { name: 'toggle like' }));
 
@@ -266,7 +305,7 @@ describe('HomePage like rollback', () => {
     const request = createDeferred<void>();
     api.likePost.mockReturnValue(request.promise);
 
-    render(<HomePage />);
+    render(<HomeUnderTest />);
 
     const renderedPost = await screen.findByTestId('post-post-1');
     fireEvent.click(screen.getByRole('button', { name: 'toggle like' }));
@@ -325,7 +364,7 @@ describe('HomePage like rollback', () => {
         hasNext: false,
       });
 
-    render(<HomePage />);
+    render(<HomeUnderTest />);
 
     await screen.findByTestId('post-post-1');
     await waitFor(() => expect(observeIntersection).toHaveBeenCalled());
@@ -352,7 +391,7 @@ describe('HomePage like rollback', () => {
       hasNext: true,
     });
 
-    render(<HomePage />);
+    render(<HomeUnderTest />);
 
     await screen.findByTestId('post-post-1');
     expect(screen.queryByTestId('feed-load-more-sentinel')).not.toBeInTheDocument();
@@ -379,7 +418,7 @@ describe('HomePage like rollback', () => {
         hasNext: false,
       });
 
-    render(<HomePage />);
+    render(<HomeUnderTest />);
 
     await screen.findByTestId('post-post-1');
     await waitFor(() => expect(observeIntersection).toHaveBeenCalledTimes(1));
