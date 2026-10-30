@@ -10,6 +10,8 @@ import { useAuth } from '@/app/context/AuthContext';
 import {
   connectPubg,
   connectR6,
+  connectRiot,
+  fetchLolSummary,
   fetchPubgSummary,
   GameStatsApiError,
 } from '@/lib/game-stats-api';
@@ -18,7 +20,7 @@ const PUBG_NICKNAME_REGEX = /^[A-Za-z0-9_-]{4,16}$/;
 const PUBG_NICKNAME_ERROR_MESSAGE =
   '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 언더바(_)만 사용 가능합니다.';
 
-type ConnectableGame = 'PUBG' | 'R6';
+type ConnectableGame = 'PUBG' | 'R6' | 'LOL';
 
 const availableGames: Array<{
   name: string;
@@ -27,7 +29,7 @@ const availableGames: Array<{
   invertInDark?: boolean;
   connectableGame?: ConnectableGame;
 }> = [
-  { name: 'League of Legends', description: '등급, 승률, 킬/데스/어시스트 비율 연동', iconUrl: '/images/games/lol.png' },
+  { name: 'League of Legends', description: '티어, 승률, 최근 5경기 KDA 연동', iconUrl: '/images/games/lol.png', connectableGame: 'LOL' },
   { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동', iconUrl: '/images/games/valorant.png' },
   { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동', iconUrl: '/images/games/overwatch2.png' },
   { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
@@ -42,6 +44,7 @@ interface FetchGameStatsModalProps {
 }
 
 function getGameLabel(game: ConnectableGame) {
+  if (game === 'LOL') return 'League of Legends';
   return game === 'R6' ? 'Rainbow Six Siege' : 'PUBG';
 }
 
@@ -69,6 +72,11 @@ function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
 }
 
 function validatePlayerName(game: ConnectableGame, playerName: string) {
+  if (game === 'LOL') {
+    return /^[^#\r\n]+#[^#\s]+$/.test(playerName) && playerName.split('#').every((part) => part.trim())
+      ? ''
+      : 'Riot ID를 닉네임#태그 형식으로 입력해 주세요. (예: 소환사#KR1)';
+  }
   if (game === 'PUBG') {
     return PUBG_NICKNAME_REGEX.test(playerName) ? '' : PUBG_NICKNAME_ERROR_MESSAGE;
   }
@@ -121,6 +129,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
     const selectedGame = promptGame;
     let connectionCompleted = false;
+    let summaryError: unknown;
     setPlayerNameError('');
     setPromptGame(null);
     setConnectingGame(selectedGame);
@@ -138,12 +147,25 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
         } catch {
           // PUBG 연결은 완료된 상태이므로 프로필 재조회로 저장된 연결 상태를 반영한다.
         }
+      } else if (selectedGame === 'LOL') {
+        await connectRiot(normalizedPlayerName);
+        connectionCompleted = true;
+        try {
+          await fetchLolSummary();
+        } catch (error) {
+          summaryError = error;
+        }
       } else {
         await connectR6(normalizedPlayerName);
         connectionCompleted = true;
       }
 
       await onConnected?.();
+      if (summaryError) {
+        toast.error(`Riot 계정은 연결됐지만 전적을 불러오지 못했습니다. 프로필에서 전적 새로고침을 눌러 다시 시도해 주세요. ${getConnectionErrorMessage('LOL', summaryError)}`);
+        onClose();
+        return;
+      }
       toast.success(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) 계정이 연결되었습니다.`);
       onClose();
     } catch (error) {
@@ -170,7 +192,9 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
   const selectedGameLabel = promptGame ? getGameLabel(promptGame) : '';
   const promptDescription =
-    promptGame === 'R6'
+    promptGame === 'LOL'
+      ? '한국 서버 Riot ID를 닉네임#태그 형식으로 입력하세요.'
+      : promptGame === 'R6'
       ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연동하세요.'
       : 'PUBG 계정 연동을 시작하려면 닉네임을 입력하세요.';
 
@@ -271,7 +295,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                     </div>
                     <button
                       onClick={handlePromptCancel}
-                      className="h-10 w-10 rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+                      className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+                      aria-label="연결 창 닫기"
                     >
                       <X size={20} />
                     </button>
@@ -280,7 +305,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
                 <div className="space-y-4 p-6">
                   <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
-                    닉네임
+                    {promptGame === 'LOL' ? 'Riot ID' : '닉네임'}
                   </label>
                   <input
                     value={playerName}
@@ -288,7 +313,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                       setPlayerName(event.target.value);
                       setPlayerNameError('');
                     }}
-                    placeholder={promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
+                    placeholder={promptGame === 'LOL' ? '소환사#KR1' : promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
+                    aria-label={promptGame === 'LOL' ? 'Riot ID' : '게임 닉네임'}
                     aria-invalid={Boolean(playerNameError)}
                     className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white dark:placeholder:!text-zinc-400 dark:focus:bg-surface ${
                       playerNameError

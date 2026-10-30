@@ -58,10 +58,12 @@ import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mut
 import {
   disconnectGameStats,
   fetchPubgSummary,
+  fetchLolSummary,
   refreshR6Summary,
   GameStatsApiError,
   type GameName,
   type PubgSummaryResponse,
+  type LolSummaryResponse,
   type R6SummaryResponse,
   type StatsMode,
 } from '@/lib/game-stats-api';
@@ -80,6 +82,10 @@ const GAME_STATS_UI_CONFIG: Record<
     disconnectable: boolean;
   }
 > = {
+  LOL: {
+    displayName: 'League of Legends',
+    disconnectable: true,
+  },
   PUBG: {
     displayName: 'PUBG',
     disconnectable: true,
@@ -198,7 +204,7 @@ function isCommonGameStats(gameName: string) {
 function getDisconnectableGameName(gameName: string): GameName | null {
   const normalizedGameName = gameName.toUpperCase();
 
-  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6') {
+  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6' && normalizedGameName !== 'LOL') {
     return null;
   }
 
@@ -217,6 +223,16 @@ function formatGameStatsSummary(gameName: string, stats: unknown) {
   const record = toGameStatsRecord(stats);
   if (!record) {
     return String(stats ?? '');
+  }
+
+  if (gameName.toUpperCase() === 'LOL') {
+    const tier = readStringStat(record, 'tierLabel');
+    const kda = readNumberStat(record, 'kda');
+    const games = readNumberStat(record, 'games');
+    if (kda === null && games === null) return '계정 연결됨 · 전적 새로고침으로 불러와 주세요.';
+    return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
+      `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
+      games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
   }
 
   if (!isCommonGameStats(gameName)) {
@@ -267,7 +283,9 @@ function formatGameStatsDetail(gameName: string, stats: unknown) {
 function removeGameStats(gameStats: UserProfile['gameStats'], gameName: string): UserProfile['gameStats'] {
   const normalizedGameName = gameName.toLowerCase();
   return Object.fromEntries(
-    Object.entries(gameStats).filter(([key]) => key.toLowerCase() !== normalizedGameName),
+    Object.entries(gameStats).filter(([key]) =>
+      key.toLowerCase() !== normalizedGameName && !(normalizedGameName === 'lol' && key.toLowerCase() === 'riot'),
+    ),
   );
 }
 
@@ -318,7 +336,15 @@ function applyR6Summary(gameStats: UserProfile['gameStats'], summary: R6SummaryR
   };
 }
 
-function getGameStatsErrorMessage(gameName: 'PUBG' | 'R6', error: unknown) {
+function applyLolSummary(gameStats: UserProfile['gameStats'], summary: LolSummaryResponse) {
+  if (!summary.connected) return removeGameStats(gameStats, 'LOL');
+  return {
+    ...gameStats,
+    LOL: { connected: true, tierLabel: summary.tierLabel, kda: summary.kda, winRate: summary.winRate, games: summary.games },
+  };
+}
+
+function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
   if (!(error instanceof GameStatsApiError)) {
     return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
   }
@@ -488,10 +514,17 @@ export default function ProfilePage() {
       return [];
     }
 
-    return Object.entries(profile.gameStats).map(([gameName, stats]) => ({
+    const entries = Object.entries(profile.gameStats).filter(([key]) => key.toUpperCase() !== 'RIOT');
+    if (isConnectedGameStats(profile.gameStats.RIOT) && !entries.some(([key]) => key.toUpperCase() === 'LOL')) {
+      entries.push(['LOL', { connected: true }]);
+    }
+    return entries.map(([gameName, stats]) => ({
       gameName,
+      displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
       summary: formatGameStatsSummary(gameName, stats),
-      detail: formatGameStatsDetail(gameName, stats),
+      detail: gameName.toUpperCase() === 'LOL'
+        ? '최근 최대 5경기'
+        : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
     }));
   }, [profile?.gameStats]);
@@ -499,15 +532,15 @@ export default function ProfilePage() {
   const handleRefreshStats = async () => {
     if (
       !profile ||
-      isRefreshing ||
+      isRefreshing || isDisconnectingGame ||
       (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)
     ) {
       return;
     }
 
     const refreshRequests: Array<{
-      gameName: 'PUBG' | 'R6';
-      request: () => Promise<PubgSummaryResponse | R6SummaryResponse>;
+      gameName: GameName;
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse>;
     }> = [];
 
     if (isConnectedGameStats(profile.gameStats.PUBG)) {
@@ -515,6 +548,9 @@ export default function ProfilePage() {
     }
     if (isConnectedGameStats(profile.gameStats.R6)) {
       refreshRequests.push({ gameName: 'R6', request: refreshR6Summary });
+    }
+    if (isConnectedGameStats(profile.gameStats.RIOT) || isConnectedGameStats(profile.gameStats.LOL)) {
+      refreshRequests.push({ gameName: 'LOL', request: fetchLolSummary });
     }
 
     if (refreshRequests.length === 0) {
@@ -545,7 +581,9 @@ export default function ProfilePage() {
         }
 
         updatedGameStats =
-          gameName === 'R6'
+          gameName === 'LOL'
+            ? applyLolSummary(updatedGameStats, result.value as LolSummaryResponse)
+            : gameName === 'R6'
             ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
             : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
@@ -601,7 +639,7 @@ export default function ProfilePage() {
   const handleDisconnectGame = async () => {
     const gameName = disconnectTarget;
 
-    if (!gameName || isDisconnectingGame) {
+    if (!gameName || isDisconnectingGame || isRefreshing) {
       return;
     }
 
@@ -1206,7 +1244,7 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => void handleRefreshStats()}
-                    disabled={isRefreshing}
+                    disabled={isRefreshing || isDisconnectingGame}
                     className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
                     aria-label="연결된 게임 전적 새로고침"
                   >
@@ -1245,7 +1283,7 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xl font-black text-black">{entry.gameName}</p>
+                          <p className="text-xl font-black text-black">{entry.displayName}</p>
                           {entry.detail ? (
                             <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
                           ) : null}
@@ -1259,6 +1297,7 @@ export default function ProfilePage() {
                           <button
                             type="button"
                             onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                            disabled={isRefreshing || isDisconnectingGame}
                             className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
                             aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
                           >
