@@ -245,7 +245,7 @@ export default function SaveToCollectionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-neutral-900"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-surface"
       >
         <header className="relative flex h-14 items-center justify-center border-b border-zinc-200 px-14 dark:border-neutral-700">
           <h2 id={titleId} className="text-base font-bold text-zinc-950 dark:text-zinc-100">
@@ -276,9 +276,9 @@ export default function SaveToCollectionModal({
               return (
                 <label
                   key={collection.collectionId}
-                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 dark:bg-neutral-800">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 dark:bg-surface-elevated">
                     {collection.coverImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img

@@ -100,7 +100,7 @@ function ResetPasswordPageContent() {
 
   if (isSuccess) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white p-6">
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
         <div className="w-full max-w-sm text-center space-y-6 animate-in fade-in zoom-in-95">
           <div className="w-20 h-20 bg-black rounded-full flex items-center justify-center mx-auto shadow-xl">
             <CheckCircle2 size={40} className="text-white" />
@@ -229,7 +229,7 @@ function ResetPasswordPageContent() {
 
 function ResetPasswordPageFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white p-6 font-sans text-black">
+    <div className="flex min-h-screen items-center justify-center bg-background p-6 font-sans text-black">
       <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
         Reset Password Loading...
       </p>

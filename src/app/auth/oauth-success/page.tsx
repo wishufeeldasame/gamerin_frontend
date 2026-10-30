@@ -43,7 +43,7 @@ export default function OAuthSuccessPage() {
     }, [login, router]);
 
     return (
-        <div className="flex min-h-screen flex-col items-center justify-center bg-white font-sans text-black">
+        <div className="flex min-h-screen flex-col items-center justify-center bg-background font-sans text-black">
             <div className="flex flex-col items-center space-y-4">
                 {error ? (
                     <>

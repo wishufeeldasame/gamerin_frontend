@@ -5,8 +5,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { useConfirmationOpen } from './ConfirmContext';
 
 type ToastKind = 'success' | 'error' | 'info';
-type Toast = { id: number; kind: ToastKind; message: string };
-type ToastActions = Record<ToastKind, (message: string) => void>;
+// top: 화면 상단 중앙의 짧은 완료 알림(예: 업로드 완료). 기본은 하단 알림 목록.
+type ToastPlacement = 'top' | 'bottom';
+type ToastOptions = { placement?: ToastPlacement };
+type Toast = { id: number; kind: ToastKind; message: string; placement: ToastPlacement };
+type ToastActions = Record<ToastKind, (message: string, options?: ToastOptions) => void>;
 const ToastContext = createContext<ToastActions | null>(null);
 
 function ToastItem({ toast, onDismiss, paused }: { toast: Toast; onDismiss: (id: number) => void; paused: boolean }) {
@@ -68,21 +71,33 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [queue, setQueue] = useState<Toast[]>([]);
   const nextIdRef = useRef(0);
   const paused = useConfirmationOpen();
-  const enqueue = useCallback((kind: ToastKind, message: string) => {
+  const enqueue = useCallback((kind: ToastKind, message: string, options?: ToastOptions) => {
     const id = ++nextIdRef.current;
-    setQueue((current) => current.some((item) => item.kind === kind && item.message === message)
-      ? current : [...current, { id, kind, message }]);
+    const placement = options?.placement ?? 'bottom';
+    setQueue((current) => current.some((item) => item.kind === kind && item.message === message && item.placement === placement)
+      ? current : [...current, { id, kind, message, placement }]);
   }, []);
   const dismiss = useCallback((id: number) => setQueue((current) => current.filter((item) => item.id !== id)), []);
   const actions = useMemo(() => ({
-    success: (message: string) => enqueue('success', message),
-    error: (message: string) => enqueue('error', message),
-    info: (message: string) => enqueue('info', message),
+    success: (message: string, options?: ToastOptions) => enqueue('success', message, options),
+    error: (message: string, options?: ToastOptions) => enqueue('error', message, options),
+    info: (message: string, options?: ToastOptions) => enqueue('info', message, options),
   }), [enqueue]);
+  const topQueue = queue.filter((toast) => toast.placement === 'top');
+  const bottomQueue = queue.filter((toast) => toast.placement === 'bottom');
   return (
     <ToastContext.Provider value={actions}>
       {children}
-      {queue.length > 0 ? (
+      {topQueue.length > 0 ? (
+        <div
+          aria-label='상단 알림'
+          className='pointer-events-none fixed left-1/2 z-[150] grid w-[min(24rem,calc(100%-2rem))] -translate-x-1/2 gap-3'
+          style={{ top: 'calc(env(safe-area-inset-top) + 4.75rem)' }}
+        >
+          {topQueue.slice(0, 2).map((toast) => <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} paused={paused} />)}
+        </div>
+      ) : null}
+      {bottomQueue.length > 0 ? (
         <div
           aria-label='알림'
           className='pointer-events-none fixed left-[max(1rem,env(safe-area-inset-left))] right-[max(1rem,env(safe-area-inset-right))] z-[150] grid max-h-[50dvh] gap-3 overflow-y-auto lg:left-auto lg:w-96'
@@ -90,7 +105,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             bottom: 'calc(max(var(--tab-bar-height, 0px), env(safe-area-inset-bottom)) + 1rem)',
           }}
         >
-          {queue.slice(0, 3).map((toast) => <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} paused={paused} />)}
+          {bottomQueue.slice(0, 3).map((toast) => <ToastItem key={toast.id} toast={toast} onDismiss={dismiss} paused={paused} />)}
         </div>
       ) : null}
     </ToastContext.Provider>

@@ -286,7 +286,7 @@ export function Post({
           />
         ) : null}
         {post.reposterInfo ? (
-          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-neutral-800 dark:text-zinc-400">
+          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-line dark:text-zinc-400">
             <Repeat2 size={15} className="text-emerald-500" />
             <span>
               <span className="inline-flex items-center gap-1 align-middle">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>님이 리포스트했습니다
@@ -308,7 +308,7 @@ export function Post({
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
               </div>
             ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white shadow-inner">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-inner">
                 {initials}
               </div>
             )}
@@ -329,7 +329,7 @@ export function Post({
               type="button"
               ref={menuTriggerRef}
               onClick={toggleMenu}
-              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
@@ -366,7 +366,7 @@ export function Post({
                         returnFocusTo: menuTriggerRef.current,
                       });
                     }}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                    className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                   >
                     수정
                   </button>
@@ -386,7 +386,7 @@ export function Post({
                 <button
                   type="button"
                   onClick={closeMenu}
-                  className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800 dark:hover:!text-zinc-100"
+                  className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
                 >
                   취소
                 </button>
@@ -470,7 +470,7 @@ export function Post({
           <button
             type="button"
             onClick={() => { closeAll(); setShareOpen(true); }}
-            className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-neutral-800"
+            className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
             aria-label="게시물 공유"
           >
             <Share2 size={20} />

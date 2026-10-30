@@ -21,7 +21,7 @@ export function RightSidebar() {
           {suggestedFriends.map((friend) => (
             <div key={friend.tag} className="group flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black text-xs font-black text-white shadow-inner transition-transform group-hover:scale-110">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-inner transition-transform group-hover:scale-110">
                   {friend.name
                     .split(' ')
                     .map((part) => part[0])

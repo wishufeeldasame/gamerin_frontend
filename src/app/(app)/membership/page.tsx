@@ -65,7 +65,7 @@ export default function MembershipPage() {
         <h1 className="mt-1 text-3xl font-black tracking-tight text-black dark:text-zinc-100">GamerIN 멤버십</h1>
       </header>
 
-      <section className="mt-7 rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900 sm:p-7">
+      <section className="mt-7 rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-line dark:bg-surface sm:p-7">
         {loading ? (
           <div className="grid min-h-40 place-items-center" aria-live="polite">
             <Loader2 className="animate-spin text-zinc-400" aria-label="멤버십 정보를 불러오는 중" />
@@ -119,7 +119,7 @@ export default function MembershipPage() {
 
       <section className="mt-6 grid gap-3 lg:grid-cols-3">
         {benefits.map((benefit) => (
-          <article key={benefit.title} className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
+          <article key={benefit.title} className="rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-line dark:bg-surface">
             <benefit.icon size={20} className="text-amber-600 dark:text-[#f5b93d]" aria-hidden="true" />
             <h2 className="mt-3 text-base font-black text-black dark:text-zinc-100">{benefit.title}</h2>
             <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">{benefit.description}</p>

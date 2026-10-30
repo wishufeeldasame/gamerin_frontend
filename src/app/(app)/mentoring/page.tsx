@@ -1069,7 +1069,7 @@ export default function MentoringPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-background">
       <main className="mx-auto max-w-6xl px-5 py-10">
         <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
           <div>
@@ -1902,7 +1902,7 @@ export default function MentoringPage() {
                         className={`rounded-xl border p-4 transition-colors ${
                           highlightedReviewId === review.id
                             ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
-                            : 'border-zinc-100 dark:border-neutral-800'
+                            : 'border-zinc-100 dark:border-line'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -2121,7 +2121,7 @@ function ApplicationCard({
       className={`rounded-xl border p-4 transition-colors ${
         highlighted
           ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
-          : 'border-zinc-100 dark:border-neutral-800'
+          : 'border-zinc-100 dark:border-line'
       }`}
     >
       <div className="flex items-start justify-between gap-3">

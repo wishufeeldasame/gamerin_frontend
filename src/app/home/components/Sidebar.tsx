@@ -37,7 +37,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="주요 메뉴"
-      className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-neutral-800 dark:bg-neutral-900"
+      className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-line dark:bg-surface"
     >
       <ul className="grid h-16 grid-cols-5">
         {links.map((item) => (
@@ -74,8 +74,8 @@ export function Sidebar() {
               href={href}
               className={`group flex items-center gap-4 rounded-2xl px-4 py-3 font-black transition-all ${
                 isActive
-                  ? 'scale-[1.02] bg-black text-white shadow-lg dark:bg-[#f5b93d] dark:text-black'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black dark:text-zinc-400 dark:hover:bg-neutral-800 dark:hover:text-zinc-100'
+                  ? 'scale-[1.02] bg-black text-white shadow-lg dark:scale-100 dark:bg-[#f5b93d]/12 dark:text-[#f5b93d] dark:shadow-[inset_3px_0_0_#f5b93d]'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black dark:text-zinc-400 dark:hover:bg-surface-elevated dark:hover:text-zinc-100'
               }`}
             >
               <item.icon size={22} strokeWidth={isActive ? 3 : 2} className="shrink-0" />
@@ -86,10 +86,10 @@ export function Sidebar() {
       </nav>
 
       {user ? (
-        <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-neutral-800">
-          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-800">
+        <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-line">
+          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-line dark:bg-surface-elevated">
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white shadow-md dark:ring-1 dark:ring-white/10">
+              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-md dark:ring-1 dark:ring-white/10">
                 {user.profileImageUrl ? (
                   <Image
                     src={user.profileImageUrl}

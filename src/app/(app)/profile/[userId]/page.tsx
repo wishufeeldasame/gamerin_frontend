@@ -24,6 +24,7 @@ import {
   Loader2,
   MapPin,
   WalletCards,
+  Gamepad2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
@@ -94,6 +95,22 @@ const GAME_STATS_UI_CONFIG: Record<
     disconnectable: true,
   },
 };
+
+const GAME_ICON_MAP: Record<string, { url: string; invertInDark?: boolean }> = {
+  PUBG: { url: '/images/games/pubg.png' },
+  R6: { url: '/images/games/rainbow6.png', invertInDark: true },
+  'RAINBOW SIX SIEGE': { url: '/images/games/rainbow6.png', invertInDark: true },
+  'LEAGUE OF LEGENDS': { url: '/images/games/lol.png' },
+  LOL: { url: '/images/games/lol.png' },
+  VALORANT: { url: '/images/games/valorant.png' },
+  'OVERWATCH 2': { url: '/images/games/overwatch2.png' },
+  CS2: { url: '/images/games/cs2.png', invertInDark: true },
+  'APEX LEGENDS': { url: '/images/games/apexlegend.png', invertInDark: true },
+};
+
+function getGameIconMeta(gameName: string) {
+  return GAME_ICON_MAP[gameName.trim().toUpperCase()] ?? null;
+}
 
 function withImageCacheBust(imageUrl: string | null | undefined) {
   if (!imageUrl) {
@@ -1001,7 +1018,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl bg-white pb-20">
+    <div className="mx-auto min-h-screen max-w-4xl bg-background pb-20">
       <div className="relative h-56 overflow-hidden bg-zinc-950">
         <Image
           src={displayedCover}
@@ -1088,7 +1105,7 @@ export default function ProfilePage() {
                       <button
                         type="button"
                         onClick={() => setProfileReportMenuOpen(false)}
-                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                       >
                         취소
                       </button>
@@ -1228,7 +1245,7 @@ export default function ProfilePage() {
                     type="button"
                     onClick={() => void handleRefreshStats()}
                     disabled={isRefreshing || isDisconnectingGame}
-                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
+                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
                     aria-label="연결된 게임 전적 새로고침"
                   >
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
@@ -1243,38 +1260,54 @@ export default function ProfilePage() {
                   아직 연결된 게임 전적이 없습니다.
                 </div>
               ) : (
-                gameStatEntries.map((entry) => (
-                  <div
-                    key={entry.gameName}
-                    className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
-                  >
-                    <div className="flex min-w-0 items-center gap-4">
-                      <div className="h-12 w-12 shrink-0 rounded-xl bg-zinc-300" />
-                      <div className="min-w-0">
-                        <p className="text-xl font-black text-black">{entry.displayName}</p>
-                        {entry.detail ? (
-                          <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                gameStatEntries.map((entry) => {
+                  const iconMeta = getGameIconMeta(entry.gameName);
+
+                  return (
+                    <div
+                      key={entry.gameName}
+                      className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white p-1">
+                          {iconMeta ? (
+                            <Image
+                              src={iconMeta.url}
+                              alt={`${entry.gameName} 아이콘`}
+                              fill
+                              sizes="48px"
+                              className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
+                            />
+                          ) : (
+                            <Gamepad2 size={24} className="text-zinc-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xl font-black text-black">{entry.displayName}</p>
+                          {entry.detail ? (
+                            <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                          ) : null}
+                          <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2 text-right">
+                        <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
+                        {isOwnProfile && entry.disconnectGameName ? (
+                          <button
+                            type="button"
+                            onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                            disabled={isRefreshing || isDisconnectingGame}
+                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
                         ) : null}
-                        <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
                       </div>
                     </div>
-
-                    <div className="flex shrink-0 items-center gap-2 text-right">
-                      <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
-                      {isOwnProfile && entry.disconnectGameName ? (
-                        <button
-                          type="button"
-                          onClick={() => setDisconnectTarget(entry.disconnectGameName)}
-                          disabled={isRefreshing || isDisconnectingGame}
-                          className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
-                          aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
@@ -1409,7 +1442,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => setDisconnectTarget(null)}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-neutral-800"
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
               >
                 취소
               </button>
@@ -1417,7 +1450,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => void handleDisconnectGame()}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-neutral-800"
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated"
               >
                 {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
               </button>
@@ -1466,7 +1499,7 @@ export default function ProfilePage() {
               <button
                 type="button"
                 onClick={closeFollowList}
-                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-neutral-800"
+                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
                 aria-label="닫기"
               >
                 <X size={20} />
@@ -1497,14 +1530,14 @@ export default function ProfilePage() {
                     return (
                       <div
                         key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-neutral-800"
+                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                       >
                         <Link
                           href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
                           onClick={closeFollowList}
                           className="flex min-w-0 flex-1 items-center gap-3"
                         >
-                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white">
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
                             {followUserRecord.profileImageUrl ? (
                               <Image
                                 src={followUserRecord.profileImageUrl}

@@ -8,7 +8,7 @@ import { PendingPostCard } from '@/app/home/components/PendingPostCard';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { useCursorList } from '@/hooks/useCursorList';
-import { usePendingPosts } from '@/hooks/usePendingPosts';
+import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
 import { usePostLike } from '@/hooks/usePostLike';
 import { type PostRecord, fetchFeed } from '@/lib/feed-api';
 import {
@@ -86,15 +86,36 @@ function HomePageContent() {
     window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   };
 
+  // 첫 피드 응답을 기다리는 동안 업로드가 끝나면, 늦게 온 응답이 새 게시물을 덮어쓴다. 로딩 뒤 다시 앞에 넣는다.
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const createdWhileLoadingRef = useRef<PostRecord[]>([]);
   const handleCreatedPost = useCallback((createdPost: PostRecord) => {
+    if (loadingRef.current) {
+      createdWhileLoadingRef.current = [
+        createdPost,
+        ...createdWhileLoadingRef.current.filter((item) => item.postId !== createdPost.postId),
+      ];
+    }
     setPosts((current) => [createdPost, ...current.filter((item) => item.postId !== createdPost.postId)]);
   }, [setPosts]);
+  useEffect(() => {
+    if (loading || createdWhileLoadingRef.current.length === 0) return;
+    const createdPosts = createdWhileLoadingRef.current;
+    createdWhileLoadingRef.current = [];
+    setPosts((current) => {
+      const missing = createdPosts.filter((created) => !current.some((item) => item.postId === created.postId));
+      return missing.length > 0 ? [...missing, ...current] : current;
+    });
+  }, [loading, setPosts]);
   const {
     pendingPosts,
     submit: handleSubmitPost,
     retry: handleRetryPost,
     discard: handleDiscardPost,
-  } = usePendingPosts(handleCreatedPost);
+    subscribeCreated,
+  } = usePendingPostsContext();
+  useEffect(() => subscribeCreated(handleCreatedPost), [subscribeCreated, handleCreatedPost]);
 
   const handlePostUpdated = (updatedPost: PostRecord) => {
     setPosts((current) =>
@@ -144,8 +165,8 @@ function HomePageContent() {
 
   return (
     <div className="flex justify-center overflow-visible">
-      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-neutral-800">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-neutral-800 dark:bg-neutral-900">
+      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-line">
+        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
