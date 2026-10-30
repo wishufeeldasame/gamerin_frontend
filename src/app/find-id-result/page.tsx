@@ -23,14 +23,14 @@ function FindIdResultPageContent() {
       : "정보 없음";
 
   return (
-    <div className="flex min-h-screen bg-white font-sans text-black">
+    <div className="flex min-h-screen bg-background font-sans text-black">
       
       {/* 1. 왼쪽: GamerIN 로고 전용 영역 */}
-      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100">
+      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100 dark:border-line dark:bg-surface">
         <div className="relative w-80 h-80 flex items-center justify-center">
           <Image 
             src="/logo.png" 
-            alt="GamerIN Logo" 
+            alt="GamerIN 로고"
             width={600}
             height={600}
             className="object-contain drop-shadow-2xl"
@@ -67,7 +67,7 @@ function FindIdResultPageContent() {
 
           {/* 결과 카드 */}
           <div className="p-8 border border-zinc-200 rounded-3xl bg-zinc-50 space-y-2">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">User ID</p>
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">아이디</p>
             <p className="text-3xl font-black text-black tracking-tight">
               {maskedHandle || "조회 결과 없음"}
             </p>
@@ -99,9 +99,9 @@ function FindIdResultPageContent() {
 
 function FindIdResultPageFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white font-sans text-black">
+    <div className="flex min-h-screen items-center justify-center bg-background font-sans text-black">
       <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
-        Result Loading...
+        조회 결과를 불러오는 중...
       </p>
     </div>
   );

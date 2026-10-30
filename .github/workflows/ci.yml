@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Discord 알림
+        # 취소된 실행(동시 실행 취소 포함)은 알리지 않는다.
+        if: success() || failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
+          MSG: "${{ job.status == 'success' && '✅ 성공' || '❌ 실패' }} ${{ github.repository }} CI (${{ github.ref_name }}, by ${{ github.actor }})\n${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+        run: |
+          curl -fsS -H "Content-Type: application/json" -d "$(jq -n --arg c "$MSG" '{content:$c}')" "$DISCORD_WEBHOOK"

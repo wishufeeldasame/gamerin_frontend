@@ -1,60 +1,34 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { useRouter } from 'next/navigation';
+import { BlockedAccountError, restoreAuthUser, type AuthUser } from '@/lib/auth-api';
+import { isPaymentResultRelay } from '@/lib/payment-device';
 import {
   AUTH_CLEARED_EVENT,
+  AUTH_LOGOUT_STATE_EVENT,
+  AUTH_REAUTH_REQUIRED_EVENT,
   AUTH_USER_KEY,
-  clearStoredAuth,
-  refreshAccessToken,
+  getAuthGeneration,
+  isLocalReauthenticationRequired,
+  isLogoutInProgress,
+  isCurrentAuthGeneration,
+  logoutAuthSession,
 } from '@/lib/auth-store';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
-
-// 유저 데이터 타입 (필요한 정보를 추가하세요)
-interface User {
-  id: string;
-  name: string;
-  nickname: string;
-  gameTier: string;
-  bio?: string;
-  handle?: string;
-  location?: string;
-  website?: string;
-  profileImageUrl?: string | null;
-}
+export type User = AuthUser;
 
 interface AuthContextType {
   user: User | null;
   isAuthReady: boolean;
+  isLoggingOut: boolean;
   login: (userData: User) => void;
   updateUser: (updates: Partial<User>) => void;
-  logout: (options?: { redirectTo?: string | null }) => void;
+  logout: (options?: { redirectTo?: string | null }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-function normalizeProfileImageUrl(value: unknown) {
-  if (typeof value !== 'string') {
-    return null;
-  }
-
-  const url = value.trim();
-  if (!url) {
-    return null;
-  }
-
-  if (/^(https?:|blob:|data:)/i.test(url)) {
-    return url;
-  }
-
-  if (url.startsWith('//')) {
-    const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
-    return `${protocol}${url}`;
-  }
-
-  return `${API_BASE.replace(/\/$/, '')}/${url.replace(/^\//, '')}`;
-}
 
 function normalizeStoredUser(userData: User) {
   const safeUser = { ...userData } as User & {
@@ -63,7 +37,7 @@ function normalizeStoredUser(userData: User) {
   };
 
   delete safeUser.coverImageUrl;
-  safeUser.profileImageUrl = normalizeProfileImageUrl(safeUser.profileImageUrl);
+  safeUser.profileImageUrl = toAbsoluteAssetUrl(safeUser.profileImageUrl);
 
   return safeUser as User;
 }
@@ -72,46 +46,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   useEffect(() => {
     const handleAuthCleared = () => {
       setUser(null);
     };
-
-    window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
-    return () => window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
-  }, []);
-
-  useEffect(() => {
-    const bootstrapAuth = async () => {
-      const savedUser = window.localStorage.getItem(AUTH_USER_KEY);
-
-      if (!savedUser) {
-        setIsAuthReady(true);
-        return;
-      }
-
-      try {
-        const parsedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
-        const refreshedToken = await refreshAccessToken();
-
-        if (!refreshedToken) {
-          setUser(null);
-          clearStoredAuth({ notify: false });
-          return;
-        }
-
-        setUser(parsedUser);
-        window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(parsedUser));
-      } catch {
-        setUser(null);
-        clearStoredAuth({ notify: false });
-      } finally {
-        setIsAuthReady(true);
-      }
+    const handleLogoutState = (event: Event) => {
+      setIsLoggingOut((event as CustomEvent<boolean>).detail);
     };
 
-    void bootstrapAuth();
+    setIsLoggingOut(isLogoutInProgress());
+    window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+    window.addEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
+    window.addEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
+    return () => {
+      window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
+      window.removeEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
+      window.removeEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
+    };
   }, []);
 
   const login = useCallback((userData: User) => {
@@ -119,6 +72,81 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(nextUser);
     window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
   }, []);
+
+  useEffect(() => {
+    const bootstrapAuth = async () => {
+      let savedUser: string | null;
+
+      // 팝업 결제 결과 창은 결과만 부모 창에 넘기고 닫힌다. refresh는 기존 토큰을 폐기하므로
+      // 응답 전에 창이 닫히면 부모 창 세션까지 끊긴다. 이 경우에만 refresh를 건너뛴다(08 문서 12-6절).
+      if (isPaymentResultRelay()) {
+        setUser(null);
+        setIsAuthReady(true);
+        return;
+      }
+
+      if (isLocalReauthenticationRequired()) {
+        setUser(null);
+        setIsAuthReady(true);
+        return;
+      }
+
+      try {
+        savedUser = window.localStorage.getItem(AUTH_USER_KEY);
+
+        if (!savedUser) {
+          setIsAuthReady(true);
+          return;
+        }
+      } catch {
+        setUser(null);
+        await logoutAuthSession({ notify: false });
+        setIsAuthReady(true);
+        return;
+      }
+
+      const bootstrapGeneration = getAuthGeneration();
+      let storedUser: User;
+
+      try {
+        storedUser = normalizeStoredUser(JSON.parse(savedUser) as User);
+      } catch {
+        setUser(null);
+        await logoutAuthSession({ notify: false });
+        setIsAuthReady(true);
+        return;
+      }
+
+      try {
+        const restoredUser = await restoreAuthUser(storedUser, bootstrapGeneration);
+
+        // 복원 도중 로그인·로그아웃·사용자 전환이 있었으면 그 결과를 덮어쓰지 않는다.
+        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
+
+        if (restoredUser) {
+          login(restoredUser);
+        } else {
+          setUser(null);
+        }
+      } catch (error) {
+        if (!isCurrentAuthGeneration(bootstrapGeneration)) {
+          return;
+        }
+
+        // 차단 계정은 세션을 끝낸다. 세대가 바뀌므로 화면 사용자 상태는 여기서 직접 비운다.
+        if (error instanceof BlockedAccountError) {
+          await logoutAuthSession({ notify: false });
+        }
+        setUser(null);
+      } finally {
+        setIsAuthReady(true);
+      }
+    };
+
+    void bootstrapAuth();
+  }, [login]);
 
   const updateUser = useCallback((updates: Partial<User>) => {
     setUser((currentUser) => {
@@ -132,9 +160,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const logout = useCallback((options?: { redirectTo?: string | null }) => {
+  const logout = useCallback(async (options?: { redirectTo?: string | null }) => {
     setUser(null);
-    clearStoredAuth({ notify: false });
+    await logoutAuthSession({ notify: false });
 
     const redirectTo = options?.redirectTo ?? '/login';
     if (redirectTo) {
@@ -143,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <AuthContext.Provider value={{ user, isAuthReady, login, updateUser, logout }}>
+    <AuthContext.Provider value={{ user, isAuthReady, isLoggingOut, login, updateUser, logout }}>
       {children}
     </AuthContext.Provider>
   );

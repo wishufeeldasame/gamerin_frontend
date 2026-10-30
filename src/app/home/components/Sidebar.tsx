@@ -3,8 +3,9 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
-import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User } from 'lucide-react';
+import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
+import { MembershipBadge } from './MembershipBadge';
 
 const menuItems = [
   { icon: Home, label: '홈', href: '/home' },
@@ -14,25 +15,67 @@ const menuItems = [
   { icon: User, label: '프로필', href: '/profile' },
 ];
 
-export function Sidebar() {
+// 모바일 하단 탭은 5칸을 유지하므로 지갑은 데스크톱 사이드바에만 둔다(멤버십은 지갑 화면에서 진입).
+const desktopOnlyItems = [{ icon: WalletCards, label: '내 지갑', href: '/wallet' }];
+
+// Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 메뉴·활성 규칙을 쓴다.
+function useMenuLinks(items = menuItems) {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
+
+  return items.map((item) => {
+    const href = item.href === '/profile' ? profileHref : item.href;
+    const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
+    return { ...item, href, isActive };
+  });
+}
+
+export function MobileTabBar() {
+  const links = useMenuLinks();
+
+  return (
+    <nav
+      aria-label="주요 메뉴"
+      className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-line dark:bg-surface"
+    >
+      <ul className="grid h-16 grid-cols-5">
+        {links.map((item) => (
+          <li key={item.label}>
+            <Link
+              href={item.href}
+              aria-current={item.isActive ? 'page' : undefined}
+              className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-black ${
+                item.isActive ? 'text-zinc-950 dark:text-[#f5b93d]' : 'text-zinc-400 dark:text-zinc-500'
+              }`}
+            >
+              <item.icon size={22} strokeWidth={item.isActive ? 3 : 2} />
+              {item.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  );
+}
+
+export function Sidebar() {
+  const { user, logout } = useAuth();
+  const links = useMenuLinks([...menuItems, ...desktopOnlyItems]);
 
   return (
     <div className="flex h-full flex-col justify-between pb-4">
       <nav className="space-y-2">
-        {menuItems.map((item) => {
-          const href = item.href === '/profile' ? profileHref : item.href;
-          const isActive = item.href === '/profile' ? pathname.startsWith('/profile') : pathname === href;
+        {links.map((item) => {
+          const { href, isActive } = item;
           return (
             <Link
-              key={item.href}
+              key={item.label}
               href={href}
               className={`group flex items-center gap-4 rounded-2xl px-4 py-3 font-black transition-all ${
                 isActive
-                  ? 'scale-[1.02] bg-black text-white shadow-lg dark:bg-[#f5b93d] dark:text-black'
-                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black dark:text-zinc-400 dark:hover:bg-neutral-800 dark:hover:text-zinc-100'
+                  ? 'scale-[1.02] bg-black text-white shadow-lg dark:scale-100 dark:bg-[#f5b93d]/12 dark:text-[#f5b93d] dark:shadow-[inset_3px_0_0_#f5b93d]'
+                  : 'text-zinc-500 hover:bg-zinc-100 hover:text-black dark:text-zinc-400 dark:hover:bg-surface-elevated dark:hover:text-zinc-100'
               }`}
             >
               <item.icon size={22} strokeWidth={isActive ? 3 : 2} className="shrink-0" />
@@ -43,10 +86,10 @@ export function Sidebar() {
       </nav>
 
       {user ? (
-        <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-neutral-800">
-          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-neutral-800 dark:bg-neutral-800">
+        <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-line">
+          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-line dark:bg-surface-elevated">
             <div className="mb-4 flex items-center gap-3">
-              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white shadow-md dark:ring-1 dark:ring-white/10">
+              <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-md dark:ring-1 dark:ring-white/10">
                 {user.profileImageUrl ? (
                   <Image
                     src={user.profileImageUrl}
@@ -61,9 +104,12 @@ export function Sidebar() {
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-[13px] font-black leading-tight text-black dark:text-zinc-100">{user.nickname}</p>
+                <p className="flex min-w-0 items-center gap-1 text-[13px] font-black leading-tight text-black dark:text-zinc-100">
+                  <span className="truncate">{user.nickname}</span>
+                  <MembershipBadge active={user.membershipBadge} />
+                </p>
                 <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
-                  {user.gameTier || 'Unranked'}
+                  {!user.gameTier || user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                 </p>
               </div>
             </div>
@@ -73,7 +119,7 @@ export function Sidebar() {
               className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 dark:border-neutral-700 dark:bg-black dark:text-zinc-400 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={14} strokeWidth={3} />
-              Sign Out
+              로그아웃
             </button>
           </div>
         </div>

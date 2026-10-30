@@ -1,156 +1,178 @@
 'use client';
 
-import { X, ShieldCheck, Gamepad2 } from 'lucide-react';
+import { useToast } from '@/app/context/ToastContext';
+
+import Image from 'next/image';
+import { X, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
-import { getAccessToken } from '@/lib/auth-store';
+import {
+  connectPubg,
+  connectR6,
+  fetchPubgSummary,
+  GameStatsApiError,
+} from '@/lib/game-stats-api';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://localhost:8080';
 const PUBG_NICKNAME_REGEX = /^[A-Za-z0-9_-]{4,16}$/;
 const PUBG_NICKNAME_ERROR_MESSAGE =
   '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 언더바(_)만 사용 가능합니다.';
 
-const availableGames = [
-  {
-    name: 'League of Legends',
-    description: 'Sync Rank, Win Rate, KDA',
-  },
-  {
-    name: 'VALORANT',
-    description: 'Sync Rank, ACS, Headshot %',
-  },
-  {
-    name: 'Overwatch 2',
-    description: 'Sync Skill Tier, Hero Stats',
-  },
-  {
-    name: 'PUBG',
-    description: 'Sync Survival Level, KD, ADR',
-  },
-  {
-    name: 'CS2',
-    description: 'Sync Premier Rank, K/D, Win Rate',
-  },
-  {
-    name: 'Apex Legends',
-    description: 'Sync Rank, Damage, K/D',
-  },
+type ConnectableGame = 'PUBG' | 'R6';
+
+const availableGames: Array<{
+  name: string;
+  description: string;
+  iconUrl: string;
+  invertInDark?: boolean;
+  connectableGame?: ConnectableGame;
+}> = [
+  { name: 'League of Legends', description: '등급, 승률, 킬/데스/어시스트 비율 연동', iconUrl: '/images/games/lol.png' },
+  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동', iconUrl: '/images/games/valorant.png' },
+  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동', iconUrl: '/images/games/overwatch2.png' },
+  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
+  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/rainbow6.png', invertInDark: true, connectableGame: 'R6' },
+  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률 연동', iconUrl: '/images/games/cs2.png', invertInDark: true },
+  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율 연동', iconUrl: '/images/games/apexlegend.png', invertInDark: true },
 ];
 
 interface FetchGameStatsModalProps {
   onClose: () => void;
+  onConnected?: () => Promise<void> | void;
 }
 
-interface ApiResponse<T> {
-  success: boolean;
-  data: T;
+function getGameLabel(game: ConnectableGame) {
+  return game === 'R6' ? 'Rainbow Six Siege' : 'PUBG';
 }
 
-interface PubgSummaryResponse {
-  gameName: string;
-  tierLabel: string | null;
-  kda: number;
-  winRate: number;
-  games: number;
-  connected: boolean;
+function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
+  if (!(error instanceof GameStatsApiError)) {
+    return error instanceof Error ? error.message : `${getGameLabel(game)} 연동에 실패했습니다.`;
+  }
+
+  if (game === 'R6') {
+    if (error.status === 404) {
+      return 'PC Ubisoft Connect 닉네임을 확인해 주세요.';
+    }
+    if (error.status === 409) {
+      return error.message;
+    }
+    if (error.status === 429) {
+      return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    }
+    if (error.status === 502 || error.status === 503) {
+      return 'R6 전적 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+    }
+  }
+
+  return error.message;
 }
 
-export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
+function validatePlayerName(game: ConnectableGame, playerName: string) {
+  if (game === 'PUBG') {
+    return PUBG_NICKNAME_REGEX.test(playerName) ? '' : PUBG_NICKNAME_ERROR_MESSAGE;
+  }
+
+  if (!playerName) {
+    return 'Ubisoft Connect 닉네임을 입력해 주세요.';
+  }
+
+  if (playerName.length > 100) {
+    return '닉네임은 100자 이하여야 합니다.';
+  }
+
+  return '';
+}
+
+export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModalProps) {
+  const toast = useToast();
   const { updateUser } = useAuth();
   const [connectingGame, setConnectingGame] = useState<string | null>(null);
-  const [pubgNickname, setPubgNickname] = useState('');
-  const [pubgNicknameError, setPubgNicknameError] = useState('');
-  const [pubgPromptOpen, setPubgPromptOpen] = useState(false);
+  const [promptGame, setPromptGame] = useState<ConnectableGame | null>(null);
+  const [playerName, setPlayerName] = useState('');
+  const [playerNameError, setPlayerNameError] = useState('');
 
-  const handleConnect = (gameName: string) => {
-    if (gameName === 'PUBG') {
-      setPubgNickname('');
-      setPubgNicknameError('');
-      setPubgPromptOpen(true);
+  const handleConnect = (gameName: string, connectableGame?: ConnectableGame) => {
+    if (connectableGame) {
+      setPlayerName('');
+      setPlayerNameError('');
+      setPromptGame(connectableGame);
       return;
     }
 
     setConnectingGame(gameName);
     setTimeout(() => {
       setConnectingGame(null);
-      alert(`${gameName} integration is not connected yet.`);
+      toast.info(`${gameName} 연동은 아직 지원되지 않습니다.`);
     }, 1000);
   };
 
-  const handlePubgSubmit = async () => {
-    const playerName = pubgNickname.trim();
-    if (!PUBG_NICKNAME_REGEX.test(playerName)) {
-      setPubgNicknameError(PUBG_NICKNAME_ERROR_MESSAGE);
+  const handleSubmit = async () => {
+    if (!promptGame || connectingGame) {
       return;
     }
 
-    const accessToken = getAccessToken();
-    if (!accessToken) {
-      alert('Please log in before connecting PUBG.');
+    const normalizedPlayerName = playerName.trim();
+    const validationMessage = validatePlayerName(promptGame, normalizedPlayerName);
+    if (validationMessage) {
+      setPlayerNameError(validationMessage);
       return;
     }
 
-    setPubgNicknameError('');
-    setPubgPromptOpen(false);
-    setConnectingGame('PUBG');
+    const selectedGame = promptGame;
+    let connectionCompleted = false;
+    setPlayerNameError('');
+    setPromptGame(null);
+    setConnectingGame(selectedGame);
 
     try {
-      const connectResponse = await fetch(`${API_BASE}/api/v1/pubg/connect`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
-        body: JSON.stringify({ playerName }),
-      });
+      if (selectedGame === 'PUBG') {
+        await connectPubg(normalizedPlayerName);
+        connectionCompleted = true;
 
-      const connectBody = (await connectResponse.json().catch(() => null)) as
-        | ApiResponse<{ connected: boolean; playerName: string }>
-        | { message?: string }
-        | null;
-
-      if (!connectResponse.ok) {
-        throw new Error(
-          (connectBody as { message?: string } | null)?.message ??
-            'Failed to connect PUBG.'
-        );
-      }
-
-      const summaryResponse = await fetch(`${API_BASE}/api/v1/pubg/me`, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        credentials: 'include',
-      });
-
-      if (summaryResponse.ok) {
-        const summaryBody = (await summaryResponse.json().catch(() => null)) as
-          | ApiResponse<PubgSummaryResponse>
-          | null;
-        const tierLabel = summaryBody?.data?.tierLabel;
-        if (tierLabel) {
-          updateUser({ gameTier: tierLabel });
+        try {
+          const summary = await fetchPubgSummary();
+          if (summary.tierLabel) {
+            updateUser({ gameTier: summary.tierLabel });
+          }
+        } catch {
+          // PUBG 연결은 완료된 상태이므로 프로필 재조회로 저장된 연결 상태를 반영한다.
         }
+      } else {
+        await connectR6(normalizedPlayerName);
+        connectionCompleted = true;
       }
 
-      setConnectingGame(null);
-      setPubgNickname('');
-      alert(`PUBG (${playerName}) connected successfully.`);
+      await onConnected?.();
+      toast.success(`${getGameLabel(selectedGame)} (${normalizedPlayerName}) 계정이 연결되었습니다.`);
       onClose();
     } catch (error) {
+      if (connectionCompleted) {
+        toast.error(
+          `${getGameLabel(selectedGame)} 계정 연결은 완료됐지만 프로필 화면을 갱신하지 못했습니다. 새로고침 후 다시 확인해 주세요.`,
+        );
+        onClose();
+        return;
+      }
+
+      setPromptGame(selectedGame);
+      setPlayerNameError(getConnectionErrorMessage(selectedGame, error));
+    } finally {
       setConnectingGame(null);
-      setPubgPromptOpen(true);
-      alert(error instanceof Error ? error.message : 'Failed to connect PUBG.');
     }
   };
 
-  const handlePubgCancel = () => {
-    setPubgPromptOpen(false);
-    setPubgNickname('');
-    setPubgNicknameError('');
+  const handlePromptCancel = () => {
+    setPromptGame(null);
+    setPlayerName('');
+    setPlayerNameError('');
   };
+
+  const selectedGameLabel = promptGame ? getGameLabel(promptGame) : '';
+  const promptDescription =
+    promptGame === 'R6'
+      ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연동하세요.'
+      : 'PUBG 계정 연동을 시작하려면 닉네임을 입력하세요.';
 
   return (
     <AnimatePresence>
@@ -167,7 +189,7 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="relative w-full max-w-lg overflow-hidden rounded-[40px] bg-white shadow-2xl"
+          className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[40px] bg-white shadow-2xl"
         >
           <div className="bg-black p-8 text-white">
             <div className="mb-6 flex items-center justify-between">
@@ -181,44 +203,44 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
                 <X size={24} />
               </button>
             </div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter">
-              Stat Sync Engine
-            </h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter">게임 전적 연동</h2>
             <p className="mt-1 text-sm font-bold text-zinc-500">
-              Connect your official game account and import live stats.
+              공식 게임 계정을 연결하고 최신 전적을 불러오세요.
             </p>
           </div>
 
-          <div className="scrollbar-hide max-h-[400px] space-y-4 overflow-y-auto p-8">
+          <div className="scrollbar-hide min-h-0 flex-1 space-y-4 overflow-y-auto p-8">
             {availableGames.map((game) => (
               <div
                 key={game.name}
-                className="group flex items-center justify-between rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white"
+                className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-surface dark:hover:!border-neutral-600 dark:hover:bg-surface-elevated"
               >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-100 bg-white shadow-sm transition-all group-hover:bg-black group-hover:text-white">
-                    <Gamepad2 size={20} />
+                <div className="flex min-w-0 flex-1 items-center gap-4">
+                  <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-100 bg-white p-1 shadow-sm">
+                    <Image
+                      src={game.iconUrl}
+                      alt={`${game.name} 아이콘`}
+                      fill
+                      sizes="44px"
+                      className={`object-contain p-1 ${game.invertInDark ? 'dark:invert' : ''}`}
+                    />
                   </div>
-                  <div>
-                    <h3 className="mb-1 text-[15px] font-black leading-none text-black">
-                      {game.name}
-                    </h3>
-                    <p className="text-[11px] font-bold uppercase tracking-tight text-zinc-400">
-                      {game.description}
-                    </p>
+                  <div className="min-w-0">
+                    <h3 className="mb-1 text-[15px] font-black leading-none text-black">{game.name}</h3>
+                    <p className="text-[11px] font-bold uppercase tracking-tight text-zinc-400">{game.description}</p>
                   </div>
                 </div>
 
                 <button
-                  onClick={() => handleConnect(game.name)}
-                  disabled={connectingGame !== null || pubgPromptOpen}
-                  className={`rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
-                    connectingGame === game.name || pubgPromptOpen
-                      ? 'cursor-not-allowed bg-zinc-200 text-zinc-500'
+                  onClick={() => handleConnect(game.name, game.connectableGame)}
+                  disabled={connectingGame !== null || promptGame !== null}
+                  className={`shrink-0 whitespace-nowrap rounded-xl px-5 py-2.5 text-xs font-black shadow-sm transition-all ${
+                    connectingGame === game.name || promptGame !== null
+                      ? 'cursor-not-allowed bg-zinc-200 text-zinc-500 dark:bg-surface-elevated'
                       : 'bg-black text-white hover:bg-zinc-800 active:scale-95'
                   }`}
                 >
-                  {connectingGame === game.name ? 'SYNCING...' : 'CONNECT'}
+                  {connectingGame === (game.connectableGame ?? game.name) ? '연동 중...' : '연결'}
                 </button>
               </div>
             ))}
@@ -228,12 +250,12 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
             <div className="flex items-center justify-center gap-2">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
               <p className="text-center text-[11px] font-black uppercase tracking-widest text-zinc-400">
-                Encryption Active: Secured via Game API
+                암호화 활성: 게임 API를 통한 보안 연결
               </p>
             </div>
           </div>
 
-          {pubgPromptOpen && (
+          {promptGame && (
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -244,13 +266,11 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
                 <div className="border-b border-zinc-100 p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
-                      <h3 className="text-xl font-black">Connect PUBG</h3>
-                      <p className="mt-1 text-sm text-zinc-500">
-                        Enter your nickname to start PUBG account sync.
-                      </p>
+                      <h3 className="text-xl font-black">{selectedGameLabel} 연결</h3>
+                      <p className="mt-1 text-sm text-zinc-500">{promptDescription}</p>
                     </div>
                     <button
-                      onClick={handlePubgCancel}
+                      onClick={handlePromptCancel}
                       className="h-10 w-10 rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
                     >
                       <X size={20} />
@@ -260,41 +280,39 @@ export function FetchGameStatsModal({ onClose }: FetchGameStatsModalProps) {
 
                 <div className="space-y-4 p-6">
                   <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
-                    Nickname
+                    닉네임
                   </label>
                   <input
-                    value={pubgNickname}
+                    value={playerName}
                     onChange={(event) => {
-                      setPubgNickname(event.target.value);
-                      setPubgNicknameError('');
+                      setPlayerName(event.target.value);
+                      setPlayerNameError('');
                     }}
-                    placeholder="Enter your PUBG nickname"
-                    aria-invalid={Boolean(pubgNicknameError)}
-                    className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white ${
-                      pubgNicknameError
-                        ? 'border-red-300 focus:border-red-500'
-                        : 'border-zinc-200 focus:border-black'
+                    placeholder={promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
+                    aria-invalid={Boolean(playerNameError)}
+                    className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white dark:placeholder:!text-zinc-400 dark:focus:bg-surface ${
+                      playerNameError
+                        ? 'border-red-300 focus:border-red-500 dark:!border-red-400 dark:focus:!border-red-400'
+                        : 'border-zinc-200 focus:border-black dark:focus:!border-[#f5b93d]'
                     }`}
                   />
-                  {pubgNicknameError ? (
-                    <p className="text-xs font-bold leading-relaxed text-red-500">
-                      {pubgNicknameError}
-                    </p>
+                  {playerNameError ? (
+                    <p className="text-xs font-bold leading-relaxed text-red-500">{playerNameError}</p>
                   ) : null}
                 </div>
 
                 <div className="flex items-center gap-4 border-t border-zinc-100 bg-zinc-50 p-6">
                   <button
-                    onClick={handlePubgCancel}
+                    onClick={handlePromptCancel}
                     className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-100"
                   >
-                    Cancel
+                    취소
                   </button>
                   <button
-                    onClick={handlePubgSubmit}
+                    onClick={() => void handleSubmit()}
                     className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
                   >
-                    Connect
+                    연결
                   </button>
                 </div>
               </div>

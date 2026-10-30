@@ -1,15 +1,18 @@
 'use client';
 
-/* eslint-disable @next/next/no-img-element */
+import { useToast } from '@/app/context/ToastContext';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
-import { ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
+import { Hash, ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-import { PostRecord, createJsonPost, createMultipartPost, getInitials } from '@/lib/feed-api';
+import { getInitials } from '@/lib/feed-api';
+import type { PostDraft } from '@/hooks/usePendingPosts';
+import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
+import { convertImageForUpload, convertImagesForUpload, isHeicFile } from '@/lib/profile-image-compression';
 
 interface PostComposerProps {
-  onCreated?: (post: PostRecord) => void;
+  onSubmit?: (draft: PostDraft) => void;
 }
 
 interface ThumbnailOption {
@@ -26,12 +29,19 @@ const MAX_VIDEO_THUMBNAILS: number = 4;
 const MAX_VIDEO_COUNT = 1;
 const MAX_VIDEO_FILE_SIZE_BYTES = 500 * 1024 * 1024;
 const MAX_VIDEO_DURATION_SECONDS = 120;
+export const MAX_POST_CONTENT_LENGTH = 1000;
 const MAX_THUMBNAIL_CANVAS_WIDTH = 1280;
 const MAX_THUMBNAIL_CANVAS_HEIGHT = 720;
 
+type ActiveHashtagQuery = {
+  query: string;
+  start: number;
+  end: number;
+};
+
 function isImageFile(file: File) {
   const type = file.type.toLowerCase();
-  return type === 'image/jpeg' || type === 'image/png' || /\.(jpe?g|png)$/i.test(file.name);
+  return type === 'image/jpeg' || type === 'image/png' || /\.(jpe?g|png)$/i.test(file.name) || isHeicFile(file);
 }
 
 function isVideoFile(file: File) {
@@ -107,7 +117,7 @@ async function createThumbnailFile(
 
   const context = canvas.getContext('2d');
   if (!context) {
-    throw new Error('Canvas is unavailable.');
+    throw new Error('이미지 처리 기능을 사용할 수 없습니다.');
   }
 
   context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -117,7 +127,7 @@ async function createThumbnailFile(
   });
 
   if (!blob) {
-    throw new Error('Thumbnail generation failed.');
+    throw new Error('썸네일 생성에 실패했습니다.');
   }
 
   return new File([blob], `${baseName}-thumbnail-${index + 1}.jpg`, { type: 'image/jpeg' });
@@ -168,8 +178,10 @@ async function generateThumbnailOptions(file: File) {
   }
 }
 
-export function PostComposer({ onCreated }: PostComposerProps) {
+export function PostComposer({ onSubmit }: PostComposerProps) {
+  const toast = useToast();
   const { user } = useAuth();
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
@@ -182,8 +194,15 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
   const [thumbnailOptions, setThumbnailOptions] = useState<ThumbnailOption[]>([]);
   const [selectedThumbnailId, setSelectedThumbnailId] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [generatingThumbnails, setGeneratingThumbnails] = useState(false);
+  const [preparingImages, setPreparingImages] = useState(false);
+  // 변환 중에 선택이 바뀌면 늦게 끝난 변환 결과를 버린다.
+  const imageSelectionSeqRef = useRef(0);
+  const [preparingThumbnail, setPreparingThumbnail] = useState(false);
+  const thumbnailUploadSeqRef = useRef(0);
+  const [activeHashtagQuery, setActiveHashtagQuery] = useState<ActiveHashtagQuery | null>(null);
+  const [hashtagSuggestions, setHashtagSuggestions] = useState<HashtagSummary[]>([]);
+  const [loadingHashtagSuggestions, setLoadingHashtagSuggestions] = useState(false);
 
   const hasFiles = imageFiles.length > 0 || Boolean(videoFile);
   const selectedThumbnail = thumbnailOptions.find((option) => option.id === selectedThumbnailId) ?? null;
@@ -206,6 +225,46 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     };
   }, [thumbnailOptions]);
 
+  useEffect(() => {
+    if (!activeHashtagQuery?.query) {
+      setHashtagSuggestions([]);
+      setLoadingHashtagSuggestions(false);
+      return;
+    }
+
+    let cancelled = false;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setLoadingHashtagSuggestions(true);
+        const suggestions = await fetchHashtagSuggestions(activeHashtagQuery.query, 10, {
+          signal: controller.signal,
+        });
+        if (!cancelled) {
+          setHashtagSuggestions(suggestions);
+        }
+      } catch (suggestionError) {
+        if (suggestionError instanceof DOMException && suggestionError.name === 'AbortError') {
+          return;
+        }
+
+        if (!cancelled) {
+          setHashtagSuggestions([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoadingHashtagSuggestions(false);
+        }
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(timeoutId);
+    };
+  }, [activeHashtagQuery]);
+
   const clearThumbnailSelection = () => {
     setThumbnailOptions([]);
     setSelectedThumbnailId(null);
@@ -215,6 +274,8 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   };
 
   const clearImageSelection = () => {
+    imageSelectionSeqRef.current += 1;
+    setPreparingImages(false);
     setImageFiles([]);
     setImagePreviewUrls([]);
     if (imageInputRef.current) {
@@ -223,6 +284,8 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   };
 
   const clearVideoSelection = () => {
+    thumbnailUploadSeqRef.current += 1;
+    setPreparingThumbnail(false);
     setVideoFile(null);
     setVideoPreviewUrl(null);
     clearThumbnailSelection();
@@ -239,41 +302,114 @@ export function PostComposer({ onCreated }: PostComposerProps) {
   const resetComposer = () => {
     setContent('');
     setExternalLinkUrl('');
+    setActiveHashtagQuery(null);
+    setHashtagSuggestions([]);
     clearAttachments();
   };
 
-  const handleImageSelect = (event: ChangeEvent<HTMLInputElement>) => {
+  const updateActiveHashtagQuery = (value: string, caretPosition: number | null) => {
+    if (caretPosition === null) {
+      setActiveHashtagQuery(null);
+      return;
+    }
+
+    const beforeCaret = value.slice(0, caretPosition);
+    const match = beforeCaret.match(/(^|\s)#([\p{L}\p{N}_]{1,50})$/u);
+
+    if (!match || match.index === undefined) {
+      setActiveHashtagQuery(null);
+      return;
+    }
+
+    const prefixLength = match[1]?.length ?? 0;
+    setActiveHashtagQuery({
+      query: match[2] ?? '',
+      start: match.index + prefixLength,
+      end: caretPosition,
+    });
+  };
+
+  const handleContentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
+    const nextContent = event.target.value;
+    setContent(nextContent);
+    updateActiveHashtagQuery(nextContent, event.target.selectionStart);
+  };
+
+  const handleSelectHashtagSuggestion = (name: string) => {
+    if (!activeHashtagQuery) {
+      return;
+    }
+
+    const replacement = `#${name}`;
+    const nextContent = `${content.slice(0, activeHashtagQuery.start)}${replacement}${content.slice(
+      activeHashtagQuery.end,
+    )}`;
+    const nextCaretPosition = activeHashtagQuery.start + replacement.length;
+
+    setContent(nextContent);
+    setActiveHashtagQuery(null);
+    setHashtagSuggestions([]);
+
+    window.requestAnimationFrame(() => {
+      contentTextareaRef.current?.focus();
+      contentTextareaRef.current?.setSelectionRange(nextCaretPosition, nextCaretPosition);
+    });
+  };
+
+  const handleImageSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length > MAX_IMAGE_COUNT) {
-      alert(`이미지는 최대 ${MAX_IMAGE_COUNT}개까지 업로드할 수 있습니다.`);
+      toast.error(`이미지는 최대 ${MAX_IMAGE_COUNT}개까지 업로드할 수 있습니다.`);
     }
 
     const files = selectedFiles.slice(0, MAX_IMAGE_COUNT);
     if (files.some((file) => !isImageFile(file))) {
-      alert('사진에는 JPEG 또는 PNG 파일만 업로드할 수 있습니다.');
+      toast.error('사진에는 JPEG 또는 PNG 파일만 업로드할 수 있습니다.');
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
       }
       return;
     }
 
-    if (files.some((file) => file.size > MAX_IMAGE_FILE_SIZE_BYTES)) {
-      alert('사진 파일은 장당 20MB 이하여야 합니다.');
+    const seq = ++imageSelectionSeqRef.current;
+    setPreparingImages(true);
+    try {
+      // HEIC·회전·고해상도(48MP) 사진을 서버가 받는 JPEG로 맞춘 뒤 크기를 검사한다.
+      const converted = await convertImagesForUpload(files);
+      if (seq !== imageSelectionSeqRef.current) {
+        return;
+      }
+
+      if (converted.some((file) => file.size > MAX_IMAGE_FILE_SIZE_BYTES)) {
+        toast.error('사진 파일은 장당 20MB 이하여야 합니다.');
+        if (imageInputRef.current) {
+          imageInputRef.current.value = '';
+        }
+        return;
+      }
+
+      clearVideoSelection();
+      setImageFiles(converted);
+      setImagePreviewUrls(converted.map((file) => makeObjectUrl(file)));
+    } catch (error) {
+      if (seq !== imageSelectionSeqRef.current) {
+        return;
+      }
+      toast.error(error instanceof Error ? error.message : '사진을 준비하지 못했습니다.');
       if (imageInputRef.current) {
         imageInputRef.current.value = '';
       }
-      return;
+    } finally {
+      if (seq === imageSelectionSeqRef.current) {
+        setPreparingImages(false);
+      }
     }
-
-    clearVideoSelection();
-    setImageFiles(files);
-    setImagePreviewUrls(files.map((file) => makeObjectUrl(file)));
   };
 
   const handleVideoSelect = async (event: ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(event.target.files ?? []);
     if (selectedFiles.length > MAX_VIDEO_COUNT) {
-      alert('동영상은 하나만 업로드할 수 있습니다.');
+      toast.error('동영상은 하나만 업로드할 수 있습니다.');
     }
 
     const selected = selectedFiles[0] ?? null;
@@ -285,12 +421,12 @@ export function PostComposer({ onCreated }: PostComposerProps) {
     }
 
     if (!isVideoFile(selected)) {
-      alert('동영상 파일만 업로드할 수 있습니다.');
+      toast.error('동영상 파일만 업로드할 수 있습니다.');
       return;
     }
 
     if (selected.size > MAX_VIDEO_FILE_SIZE_BYTES) {
-      alert('동영상 파일은 500MB 이하여야 합니다.');
+      toast.error('동영상 파일은 500MB 이하여야 합니다.');
       return;
     }
 
@@ -304,28 +440,49 @@ export function PostComposer({ onCreated }: PostComposerProps) {
       setSelectedThumbnailId(null);
     } catch (error) {
       clearVideoSelection();
-      alert(error instanceof Error ? error.message : '동영상 미리보기를 준비하지 못했습니다.');
+      toast.error(error instanceof Error ? error.message : '동영상 미리보기를 준비하지 못했습니다.');
     } finally {
       setGeneratingThumbnails(false);
     }
   };
 
-  const handleThumbnailUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
-    if (!file) {
+  const handleThumbnailUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files?.[0] ?? null;
+    if (!selected) {
       return;
     }
 
-    if (!isImageFile(file)) {
-      alert('동영상 썸네일은 JPEG 또는 PNG 파일이어야 합니다.');
+    if (!isImageFile(selected)) {
+      toast.error('동영상 썸네일은 JPEG 또는 PNG 파일이어야 합니다.');
       if (thumbnailInputRef.current) {
         thumbnailInputRef.current.value = '';
       }
       return;
     }
 
+    const seq = ++thumbnailUploadSeqRef.current;
+    setPreparingThumbnail(true);
+    let file: File;
+    try {
+      file = await convertImageForUpload(selected);
+    } catch (error) {
+      if (seq === thumbnailUploadSeqRef.current) {
+        setPreparingThumbnail(false);
+        toast.error(error instanceof Error ? error.message : '썸네일을 준비하지 못했습니다.');
+        if (thumbnailInputRef.current) {
+          thumbnailInputRef.current.value = '';
+        }
+      }
+      return;
+    }
+    // 변환 중 동영상이 바뀌었으면 이전 동영상의 썸네일을 붙이지 않는다.
+    if (seq !== thumbnailUploadSeqRef.current) {
+      return;
+    }
+    setPreparingThumbnail(false);
+
     if (file.size > MAX_IMAGE_FILE_SIZE_BYTES) {
-      alert('동영상 썸네일은 20MB 이하여야 합니다.');
+      toast.error('동영상 썸네일은 20MB 이하여야 합니다.');
       if (thumbnailInputRef.current) {
         thumbnailInputRef.current.value = '';
       }
@@ -339,60 +496,36 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
   const canSubmit =
     Boolean(user) &&
-    !submitting &&
     !generatingThumbnails &&
+    !preparingImages &&
+    !preparingThumbnail &&
     Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
 
-  const handleSubmit = async () => {
+  const handleSubmit = () => {
     if (!user || !canSubmit) {
       return;
     }
 
     if (hasFiles && externalLinkUrl.trim()) {
-      alert('미디어 업로드와 외부 링크 카드는 함께 사용할 수 없습니다.');
+      toast.error('미디어 업로드와 외부 링크 카드는 함께 사용할 수 없습니다.');
       return;
     }
 
-    try {
-      setSubmitting(true);
-
-      let createdPost: PostRecord;
-      if (hasFiles) {
-        const formData = new FormData();
-        if (content.trim()) {
-          formData.append('content', content.trim());
-        }
-
-        imageFiles.forEach((file) => formData.append('mediaFiles', file));
-
-        if (videoFile) {
-          formData.append('mediaFiles', videoFile);
-          if (selectedThumbnail) {
-            formData.append('thumbnailFile', selectedThumbnail.file);
-          }
-        }
-
-        createdPost = await createMultipartPost(formData);
-      } else {
-        createdPost = await createJsonPost({
-          content: content.trim(),
-          externalLinkUrl: externalLinkUrl.trim(),
-        });
-      }
-
-      onCreated?.(createdPost);
-      resetComposer();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : '게시글 작성에 실패했습니다.');
-    } finally {
-      setSubmitting(false);
-    }
+    // 작성창은 바로 비우고 업로드는 피드의 임시 카드가 이어받는다.
+    onSubmit?.({
+      content: content.trim(),
+      externalLinkUrl: externalLinkUrl.trim(),
+      imageFiles,
+      videoFile,
+      thumbnailFile: videoFile ? selectedThumbnail?.file ?? null : null,
+    });
+    resetComposer();
   };
 
   return (
     <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
       <div className="flex gap-4">
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white">
+        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
           {user?.profileImageUrl ? (
             <Image
               src={user.profileImageUrl}
@@ -409,17 +542,58 @@ export function PostComposer({ onCreated }: PostComposerProps) {
 
         <div className="min-w-0 flex-1 space-y-4">
           <textarea
+            ref={contentTextareaRef}
             value={content}
-            onChange={(event) => setContent(event.target.value)}
+            onChange={handleContentChange}
+            onClick={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
+            onKeyUp={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
+            maxLength={MAX_POST_CONTENT_LENGTH}
             placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
-            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500"
+            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500 dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
+          {activeHashtagQuery ? (
+            <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-lg">
+              <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 text-xs font-black text-zinc-400">
+                <Hash size={14} />
+                <span>#{activeHashtagQuery.query}</span>
+              </div>
+
+              {loadingHashtagSuggestions ? (
+                <div className="px-4 py-3 text-sm font-bold text-zinc-400">해시태그를 찾는 중...</div>
+              ) : hashtagSuggestions.length > 0 ? (
+                <div className="max-h-48 overflow-y-auto py-1">
+                  {hashtagSuggestions.map((hashtag) => (
+                    <button
+                      key={hashtag.hashtagId}
+                      type="button"
+                      onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                    >
+                      <span className="font-black text-zinc-900">#{hashtag.name}</span>
+                      <span className="text-xs font-bold text-zinc-400">
+                        게시물 {hashtag.postCount.toLocaleString()}개
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-4 py-3 text-sm font-bold text-zinc-400">일치하는 해시태그가 없습니다.</div>
+              )}
+            </div>
+          ) : null}
+          <div
+            className={`text-right text-xs font-bold ${
+              content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
+            }`}
+          >
+            {content.length}/{MAX_POST_CONTENT_LENGTH}
+          </div>
 
           <input
             value={externalLinkUrl}
             onChange={(event) => setExternalLinkUrl(event.target.value)}
             placeholder="외부 링크 URL"
-            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black"
+            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
 
           {videoPreviewUrl ? (
@@ -493,6 +667,7 @@ export function PostComposer({ onCreated }: PostComposerProps) {
                           }`}
                         >
                           <div className="h-20 w-32 bg-zinc-100">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img src={option.previewUrl} alt={option.label} className="h-full w-full object-cover" />
                           </div>
                           <div className="flex items-center justify-between px-3 py-2">
@@ -512,11 +687,18 @@ export function PostComposer({ onCreated }: PostComposerProps) {
             </div>
           ) : null}
 
+          {preparingImages ? (
+            <div role="status" className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
+              사진을 준비하고 있습니다...
+            </div>
+          ) : null}
+
           {imagePreviewUrls.length > 0 ? (
             <div className="grid grid-cols-2 gap-3">
               {imagePreviewUrls.map((url, index) => (
                 <div key={url} className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50">
-                  <img src={url} alt={`Selected image ${index + 1}`} className="h-44 w-full object-cover" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={`선택한 이미지 ${index + 1}`} className="h-44 w-full object-cover" />
                 </div>
               ))}
             </div>
@@ -588,10 +770,10 @@ export function PostComposer({ onCreated }: PostComposerProps) {
               disabled={!canSubmit}
               onClick={handleSubmit}
               className={`inline-flex h-11 items-center justify-center rounded-2xl px-7 text-lg font-medium text-white transition ${
-                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300'
+                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-surface-elevated dark:text-zinc-500'
               }`}
             >
-              {submitting ? '게시 중...' : '게시'}
+              게시
             </button>
           </div>
         </div>

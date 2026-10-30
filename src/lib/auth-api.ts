@@ -1,0 +1,445 @@
+import { getApiBaseUrl } from '@/lib/api-base';
+import { ApiError, apiRequest } from '@/lib/api-client';
+import { getPublicRequestErrorMessage, readPublicResponseErrorMessage } from '@/lib/public-request-error';
+import {
+  BLOCKED_ACCOUNT_MESSAGE,
+  isBlockedAccountResponse,
+  isBlockedAccountStatus,
+} from '@/lib/auth-session-policy';
+import {
+  AUTH_USER_KEY,
+  assertCurrentAuthGeneration,
+  beginExplicitOAuthAuthentication,
+  commitAuthenticatedUser,
+  finishExplicitOAuthAuthentication,
+  getAuthGeneration,
+  isExplicitOAuthAttemptCurrent,
+  isCurrentAuthGeneration,
+  isExpiredAuthGeneration,
+  logoutAuthSession,
+  markExplicitOAuthConfirmation,
+  refreshAccessTokenResult,
+  requireLocalReauthentication,
+  setAuthConfirmationOwner,
+  setAccessToken,
+  waitForLogoutCompletion,
+} from '@/lib/auth-store';
+
+// 로그인 직후 사용자 객체를 만드는 곳. 일반 로그인·관리자 로그인·OAuth 완료·앱 시작 복원이 모두 이 모듈을 쓴다.
+// 서버 계약: 로그인 응답(AuthTokenResponse)에는 role/status가 없고, `/auth/me`(MeResponse)에는 gameTier·bio가 없다.
+export interface AuthUser {
+  id: string;
+  name: string;
+  nickname: string;
+  gameTier: string;
+  bio?: string;
+  handle?: string;
+  location?: string;
+  website?: string;
+  profileImageUrl?: string | null;
+  role?: string;
+  status?: string;
+  /** false면 소셜 전용 계정이라 비밀번호가 없다. 서버가 주지 않으면 undefined. */
+  hasPassword?: boolean;
+  /** 현재 유효한 멤버십 여부(왕관 배지). */
+  membershipBadge?: boolean;
+}
+
+export const DEFAULT_GAME_TIER = 'Unranked';
+
+// 서버에서는 가입이 끝났지만(가입 토큰은 소진됨) 로그인 확인에 실패했다. 가입을 다시 시도할 수 없다.
+export class SignupCompletedError extends Error {
+  constructor() {
+    super('가입은 완료되었지만 로그인 확인에 실패했습니다. 로그인 화면에서 다시 로그인해주세요.');
+    this.name = 'SignupCompletedError';
+  }
+}
+
+export class BlockedAccountError extends Error {
+  constructor() {
+    super(BLOCKED_ACCOUNT_MESSAGE);
+    this.name = 'BlockedAccountError';
+  }
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError';
+}
+
+/**
+ * `/auth/me` 응답을 사용자 객체로 바꾼다. 형식이 맞지 않으면 null.
+ * base(저장된 사용자)가 있으면 서버가 주지 않는 값(gameTier·bio·프로필 등)을 보존한다.
+ */
+export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
+  if (!me || typeof me !== 'object') return null;
+
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge } = me as Record<string, unknown>;
+  if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
+    return null;
+  }
+
+  return {
+    gameTier: DEFAULT_GAME_TIER,
+    bio: '',
+    ...base,
+    id: userId,
+    handle,
+    nickname,
+    name: base?.name || nickname,
+    role: typeof role === 'string' ? role : undefined,
+    status: typeof status === 'string' ? status : undefined,
+    hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
+    membershipBadge: membershipBadge === true,
+  };
+}
+
+/** 현재 비밀번호를 확인하고 새 비밀번호로 바꾼다. 다른 기기의 로그인은 서버에서 해제된다. */
+export async function changePassword(currentPassword: string, newPassword: string, newPasswordConfirm: string) {
+  await apiRequest<null>('/api/v1/auth/password', {
+    toError: ({ reason, status, message }) =>
+      new ApiError(message?.trim() ? message : '비밀번호를 변경하지 못했습니다.', status, reason),
+  }, {
+    method: 'PATCH',
+    body: JSON.stringify({ currentPassword, newPassword, newPasswordConfirm }),
+  });
+}
+
+/**
+ * 현재 토큰으로 `/auth/me`를 조회해 사용자 객체를 만든다. 첫 401은 refresh 후 한 번 다시 보내고(apiRequest),
+ * 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다. 차단 계정이면 BlockedAccountError.
+ */
+export async function fetchAuthUser(base?: Partial<AuthUser>): Promise<AuthUser> {
+  const me = await apiRequest<unknown>('/api/v1/auth/me', {
+    toError: ({ reason, status, message }) =>
+      reason === 'blocked'
+        ? new BlockedAccountError()
+        : new ApiError(message ?? '사용자 정보를 가져올 수 없습니다.', status, reason),
+  });
+
+  if (isBlockedAccountStatus((me as { status?: unknown } | null)?.status)) {
+    throw new BlockedAccountError();
+  }
+
+  const user = toAuthUser(me, base);
+  if (!user) {
+    throw new ApiError('사용자 정보를 확인할 수 없습니다.', 200, 'invalid-response');
+  }
+
+  return user;
+}
+
+// 새로 만든 세션(generation)이 끝까지 확정되지 못하면 세션을 정리한다.
+// - 사용자 전환·로그아웃(AbortError)과 refresh·api-client가 이미 종료한 세션은 다시 로그아웃하지 않는다.
+// - 세대가 바뀐 뒤 도착한 오래된 실패(네트워크 오류 등)는 새 세션을 지우지 않고 AbortError로 버린다.
+async function clearSessionOnFailure<T>(generation: number, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    if (isAbortError(error) || isExpiredAuthGeneration(generation)) {
+      throw error;
+    }
+
+    if (!isCurrentAuthGeneration(generation)) {
+      throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+    }
+
+    await logoutAuthSession();
+    throw error;
+  }
+}
+
+/**
+ * 로그인·가입 응답으로 받은 access token으로 세션을 만들고 `/auth/me`로 사용자를 확정한다.
+ * 확정하지 못하면 세션을 정리한다. 로그인 응답의 userId는 계정 일치 확인에만 쓰고 화면 사용자는 /me로 만든다.
+ * 토큰을 받기까지 비동기 경계가 있었다면 그 시작 때의 세대(expectedGeneration)를 넘겨, 그사이 로그아웃·사용자 전환이 있었으면
+ * 오래된 결과가 새 세션의 토큰을 덮어쓰지 않고 AbortError로 끝나게 한다.
+ */
+export async function confirmAuthSession(
+  accessToken: string,
+  expectedGeneration = getAuthGeneration(),
+  expectedUserId?: string,
+): Promise<AuthUser> {
+  assertCurrentAuthGeneration(expectedGeneration);
+  setAccessToken(accessToken);
+  const generation = getAuthGeneration();
+  if (expectedUserId) setAuthConfirmationOwner(generation, expectedUserId);
+
+  return clearSessionOnFailure(generation, async () => {
+    const user = await fetchAuthUser();
+    if (expectedUserId && user.id !== expectedUserId) {
+      requireLocalReauthentication();
+      throw new DOMException('다른 계정으로 인증되어 다시 로그인이 필요합니다.', 'AbortError');
+    }
+    // 호출한 쪽이 로그인 상태를 반영하기 직전에, 그사이 로그아웃·사용자 전환이 있었으면 이 결과를 버린다.
+    assertCurrentAuthGeneration(generation);
+    commitAuthenticatedUser(user.id, generation);
+    return user;
+  });
+}
+
+/** 아이디·비밀번호로 로그인하고 응답 userId와 `/auth/me`의 계정을 확인한 뒤 사용자를 반환한다. */
+export async function loginWithPassword(handle: string, password: string): Promise<AuthUser> {
+  await waitForLogoutCompletion();
+  const generation = getAuthGeneration();
+
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/v1/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ handle, password }),
+    });
+  } catch (error) {
+    assertCurrentAuthGeneration(generation);
+    if (isAbortError(error)) throw error;
+    throw new Error(getPublicRequestErrorMessage(error, '로그인에 실패했습니다.'));
+  }
+  const body = await response.json().catch(() => null);
+  assertCurrentAuthGeneration(generation);
+
+  if (isBlockedAccountResponse(response.status, body)) {
+    await logoutAuthSession();
+    throw new BlockedAccountError();
+  }
+
+  // 비밀번호 오류 같은 거절은 세션을 만들기 전이라 로그아웃하지 않는다(다른 탭의 세션을 지우지 않기 위해).
+  if (!response.ok) {
+    throw new Error(body?.message || '아이디 또는 비밀번호가 올바르지 않습니다.');
+  }
+
+  const accessToken = body?.data?.accessToken;
+  const userId = body?.data?.userId;
+  if (typeof accessToken !== 'string' || !accessToken || typeof userId !== 'string' || !userId) {
+    throw new Error('로그인 응답에 인증 토큰이 없습니다.');
+  }
+
+  return confirmAuthSession(accessToken, generation, userId);
+}
+
+// 가입 요청이 이메일 인증 토큰 만료·사용·불일치로 거절됐다. 이메일 인증부터 다시 해야 한다.
+export class EmailVerificationExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EmailVerificationExpiredError';
+  }
+}
+
+export interface EmailVerificationSent {
+  expiresInSeconds: number;
+  resendCooldownSeconds: number;
+}
+
+// 토큰 없이 보내는 가입 전 요청. 거절되면 서버 message(없으면 fallback)와 상태 코드를 담은 ApiError.
+async function postPublicAuth(path: string, payload: unknown, fallback: string): Promise<unknown> {
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+  } catch (error) {
+    throw new Error(getPublicRequestErrorMessage(error, fallback));
+  }
+
+  if (!response.ok) {
+    throw new ApiError(await readPublicResponseErrorMessage(response, fallback), response.status);
+  }
+  const body = await response.json().catch(() => null);
+  return body?.data;
+}
+
+const positiveSeconds = (value: unknown, fallback: number) =>
+  typeof value === 'number' && value > 0 ? value : fallback;
+
+/** 가입용 이메일 인증번호를 보낸다. 이미 가입된 이메일(409)·재발송 대기(429)는 서버 message로 거절한다. */
+export async function requestSignupEmailVerification(email: string): Promise<EmailVerificationSent> {
+  const data = (await postPublicAuth('/api/v1/auth/email-verifications', { email }, '인증번호 발송에 실패했습니다.')) as
+    | Record<string, unknown>
+    | null
+    | undefined;
+  // 값이 없으면 서버 정책(유효 5분, 재발송 60초)으로 표시한다.
+  return {
+    expiresInSeconds: positiveSeconds(data?.expiresInSeconds, 300),
+    resendCooldownSeconds: positiveSeconds(data?.resendCooldownSeconds, 60),
+  };
+}
+
+/** 인증번호를 확인하고 가입 요청에 넣을 인증 토큰을 반환한다. 불일치·만료·시도 초과는 서버 message로 거절한다. */
+export async function confirmSignupEmailVerification(email: string, code: string): Promise<string> {
+  const data = (await postPublicAuth(
+    '/api/v1/auth/email-verifications/confirm',
+    { email, code },
+    '인증번호 확인에 실패했습니다.',
+  )) as { verificationToken?: unknown } | null | undefined;
+  const token = data?.verificationToken;
+  if (typeof token !== 'string' || !token) {
+    throw new Error('인증 응답이 올바르지 않습니다. 다시 시도해주세요.');
+  }
+  return token;
+}
+
+/** 이메일 인증 토큰으로 일반 회원가입을 한다. 인증 토큰이 거절되면 EmailVerificationExpiredError. */
+export async function signUpWithPassword(params: {
+  handle: string;
+  nickname: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  emailVerificationToken: string;
+}): Promise<void> {
+  try {
+    await postPublicAuth(
+      '/api/v1/auth/signup',
+      { ...params, agreedToTerms: true, agreedToPrivacy: true },
+      '회원가입에 실패했습니다.',
+    );
+  } catch (error) {
+    // shortcut: 서버 오류 응답에 코드가 없어 메시지로 판별한다. 백엔드가 오류 코드를 주면 그것으로 바꾼다.
+    if (error instanceof ApiError && error.status === 400 && error.message.includes('이메일 인증')) {
+      throw new EmailVerificationExpiredError(error.message);
+    }
+    throw error;
+  }
+}
+
+/** 소셜 가입을 완료하고(가입 직후 로그인 상태가 된다) `/auth/me`로 확정한 사용자를 반환한다. */
+export async function completeSocialSignup(params: {
+  signupToken: string;
+  handle: string;
+  nickname: string;
+}): Promise<AuthUser> {
+  await waitForLogoutCompletion();
+  const generation = getAuthGeneration();
+
+  let response: Response;
+  try {
+    response = await fetch(`${getApiBaseUrl()}/api/v1/auth/social-signup`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ ...params, agreedToTerms: true, agreedToPrivacy: true }),
+    });
+  } catch (error) {
+    assertCurrentAuthGeneration(generation);
+    if (isAbortError(error)) throw error;
+    throw new Error(getPublicRequestErrorMessage(error, '소셜 회원가입에 실패했습니다.'));
+  }
+  const body = await response.json().catch(() => null);
+  assertCurrentAuthGeneration(generation);
+
+  if (!response.ok || !body?.success) {
+    throw new Error(body?.message || '소셜 회원가입에 실패했습니다.');
+  }
+
+  const accessToken = body.data?.accessToken;
+  const userId = body.data?.userId;
+  if (typeof accessToken !== 'string' || !accessToken || typeof userId !== 'string' || !userId) {
+    throw new Error('로그인 정보가 올바르지 않습니다. 다시 시도해 주세요.');
+  }
+
+  try {
+    return await confirmAuthSession(accessToken, generation, userId);
+  } catch (error) {
+    if (isAbortError(error) || error instanceof BlockedAccountError) throw error;
+    throw new SignupCompletedError();
+  }
+}
+
+// 같은 활성 OAuth 시도의 완료 호출은 획득·확정 세대에 걸쳐 한 작업으로 합친다(StrictMode 등).
+// 외부 로그인·로그아웃으로 무효화된 시도는 다음 호출에서 재사용하지 않는다.
+let oauthCompletion: { attemptId: number; promise: Promise<AuthUser> } | null = null;
+
+/** OAuth 로그인 뒤 HttpOnly refresh 쿠키로 토큰을 받고 `/auth/me`로 확정한 사용자를 반환한다. */
+export function completeOAuthSession(): Promise<AuthUser> {
+  if (oauthCompletion && isExplicitOAuthAttemptCurrent(oauthCompletion.attemptId)) {
+    return oauthCompletion.promise;
+  }
+
+  const attempt = beginExplicitOAuthAuthentication();
+  const promise = runOAuthSession(attempt.id, attempt.generation);
+  oauthCompletion = { attemptId: attempt.id, promise };
+  const clear = () => {
+    finishExplicitOAuthAuthentication(attempt.id);
+    if (oauthCompletion?.promise === promise) oauthCompletion = null;
+  };
+  promise.then(clear, clear);
+  return promise;
+}
+
+async function runOAuthSession(attemptId: number, generation: number): Promise<AuthUser> {
+  await waitForLogoutCompletion();
+  if (!isExplicitOAuthAttemptCurrent(attemptId)) {
+    throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+  }
+
+  const refreshed = await clearSessionOnFailure(generation, async () => {
+    const result = await refreshAccessTokenResult(generation, {
+      expectedUserId: null,
+      oauthAttemptId: attemptId,
+    });
+
+    if (result.status === 'stale') {
+      throw new DOMException('사용자가 변경되어 요청이 취소되었습니다.', 'AbortError');
+    }
+
+    if (result.status === 'rejected' && result.blocked) {
+      throw new BlockedAccountError();
+    }
+
+    if (result.status !== 'refreshed') {
+      throw new Error('인증 세션 생성에 실패했습니다.');
+    }
+
+    return result;
+  });
+
+  // refresh는 인증 세대를 올리지 않는다. 새 세션으로 확정해 같은 시점에 돌던 앱 시작 복원이 이 로그인을 덮어쓰지 못하게 한다.
+  const confirmation = confirmAuthSession(refreshed.accessToken, generation, refreshed.userId);
+  markExplicitOAuthConfirmation(attemptId, getAuthGeneration());
+  return confirmation;
+}
+
+/**
+ * 앱 시작 때 저장된 사용자를 서버 값으로 검증해 복원한다. 복원할 수 없으면 null.
+ * 인증 거절·최종 401은 api-client·refresh가 세션을 종료한다. 차단 계정이면 BlockedAccountError를 던지고,
+ * 세션을 끝내고 화면 사용자 상태를 비우는 것은 호출한 쪽이 한다(세대가 바뀌기 전에 사용자 상태를 비워야 하므로).
+ * 네트워크 오류·5xx·429·형식 오류는 세션(저장 사용자·refresh 쿠키)을 유지한 채 null만 반환한다.
+ * 호출한 쪽이 isCurrentAuthGeneration(generation)으로 오래된 결과를 버려야 한다.
+ */
+export async function restoreAuthUser(
+  storedUser: AuthUser,
+  generation: number,
+): Promise<AuthUser | null> {
+  setAuthConfirmationOwner(generation, storedUser.id);
+  const refreshResult = await refreshAccessTokenResult(generation, {
+    expectedUserId: storedUser.id,
+  });
+
+  if (!isCurrentAuthGeneration(generation) || refreshResult.status !== 'refreshed') {
+    return null;
+  }
+
+  try {
+    const user = await fetchAuthUser(storedUser);
+    if (user.id !== storedUser.id) {
+      requireLocalReauthentication();
+      return null;
+    }
+    // 다른 탭의 storage 이벤트보다 이 복원의 응답이 먼저 도착해도 새 저장 사용자를 덮어쓰지 않는다.
+    const latestSavedUser = window.localStorage.getItem(AUTH_USER_KEY);
+    if (latestSavedUser && (JSON.parse(latestSavedUser) as Partial<AuthUser> | null)?.id !== storedUser.id) {
+      requireLocalReauthentication();
+      return null;
+    }
+    if (!commitAuthenticatedUser(user.id, generation)) return null;
+    return user;
+  } catch (error) {
+    if (isCurrentAuthGeneration(generation) && error instanceof BlockedAccountError) {
+      throw error;
+    }
+    return null;
+  }
+}

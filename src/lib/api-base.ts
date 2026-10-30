@@ -5,8 +5,15 @@ export function getApiBaseUrl() {
     return configuredApiBaseUrl.replace(/\/$/, '');
   }
 
-  if (typeof window !== 'undefined') {
-    return window.location.origin;
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  const { hostname, protocol, port } = window.location;
+  const isLocalDevFrontend = (hostname === 'localhost' || hostname === '127.0.0.1') && port === '3000';
+
+  if (isLocalDevFrontend) {
+    return `${protocol}//${hostname}:8080`;
   }
 
   return '';
