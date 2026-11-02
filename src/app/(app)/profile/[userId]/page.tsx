@@ -58,10 +58,12 @@ import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mut
 import {
   disconnectGameStats,
   fetchPubgSummary,
+  fetchLolSummary,
   refreshR6Summary,
   GameStatsApiError,
   type GameName,
   type PubgSummaryResponse,
+  type LolSummaryResponse,
   type R6SummaryResponse,
   type StatsMode,
 } from '@/lib/game-stats-api';
@@ -80,6 +82,10 @@ const GAME_STATS_UI_CONFIG: Record<
     disconnectable: boolean;
   }
 > = {
+  LOL: {
+    displayName: 'League of Legends',
+    disconnectable: true,
+  },
   PUBG: {
     displayName: 'PUBG',
     disconnectable: true,
@@ -198,7 +204,7 @@ function isCommonGameStats(gameName: string) {
 function getDisconnectableGameName(gameName: string): GameName | null {
   const normalizedGameName = gameName.toUpperCase();
 
-  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6') {
+  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6' && normalizedGameName !== 'LOL') {
     return null;
   }
 
@@ -213,10 +219,22 @@ function formatNullablePercent(value: number | null) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
-function formatGameStatsSummary(gameName: string, stats: unknown) {
+function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: boolean) {
   const record = toGameStatsRecord(stats);
   if (!record) {
     return String(stats ?? '');
+  }
+
+  if (gameName.toUpperCase() === 'LOL') {
+    const tier = readStringStat(record, 'tierLabel');
+    const kda = readNumberStat(record, 'kda');
+    const games = readNumberStat(record, 'games');
+    if (kda === null && games === null) {
+      return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
+    }
+    return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
+      `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
+      games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
   }
 
   if (!isCommonGameStats(gameName)) {
@@ -261,13 +279,15 @@ function formatGameStatsDetail(gameName: string, stats: unknown) {
   const statsMode = readStatsMode(record);
   const statsModeLabel = statsMode === 'RANKED' ? '경쟁전' : statsMode === 'NORMAL' ? '일반전' : null;
 
-  return [playerName, statsModeLabel].filter(Boolean).join(' · ') || null;
+  return [statsModeLabel, playerName].filter(Boolean).join(' ') || null;
 }
 
 function removeGameStats(gameStats: UserProfile['gameStats'], gameName: string): UserProfile['gameStats'] {
   const normalizedGameName = gameName.toLowerCase();
   return Object.fromEntries(
-    Object.entries(gameStats).filter(([key]) => key.toLowerCase() !== normalizedGameName),
+    Object.entries(gameStats).filter(([key]) =>
+      key.toLowerCase() !== normalizedGameName && !(normalizedGameName === 'lol' && key.toLowerCase() === 'riot'),
+    ),
   );
 }
 
@@ -318,7 +338,15 @@ function applyR6Summary(gameStats: UserProfile['gameStats'], summary: R6SummaryR
   };
 }
 
-function getGameStatsErrorMessage(gameName: 'PUBG' | 'R6', error: unknown) {
+function applyLolSummary(gameStats: UserProfile['gameStats'], summary: LolSummaryResponse) {
+  if (!summary.connected) return removeGameStats(gameStats, 'LOL');
+  return {
+    ...gameStats,
+    LOL: { connected: true, tierLabel: summary.tierLabel, kda: summary.kda, winRate: summary.winRate, games: summary.games },
+  };
+}
+
+function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
   if (!(error instanceof GameStatsApiError)) {
     return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
   }
@@ -328,6 +356,10 @@ function getGameStatsErrorMessage(gameName: 'PUBG' | 'R6', error: unknown) {
     if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
     if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
     if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  if (gameName === 'LOL' && (error.status === 403 || error.status === 503)) {
+    return 'Riot 전적 서버를 일시적으로 사용할 수 없습니다.';
   }
 
   return error.message;
@@ -488,26 +520,36 @@ export default function ProfilePage() {
       return [];
     }
 
-    return Object.entries(profile.gameStats).map(([gameName, stats]) => ({
+    const isOwnProfile = profile.handle === currentUser?.handle || profile.id === currentUser?.id;
+    // riotId는 본인 응답에만 포함되므로 다른 사용자 프로필에서는 닉네임을 표시하지 않는다.
+    const riotId = readStringStat(toGameStatsRecord(profile.gameStats.RIOT) ?? {}, 'riotId');
+    const entries = Object.entries(profile.gameStats).filter(([key]) => key.toUpperCase() !== 'RIOT');
+    if (isConnectedGameStats(profile.gameStats.RIOT) && !entries.some(([key]) => key.toUpperCase() === 'LOL')) {
+      entries.push(['LOL', { connected: true }]);
+    }
+    return entries.map(([gameName, stats]) => ({
       gameName,
-      summary: formatGameStatsSummary(gameName, stats),
-      detail: formatGameStatsDetail(gameName, stats),
+      displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
+      summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
+      detail: gameName.toUpperCase() === 'LOL'
+        ? riotId?.split('#')[0] ?? null
+        : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
     }));
-  }, [profile?.gameStats]);
+  }, [profile?.gameStats, profile?.handle, profile?.id, currentUser?.handle, currentUser?.id]);
 
   const handleRefreshStats = async () => {
     if (
       !profile ||
-      isRefreshing ||
+      isRefreshing || isDisconnectingGame ||
       (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)
     ) {
       return;
     }
 
     const refreshRequests: Array<{
-      gameName: 'PUBG' | 'R6';
-      request: () => Promise<PubgSummaryResponse | R6SummaryResponse>;
+      gameName: GameName;
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse>;
     }> = [];
 
     if (isConnectedGameStats(profile.gameStats.PUBG)) {
@@ -515,6 +557,9 @@ export default function ProfilePage() {
     }
     if (isConnectedGameStats(profile.gameStats.R6)) {
       refreshRequests.push({ gameName: 'R6', request: refreshR6Summary });
+    }
+    if (isConnectedGameStats(profile.gameStats.RIOT) || isConnectedGameStats(profile.gameStats.LOL)) {
+      refreshRequests.push({ gameName: 'LOL', request: fetchLolSummary });
     }
 
     if (refreshRequests.length === 0) {
@@ -545,7 +590,9 @@ export default function ProfilePage() {
         }
 
         updatedGameStats =
-          gameName === 'R6'
+          gameName === 'LOL'
+            ? applyLolSummary(updatedGameStats, result.value as LolSummaryResponse)
+            : gameName === 'R6'
             ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
             : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
@@ -601,7 +648,7 @@ export default function ProfilePage() {
   const handleDisconnectGame = async () => {
     const gameName = disconnectTarget;
 
-    if (!gameName || isDisconnectingGame) {
+    if (!gameName || isDisconnectingGame || isRefreshing) {
       return;
     }
 
@@ -1189,24 +1236,24 @@ export default function ProfilePage() {
 
       <div className="px-4 pt-8 md:px-8 md:pt-10">
         {activeTab === 'stats' ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-black md:text-3xl">인증된 전적</h2>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 md:p-8">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
+              <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
 
               {isOwnProfile ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <button
                     onClick={() => setShowFetchStatsModal(true)}
-                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
+                    className="flex items-center gap-1 rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-800 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} className="sm:size-4" />
                     전적 추가
                   </button>
 
                   <button
                     type="button"
                     onClick={() => void handleRefreshStats()}
-                    disabled={isRefreshing}
+                    disabled={isRefreshing || isDisconnectingGame}
                     className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
                     aria-label="연결된 게임 전적 새로고침"
                   >
@@ -1216,7 +1263,7 @@ export default function ProfilePage() {
               ) : null}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {gameStatEntries.length === 0 ? (
                 <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
                   아직 연결된 게임 전적이 없습니다.
@@ -1228,10 +1275,10 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={entry.gameName}
-                      className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
+                      className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-5 md:px-5"
                     >
-                      <div className="flex min-w-0 items-center gap-4">
-                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white p-1">
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:h-12 sm:w-12 sm:rounded-xl">
                           {iconMeta ? (
                             <Image
                               src={iconMeta.url}
@@ -1245,11 +1292,11 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xl font-black text-black">{entry.gameName}</p>
+                          <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
                           {entry.detail ? (
-                            <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                            <p className="max-w-xl break-keep text-[11px] font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
                           ) : null}
-                          <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
+                          <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
                         </div>
                       </div>
 
@@ -1259,7 +1306,8 @@ export default function ProfilePage() {
                           <button
                             type="button"
                             onClick={() => setDisconnectTarget(entry.disconnectGameName)}
-                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            disabled={isRefreshing || isDisconnectingGame}
+                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
                             aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
                           >
                             <Trash2 size={16} />
