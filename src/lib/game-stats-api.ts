@@ -12,12 +12,13 @@ export interface PubgConnectionResponse {
   playerName: string;
 }
 
-export type GameName = 'PUBG' | 'R6';
+export type GameName = 'PUBG' | 'R6' | 'LOL';
 export type StatsMode = 'RANKED' | 'NORMAL';
 
 const GAME_STATS_DISCONNECT_PATH: Record<GameName, string> = {
   PUBG: '/api/v1/pubg/disconnect',
   R6: '/api/v1/r6/disconnect',
+  LOL: '/api/v1/riot/disconnect',
 };
 
 export interface GameStatsSummaryResponse {
@@ -45,6 +46,31 @@ export interface R6SummaryResponse extends GameStatsSummaryResponse {
   game: 'R6';
   platform: 'PC';
   updatedAt: string | null;
+}
+
+export interface RiotConnectionResponse {
+  connected: boolean;
+  riotId: string;
+}
+
+export interface LolSummaryResponse {
+  gameName: string;
+  tierLabel: string | null;
+  kda: number;
+  winRate: number;
+  games: number;
+  connected: boolean;
+}
+
+export function connectRiot(riotId: string) {
+  return gameStatsRequest<RiotConnectionResponse>('/api/v1/riot/connect', {
+    method: 'POST',
+    body: JSON.stringify({ riotId }),
+  });
+}
+
+export function fetchLolSummary() {
+  return gameStatsRequest<LolSummaryResponse>('/api/v1/riot/lol/me');
 }
 
 const GAME_STATS_CLIENT: ApiClientConfig = {
