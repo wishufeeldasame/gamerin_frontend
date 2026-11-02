@@ -35,7 +35,7 @@ export type RefreshResult =
   | { status: 'refreshed'; accessToken: string; userId: string }
   // 서버가 인증을 거절했다. 세션은 이미 종료됐다. blocked면 차단·비활성 계정이라서 거절한 것이다.
   | { status: 'rejected'; blocked?: boolean; httpStatus?: number }
-  // 네트워크 오류·5xx·429·잘못된 응답. 세션은 유지된다. httpStatus 0은 응답 없음.
+  // 네트워크 오류·5xx·429·재시도 뒤에도 남은 409·잘못된 응답. 세션은 유지된다. httpStatus 0은 응답 없음.
   | { status: 'failed'; httpStatus: number }
   // 요청 도중 사용자 전환·로그아웃으로 세대가 바뀌었다.
   | { status: 'stale' };
@@ -51,6 +51,8 @@ const AUTH_REAUTH_REQUIRED_KEY = 'gamerin_auth_reauthentication_required';
 
 const LOGOUT_REQUEST_TIMEOUT_MS = 5_000;
 const LOGOUT_SYNC_TTL_MS = 10_000;
+// refresh 409(다른 탭이 먼저 갱신함) 뒤 다시 보내기 전 대기 시간. 합계가 서버 유예 시간(기본 30초)보다 충분히 짧아야 한다.
+export const REFRESH_CONFLICT_RETRY_DELAYS_MS = [500, 1_000, 2_000] as const;
 
 type AuthSyncMessage = {
   type: 'auth-cleared' | 'logout-start' | 'logout-complete';
@@ -448,6 +450,12 @@ export function logoutAuthSession(options: ClearStoredAuthOptions = {}): Promise
   return request;
 }
 
+function wait(ms: number) {
+  return new Promise<void>((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 type RefreshPayload = {
   success?: boolean;
   data?: {
@@ -525,19 +533,33 @@ export async function refreshAccessTokenResult(
   const promise = (async (): Promise<RefreshResult> => {
     try {
       let response: Response;
-      try {
-        response = await fetch(`${getApiBaseUrl()}/api/v1/auth/refresh`, {
-          method: 'POST',
-          credentials: 'include',
-        });
-      } catch {
-        return { status: 'failed', httpStatus: 0 };
-      }
+      let payload: RefreshPayload | null;
+      for (let conflictRetries = 0; ; conflictRetries += 1) {
+        try {
+          response = await fetch(`${getApiBaseUrl()}/api/v1/auth/refresh`, {
+            method: 'POST',
+            credentials: 'include',
+          });
+        } catch {
+          return { status: 'failed', httpStatus: 0 };
+        }
 
-      const payload = (await response.json().catch(() => null)) as RefreshPayload | null;
+        payload = (await response.json().catch(() => null)) as RefreshPayload | null;
 
-      if (!isCurrentAuthGeneration(expectedGeneration)) {
-        return { status: 'stale' };
+        if (!isCurrentAuthGeneration(expectedGeneration)) {
+          return { status: 'stale' };
+        }
+
+        // 409: 다른 탭이 같은 refresh 쿠키로 먼저 갱신했다. 서버는 유예 시간 안의 재사용이면 쿠키를 유지하고
+        // 409를 준다. 그 탭의 응답이 새 쿠키를 저장하도록 잠시 기다렸다가 다시 보낸다.
+        if (response.status !== 409 || conflictRetries >= REFRESH_CONFLICT_RETRY_DELAYS_MS.length) {
+          break;
+        }
+
+        await wait(REFRESH_CONFLICT_RETRY_DELAYS_MS[conflictRetries]);
+        if (!isCurrentAuthGeneration(expectedGeneration)) {
+          return { status: 'stale' };
+        }
       }
 
       const blocked = isBlockedAccountResponse(response.status, payload);

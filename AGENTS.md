@@ -92,6 +92,8 @@
 - 사용자 정보는 `gamerin_user`에 저장한다.
 - `clearStoredAuth()`와 `AUTH_CLEARED_EVENT`, 로그아웃 진행 상태 및 탭 간 동기화 흐름을 함께 확인한다. 로그아웃 도중 요청이나 오래된 응답이 세션을 복구하지 않도록 유지한다.
 - refresh 요청은 `/api/v1/auth/refresh`에 `credentials: 'include'`로 전송한다.
+- refresh가 409(다른 탭이 같은 refresh 쿠키로 먼저 갱신함)를 받으면 `refreshAccessTokenResult()`가 `REFRESH_CONFLICT_RETRY_DELAYS_MS`(500ms·1s·2s) 간격으로 최대 3회 다시 보낸다. 합계는 서버 유예 시간(기본 30초)보다 짧게 유지하고, 대기 중 인증 세대가 바뀌면 다시 보내지 않는다. 429는 요청 한도를 소모하므로 자동 재시도하지 않는다.
+- 앱 시작 복원에서 세션이 끝나지 않은 실패(재시도 뒤에도 남은 409, 429, 5xx, 네트워크·형식 오류)는 `SessionRestoreUnavailableError`로 구분한다. `AuthContext`의 `isSessionUnavailable`이 true면 `/login`으로 보내지 않고 `SessionUnavailableNotice`에서 `retrySessionRestore()`로 다시 시도하게 한다. 401과 차단 계정만 세션을 종료한다.
 - 인증 세대 번호와 진행 중 refresh 요청 공유는 사용자 전환 후 오래된 응답이 인증을 되살리는 것을 막으므로 관련 변경 시 함께 검토한다.
 - `src/app/auth/oauth-success/page.tsx`는 HttpOnly refresh cookie로 access token을 발급받고 `/api/v1/auth/me`를 조회한 뒤 `/home`으로 이동한다.
 - `(app)/layout.tsx`가 URL의 access token을 처리한다고 가정하지 않는다.
@@ -117,7 +119,7 @@
 - 설정값이 없으면 서버에서는 빈 문자열을 반환한다.
 - 브라우저가 localhost/127.0.0.1의 3000 포트라면 같은 프로토콜·호스트의 8080 주소를 사용하고, 그 외에는 빈 문자열을 반환한다.
 - 인증이 필요한 요청은 `src/lib/api-client.ts`의 `apiRequest()`/`apiRequestBlob()`을 사용하고, 요청할 때 `getApiBaseUrl()`로 주소를 얻는다. 도메인 모듈은 엔드포인트 함수와 도메인 오류 변환(`toError`)만 둔다.
-- 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
+- 공통 인증 정책: 첫 401은 refresh 후 1회 재시도하고, refresh 거절·최종 401·차단 계정이면 `logoutAuthSession()`으로 세션을 종료한다. 네트워크 오류·5xx·429, 재시도 뒤에도 남은 refresh 409와 일반 403은 세션을 유지한다. 사용자 전환·로그아웃 뒤 도착한 응답은 AbortError로 버린다.
 - 토큰이 필요 없는 공개 인증 화면(`find-id`, `auth/forgot-password`, `auth/reset-password`)은 `apiRequest()`가 아닌 `fetch`로 제출 시점의 `${getApiBaseUrl()}/api/v1/auth/...`를 호출한다.
 - 응답의 이미지·첨부 URL은 `src/lib/asset-url.ts`의 `toAbsoluteAssetUrl()`로 정규화한다. 상대경로에는 요청 시점의 `getApiBaseUrl()`을 붙이고 http(s)·blob·data 주소는 유지한다. 모듈별 정규화 함수를 새로 만들지 않는다.
 

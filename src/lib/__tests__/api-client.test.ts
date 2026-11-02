@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deferred, flush, installFetchRoutes, json } from '@/test/fetch-routes';
 
 vi.mock('@/lib/api-base', () => ({
@@ -159,6 +159,97 @@ describe('일시 장애에서 세션 유지', () => {
     expect(store.getAuthGeneration()).toBe(generation);
     expect(store.getAccessToken()).toBe('token-a');
     expect(window.localStorage.getItem(store.AUTH_USER_KEY)).not.toBeNull();
+  });
+});
+
+describe('refresh 409(다른 탭이 먼저 갱신함) 재시도', () => {
+  const refreshOk = (token = 'token-b') => json(200, { data: { accessToken: token, userId: 'user-a' } });
+  const conflict = () => json(409, { success: false, message: 'refresh token already rotated' });
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('409를 받으면 잠시 뒤 다시 refresh해 새 쿠키로 토큰을 받는다', async () => {
+    api.route('/api/v1/auth/refresh', conflict, () => refreshOk());
+
+    const pending = store.refreshAccessTokenResult();
+    await vi.advanceTimersByTimeAsync(store.REFRESH_CONFLICT_RETRY_DELAYS_MS[0] - 1);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+
+    await expect(pending).resolves.toEqual({ status: 'refreshed', accessToken: 'token-b', userId: 'user-a' });
+    expect(api.count('/api/v1/auth/refresh')).toBe(2);
+    expect(store.getAccessToken()).toBe('token-b');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('재시도 횟수를 넘겨도 409면 세션을 유지한 채 failed 409로 끝낸다', async () => {
+    const delays = store.REFRESH_CONFLICT_RETRY_DELAYS_MS;
+    api.route('/api/v1/auth/refresh', ...Array.from({ length: delays.length + 1 }, () => conflict));
+    const generation = store.getAuthGeneration();
+
+    const pending = store.refreshAccessTokenResult();
+    await vi.advanceTimersByTimeAsync(delays.reduce((sum, delay) => sum + delay, 0));
+
+    await expect(pending).resolves.toEqual({ status: 'failed', httpStatus: 409 });
+    expect(api.count('/api/v1/auth/refresh')).toBe(delays.length + 1);
+    expect(store.getAuthGeneration()).toBe(generation);
+    expect(store.getAccessToken()).toBe('token-a');
+    expect(window.localStorage.getItem(store.AUTH_USER_KEY)).not.toBeNull();
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('409 대기 중 같은 세대의 다른 호출은 진행 중인 refresh를 공유한다', async () => {
+    api.route('/api/v1/auth/refresh', conflict, () => refreshOk());
+
+    const first = store.refreshAccessTokenResult();
+    await vi.advanceTimersByTimeAsync(1);
+    const second = store.refreshAccessTokenResult();
+    await vi.advanceTimersByTimeAsync(store.REFRESH_CONFLICT_RETRY_DELAYS_MS[0]);
+
+    await expect(first).resolves.toMatchObject({ status: 'refreshed' });
+    await expect(second).resolves.toMatchObject({ status: 'refreshed' });
+    expect(api.count('/api/v1/auth/refresh')).toBe(2);
+  });
+
+  it('409 대기 중 사용자 전환·로그아웃으로 세대가 바뀌면 다시 보내지 않고 stale로 끝낸다', async () => {
+    api.route('/api/v1/auth/refresh', conflict, () => refreshOk('old-session-token'));
+
+    const pending = store.refreshAccessTokenResult();
+    await vi.advanceTimersByTimeAsync(1);
+    store.setAccessToken('other-user-token');
+    await vi.advanceTimersByTimeAsync(store.REFRESH_CONFLICT_RETRY_DELAYS_MS[0]);
+
+    await expect(pending).resolves.toEqual({ status: 'stale' });
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(store.getAccessToken()).toBe('other-user-token');
+  });
+
+  it('429는 요청 한도를 소모하지 않도록 자동으로 다시 보내지 않는다', async () => {
+    api.route('/api/v1/auth/refresh', () => json(429, {}));
+
+    await expect(store.refreshAccessTokenResult()).resolves.toEqual({ status: 'failed', httpStatus: 429 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('API 호출 중 만료 갱신도 409 뒤 다시 refresh해 요청을 이어 간다', async () => {
+    api.route('/api/v1/items', () => json(401, {}), () => json(200, { data: 'ok' }));
+    api.route('/api/v1/auth/refresh', conflict, () => refreshOk());
+
+    const pending = client.apiRequest('/api/v1/items', config);
+    await vi.advanceTimersByTimeAsync(store.REFRESH_CONFLICT_RETRY_DELAYS_MS[0]);
+
+    await expect(pending).resolves.toBe('ok');
+    expect(api.count('/api/v1/auth/refresh')).toBe(2);
+    expect(api.authorization(api.paths().lastIndexOf('/api/v1/items'))).toBe('Bearer token-b');
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 });
 

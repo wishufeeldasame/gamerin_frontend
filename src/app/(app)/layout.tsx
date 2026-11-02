@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { Header } from '@/app/home/components/Header';
 import { MobileTabBar, Sidebar } from '@/app/home/components/Sidebar';
+import { SessionUnavailableNotice } from '@/app/home/components/SessionUnavailableNotice';
 import { PopupProvider } from '@/app/context/PopupContext';
 import { PendingPostsProvider } from '@/app/context/PendingPostsContext';
 
@@ -14,18 +15,23 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
-  const { user, isAuthReady } = useAuth();
+  const { user, isAuthReady, isSessionUnavailable } = useAuth();
 
   useEffect(() => {
     if (!isAuthReady) return;
 
-    if (!user) {
+    // 세션을 일시 장애로 확인하지 못한 것은 로그아웃이 아니므로 로그인 화면으로 보내지 않는다.
+    if (!user && !isSessionUnavailable) {
       router.replace('/login');
     }
-  }, [isAuthReady, user, router]);
+  }, [isAuthReady, isSessionUnavailable, user, router]);
 
-  if (!isAuthReady || !user) {
+  if (!isAuthReady) {
     return null;
+  }
+
+  if (!user) {
+    return isSessionUnavailable ? <SessionUnavailableNotice /> : null;
   }
 
   return (

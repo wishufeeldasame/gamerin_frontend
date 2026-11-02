@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, type ReactNode } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { SessionUnavailableNotice } from '@/app/home/components/SessionUnavailableNotice';
 import {
   ADMIN_AUTHORIZATION_EVENT,
   ADMIN_FORBIDDEN_PATH,
@@ -34,7 +35,7 @@ export async function handleAdminAuthorizationFailure(
 export function AdminRouteGuard({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, isAuthReady } = useAuth();
+  const { user, isAuthReady, isSessionUnavailable } = useAuth();
   const isPublicAdminRoute = pathname === ADMIN_LOGIN_PATH || pathname === ADMIN_FORBIDDEN_PATH;
   const isBlocked = isBlockedAccountStatus(user?.status);
   const isAllowed = isAuthReady && isAdminRole(user?.role) && !isBlocked;
@@ -54,7 +55,8 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!isAuthReady || isPublicAdminRoute) return;
     if (!user) {
-      router.replace(ADMIN_LOGIN_PATH);
+      // 세션을 일시 장애로 확인하지 못한 것은 로그아웃이 아니므로 로그인 화면으로 보내지 않는다.
+      if (!isSessionUnavailable) router.replace(ADMIN_LOGIN_PATH);
       return;
     }
     if (isBlocked) {
@@ -64,9 +66,12 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
     if (!isAdminRole(user.role)) {
       router.replace(ADMIN_FORBIDDEN_PATH);
     }
-  }, [isAuthReady, isBlocked, isPublicAdminRoute, router, user]);
+  }, [isAuthReady, isBlocked, isPublicAdminRoute, isSessionUnavailable, router, user]);
 
   if (isPublicAdminRoute) return children;
+  if (isAuthReady && !user && isSessionUnavailable) {
+    return <SessionUnavailableNotice loginHref={ADMIN_LOGIN_PATH} />;
+  }
   if (!isAllowed) {
     return (
       <main className="grid min-h-dvh place-items-center bg-[#f6f7f9] p-6 text-sm text-[#667085]">

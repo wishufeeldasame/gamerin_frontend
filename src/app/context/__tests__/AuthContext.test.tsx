@@ -39,11 +39,15 @@ vi.mock('@/lib/api-client', () => apiClient);
 import { AuthProvider, useAuth } from '../AuthContext';
 
 function AuthHarness() {
-  const { user, isAuthReady, login, logout } = useAuth();
+  const { user, isAuthReady, isSessionUnavailable, retrySessionRestore, login, logout } = useAuth();
   return (
     <div>
       <span>{isAuthReady ? 'ready' : 'loading'}</span>
       <span>{user?.nickname ?? 'no-user'}</span>
+      <span>{isSessionUnavailable ? 'session-unavailable' : 'session-checked'}</span>
+      <button type="button" onClick={() => void retrySessionRestore()}>
+        test retry
+      </button>
       <button
         type="button"
         onClick={() => login({
@@ -173,9 +177,84 @@ describe('AuthProvider session clearing', () => {
 
       expect(await screen.findByText('ready')).toBeInTheDocument();
       expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(screen.getByText('session-unavailable')).toBeInTheDocument();
       expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
       expect(apiClient.apiRequest).not.toHaveBeenCalled();
       expect(window.localStorage.getItem(authStore.AUTH_USER_KEY)).not.toBeNull();
+    });
+
+    it.each([409, 429, 0])('refresh가 failed %i로 끝나면 세션 확인 실패 상태로 두고 로그아웃하지 않는다', async (httpStatus) => {
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('session-unavailable')).toBeInTheDocument();
+      expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
+    });
+
+    it('refresh 거절이면 세션 확인 실패 상태가 아니다(로그인 화면으로 보낸다)', async () => {
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'rejected' } as never);
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      expect(await screen.findByText('ready')).toBeInTheDocument();
+      expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(screen.getByText('session-checked')).toBeInTheDocument();
+    });
+
+    it('세션 확인 실패 뒤 다시 시도해 성공하면 사용자를 복원하고, 중복 시도는 한 번으로 합친다', async () => {
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus: 503 });
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      expect(await screen.findByText('session-unavailable')).toBeInTheDocument();
+
+      let finishRefresh: ((result: unknown) => void) | undefined;
+      authStore.refreshAccessTokenResult.mockImplementationOnce(
+        () => new Promise((resolve) => {
+          finishRefresh = resolve;
+        }) as never,
+      );
+      apiClient.apiRequest.mockResolvedValueOnce({ userId: 'user-id', handle: 'user', nickname: '서버닉네임' });
+      const callsBeforeRetry = authStore.refreshAccessTokenResult.mock.calls.length;
+
+      fireEvent.click(screen.getByRole('button', { name: 'test retry' }));
+      fireEvent.click(screen.getByRole('button', { name: 'test retry' }));
+      await act(async () => {
+        finishRefresh?.({ status: 'refreshed', accessToken: 'token', userId: 'user-id' });
+      });
+
+      expect(await screen.findByText('서버닉네임')).toBeInTheDocument();
+      expect(screen.getByText('session-checked')).toBeInTheDocument();
+      expect(authStore.refreshAccessTokenResult.mock.calls.length - callsBeforeRetry).toBe(1);
+      expect(authStore.logoutAuthSession).not.toHaveBeenCalled();
+    });
+
+    it('다시 시도 전에 다른 탭 로그아웃으로 저장 사용자가 사라졌으면 refresh 없이 세션 확인 실패 상태를 끝낸다', async () => {
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus: 503 });
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      expect(await screen.findByText('session-unavailable')).toBeInTheDocument();
+      const callsBeforeRetry = authStore.refreshAccessTokenResult.mock.calls.length;
+
+      window.localStorage.removeItem(authStore.AUTH_USER_KEY);
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'test retry' }));
+      });
+
+      expect(screen.getByText('session-checked')).toBeInTheDocument();
+      expect(screen.getByText('no-user')).toBeInTheDocument();
+      expect(authStore.refreshAccessTokenResult.mock.calls.length).toBe(callsBeforeRetry);
+    });
+
+    it('세션 확인 실패 상태에서 인증 정리 이벤트가 오면 실패 상태도 끝낸다', async () => {
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'failed', httpStatus: 503 });
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+      expect(await screen.findByText('session-unavailable')).toBeInTheDocument();
+
+      act(() => {
+        window.dispatchEvent(new Event(authStore.AUTH_CLEARED_EVENT));
+      });
+
+      expect(screen.getByText('session-checked')).toBeInTheDocument();
     });
 
     it('계정 확인 요청이 일시 장애로 실패해도 로그아웃하지 않는다', async () => {
