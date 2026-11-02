@@ -43,6 +43,12 @@ interface FetchGameStatsModalProps {
   onConnected?: () => Promise<void> | void;
 }
 
+const GAME_TRANSFER_RECIPIENT: Record<ConnectableGame, string> = {
+  LOL: 'Riot API',
+  PUBG: 'PUBG API',
+  R6: 'r6data.com',
+};
+
 function getGameLabel(game: ConnectableGame) {
   if (game === 'LOL') return 'League of Legends';
   return game === 'R6' ? 'Rainbow Six Siege' : 'PUBG';
@@ -342,7 +348,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                       checked={transferConsent}
                       onChange={(event) => setTransferConsent(event.target.checked)}
                     />
-                    전적 조회를 위해 입력한 닉네임을 국외의 {promptGame === 'R6' ? 'r6data.com' : 'PUBG API'}로 보내는 데
+                    전적 조회를 위해 입력한 정보를 국외의 {GAME_TRANSFER_RECIPIENT[promptGame]}로 보내는 데
                     동의합니다.
                   </label>
                 </div>
