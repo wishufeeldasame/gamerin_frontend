@@ -279,7 +279,7 @@ function formatGameStatsDetail(gameName: string, stats: unknown) {
   const statsMode = readStatsMode(record);
   const statsModeLabel = statsMode === 'RANKED' ? '경쟁전' : statsMode === 'NORMAL' ? '일반전' : null;
 
-  return [playerName, statsModeLabel].filter(Boolean).join(' · ') || null;
+  return [statsModeLabel, playerName].filter(Boolean).join(' ') || null;
 }
 
 function removeGameStats(gameStats: UserProfile['gameStats'], gameName: string): UserProfile['gameStats'] {
@@ -521,6 +521,8 @@ export default function ProfilePage() {
     }
 
     const isOwnProfile = profile.handle === currentUser?.handle || profile.id === currentUser?.id;
+    // riotId는 본인 응답에만 포함되므로 다른 사용자 프로필에서는 닉네임을 표시하지 않는다.
+    const riotId = readStringStat(toGameStatsRecord(profile.gameStats.RIOT) ?? {}, 'riotId');
     const entries = Object.entries(profile.gameStats).filter(([key]) => key.toUpperCase() !== 'RIOT');
     if (isConnectedGameStats(profile.gameStats.RIOT) && !entries.some(([key]) => key.toUpperCase() === 'LOL')) {
       entries.push(['LOL', { connected: true }]);
@@ -530,7 +532,7 @@ export default function ProfilePage() {
       displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
       summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
       detail: gameName.toUpperCase() === 'LOL'
-        ? '랭크 기준 · KDA는 최근 최대 5경기'
+        ? riotId?.split('#')[0] ?? null
         : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
     }));
@@ -1234,17 +1236,17 @@ export default function ProfilePage() {
 
       <div className="px-4 pt-8 md:px-8 md:pt-10">
         {activeTab === 'stats' ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-black text-black md:text-3xl">인증된 전적</h2>
+          <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 md:p-8">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
+              <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
 
               {isOwnProfile ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <button
                     onClick={() => setShowFetchStatsModal(true)}
-                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
+                    className="flex items-center gap-1 rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-800 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
                   >
-                    <Plus size={16} />
+                    <Plus size={14} className="sm:size-4" />
                     전적 추가
                   </button>
 
@@ -1261,7 +1263,7 @@ export default function ProfilePage() {
               ) : null}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {gameStatEntries.length === 0 ? (
                 <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
                   아직 연결된 게임 전적이 없습니다.
@@ -1273,10 +1275,10 @@ export default function ProfilePage() {
                   return (
                     <div
                       key={entry.gameName}
-                      className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
+                      className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-5 md:px-5"
                     >
-                      <div className="flex min-w-0 items-center gap-4">
-                        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-white p-1">
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:h-12 sm:w-12 sm:rounded-xl">
                           {iconMeta ? (
                             <Image
                               src={iconMeta.url}
@@ -1290,11 +1292,11 @@ export default function ProfilePage() {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-xl font-black text-black">{entry.displayName}</p>
+                          <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
                           {entry.detail ? (
-                            <p className="max-w-xl truncate text-xs font-bold text-zinc-400">{entry.detail}</p>
+                            <p className="max-w-xl break-keep text-[11px] font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
                           ) : null}
-                          <p className="mt-1 max-w-xl truncate text-base text-slate-600 dark:text-slate-300">{entry.summary}</p>
+                          <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
                         </div>
                       </div>
 

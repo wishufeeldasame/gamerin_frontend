@@ -70,7 +70,8 @@ for (const mode of [
     await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
     await page.getByRole('button', { name: '연결', exact: true }).last().click();
     await expect(page.getByText('GOLD I · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
-    await expect(page.getByText('랭크 기준 · KDA는 최근 최대 5경기', { exact: true })).toBeVisible();
+    await expect(page.getByText('소환사', { exact: true })).toBeVisible();
+    await expect(page.getByText('경쟁전 PubgPlayer', { exact: true })).toBeVisible();
     if (mode.width === 1440) await expect(page.getByText('GOLD I', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
