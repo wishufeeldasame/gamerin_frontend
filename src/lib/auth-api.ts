@@ -302,6 +302,9 @@ export async function signUpWithPassword(params: {
   emailVerificationToken: string;
   agreedToTerms: boolean;
   agreedToPrivacy: boolean;
+  agreedToAge14: boolean;
+  termsVersion: string;
+  privacyVersion: string;
 }): Promise<void> {
   try {
     await postPublicAuth('/api/v1/auth/signup', params, '회원가입에 실패했습니다.');
@@ -321,6 +324,9 @@ export async function completeSocialSignup(params: {
   nickname: string;
   agreedToTerms: boolean;
   agreedToPrivacy: boolean;
+  agreedToAge14: boolean;
+  termsVersion: string;
+  privacyVersion: string;
 }): Promise<AuthUser> {
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();

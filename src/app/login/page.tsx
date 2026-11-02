@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
-import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete } from '@/app/auth/_components/SignupConsent';
+import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   EmailVerificationExpiredError,
@@ -183,8 +183,7 @@ export default function LoginPage() {
         password: signupPassword,
         passwordConfirm: signupPasswordConfirm,
         emailVerificationToken,
-        agreedToTerms: signupConsent.terms,
-        agreedToPrivacy: signupConsent.privacy,
+        ...toSignupConsentPayload(signupConsent),
       });
 
       resetSignup();

@@ -6,6 +6,7 @@ import {
   LegalNotice,
   LegalSection,
 } from '../_components/LegalDocument';
+import { TERMS_VERSION } from '@/lib/legal-versions';
 
 export const metadata: Metadata = { title: '이용약관 | GamerIN' };
 
@@ -129,7 +130,7 @@ export default function TermsPage() {
         <p>서비스와 약관에 관한 문의는 {LEGAL_CONTACT_EMAIL}로 보내 주세요.</p>
       </LegalSection>
 
-      <LegalList items={['버전: 1.0', `시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
+      <LegalList items={[`버전: ${TERMS_VERSION}`, `시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
     </>
   );
 }
