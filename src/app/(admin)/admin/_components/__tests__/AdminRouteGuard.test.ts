@@ -18,6 +18,8 @@ const authContext = vi.hoisted(() => ({
     () => {
       user: { role?: string; status?: string } | null;
       isAuthReady: boolean;
+      isSessionUnavailable?: boolean;
+      retrySessionRestore?: () => Promise<void>;
     }
   >(),
 }));
@@ -90,6 +92,23 @@ describe('AdminRouteGuard component access control', () => {
     await waitFor(() => {
       expect(navigation.router.replace).toHaveBeenCalledWith('/admin/login');
     });
+  });
+
+  it('세션을 일시 장애로 확인하지 못했으면 관리자 로그인으로 보내지 않고 재시도 안내를 보여 준다', async () => {
+    authContext.useAuth.mockReturnValue({
+      user: null,
+      isAuthReady: true,
+      isSessionUnavailable: true,
+      retrySessionRestore: vi.fn(() => Promise.resolve()),
+    });
+
+    renderGuard();
+
+    expect(screen.getByRole('heading', { name: '로그인 상태를 확인하지 못했습니다' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '로그인 화면으로 이동' })).toHaveAttribute('href', '/admin/login');
+    expect(screen.queryByText('protected admin content')).not.toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(navigation.router.replace).not.toHaveBeenCalled();
   });
 
   it('redirects a USER from /admin to the forbidden page', async () => {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { deferred, flush, installFetchRoutes, json } from '@/test/fetch-routes';
 
 vi.mock('@/lib/api-base', () => ({
@@ -489,13 +489,70 @@ describe('restoreAuthUser', () => {
     expect(user).toMatchObject({ id: 'user-id', name: '저장이름', nickname: '새닉', gameTier: 'Gold', bio: '소개', role: 'USER' });
   });
 
-  it('refresh가 일시 장애면 세션을 유지하고 null만 반환한다', async () => {
-    api.route('/api/v1/auth/refresh', () => json(503, {}));
+  it.each([
+    ['503', () => json(503, {}), 503],
+    ['429', () => json(429, {}), 429],
+    ['네트워크 오류', () => {
+      throw new TypeError('Failed to fetch');
+    }, 0],
+  ] as const)('refresh의 %s는 세션을 유지하고 복원 일시 장애로 거절한다', async (_name, handler, status) => {
+    window.localStorage.setItem(store.AUTH_USER_KEY, JSON.stringify(stored));
+    api.route('/api/v1/auth/refresh', handler);
 
-    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).resolves.toBeNull();
+    const restored = auth.restoreAuthUser(stored, store.getAuthGeneration());
 
+    await expect(restored).rejects.toBeInstanceOf(auth.SessionRestoreUnavailableError);
+    await expect(restored).rejects.toMatchObject({ status });
+    expect(api.count('/api/v1/auth/refresh')).toBe(1);
     expect(api.count('/api/v1/auth/me')).toBe(0);
     expect(api.count('/api/v1/auth/logout')).toBe(0);
+    expect(window.localStorage.getItem(store.AUTH_USER_KEY)).toContain('user-id');
+    expect(store.isLocalReauthenticationRequired()).toBe(false);
+  });
+
+  it('refresh 409면 잠시 뒤 다시 refresh해 다른 탭이 받은 새 쿠키로 복원한다', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    api.route('/api/v1/auth/refresh', () => json(409, { success: false }), refreshOk);
+    api.route('/api/v1/auth/me', () => meOk());
+
+    const restored = auth.restoreAuthUser(stored, store.getAuthGeneration());
+    await vi.advanceTimersByTimeAsync(store.REFRESH_CONFLICT_RETRY_DELAYS_MS[0]);
+
+    await expect(restored).resolves.toMatchObject({ id: 'user-id' });
+    expect(api.count('/api/v1/auth/refresh')).toBe(2);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('refresh 409가 재시도 뒤에도 계속되면 세션을 유지하고 복원 일시 장애로 거절한다', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    onTestFinished(() => {
+      vi.useRealTimers();
+    });
+    const delays = store.REFRESH_CONFLICT_RETRY_DELAYS_MS;
+    api.route('/api/v1/auth/refresh', ...Array.from({ length: delays.length + 1 }, () => () => json(409, {})));
+
+    const restored = auth.restoreAuthUser(stored, store.getAuthGeneration());
+    const settled = expect(restored).rejects.toMatchObject({ name: 'SessionRestoreUnavailableError', status: 409 });
+    await vi.advanceTimersByTimeAsync(delays.reduce((sum, delay) => sum + delay, 0));
+
+    await settled;
+    expect(api.count('/api/v1/auth/refresh')).toBe(delays.length + 1);
+    expect(api.count('/api/v1/auth/me')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(0);
+  });
+
+  it('refresh 401이면 세션을 한 번 종료하고 null을 반환한다', async () => {
+    api.route('/api/v1/auth/refresh', () => json(401, {}));
+    const generation = store.getAuthGeneration();
+
+    await expect(auth.restoreAuthUser(stored, generation)).resolves.toBeNull();
+
+    expect(store.isCurrentAuthGeneration(generation)).toBe(false);
+    expect(api.count('/api/v1/auth/me')).toBe(0);
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
   });
 
   it('bootstrap refresh가 저장 사용자와 다른 userId를 주면 공유 저장값을 유지하고 현재 탭만 재인증한다', async () => {
@@ -513,11 +570,14 @@ describe('restoreAuthUser', () => {
     expect(window.localStorage.getItem(store.AUTH_USER_KEY)).toContain('user-id');
   });
 
-  it('/me가 일시 장애여도 세션을 유지한다', async () => {
+  it('/me가 일시 장애여도 세션을 유지하고 복원 일시 장애로 거절한다', async () => {
     api.route('/api/v1/auth/refresh', refreshOk);
     api.route('/api/v1/auth/me', () => json(503, {}));
 
-    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).resolves.toBeNull();
+    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).rejects.toMatchObject({
+      name: 'SessionRestoreUnavailableError',
+      status: 503,
+    });
 
     expect(api.count('/api/v1/auth/logout')).toBe(0);
     expect(store.getAccessToken()).toBe('token-r');
@@ -542,11 +602,24 @@ describe('restoreAuthUser', () => {
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });
 
-  it('/me 형식 오류는 세션을 유지하고 null을 반환한다', async () => {
+  it('/me가 refresh 뒤에도 401이면 세션을 한 번 종료하고 null을 반환한다', async () => {
+    api.route('/api/v1/auth/refresh', refreshOk, () => json(401, {}));
+    api.route('/api/v1/auth/me', () => json(401, {}));
+    const generation = store.getAuthGeneration();
+
+    await expect(auth.restoreAuthUser(stored, generation)).resolves.toBeNull();
+
+    expect(store.isCurrentAuthGeneration(generation)).toBe(false);
+    expect(api.count('/api/v1/auth/logout')).toBe(1);
+  });
+
+  it('/me 형식 오류는 세션을 유지하고 복원 일시 장애로 거절한다', async () => {
     api.route('/api/v1/auth/refresh', refreshOk);
     api.route('/api/v1/auth/me', () => json(200, { success: true, data: { userId: 1 } }));
 
-    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).resolves.toBeNull();
+    await expect(auth.restoreAuthUser(stored, store.getAuthGeneration())).rejects.toBeInstanceOf(
+      auth.SessionRestoreUnavailableError,
+    );
 
     expect(api.count('/api/v1/auth/logout')).toBe(0);
   });

@@ -62,6 +62,17 @@ export class BlockedAccountError extends Error {
   }
 }
 
+/**
+ * 앱 시작 복원이 일시 장애(재시도 뒤에도 남은 refresh 409, 429, 5xx, 네트워크 오류, 응답 형식 오류)로 끝났다.
+ * 세션(저장 사용자·refresh 쿠키)은 유지되므로 로그인 화면으로 보내지 않고 다시 시도할 수 있게 한다.
+ */
+export class SessionRestoreUnavailableError extends Error {
+  constructor(public readonly status: number) {
+    super('로그인 상태를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.');
+    this.name = 'SessionRestoreUnavailableError';
+  }
+}
+
 function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError';
 }
@@ -406,7 +417,8 @@ async function runOAuthSession(attemptId: number, generation: number): Promise<A
  * 앱 시작 때 저장된 사용자를 서버 값으로 검증해 복원한다. 복원할 수 없으면 null.
  * 인증 거절·최종 401은 api-client·refresh가 세션을 종료한다. 차단 계정이면 BlockedAccountError를 던지고,
  * 세션을 끝내고 화면 사용자 상태를 비우는 것은 호출한 쪽이 한다(세대가 바뀌기 전에 사용자 상태를 비워야 하므로).
- * 네트워크 오류·5xx·429·형식 오류는 세션(저장 사용자·refresh 쿠키)을 유지한 채 null만 반환한다.
+ * 세션이 끝나지 않은 실패(재시도 뒤에도 남은 refresh 409, 429, 5xx, 네트워크 오류, 형식 오류)는 세션을 유지한 채
+ * SessionRestoreUnavailableError를 던진다. refresh 409 재시도는 refreshAccessTokenResult가 한다.
  * 호출한 쪽이 isCurrentAuthGeneration(generation)으로 오래된 결과를 버려야 한다.
  */
 export async function restoreAuthUser(
@@ -418,28 +430,49 @@ export async function restoreAuthUser(
     expectedUserId: storedUser.id,
   });
 
-  if (!isCurrentAuthGeneration(generation) || refreshResult.status !== 'refreshed') {
+  if (!isCurrentAuthGeneration(generation)) {
+    return null;
+  }
+
+  if (refreshResult.status === 'failed') {
+    throw new SessionRestoreUnavailableError(refreshResult.httpStatus);
+  }
+
+  if (refreshResult.status !== 'refreshed') {
+    return null;
+  }
+
+  let user: AuthUser;
+  try {
+    user = await fetchAuthUser(storedUser);
+  } catch (error) {
+    // 세션 종료·사용자 전환은 세대를 바꾸므로 여기서 버린다.
+    if (!isCurrentAuthGeneration(generation) || isAbortError(error)) {
+      return null;
+    }
+    if (error instanceof BlockedAccountError) {
+      throw error;
+    }
+    // 세대가 그대로면 세션은 끝나지 않았다(`/me`의 네트워크 오류·5xx·429·일반 403·형식 오류).
+    throw new SessionRestoreUnavailableError(error instanceof ApiError ? error.status : 0);
+  }
+
+  if (user.id !== storedUser.id) {
+    requireLocalReauthentication();
     return null;
   }
 
   try {
-    const user = await fetchAuthUser(storedUser);
-    if (user.id !== storedUser.id) {
-      requireLocalReauthentication();
-      return null;
-    }
     // 다른 탭의 storage 이벤트보다 이 복원의 응답이 먼저 도착해도 새 저장 사용자를 덮어쓰지 않는다.
     const latestSavedUser = window.localStorage.getItem(AUTH_USER_KEY);
     if (latestSavedUser && (JSON.parse(latestSavedUser) as Partial<AuthUser> | null)?.id !== storedUser.id) {
       requireLocalReauthentication();
       return null;
     }
-    if (!commitAuthenticatedUser(user.id, generation)) return null;
-    return user;
-  } catch (error) {
-    if (isCurrentAuthGeneration(generation) && error instanceof BlockedAccountError) {
-      throw error;
-    }
+  } catch {
     return null;
   }
+
+  if (!commitAuthenticatedUser(user.id, generation)) return null;
+  return user;
 }
