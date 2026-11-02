@@ -91,11 +91,13 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   const [promptGame, setPromptGame] = useState<ConnectableGame | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [playerNameError, setPlayerNameError] = useState('');
+  const [transferConsent, setTransferConsent] = useState(false);
 
   const handleConnect = (gameName: string, connectableGame?: ConnectableGame) => {
     if (connectableGame) {
       setPlayerName('');
       setPlayerNameError('');
+      setTransferConsent(false);
       setPromptGame(connectableGame);
       return;
     }
@@ -108,7 +110,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   };
 
   const handleSubmit = async () => {
-    if (!promptGame || connectingGame) {
+    if (!promptGame || connectingGame || !transferConsent) {
       return;
     }
 
@@ -166,6 +168,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     setPromptGame(null);
     setPlayerName('');
     setPlayerNameError('');
+    setTransferConsent(false);
   };
 
   const selectedGameLabel = promptGame ? getGameLabel(promptGame) : '';
@@ -299,6 +302,16 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   {playerNameError ? (
                     <p className="text-xs font-bold leading-relaxed text-red-500">{playerNameError}</p>
                   ) : null}
+                  <label className="flex items-start gap-2 text-xs font-bold leading-relaxed text-zinc-500">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-black dark:accent-[#f5b93d]"
+                      checked={transferConsent}
+                      onChange={(event) => setTransferConsent(event.target.checked)}
+                    />
+                    전적 조회를 위해 입력한 닉네임을 국외의 {promptGame === 'R6' ? 'r6data.com' : 'PUBG API'}로 보내는 데
+                    동의합니다.
+                  </label>
                 </div>
 
                 <div className="flex items-center gap-4 border-t border-zinc-100 bg-zinc-50 p-6">
@@ -310,7 +323,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   </button>
                   <button
                     onClick={() => void handleSubmit()}
-                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+                    disabled={!transferConsent}
+                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     연결
                   </button>

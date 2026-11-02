@@ -1,6 +1,7 @@
 'use client';
 
 import { UserPlus } from 'lucide-react';
+import Link from 'next/link';
 
 const suggestedFriends = [
   { name: 'Jin Park', tag: '@jinplays', badge: 'FPS 코치' },
@@ -46,12 +47,12 @@ export function RightSidebar() {
       </section>
 
       <footer className="space-x-3 px-6 text-[11px] font-bold text-zinc-400">
-        <a href="#" className="hover:underline">
+        <Link href="/terms" className="hover:underline">
           이용약관
-        </a>
-        <a href="#" className="hover:underline">
+        </Link>
+        <Link href="/privacy" className="hover:underline">
           개인정보처리방침
-        </a>
+        </Link>
         <span>© 2026 GamerIN</span>
       </footer>
     </aside>

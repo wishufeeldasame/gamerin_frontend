@@ -55,6 +55,7 @@ function fillSignupStep2() {
   fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'demo01' } });
   fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcd123!' } });
   fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
+  fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
 }
 
 const requestBody = (path: string) =>
@@ -128,6 +129,18 @@ describe('인증 흐름 화면의 API 주소', () => {
       agreedToPrivacy: true,
       emailVerificationToken: 'verify-token',
     });
+  });
+
+  it('필수 항목을 모두 체크하기 전에는 가입할 수 없다', async () => {
+    render(<LoginPage />);
+    await openSignupStep2();
+    fillSignupStep2();
+    fireEvent.click(screen.getByLabelText('(필수) 개인정보 처리방침에 동의합니다'));
+
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
+    expect(screen.getByText('필수 항목에 모두 동의해야 가입할 수 있습니다.')).toBeInTheDocument();
+    expect(screen.getByLabelText('필수 항목 전체 동의')).not.toBeChecked();
+    expect(screen.getByRole('link', { name: '처리방침 보기' })).toHaveAttribute('href', '/privacy');
   });
 
   it('회원가입 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async () => {
@@ -243,6 +256,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/social-signup`, expect.anything()));
@@ -255,6 +269,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     expect(await screen.findByText('소셜 회원가입에 실패했습니다.')).toBeInTheDocument();
@@ -314,6 +329,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'ab' } });
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     expect(screen.getByText('아이디는 3~20자로 입력해주세요.')).toBeInTheDocument();
@@ -330,6 +346,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/home'));
@@ -348,6 +365,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo_01' } });
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
     expect(await screen.findByText(/가입은 완료되었지만 로그인 확인에 실패했습니다/)).toBeInTheDocument();

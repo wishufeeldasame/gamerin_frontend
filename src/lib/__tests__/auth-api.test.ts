@@ -408,7 +408,7 @@ describe('refreshAccessTokenResult의 거절 형태', () => {
 });
 
 describe('completeSocialSignup', () => {
-  const params = { signupToken: 'signup-token', handle: 'demo_01', nickname: '데모' };
+  const params = { signupToken: 'signup-token', handle: 'demo_01', nickname: '데모', agreedToTerms: true, agreedToPrivacy: true };
   const signupOk = () =>
     json(200, { success: true, data: { userId: 'user-id', handle: 'signup-handle', nickname: '가입닉', accessToken: 'token-s' } });
 
@@ -419,7 +419,7 @@ describe('completeSocialSignup', () => {
     const user = await auth.completeSocialSignup(params);
 
     expect(api.paths()).toEqual(['/api/v1/auth/social-signup', '/api/v1/auth/me']);
-    expect(JSON.parse(String(api.init(0)?.body))).toEqual({ ...params, agreedToTerms: true, agreedToPrivacy: true });
+    expect(JSON.parse(String(api.init(0)?.body))).toEqual(params);
     expect(api.init(0)).toMatchObject({ method: 'POST', credentials: 'include' });
     expect(api.authorization(1)).toBe('Bearer token-s');
     expect(user).toMatchObject({ id: 'user-id', handle: 'demo', role: 'USER', status: 'ACTIVE', gameTier: 'Unranked', bio: '' });
@@ -631,13 +631,15 @@ describe('가입 이메일 인증', () => {
     password: 'abcd123!',
     passwordConfirm: 'abcd123!',
     emailVerificationToken: 'verify-token',
+    agreedToTerms: true,
+    agreedToPrivacy: false,
   };
 
   it('가입 요청에 이메일 인증 토큰과 약관 동의를 담는다', async () => {
     api.route('/api/v1/auth/signup', () => json(200, { success: true, data: { userId: 'u', accessToken: 't' } }));
 
     await expect(auth.signUpWithPassword(signupParams)).resolves.toBeUndefined();
-    expect(JSON.parse(String(api.init(0)?.body))).toEqual({ ...signupParams, agreedToTerms: true, agreedToPrivacy: true });
+    expect(JSON.parse(String(api.init(0)?.body))).toEqual(signupParams);
     expect(store.getAccessToken()).toBeNull();
   });
 

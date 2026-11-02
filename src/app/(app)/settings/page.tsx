@@ -190,6 +190,15 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <div className="flex gap-4 border-t border-zinc-200 pt-6 text-sm font-semibold text-zinc-500">
+        <Link href="/terms" className="hover:underline">
+          이용약관
+        </Link>
+        <Link href="/privacy" className="hover:underline">
+          개인정보 처리방침
+        </Link>
+      </div>
     </div>
   );
 

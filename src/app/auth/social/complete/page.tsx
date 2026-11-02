@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
+import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete } from '@/app/auth/_components/SignupConsent';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { useAuth } from '@/app/context/AuthContext';
 import { SignupCompletedError, completeSocialSignup } from '@/lib/auth-api';
@@ -23,6 +24,7 @@ export default function SocialCompletePage() {
   const [signupToken, setSignupToken] = useState<string | null>(null);
   const [handle, setHandle] = useState('');
   const [nickname, setNickname] = useState('');
+  const [consent, setConsent] = useState(EMPTY_SIGNUP_CONSENT);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   // 가입은 끝났지만 로그인 확인에 실패한 상태. 가입 토큰이 소진돼 다시 제출할 수 없다.
@@ -52,7 +54,15 @@ export default function SocialCompletePage() {
     setError('');
 
     try {
-      login(await completeSocialSignup({ signupToken, handle: trimmedHandle, nickname: trimmedNickname }));
+      login(
+        await completeSocialSignup({
+          signupToken,
+          handle: trimmedHandle,
+          nickname: trimmedNickname,
+          agreedToTerms: consent.terms,
+          agreedToPrivacy: consent.privacy,
+        }),
+      );
       router.replace('/home');
     } catch (err) {
       // 가입 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
@@ -97,6 +107,8 @@ export default function SocialCompletePage() {
           aria-label="닉네임"
         />
 
+        <SignupConsent value={consent} onChange={setConsent} />
+
         {error && (
           <div className="flex items-center gap-1.5 px-2 text-red-500">
             <AlertCircle size={14} />
@@ -115,7 +127,7 @@ export default function SocialCompletePage() {
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={loading}
+            disabled={loading || !isSignupConsentComplete(consent)}
             className="h-14 w-full rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
           >
             {loading ? '처리 중...' : '회원가입 완료'}
