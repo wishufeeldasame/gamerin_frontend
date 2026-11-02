@@ -359,24 +359,38 @@ export default function LoginPage() {
             ) : null}
           </div>
 
-          <div className="flex justify-center gap-6 lg:justify-start">
-            <Link href="/find-id" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
-              아이디 찾기
-            </Link>
-            <div className="h-4 w-px self-center bg-zinc-200" />
-            <Link
-              href="/auth/forgot-password"
-              className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-            >
-              비밀번호 찾기
-            </Link>
-            <div className="h-4 w-px self-center bg-zinc-200" />
-            <Link href="/terms" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
-              이용약관
-            </Link>
-            <Link href="/privacy" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
-              개인정보 처리방침
-            </Link>
+          {/* 줄바꿈 시 구분선이 줄 끝에 남지 않도록 계정/약관 링크를 묶어서 내린다 */}
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 lg:justify-start">
+            <div className="flex gap-3">
+              <Link
+                href="/find-id"
+                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
+              >
+                아이디 찾기
+              </Link>
+              <div className="h-4 w-px self-center bg-zinc-200" />
+              <Link
+                href="/auth/forgot-password"
+                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
+              >
+                비밀번호 찾기
+              </Link>
+            </div>
+            <div className="flex gap-3">
+              <Link
+                href="/terms"
+                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
+              >
+                이용약관
+              </Link>
+              <div className="h-4 w-px self-center bg-zinc-200" />
+              <Link
+                href="/privacy"
+                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
+              >
+                개인정보 처리방침
+              </Link>
+            </div>
           </div>
 
           <div className="border-t border-zinc-100 pt-7 text-center lg:text-left">
