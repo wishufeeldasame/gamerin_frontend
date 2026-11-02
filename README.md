@@ -8,7 +8,7 @@
 계정 연결 후 전적 조회만 실패하면 연결 상태를 유지하며 프로필 새로고침 버튼으로 재시도할 수 있다.
 
 백엔드에 유효한 `riot.api.key` 설정이 필요하다. Docker prod 구성에서는 `RIOT_API_KEY`를 전달하며, 키는 프론트에 설정하지 않는다.
-모의 API를 사용하는 브라우저 검증은 `npm run build` 후 `npx playwright test -c playwright.lol.config.ts`로 실행한다. 검증 서버는 3101번 포트를 사용한다.
+모의 API를 사용하는 브라우저 검증은 `npx playwright test lol-integration`으로 실행한다.
 
 ## 최근 작업 - 알림 프론트 연동
 

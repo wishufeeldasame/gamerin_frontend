@@ -70,6 +70,8 @@ for (const mode of [
     await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
     await page.getByRole('button', { name: '연결', exact: true }).last().click();
     await expect(page.getByText('GOLD I · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
+    await expect(page.getByText('랭크 기준 · KDA는 최근 최대 5경기', { exact: true })).toBeVisible();
+    if (mode.width === 1440) await expect(page.getByText('GOLD I', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
@@ -92,7 +94,20 @@ test('Riot 계정 연결 후 요약 조회 실패는 연결을 유지하고 새�
   await expect(page.getByText('계정 연결됨 · 전적 새로고침으로 불러와 주세요.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'League of Legends 전적 연동 해제' })).toBeVisible();
   await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
+  await expect(page.getByText(/Riot API Key/)).toHaveCount(0);
   await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
   await expect(page.getByText('PLATINUM IV · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
   expect(calls.connects()).toBe(1);
+});
+
+test('다른 사용자의 요약 없는 Riot 연결에는 새로고침 안내를 표시하지 않는다', async ({ page }) => {
+  await installLolFixture(page, 'light');
+  await page.route('**/api/v1/users/other', route => route.fulfill({ json: { success: true, data: {
+    id: 'other', handle: 'other', nickname: '방문대상', bio: null, location: null, website: null, coverImageUrl: null, profileImageUrl: null,
+    gameStats: { RIOT: { connected: true } }, verifiedBadge: false, followersCount: 0, followingCount: 0, postCount: 0, mediaPostCount: 0, mediaItemCount: 0,
+  } } }));
+  await page.goto('/profile/other');
+  await page.getByRole('button', { name: '전적', exact: true }).click();
+  await expect(page.getByText('계정 연결됨', { exact: true })).toBeVisible();
+  await expect(page.getByText(/전적 새로고침으로/)).toHaveCount(0);
 });

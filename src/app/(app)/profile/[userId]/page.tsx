@@ -219,7 +219,7 @@ function formatNullablePercent(value: number | null) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
-function formatGameStatsSummary(gameName: string, stats: unknown) {
+function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: boolean) {
   const record = toGameStatsRecord(stats);
   if (!record) {
     return String(stats ?? '');
@@ -229,7 +229,9 @@ function formatGameStatsSummary(gameName: string, stats: unknown) {
     const tier = readStringStat(record, 'tierLabel');
     const kda = readNumberStat(record, 'kda');
     const games = readNumberStat(record, 'games');
-    if (kda === null && games === null) return '계정 연결됨 · 전적 새로고침으로 불러와 주세요.';
+    if (kda === null && games === null) {
+      return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
+    }
     return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
       `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
       games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
@@ -354,6 +356,10 @@ function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
     if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
     if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
     if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  if (gameName === 'LOL' && (error.status === 403 || error.status === 503)) {
+    return 'Riot 전적 서버를 일시적으로 사용할 수 없습니다.';
   }
 
   return error.message;
@@ -514,6 +520,7 @@ export default function ProfilePage() {
       return [];
     }
 
+    const isOwnProfile = profile.handle === currentUser?.handle || profile.id === currentUser?.id;
     const entries = Object.entries(profile.gameStats).filter(([key]) => key.toUpperCase() !== 'RIOT');
     if (isConnectedGameStats(profile.gameStats.RIOT) && !entries.some(([key]) => key.toUpperCase() === 'LOL')) {
       entries.push(['LOL', { connected: true }]);
@@ -521,13 +528,13 @@ export default function ProfilePage() {
     return entries.map(([gameName, stats]) => ({
       gameName,
       displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
-      summary: formatGameStatsSummary(gameName, stats),
+      summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
       detail: gameName.toUpperCase() === 'LOL'
-        ? '최근 최대 5경기'
+        ? '랭크 기준 · KDA는 최근 최대 5경기'
         : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
     }));
-  }, [profile?.gameStats]);
+  }, [profile?.gameStats, profile?.handle, profile?.id, currentUser?.handle, currentUser?.id]);
 
   const handleRefreshStats = async () => {
     if (
@@ -1298,7 +1305,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={() => setDisconnectTarget(entry.disconnectGameName)}
                             disabled={isRefreshing || isDisconnectingGame}
-                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
                             aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
                           >
                             <Trash2 size={16} />

@@ -68,6 +68,10 @@ function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
     }
   }
 
+  if (game === 'LOL' && (error.status === 403 || error.status === 503)) {
+    return 'Riot 전적 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+  }
+
   return error.message;
 }
 
@@ -151,7 +155,10 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
         await connectRiot(normalizedPlayerName);
         connectionCompleted = true;
         try {
-          await fetchLolSummary();
+          const summary = await fetchLolSummary();
+          if (summary.tierLabel && summary.tierLabel !== 'UNRANKED') {
+            updateUser({ gameTier: summary.tierLabel });
+          }
         } catch (error) {
           summaryError = error;
         }
