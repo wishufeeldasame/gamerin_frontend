@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { motion } from 'framer-motion';
+import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete } from '@/app/auth/_components/SignupConsent';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   EmailVerificationExpiredError,
@@ -61,6 +62,7 @@ export default function LoginPage() {
   const [signupId, setSignupId] = useState('');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
+  const [signupConsent, setSignupConsent] = useState(EMPTY_SIGNUP_CONSENT);
   const [signupPending, setSignupPending] = useState(false);
   const [oauthError, setOauthError] = useState('');
 
@@ -88,7 +90,7 @@ export default function LoginPage() {
       (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear))
   );
   const isStep2Valid =
-    !handleError && !passwordError && signupPassword === signupPasswordConfirm;
+    !handleError && !passwordError && signupPassword === signupPasswordConfirm && isSignupConsentComplete(signupConsent);
 
   const resetEmailVerification = () => {
     verificationRunRef.current += 1;
@@ -111,6 +113,7 @@ export default function LoginPage() {
     setSignupId('');
     setSignupPassword('');
     setSignupPasswordConfirm('');
+    setSignupConsent(EMPTY_SIGNUP_CONSENT);
   };
 
   const handleSendVerificationCode = async () => {
@@ -180,6 +183,8 @@ export default function LoginPage() {
         password: signupPassword,
         passwordConfirm: signupPasswordConfirm,
         emailVerificationToken,
+        agreedToTerms: signupConsent.terms,
+        agreedToPrivacy: signupConsent.privacy,
       });
 
       resetSignup();
@@ -364,6 +369,13 @@ export default function LoginPage() {
               className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
             >
               비밀번호 찾기
+            </Link>
+            <div className="h-4 w-px self-center bg-zinc-200" />
+            <Link href="/terms" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
+              이용약관
+            </Link>
+            <Link href="/privacy" className="text-sm font-semibold text-zinc-500 transition-colors hover:text-black">
+              개인정보 처리방침
             </Link>
           </div>
 
@@ -628,6 +640,9 @@ export default function LoginPage() {
                       : '비밀번호가 일치하지 않습니다.'}
                   </p>
                 ) : null}
+                <div className="mt-4">
+                  <SignupConsent value={signupConsent} onChange={setSignupConsent} />
+                </div>
                 <button
                   type="submit"
                   disabled={!isStep2Valid || signupPending}

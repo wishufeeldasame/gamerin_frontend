@@ -289,13 +289,11 @@ export async function signUpWithPassword(params: {
   password: string;
   passwordConfirm: string;
   emailVerificationToken: string;
+  agreedToTerms: boolean;
+  agreedToPrivacy: boolean;
 }): Promise<void> {
   try {
-    await postPublicAuth(
-      '/api/v1/auth/signup',
-      { ...params, agreedToTerms: true, agreedToPrivacy: true },
-      '회원가입에 실패했습니다.',
-    );
+    await postPublicAuth('/api/v1/auth/signup', params, '회원가입에 실패했습니다.');
   } catch (error) {
     // shortcut: 서버 오류 응답에 코드가 없어 메시지로 판별한다. 백엔드가 오류 코드를 주면 그것으로 바꾼다.
     if (error instanceof ApiError && error.status === 400 && error.message.includes('이메일 인증')) {
@@ -310,6 +308,8 @@ export async function completeSocialSignup(params: {
   signupToken: string;
   handle: string;
   nickname: string;
+  agreedToTerms: boolean;
+  agreedToPrivacy: boolean;
 }): Promise<AuthUser> {
   await waitForLogoutCompletion();
   const generation = getAuthGeneration();
@@ -320,7 +320,7 @@ export async function completeSocialSignup(params: {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
-      body: JSON.stringify({ ...params, agreedToTerms: true, agreedToPrivacy: true }),
+      body: JSON.stringify(params),
     });
   } catch (error) {
     assertCurrentAuthGeneration(generation);
