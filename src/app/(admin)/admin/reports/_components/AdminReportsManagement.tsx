@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { fetchAdminReports, updateAdminReportStatus } from '@/lib/admin-report-api';
+import { ApiError } from '@/lib/api-client';
 import { fetchReportReasons, type ReportReason } from '@/lib/report-api';
 import { useVisiblePolling } from '@/hooks/useVisiblePolling';
 import type { AdminReport, AdminReportStatus, AdminReportTargetType } from '@/types/admin';
@@ -32,7 +33,9 @@ const statusTones: Record<AdminReportStatus, 'warning' | 'info' | 'success' | 'n
   '처리 완료': 'success',
   반려: 'neutral',
 };
-const statusLabels = Object.keys(statusCodeByLabel) as AdminReportStatus[];
+// 목록에서는 접수 → 검토 중만 허용한다. 종결은 사유가 필요한 상세 화면의 판정(resolve)으로만 처리한다.
+const statusOptionsFor = (status: AdminReportStatus): AdminReportStatus[] =>
+  status === '접수' ? ['접수', '검토 중'] : [status];
 
 type ReportsQuery = {
   query: string;
@@ -307,7 +310,8 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
     if (
       mutationInFlightRef.current
       || lockedReportsRef.current.has(reportUuid)
-      || nextStatus === report.status
+      || report.status !== '접수'
+      || nextStatus !== '검토 중'
     ) return;
 
     mutationInFlightRef.current = true;
@@ -369,6 +373,8 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
       lockedReportsRef.current.delete(reportUuid);
       publishLockedReports();
       setActionError(error instanceof Error ? error.message : '신고 상태를 변경하지 못했습니다.');
+      // 409: 다른 관리자가 먼저 처리했거나 허용되지 않는 전이이므로 최신 상태를 다시 불러온다.
+      if (error instanceof ApiError && error.status === 409) void loadReports(true, true);
     } finally {
       if (mountedRef.current && mutationId === mutationIdRef.current) {
         mutationControllerRef.current = null;
@@ -513,7 +519,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
                       <select
                         aria-label={`${report.id} 상태 변경`}
                         value={report.status}
-                        disabled={Boolean(
+                        disabled={report.status !== '접수' || Boolean(
                           report.reportUuid && lockedReportIds.has(report.reportUuid),
                         )}
                         onChange={(event) => {
@@ -521,7 +527,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
                         }}
                         className="h-9 rounded-xl border border-[#d0d5dd] bg-white px-2 text-xs font-semibold text-[#344054] outline-none focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10 disabled:cursor-wait disabled:bg-[#f2f4f7]"
                       >
-                        {statusLabels.map((label) => (
+                        {statusOptionsFor(report.status).map((label) => (
                           <option key={label} value={label}>{label}</option>
                         ))}
                       </select>
