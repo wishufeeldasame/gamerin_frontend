@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { isAdminRole } from '@/lib/admin-auth';
+import { ApiError } from '@/lib/api-client';
 import { fetchAdminReportDetail, resolveAdminReport, startAdminReportReview, type AdminReportDetailResponse } from '@/lib/admin-report-api';
 import { fetchAdminUser, fetchAdminUserPenalties, type AdminUserResponse, type UserPenaltyResponse } from '@/lib/admin-user-api';
 import { formatAbsoluteTime, parseDisplayTime, UNKNOWN_TIME } from '@/lib/time-format';
@@ -183,6 +184,8 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
     } catch (error: unknown) {
       if (!mounted.current || (error instanceof DOMException && error.name === 'AbortError')) return;
       setActionError(error instanceof Error ? error.message : '신고 처리에 실패했습니다.');
+      // 409: 다른 관리자가 먼저 처리했거나 허용되지 않는 전이이므로 최신 상태를 다시 불러온다.
+      if (error instanceof ApiError && error.status === 409) setRevision((value) => value + 1);
     } finally {
       actionLock.current = false;
       if (mounted.current) setSubmitting(false);
@@ -222,7 +225,7 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
         ) : detail.report.status === 'IN_REVIEW' ? (
           <><ReportReviewForm key={detail.report.id} targetType={report.targetType} canSanction={canSanction} sanctionUnavailableReason={unavailableReason} isSubmitting={submitting} submitError={actionError} onComplete={(submission) => void runAction(submission)} />{targetError ? <button type="button" className="mt-2 text-sm font-semibold text-[#315ef5]" onClick={() => setTargetRetry((value) => value + 1)}>대상 사용자 다시 확인</button> : null}</>
         ) : (
-          <div className="mt-4 rounded-2xl bg-[#f9fafb] p-4 text-sm text-[#344054]"><p>{report.status === '처리 완료' ? '처리 완료된 신고입니다.' : '반려 처리된 신고입니다.'}</p><Link href="/admin/audit-logs" className="mt-3 inline-block font-semibold text-[#315ef5]">전체 관리자 작업 이력으로 이동</Link></div>
+          <div className="mt-4 rounded-2xl bg-[#f9fafb] p-4 text-sm text-[#344054]"><p>{report.status === '처리 완료' ? '처리 완료된 신고입니다.' : '반려 처리된 신고입니다.'}</p>{actionError ? <p role="alert" className="mt-2 text-sm text-[#b42318]">{actionError}</p> : null}<Link href="/admin/audit-logs" className="mt-3 inline-block font-semibold text-[#315ef5]">전체 관리자 작업 이력으로 이동</Link></div>
         )}
       </aside>
       {success ? <ReportProcessedToast isLeaving={false} /> : null}

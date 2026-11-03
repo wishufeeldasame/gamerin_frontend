@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor, within } from '@testing-library/rea
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminReportDetailResponse } from '@/lib/admin-report-api';
 import type { AdminUserResponse, UserPenaltyResponse } from '@/lib/admin-user-api';
+import { ApiError } from '@/lib/api-client';
 import { formatAbsoluteTime, UNKNOWN_TIME } from '@/lib/time-format';
 
 const mocks = vi.hoisted(() => ({
@@ -144,6 +145,23 @@ describe('AdminReportDetail', () => {
     expect(mocks.resolveAdminReport).toHaveBeenCalledWith('RPT-001', { decision: 'RESOLVED', hideTargetContent: false, penaltyType: 'SUSPENSION_3D', reason: '반복적인 스팸', internalMemo: null });
     expect(screen.getByRole('button', { name: '처리 내용 확인' })).toBeInTheDocument();
     expect(screen.queryByText('처리 완료된 신고입니다.')).not.toBeInTheDocument();
+  });
+
+  it('refetches the detail after a 409 and keeps the server message on the closed report', async () => {
+    mocks.resolveAdminReport.mockRejectedValueOnce(new ApiError('이미 처리 완료되었거나 반려된 신고입니다.', 409));
+    mocks.fetchAdminReportDetail
+      .mockResolvedValueOnce(detail)
+      .mockResolvedValueOnce({ ...detail, report: { ...detail.report, status: 'REJECTED' } });
+    render(<AdminReportDetail reportCode="RPT-001" />);
+    fireEvent.change(await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '근거' } });
+    fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
+
+    expect(await screen.findByText('반려 처리된 신고입니다.')).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent('이미 처리 완료');
+    expect(mocks.fetchAdminReportDetail).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole('button', { name: '처리 내용 확인' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '검토 시작' })).not.toBeInTheDocument();
   });
 
   it('does not turn an absent target into zero reports or an actionable user', async () => {

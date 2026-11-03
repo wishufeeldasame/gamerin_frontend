@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminReportApiItem } from '@/lib/admin-report-api';
+import { ApiError } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 
 const adminReportApi = vi.hoisted(() => ({
@@ -54,12 +55,11 @@ const secondReport: AdminReportApiItem = {
   reportCode: 'RPT-002',
   targetId: '55555555-5555-4555-8555-555555555555',
   targetSnippet: '두 번째 신고',
-  status: 'IN_REVIEW',
 };
 
-const resolvedReport: AdminReportApiItem = {
+const reviewedReport: AdminReportApiItem = {
   ...report,
-  status: 'RESOLVED',
+  status: 'IN_REVIEW',
   assignedAdminId: '66666666-6666-4666-8666-666666666666',
   assignedAdminNickname: '관리자',
   updatedAt: '2026-09-07T01:00:00Z',
@@ -112,7 +112,7 @@ describe('AdminReportsManagement', () => {
       { code: 'OTHER', label: '기타' },
     ]);
     adminReportApi.fetchAdminReports.mockResolvedValue(pageResponse([report]));
-    adminReportApi.updateAdminReportStatus.mockResolvedValue(resolvedReport);
+    adminReportApi.updateAdminReportStatus.mockResolvedValue(reviewedReport);
   });
 
   it('uses the reason code returned by the API as the report query filter', async () => {
@@ -134,18 +134,19 @@ describe('AdminReportsManagement', () => {
     adminReportApi.fetchAdminReports
       .mockResolvedValueOnce(pageResponse([report, secondReport]))
       .mockRejectedValueOnce(new Error('목록 실패'))
-      .mockResolvedValueOnce(pageResponse([resolvedReport, secondReport]));
+      // 검토 중 행은 항상 비활성이므로, 잠금 해제를 관찰하려고 재동기화 응답은 접수 상태로 둔다.
+      .mockResolvedValueOnce(pageResponse([report, secondReport]));
 
     await renderLoaded([report, secondReport]);
     const firstSelect = statusSelect('RPT-001');
     fireEvent.change(firstSelect, {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
 
     expect(await screen.findByText(
       '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
     )).toBeInTheDocument();
-    expect(statusSelect('RPT-001')).toHaveValue('처리 완료');
+    expect(statusSelect('RPT-001')).toHaveValue('검토 중');
     expect(firstSelect).toBeDisabled();
     expect(statusSelect('RPT-002')).toBeEnabled();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
@@ -173,7 +174,7 @@ describe('AdminReportsManagement', () => {
       .mockResolvedValueOnce(pageResponse([report]))
       .mockRejectedValue(new Error('목록 실패'));
     await renderLoaded();
-    fireEvent.change(statusSelect('RPT-001'), { target: { value: '처리 완료' } });
+    fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
     expect(await screen.findByText(
       '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
     )).toBeInTheDocument();
@@ -193,79 +194,79 @@ describe('AdminReportsManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
     await waitFor(() => expect(adminReportApi.fetchAdminReports).toHaveBeenCalledTimes(2));
     const oldSignal = adminReportApi.fetchAdminReports.mock.calls[1][1] as AbortSignal;
-    fireEvent.change(statusSelect('RPT-001'), { target: { value: '처리 완료' } });
-    patch.resolve(resolvedReport);
+    fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
+    patch.resolve(reviewedReport);
     expect(await screen.findByText(
       '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
     )).toBeInTheDocument();
     expect(oldSignal.aborted).toBe(true);
     oldGet.resolve(pageResponse([report]));
     await act(async () => { await Promise.resolve(); });
-    expect(statusSelect('RPT-001')).toHaveValue('처리 완료');
+    expect(statusSelect('RPT-001')).toHaveValue('검토 중');
     expect(statusSelect('RPT-001')).toBeDisabled();
     expect(adminReportApi.updateAdminReportStatus).toHaveBeenCalledTimes(1);
   });
 
   it('allows another report mutation while the first report awaits resync', async () => {
-    const resolvedSecondReport: AdminReportApiItem = {
+    const reviewedSecondReport: AdminReportApiItem = {
       ...secondReport,
-      status: 'RESOLVED',
+      status: 'IN_REVIEW',
     };
     adminReportApi.fetchAdminReports
       .mockResolvedValueOnce(pageResponse([report, secondReport]))
       .mockRejectedValueOnce(new Error('첫 목록 실패'))
-      .mockResolvedValueOnce(pageResponse([resolvedReport, resolvedSecondReport]));
+      .mockResolvedValueOnce(pageResponse([reviewedReport, reviewedSecondReport]));
     adminReportApi.updateAdminReportStatus
-      .mockResolvedValueOnce(resolvedReport)
-      .mockResolvedValueOnce(resolvedSecondReport);
+      .mockResolvedValueOnce(reviewedReport)
+      .mockResolvedValueOnce(reviewedSecondReport);
 
     await renderLoaded([report, secondReport]);
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     expect(await screen.findByText(
       '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
     )).toBeInTheDocument();
 
     fireEvent.change(statusSelect('RPT-002'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
 
     await waitFor(() => {
       expect(adminReportApi.updateAdminReportStatus).toHaveBeenNthCalledWith(
         2,
         secondReport.id,
-        'RESOLVED',
+        'IN_REVIEW',
         expect.any(AbortSignal),
       );
     });
-    await waitFor(() => expect(statusSelect('RPT-002')).toHaveValue('처리 완료'));
+    await waitFor(() => expect(statusSelect('RPT-002')).toHaveValue('검토 중'));
   });
 
   it('allows another PATCH while the first follow-up GET is still pending', async () => {
     const firstGet = deferred<PageResponse<AdminReportApiItem>>();
     const secondPatch = deferred<AdminReportApiItem>();
-    const resolvedSecond = { ...secondReport, status: 'RESOLVED' as const };
+    const reviewedSecond = { ...secondReport, status: 'IN_REVIEW' as const };
     adminReportApi.fetchAdminReports
       .mockResolvedValueOnce(pageResponse([report, secondReport]))
       .mockImplementationOnce(() => firstGet.promise)
-      .mockResolvedValueOnce(pageResponse([resolvedReport, resolvedSecond]));
+      // 검토 중 행은 항상 비활성이므로, 잠금 해제를 관찰하려고 재동기화 응답은 접수 상태로 둔다.
+      .mockResolvedValueOnce(pageResponse([report, secondReport]));
     adminReportApi.updateAdminReportStatus
-      .mockResolvedValueOnce(resolvedReport)
+      .mockResolvedValueOnce(reviewedReport)
       .mockImplementationOnce(() => secondPatch.promise);
     await renderLoaded([report, secondReport]);
-    fireEvent.change(statusSelect('RPT-001'), { target: { value: '처리 완료' } });
+    fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
     await waitFor(() => expect(adminReportApi.fetchAdminReports).toHaveBeenCalledTimes(2));
     expect(statusSelect('RPT-001')).toBeDisabled();
-    fireEvent.change(statusSelect('RPT-002'), { target: { value: '처리 완료' } });
+    fireEvent.change(statusSelect('RPT-002'), { target: { value: '검토 중' } });
     expect(adminReportApi.updateAdminReportStatus).toHaveBeenCalledTimes(2);
     firstGet.reject(new Error('첫 조회 실패'));
     await act(async () => { await Promise.resolve(); });
     expect(statusSelect('RPT-002')).toBeDisabled();
-    secondPatch.resolve(resolvedSecond);
+    secondPatch.resolve(reviewedSecond);
     await waitFor(() => expect(statusSelect('RPT-002')).toBeEnabled());
-    expect(statusSelect('RPT-001')).toHaveValue('처리 완료');
-    expect(statusSelect('RPT-002')).toHaveValue('처리 완료');
+    expect(statusSelect('RPT-001')).toBeEnabled();
   });
 
   it('removes the updated row immediately when it no longer matches the status filter', async () => {
@@ -287,7 +288,7 @@ describe('AdminReportsManagement', () => {
     });
 
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     await waitFor(() => expect(screen.queryByText('RPT-001')).not.toBeInTheDocument());
 
@@ -312,7 +313,7 @@ describe('AdminReportsManagement', () => {
 
     await renderLoaded();
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     fireEvent.change(screen.getByRole('combobox', { name: '전체 유형' }), {
       target: { value: '게시글' },
@@ -332,7 +333,7 @@ describe('AdminReportsManagement', () => {
     });
     const callsBeforePatchResolution = adminReportApi.fetchAdminReports.mock.calls.length;
 
-    patch.resolve(resolvedReport);
+    patch.resolve(reviewedReport);
     await waitFor(() => {
       expect(adminReportApi.fetchAdminReports.mock.calls.length)
         .toBeGreaterThan(callsBeforePatchResolution);
@@ -373,12 +374,12 @@ describe('AdminReportsManagement', () => {
     const select = statusSelect('RPT-001');
 
     act(() => {
-      fireEvent.change(select, { target: { value: '처리 완료' } });
+      fireEvent.change(select, { target: { value: '검토 중' } });
       fireEvent.change(select, { target: { value: '검토 중' } });
     });
 
     expect(adminReportApi.updateAdminReportStatus).toHaveBeenCalledTimes(1);
-    patch.resolve(resolvedReport);
+    patch.resolve(reviewedReport);
   });
 
   it('preserves the row and does not refetch after PATCH failure', async () => {
@@ -389,7 +390,7 @@ describe('AdminReportsManagement', () => {
     const callsBeforeChange = adminReportApi.fetchAdminReports.mock.calls.length;
 
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
 
     expect(await screen.findByRole('alert')).toHaveTextContent('상태 변경 실패');
@@ -397,6 +398,41 @@ describe('AdminReportsManagement', () => {
     expect(statusSelect('RPT-001')).toHaveValue('접수');
     expect(statusSelect('RPT-001')).toBeEnabled();
     expect(adminReportApi.fetchAdminReports).toHaveBeenCalledTimes(callsBeforeChange);
+  });
+
+  it('offers only the RECEIVED → IN_REVIEW transition and locks in-review or closed rows', async () => {
+    const inReview = { ...secondReport, status: 'IN_REVIEW' as const };
+    const closed = { ...report, id: '77777777-7777-4777-8777-777777777777', reportCode: 'RPT-003', status: 'REJECTED' as const };
+    adminReportApi.fetchAdminReports.mockResolvedValue(pageResponse([report, inReview, closed]));
+    await renderLoaded([report, inReview, closed]);
+
+    const options = (code: string) => Array.from(statusSelect(code).querySelectorAll('option')).map((option) => option.value);
+    expect(options('RPT-001')).toEqual(['접수', '검토 중']);
+    expect(statusSelect('RPT-001')).toBeEnabled();
+    expect(options('RPT-002')).toEqual(['검토 중']);
+    expect(statusSelect('RPT-002')).toBeDisabled();
+    expect(options('RPT-003')).toEqual(['반려']);
+    expect(statusSelect('RPT-003')).toBeDisabled();
+
+    fireEvent.change(statusSelect('RPT-003'), { target: { value: '검토 중' } });
+    expect(adminReportApi.updateAdminReportStatus).not.toHaveBeenCalled();
+  });
+
+  it('shows the server message and refetches the list after a 409 conflict', async () => {
+    adminReportApi.updateAdminReportStatus.mockRejectedValueOnce(
+      new ApiError('이미 처리 완료되었거나 반려된 신고는 상태를 변경할 수 없습니다.', 409),
+    );
+    adminReportApi.fetchAdminReports
+      .mockResolvedValueOnce(pageResponse([report]))
+      .mockResolvedValueOnce(pageResponse([{ ...report, status: 'RESOLVED' }]));
+    await renderLoaded();
+
+    fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('이미 처리 완료되었거나 반려된 신고는');
+    await waitFor(() => expect(statusSelect('RPT-001')).toHaveValue('처리 완료'));
+    expect(statusSelect('RPT-001')).toBeDisabled();
+    expect(adminReportApi.fetchAdminReports).toHaveBeenCalledTimes(2);
   });
 
   it('aborts and ignores a late PATCH when the account changes', async () => {
@@ -409,7 +445,7 @@ describe('AdminReportsManagement', () => {
     expect(await screen.findByText('RPT-001')).toBeInTheDocument();
 
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     const mutationSignal = adminReportApi.updateAdminReportStatus.mock.calls[0][2];
     authState.user = { id: 'admin-b' };
@@ -418,7 +454,7 @@ describe('AdminReportsManagement', () => {
     expect(await screen.findByText('RPT-002')).toBeInTheDocument();
     expect(mutationSignal).toBeInstanceOf(AbortSignal);
     expect(mutationSignal.aborted).toBe(true);
-    patch.resolve(resolvedReport);
+    patch.resolve(reviewedReport);
     await act(async () => {
       await Promise.resolve();
     });
@@ -432,13 +468,13 @@ describe('AdminReportsManagement', () => {
     const view = render(<AdminReportsManagement />);
     expect(await screen.findByText('RPT-001')).toBeInTheDocument();
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     const mutationSignal = adminReportApi.updateAdminReportStatus.mock.calls[0][2];
 
     view.unmount();
     expect(mutationSignal.aborted).toBe(true);
-    patch.resolve(resolvedReport);
+    patch.resolve(reviewedReport);
   });
 
   it('does not unlock on a last-page correction until the corrected GET applies', async () => {
@@ -467,7 +503,7 @@ describe('AdminReportsManagement', () => {
     });
     const correctedPageSelect = statusSelect('RPT-001');
     fireEvent.change(correctedPageSelect, {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
 
     await waitFor(() => {
@@ -478,7 +514,8 @@ describe('AdminReportsManagement', () => {
     });
     expect(correctedPageSelect).toBeDisabled();
 
-    correctedPage.resolve(pageResponse([resolvedReport]));
+    // 검토 중 행은 항상 비활성이므로, 잠금 해제를 관찰하려고 재동기화 응답은 접수 상태로 둔다.
+    correctedPage.resolve(pageResponse([report]));
     await waitFor(() => expect(statusSelect('RPT-001')).toBeEnabled());
   });
 
@@ -486,11 +523,12 @@ describe('AdminReportsManagement', () => {
     adminReportApi.fetchAdminReports
       .mockResolvedValueOnce(pageResponse([report]))
       .mockRejectedValueOnce(new Error('목록 실패'))
-      .mockResolvedValueOnce(pageResponse([resolvedReport]));
+      // 검토 중 행은 항상 비활성이므로, 잠금 해제를 관찰하려고 재동기화 응답은 접수 상태로 둔다.
+      .mockResolvedValueOnce(pageResponse([report]));
 
     await renderLoaded();
     fireEvent.change(statusSelect('RPT-001'), {
-      target: { value: '처리 완료' },
+      target: { value: '검토 중' },
     });
     expect(await screen.findByText(
       '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
