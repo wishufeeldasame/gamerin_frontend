@@ -59,10 +59,9 @@ export default function MembershipPage() {
   const priceLabel = product ? `${product.price.toLocaleString('ko-KR')}원` : '';
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
+    <div className="page-container">
       <header>
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">GamerIN Membership</p>
-        <h1 className="mt-1 text-3xl font-black tracking-tight text-black dark:text-zinc-100">GamerIN 멤버십</h1>
+        <h1 className="page-title">GamerIN 멤버십</h1>
       </header>
 
       <section className="mt-7 rounded-2xl border border-zinc-100 bg-white p-5 shadow-sm dark:border-line dark:bg-surface sm:p-7">
@@ -105,7 +104,7 @@ export default function MembershipPage() {
               type="button"
               disabled={!product || paymentOpen}
               onClick={() => setPaymentOpen(true)}
-              className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-xl bg-black px-6 text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black sm:w-auto"
+              className="btn-primary mt-6 w-full sm:w-auto"
             >
               {!product
                 ? '현재 구매할 수 없어요'

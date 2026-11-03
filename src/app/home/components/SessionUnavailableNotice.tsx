@@ -40,7 +40,7 @@ export function SessionUnavailableNotice({ loginHref = '/login' }: { loginHref?:
           onClick={() => void handleRetry()}
           disabled={isRetrying}
           aria-busy={isRetrying}
-          className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+          className="btn-primary mt-5 w-full"
         >
           {isRetrying ? <Loader2 size={16} className="animate-spin" aria-hidden="true" /> : null}
           {isRetrying ? '확인하는 중...' : '다시 시도'}

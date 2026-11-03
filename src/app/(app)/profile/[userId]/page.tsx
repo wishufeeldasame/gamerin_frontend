@@ -142,21 +142,21 @@ const connectedPlatformMeta: Record<
 > = {
   youtube: {
     label: 'YouTube',
-    placeholder: '@johndoe_gaming',
+    placeholder: '@채널 핸들',
     color: 'bg-red-500',
     icon: Tv,
     buildUrl: (handle) => `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`,
   },
   twitch: {
     label: 'Twitch',
-    placeholder: 'johndoe',
+    placeholder: '채널 ID',
     color: 'bg-purple-600',
     icon: Tv,
     buildUrl: (handle) => `https://www.twitch.tv/${handle.replace(/^@/, '')}`,
   },
   soop: {
     label: 'SOOP (AfreecaTV)',
-    placeholder: 'johndoe',
+    placeholder: '채널 ID',
     color: 'bg-blue-500',
     icon: Tv,
     buildUrl: (handle) => `https://ch.sooplive.co.kr/${handle.replace(/^@/, '')}`,
@@ -910,7 +910,7 @@ export default function ProfilePage() {
   const renderConnectedAccounts = () => (
     <section className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
       <div className="mb-6">
-        <h2 className="text-3xl font-black text-black">연결된 계정</h2>
+        <h2 className="section-title">연결된 계정</h2>
         <p className="mt-1 text-sm font-bold text-zinc-400">
           YouTube, Twitch, SOOP 채널을 프로필에 표시할 수 있습니다.
         </p>
@@ -979,7 +979,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => handleConnectPlatform(platformId)}
-                      className="h-11 rounded-xl bg-black px-5 text-sm font-black text-white transition hover:bg-zinc-800"
+                      className="btn-primary"
                     >
                       연결
                     </button>
@@ -1007,7 +1007,7 @@ export default function ProfilePage() {
         <p className="font-black text-red-500">{error ?? '프로필을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
-          className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+          className="btn-primary"
         >
           홈으로 돌아가기
         </Link>
@@ -1027,31 +1027,31 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl bg-background pb-20">
-      <div className="relative h-56 overflow-hidden bg-zinc-950">
+    <div className="mx-auto min-h-screen w-full max-w-6xl bg-background pb-20 md:px-8 md:pt-6">
+      <div className="relative h-32 overflow-hidden bg-zinc-950 md:h-56 md:rounded-2xl">
         <Image
           src={displayedCover}
           alt={`${profile.nickname} profile cover`}
           fill
           priority
           unoptimized
-          sizes="(max-width: 896px) 100vw, 896px"
+          sizes="(max-width: 1152px) 100vw, 1152px"
           className="object-cover"
         />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
       </div>
 
-      <div className="px-4 md:px-8">
-        <div className="relative mb-8 flex items-end justify-between -mt-16">
+      <div className="px-4 md:px-6">
+        <div className="relative mb-4 flex items-end justify-between -mt-10 md:mb-8 md:-mt-16">
           <div className="relative">
-            <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
+            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
               {displayedAvatar ? (
                 <Image
                   src={displayedAvatar}
                   alt="프로필 이미지"
                   fill
                   unoptimized
-                  sizes="144px"
+                  sizes="(max-width: 768px) 80px, 144px"
                   className="object-cover"
                 />
               ) : (
@@ -1060,28 +1060,28 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <div className="mb-2 flex flex-wrap justify-end gap-3">
+          <div className="flex flex-wrap justify-end gap-1.5 md:mb-1 md:gap-2">
             {isOwnProfile ? (
               <>
             <Link
               href="/wallet"
-              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200 lg:hidden"
+              className="btn-secondary-square max-md:h-9! max-md:w-9! lg:hidden"
               aria-label="내 지갑"
             >
-              <WalletCards size={20} />
+              <WalletCards size={18} />
             </Link>
             <Link
               href="/settings"
-              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+              className="btn-secondary-square max-md:h-9! max-md:w-9!"
               aria-label="설정"
             >
-              <Settings size={20} />
+              <Settings size={18} />
             </Link>
             <button
               onClick={() => setShowEditProfileModal(true)}
-              className="flex items-center gap-2 rounded-2xl bg-black px-8 py-3 text-sm font-black text-white shadow-lg shadow-zinc-200 transition-all hover:bg-zinc-800"
+              className="btn-primary max-md:h-9! max-md:px-3.5! max-md:text-xs!"
             >
-              <Edit3 size={18} />
+              <Edit3 size={14} />
               프로필 수정
             </button>
               </>
@@ -1091,15 +1091,15 @@ export default function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => setProfileReportMenuOpen((current) => !current)}
-                    className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+                    className="btn-secondary-square max-md:h-9! max-md:w-9!"
                     aria-label="사용자 메뉴"
                     aria-expanded={profileReportMenuOpen}
                   >
-                    <MoreHorizontal size={20} />
+                    <MoreHorizontal size={18} />
                   </button>
 
                   {profileReportMenuOpen ? (
-                    <div className="absolute right-0 top-14 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                    <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
                       <button
                         type="button"
                         onClick={() => {
@@ -1125,18 +1125,16 @@ export default function ProfilePage() {
                   type="button"
                   onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
                   title="메시지"
-                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+                  className="btn-secondary-square max-md:h-9! max-md:w-9!"
                   aria-label="메시지"
                 >
-                  <MessageCircle size={20} />
+                  <MessageCircle size={18} />
                 </button>
                 <button
                   type="button"
                   onClick={handleToggleFollow}
                   disabled={followLoading}
-                  className={`flex items-center gap-2 rounded-2xl px-8 py-3 text-sm font-black shadow-lg shadow-zinc-200 transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isFollowing ? 'bg-zinc-100 text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
-                  }`}
+                  className={`${isFollowing ? 'btn-secondary' : 'btn-primary'} max-md:h-9! max-md:px-3.5! max-md:text-xs!`}
                 >
                   {isFollowing ? '팔로잉' : '팔로우'}
                 </button>
@@ -1145,23 +1143,23 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h1 className="flex items-center gap-2 text-4xl font-black uppercase italic tracking-tighter text-black">
+            <h1 className="page-title flex items-center gap-2">
               {profile.nickname}
               <MembershipBadge active={profile.membershipBadge} />
             </h1>
             <div className="flex flex-wrap items-center gap-2">
-              <p className="font-bold tracking-tight text-zinc-400">@{profile.handle}</p>
+              <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
               {!isOwnProfile && profile.followsViewer ? (
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black leading-none tracking-tight text-zinc-500">
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black leading-none tracking-tight text-zinc-500">
                   나를 팔로우합니다
                 </span>
               ) : null}
             </div>
           </div>
 
-          <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
+          <p className="max-w-xl whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-800 md:text-base">
             {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
           </p>
 
@@ -1187,41 +1185,41 @@ export default function ProfilePage() {
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-x-6 gap-y-2 pt-2 md:gap-8">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 md:gap-8">
             <button
               type="button"
               onClick={() => openFollowList('followers')}
               className="flex items-center gap-2 text-left transition hover:opacity-70"
             >
-              <span className="text-2xl font-black tracking-tighter text-black">
+              <span className="text-lg font-black text-black md:text-2xl">
                 {profile.followersCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">팔로워</span>
+              <span className="text-xs font-bold text-zinc-500">팔로워</span>
             </button>
             <button
               type="button"
               onClick={() => openFollowList('following')}
               className="flex items-center gap-2 text-left transition hover:opacity-70"
             >
-              <span className="text-2xl font-black tracking-tighter text-black">
+              <span className="text-lg font-black text-black md:text-2xl">
                 {profile.followingCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">팔로잉</span>
+              <span className="text-xs font-bold text-zinc-500">팔로잉</span>
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-black tracking-tighter text-black">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">게시물</span>
+              <span className="text-lg font-black text-black md:text-2xl">{profile.postCount.toLocaleString()}</span>
+              <span className="text-xs font-bold text-zinc-500">게시물</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="sticky top-16 z-10 mt-12 flex gap-6 border-b border-zinc-100 bg-white px-4 md:gap-10 md:px-8">
+      <div className="sticky top-16 z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
         {tabs.map((tab) => (
           <button
             key={tab.name}
             onClick={() => setActiveTab(tab.name)}
-            className={`relative flex items-center gap-2 pb-5 text-sm font-black uppercase tracking-widest transition-all ${
+            className={`relative flex h-12 flex-1 items-center justify-center gap-2 text-sm font-black transition-all md:flex-none ${
               activeTab === tab.name ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-300 hover:text-zinc-500'
             }`}
           >
@@ -1234,9 +1232,9 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      <div className="px-4 pt-8 md:px-8 md:pt-10">
+      <div className="pt-0 md:pt-6">
         {activeTab === 'stats' ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-6 md:p-8">
+          <div className="m-4 rounded-2xl border border-zinc-200 bg-white p-4 md:m-0 md:p-8">
             <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
               <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
 
@@ -1294,7 +1292,7 @@ export default function ProfilePage() {
                         <div className="min-w-0">
                           <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
                           {entry.detail ? (
-                            <p className="max-w-xl break-keep text-[11px] font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
+                            <p className="max-w-xl break-keep text-xs font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
                           ) : null}
                           <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
                         </div>
@@ -1323,23 +1321,23 @@ export default function ProfilePage() {
         ) : null}
 
         {activeTab === 'posts' ? (
-          <div className="mx-auto max-w-2xl space-y-4">
+          <div className="md:space-y-4">
             {postsLoading ? (
-              <div className="py-24 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>
+              <div className="py-16 text-center text-sm font-bold text-zinc-400">게시물을 불러오는 중...</div>
             ) : postsError ? (
-              <div className="py-24 text-center">
+              <div className="py-16 text-center">
                 <p className="font-black text-red-500">{postsError}</p>
                 <button
                   type="button"
                   onClick={() => void reloadPosts()}
-                  className="mt-5 rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+                  className="btn-primary mt-4"
                 >
                   다시 시도
                 </button>
               </div>
             ) : posts.length === 0 ? (
-              <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">아직 게시물이 없습니다</h3>
+              <div className="py-16 text-center">
+                <h3 className="section-title mb-1">아직 게시물이 없습니다</h3>
                 <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시물이 없습니다.</p>
               </div>
             ) : (
@@ -1364,7 +1362,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => void loadMorePosts()}
                 disabled={loadingMorePosts}
-                className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                className="btn-secondary w-full"
               >
                 {loadingMorePosts ? '불러오는 중...' : '게시물 더 보기'}
               </button>
@@ -1373,22 +1371,22 @@ export default function ProfilePage() {
         ) : null}
 
         {activeTab === 'media' ? (
-          <div className="space-y-6">
+          <div className="space-y-4 p-4 md:space-y-6 md:p-0">
             {isOwnProfile ? renderConnectedAccounts() : null}
 
             {mediaItems.length === 0 ? (
-              <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">아직 미디어가 없습니다</h3>
+              <div className="py-16 text-center">
+                <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
                 <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시물이 여기에 표시됩니다.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-3 gap-1 md:gap-4">
                 {mediaItems.map((item) => (
                   <button
                     key={item.mediaId}
                     type="button"
                     onClick={() => handleOpenPost(item.postId)}
-                    className="group relative aspect-square overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                     aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시물 상세 보기`}
                   >
                     {item.mediaType === 'VIDEO' ? (
@@ -1402,8 +1400,8 @@ export default function ProfilePage() {
                           className="h-full w-full bg-black object-cover transition duration-300 group-hover:scale-105"
                         />
                         <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
-                            <Play size={22} className="ml-0.5 fill-white" />
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm md:h-12 md:w-12">
+                            <Play size={18} className="ml-0.5 fill-white" />
                           </span>
                         </span>
                       </>
@@ -1422,7 +1420,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={handleLoadMoreMedia}
                 disabled={loadingMoreMedia}
-                className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                className="btn-secondary w-full"
               >
                 {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
               </button>
@@ -1438,8 +1436,8 @@ export default function ProfilePage() {
         />
       ) : null}
       {isOwnProfile && disconnectTarget && disconnectTargetConfig ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/45 px-4">
-          <div className="w-full max-w-md rounded-[28px] bg-white p-8 shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
             <h2 className="text-2xl font-black tracking-tight text-black">
               {disconnectTargetConfig.displayName} 전적 연동을 해제할까요?
             </h2>
@@ -1494,8 +1492,8 @@ export default function ProfilePage() {
         />
       ) : null}
       {followListType ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-zinc-400">

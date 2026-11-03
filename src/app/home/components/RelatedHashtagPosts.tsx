@@ -1,0 +1,54 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { fetchHashtagPosts } from '@/lib/community-search-api';
+import type { PostRecord } from '@/lib/feed-api';
+import { RelativeTime } from './RelativeTime';
+
+const RELATED_POST_COUNT = 4;
+const HASHTAG_PATTERN = /#([\p{L}\p{N}_]{1,50})/u;
+
+export function firstHashtag(content: string | null | undefined) {
+  return content?.match(HASHTAG_PATTERN)?.[1] ?? null;
+}
+
+// 게시물의 첫 해시태그로 같은 태그 글을 몇 개 보여 준다. 실패하거나 결과가 없으면 아무것도 그리지 않는다.
+export function RelatedHashtagPosts({ content, excludePostId }: { content: string | null; excludePostId: string }) {
+  const hashtag = firstHashtag(content);
+  const [posts, setPosts] = useState<PostRecord[]>([]);
+
+  useEffect(() => {
+    if (!hashtag) return;
+    const controller = new AbortController();
+    fetchHashtagPosts(hashtag, null, RELATED_POST_COUNT + 1, { signal: controller.signal })
+      .then((page) => setPosts(page.items.filter((item) => item.postId !== excludePostId).slice(0, RELATED_POST_COUNT)))
+      .catch(() => setPosts([]));
+    return () => controller.abort();
+  }, [excludePostId, hashtag]);
+
+  if (!hashtag || posts.length === 0) return null;
+
+  return (
+    <section aria-labelledby="related-posts-title" className="mt-6 px-4 md:px-0">
+      <h2 id="related-posts-title" className="section-title mb-3">
+        #{hashtag} 관련 게시물
+      </h2>
+      <ul className="grid gap-2 md:grid-cols-2">
+        {posts.map((item) => (
+          <li key={item.postId}>
+            <Link
+              href={`/posts/${encodeURIComponent(item.postId)}`}
+              className="block h-full rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-line dark:bg-surface"
+            >
+              <p className="text-xs font-bold text-zinc-400">
+                {item.author} · <RelativeTime createdAt={item.createdAt} />
+              </p>
+              <p className="mt-1 line-clamp-2 text-sm font-medium text-zinc-800">{item.content || '미디어 게시글'}</p>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}

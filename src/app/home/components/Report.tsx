@@ -119,12 +119,12 @@ export function ReportContentModal({
 
   if (submitted) {
     return (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-4">
+      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
         <section
           role="dialog"
           aria-modal="true"
           aria-labelledby="report-success-title"
-          className="w-full max-w-sm rounded-[22px] bg-white p-6 text-center shadow-2xl"
+          className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
         >
           <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-[#f5b93d] dark:bg-amber-950">
             <CheckCircle2 size={22} />
@@ -148,12 +148,12 @@ export function ReportContentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-content-title"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-hidden rounded-[22px] bg-white shadow-2xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
           <h2 id="report-content-title" className="text-xl font-black text-black">
@@ -289,12 +289,12 @@ export function ReportContentModal({
       </section>
 
       {confirmOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 px-4">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="report-confirm-title"
-            className="w-full max-w-md rounded-[24px] bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
           >
             <div className="flex items-start justify-between gap-4">
               <h2 id="report-confirm-title" className="text-xl font-black text-black">

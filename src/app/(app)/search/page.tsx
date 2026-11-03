@@ -48,11 +48,16 @@ function normalizeQuery(value: string) {
   return value.trim().slice(0, 100);
 }
 
-function EmptyState({ query, label }: { query: string; label: string }) {
+function EmptyState({ query, label, compact = false }: { query: string; label: string; compact?: boolean }) {
+  // 전체 탭의 섹션별 빈 결과는 한 줄로 줄여 다른 섹션 결과가 밀리지 않게 한다.
+  if (compact) {
+    return <p className="rounded-xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-400 dark:bg-surface">{label} 결과가 없습니다.</p>;
+  }
+
   return (
-    <div className="rounded-[32px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
-      <Search className="mx-auto text-zinc-300 dark:text-zinc-600" size={30} />
-      <h2 className="mt-4 text-xl font-black text-zinc-900 dark:text-zinc-100">
+    <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-line dark:bg-surface">
+      <Search className="mx-auto text-zinc-300 dark:text-zinc-600" size={28} />
+      <h2 className="section-title mt-3">
         {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
       </h2>
       <p className="mt-2 text-sm font-bold text-zinc-400">
@@ -390,7 +395,7 @@ function SearchPageContent() {
       : loadSearch;
 
   const renderPosts = (items: PostRecord[]) => (
-    <div className="space-y-4">
+    <div className="-mx-4 md:mx-0 md:space-y-4">
       {items.map((post) => (
         <Post
           key={post.postId}
@@ -409,17 +414,17 @@ function SearchPageContent() {
   );
 
   return (
-    <div className="border-t-4 border-[#f5b93d]">
-      <div className="mx-auto w-full max-w-5xl px-5 py-6 sm:px-8">
+    <div>
+      <div className="page-container">
         <header className="pb-7">
-          <h1 className="text-2xl font-black text-black dark:text-zinc-100">검색 결과</h1>
-          <p className="mt-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+          <h1 className="page-title">검색 결과</h1>
+          <p className="page-subtitle">
             {query ? `'${query}'에 대한 결과` : '검색어를 입력해 주세요'}
           </p>
           <form
             role="search"
             onSubmit={handleSearchSubmit}
-            className="mt-5 flex h-12 w-full items-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-surface"
+            className="mt-4 flex h-12 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-4 pr-1.5 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-surface"
           >
             <Search
               size={19}
@@ -437,7 +442,7 @@ function SearchPageContent() {
             />
             <button
               type="submit"
-              className="shrink-0 rounded-xl bg-black px-4 py-2 text-sm font-black text-white transition hover:bg-zinc-800 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#dca62f]"
+              className="h-9 shrink-0 rounded-lg bg-black px-4 text-sm font-bold text-white transition hover:bg-zinc-800 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#dca62f]"
             >
               검색
             </button>
@@ -472,16 +477,16 @@ function SearchPageContent() {
 
         <section className="mt-8 min-h-72" aria-live="polite">
           {loading ? (
-            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface">
+            <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface">
               검색 결과를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+            <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
               <p className="font-black text-red-500 dark:text-red-300">{error}</p>
               <button
                 type="button"
                 onClick={() => void reload()}
-                className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+                className="btn-primary mt-5"
               >
                 다시 시도
               </button>
@@ -504,7 +509,7 @@ function SearchPageContent() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState query={query} label="사용자" />
+                    <EmptyState compact query={query} label="사용자" />
                   )}
                 </section>
 
@@ -521,7 +526,7 @@ function SearchPageContent() {
                       ))}
                     </div>
                   ) : (
-                    <EmptyState query={query} label="해시태그" />
+                    <EmptyState compact query={query} label="해시태그" />
                   )}
                 </section>
 
@@ -531,7 +536,7 @@ function SearchPageContent() {
                     hasMore={overview.posts.hasMore}
                     onMore={() => setTab('posts')}
                   />
-                  {overview.posts.items.length > 0 ? renderPosts(overview.posts.items) : <EmptyState query={query} label="게시글" />}
+                  {overview.posts.items.length > 0 ? renderPosts(overview.posts.items) : <EmptyState compact query={query} label="게시글" />}
                 </section>
               </div>
             ) : (
@@ -596,7 +601,7 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-5xl px-8 py-16 text-center text-sm font-bold text-zinc-400">
+        <div className="mx-auto max-w-6xl px-4 py-16 text-center text-sm font-bold text-zinc-400">
           검색 화면을 불러오는 중입니다.
         </div>
       }

@@ -88,7 +88,7 @@ describe('AuthTextField', () => {
 
   it('정상이면 포커스 링을 그린다', () => {
     render(<AuthTextField placeholder="필드" />);
-    expect(screen.getByPlaceholderText('필드')).toHaveClass('border-zinc-200', 'focus:border-black', 'focus:ring-1', 'focus:ring-black', 'text-[15px]');
+    expect(screen.getByPlaceholderText('필드')).toHaveClass('border-zinc-200', 'focus:border-black', 'focus:ring-1', 'focus:ring-black', 'text-base');
   });
 
   it("'reset' 변형은 기존 재설정 화면 스타일(글자 크기·포커스 링 없음, 아이콘 없어도 넓은 여백)을 유지한다", () => {
@@ -96,7 +96,7 @@ describe('AuthTextField', () => {
 
     const input = screen.getByPlaceholderText('필드');
     expect(input).toHaveClass('px-14', 'focus:border-black', 'placeholder:text-zinc-400');
-    expect(input).not.toHaveClass('text-[15px]');
+    expect(input).not.toHaveClass('text-base');
     expect(input).not.toHaveClass('focus:ring-1');
     expect(input).not.toHaveClass('placeholder:font-medium');
   });

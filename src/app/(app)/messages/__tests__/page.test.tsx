@@ -37,7 +37,8 @@ import MessagesPage from '../page';
 const conversation: Conversation = {
   id: 'conversation-1',
   recipient: { id: 'recipient-1', name: '대화상대', handle: '@MixedCase', role: 'USER', online: false },
-  messages: [],
+  // 목록은 메시지가 있는 대화만 보여 주므로 마지막 메시지 하나를 둔다.
+  messages: [{ id: 'message-0', senderId: 'recipient-1', text: '안녕하세요', createdAt: '2026-10-06T15:05:00+09:00', read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null }],
   unreadCount: 0,
   updatedAt: '2026-10-06T15:05:00+09:00',
 };
@@ -89,6 +90,47 @@ describe('메시지 화면 표시와 기존 검색', () => {
     await waitFor(() => expect(screen.getAllByText('@MixedCase')).toHaveLength(2));
     expect(screen.queryByText('USER')).not.toBeInTheDocument();
     expect(screen.queryByText('접속 중')).not.toBeInTheDocument();
+  });
+
+  it('메시지가 없는 대화는 목록에 표시하지 않는다', async () => {
+    const empty = { ...conversation, id: 'conversation-empty', messages: [], recipient: { ...conversation.recipient, id: 'recipient-empty', name: '빈대화상대' } };
+    mocks.list.mockResolvedValue([conversation, empty]);
+    render(<MessagesPage />);
+    await screen.findByRole('button', { name: /대화상대/ });
+    expect(screen.queryByRole('button', { name: /빈대화상대/ })).not.toBeInTheDocument();
+    expect(screen.getByText('대화 1개')).toBeInTheDocument();
+  });
+
+  it('대화 목록은 더보기 버튼 없이 끝에 닿으면 이어서 그린다', async () => {
+    const many = Array.from({ length: 25 }, (_, index) => {
+      const order = String(index + 1).padStart(2, '0');
+      return {
+        ...conversation,
+        id: `conversation-${order}`,
+        recipient: { ...conversation.recipient, id: `recipient-${order}`, name: `상대${order}`, handle: `@user${order}` },
+      };
+    });
+    mocks.list.mockResolvedValue(many);
+    let intersect: IntersectionObserverCallback = () => {};
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = callback;
+      }
+      observe() {}
+      disconnect() {}
+    });
+
+    try {
+      render(<MessagesPage />);
+      await screen.findByRole('button', { name: /상대01/ });
+      expect(screen.getAllByRole('button', { name: /상대\d\d/ })).toHaveLength(20);
+      expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument();
+
+      act(() => intersect([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver));
+      expect(screen.getAllByRole('button', { name: /상대\d\d/ })).toHaveLength(25);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('목록 검색에서 화면에 보이지 않는 role은 제외한다', async () => {

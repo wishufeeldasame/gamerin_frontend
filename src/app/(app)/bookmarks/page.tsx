@@ -181,14 +181,12 @@ export default function BookmarksPage() {
   };
 
   return (
-    <div className="mx-auto max-w-4xl px-6 py-10">
-      <div className="mb-10 flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
+    // 불러오는 동안 화면보다 짧아지면 스크롤바가 사라졌다 다시 생겨 깜빡인다.
+    <div className={`page-container ${loading ? 'min-h-[100dvh]' : ''}`}>
+      <div className="mb-6 flex flex-col gap-4 md:mb-10 md:flex-row md:items-end md:justify-between">
         <div>
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-black text-white shadow-lg dark:bg-surface dark:text-[#f5b93d]">
-            <Bookmark size={24} className="fill-current" />
-          </div>
-          <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black dark:text-zinc-100">북마크</h1>
-          <p className="mt-3 text-xs font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+          <h1 className="page-title">북마크</h1>
+          <p className="page-subtitle">
             불러온 북마크 {bookmarks.length}개
           </p>
         </div>
@@ -203,7 +201,7 @@ export default function BookmarksPage() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시물, 작성자, 게임 검색"
-              className="w-full rounded-[20px] border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-surface dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              className="w-full rounded-2xl border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-surface dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
 
@@ -316,22 +314,22 @@ export default function BookmarksPage() {
 
 
       {loading ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-500">
+        <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-500">
           북마크를 불러오는 중...
         </div>
       ) : error ? (
-        <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
+        <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
           <p className="font-black text-red-500 dark:text-red-300">{error}</p>
           <button
             type="button"
             onClick={() => void reload()}
-            className="mt-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800"
+            className="btn-primary mt-5"
           >
             다시 시도
           </button>
         </div>
       ) : bookmarks.length === 0 ? (
-        <div className="rounded-[36px] border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
+        <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
           <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
             <Bookmark size={30} />
           </div>
@@ -349,7 +347,7 @@ export default function BookmarksPage() {
           </p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="-mx-4 md:mx-0 md:space-y-4">
           {bookmarks.map((post, index) => (
               <motion.div
                 key={post.postId}
@@ -358,7 +356,7 @@ export default function BookmarksPage() {
                 transition={{ delay: index * 0.04 }}
               >
                 {post.media.length > 0 ? (
-                  <div className="mb-2 flex flex-wrap items-center gap-2 px-2 text-[11px] font-black uppercase tracking-widest text-zinc-400 dark:text-zinc-500">
+                  <div className="mb-2 mt-4 flex flex-wrap items-center gap-2 px-4 text-xs font-black uppercase tracking-widest md:mt-0 md:px-2 text-zinc-400 dark:text-zinc-500">
                     <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-surface dark:text-zinc-400">
                       <ImageIcon size={12} />
                       미디어
@@ -370,7 +368,7 @@ export default function BookmarksPage() {
                     ) : null}
                   </div>
                 ) : query.trim() ? (
-                  <div className="mb-2 px-2 text-[11px] font-black text-zinc-400 dark:text-zinc-500">
+                  <div className="mb-2 mt-4 px-4 text-xs font-black text-zinc-400 dark:text-zinc-500 md:mt-0 md:px-2">
                     <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
                   </div>
                 ) : null}

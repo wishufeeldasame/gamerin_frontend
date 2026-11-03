@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { PostRecord, getInitials, sharePost } from '@/lib/feed-api';
 import { searchMessageRecipients, sharePostMessage } from '@/lib/message-api';
 import { MessageRecipient } from '@/lib/message-store';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 interface SharePostModalProps {
   post: PostRecord;
@@ -21,6 +22,7 @@ function buildPostUrl(postId: string) {
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
+  useEscapeKey(onClose);
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
@@ -127,11 +129,11 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 backdrop-blur-sm">
-      <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
+      <div role="dialog" aria-modal="true" aria-labelledby="share-post-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-zinc-100 px-5 py-4 md:px-6 md:py-5">
           <div>
-            <h2 className="text-xl font-black text-black">게시글 공유</h2>
+            <h2 id="share-post-title" className="text-xl font-black text-black">게시글 공유</h2>
             <p className="text-sm font-bold text-zinc-400">링크를 복사하거나 메시지로 보낼 사람을 선택하세요</p>
           </div>
           <button
@@ -144,7 +146,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
           </button>
         </div>
 
-        <div className="min-h-0 space-y-5 overflow-y-auto p-6">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5 md:space-y-5 md:p-6">
           <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
             <div className="mb-3 flex items-center gap-3">
               <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200">
@@ -180,7 +182,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             />
           </div>
 
-          <div className="max-h-72 space-y-2 overflow-y-auto pr-1">
+          <div className="space-y-2">
             {loading ? (
               <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
                 <Loader2 size={16} className="mr-2 animate-spin" />
@@ -214,7 +216,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
                             selected ? 'text-white/70' : 'text-zinc-400'
                           }`}
                         >
-                          {recipient.handle} · {recipient.role}
+                          {recipient.handle}
                         </span>
                       </span>
                     </span>
@@ -248,7 +250,9 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
               {errorMessage}
             </div>
           ) : null}
+        </div>
 
+        <div className="border-t border-zinc-100 px-5 py-4 md:px-6">
           <button
             type="button"
             onClick={() => void handleSend()}

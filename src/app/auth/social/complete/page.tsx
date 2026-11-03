@@ -118,7 +118,7 @@ export default function SocialCompletePage() {
         {accountCreated ? (
           <Link
             href="/login"
-            className="flex h-14 w-full items-center justify-center rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
+            className="flex h-12 w-full items-center justify-center rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
           >
             로그인 화면으로 이동
           </Link>
@@ -127,7 +127,7 @@ export default function SocialCompletePage() {
             type="button"
             onClick={handleSubmit}
             disabled={loading || !isSignupConsentComplete(consent)}
-            className="h-14 w-full rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+            className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
           >
             {loading ? '처리 중...' : '회원가입 완료'}
           </button>

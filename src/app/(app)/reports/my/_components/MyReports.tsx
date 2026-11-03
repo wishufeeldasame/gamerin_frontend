@@ -7,7 +7,6 @@ import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { fetchMyReports, type CreatedReport } from '@/lib/report-api';
 import type { PageResponse } from '@/types/api';
 import type { ReportStatus, ReportTargetType } from '@/types/report';
-import { AdminPagination } from '@/app/(admin)/admin/_components/AdminPagination';
 import { AdminStatePanel } from '@/app/(admin)/admin/_components/AdminStatePanel';
 import { AdminStatusBadge } from '@/app/(admin)/admin/_components/AdminStatusBadge';
 
@@ -59,7 +58,7 @@ function MyReportsList() {
     <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
       <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-700">
         <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">접수 내역</h2>
-        <button type="button" disabled={loading} onClick={() => setRevision((current) => current + 1)} className="rounded-xl border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 disabled:opacity-50 dark:border-zinc-600 dark:text-zinc-200">새로고침</button>
+        <button type="button" disabled={loading} onClick={() => setRevision((current) => current + 1)} className="btn-secondary">새로고침</button>
       </div>
       {loading ? <AdminStatePanel state="loading" title="내 신고를 불러오는 중입니다." /> : error ? (
         <AdminStatePanel state="error" title="내 신고를 불러오지 못했습니다." description={error} onRetry={() => setRevision((current) => current + 1)} />
@@ -82,7 +81,7 @@ function MyReportsList() {
                       aria-expanded={expandedId === report.id}
                       aria-controls={`report-details-${report.id}`}
                       onClick={() => setExpandedId((current) => current === report.id ? null : report.id)}
-                      className="whitespace-nowrap font-semibold text-blue-600 hover:underline dark:text-blue-400"
+                      className="whitespace-nowrap font-bold text-black underline-offset-2 hover:underline dark:text-zinc-100"
                     >
                       내용 {expandedId === report.id ? '접기' : '보기'}
                     </button>
@@ -100,8 +99,22 @@ function MyReportsList() {
             ))}</tbody>
           </table>
         </div>
-      ) : <AdminStatePanel state="empty" title="접수한 신고가 없습니다." description="신고를 접수하면 이곳에서 처리 상태를 확인할 수 있습니다." />}
-      {!loading && !error && result ? <AdminPagination currentPage={result.number} totalPages={result.totalPages} totalItems={result.totalElements} pageSize={result.size} itemLabel="건" onPageChange={setCurrentPage} /> : null}
+      ) : (
+        <div className="px-5 py-14 text-center">
+          <p className="section-title">접수한 신고가 없습니다.</p>
+          <p className="mt-1 text-sm font-medium text-zinc-500">신고를 접수하면 이곳에서 처리 상태를 확인할 수 있습니다.</p>
+        </div>
+      )}
+      {/* 한 페이지뿐이면 페이지 이동을 보여 주지 않는다. */}
+      {!loading && !error && result && result.totalPages > 1 ? (
+        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-5 py-3 dark:border-zinc-700">
+          <span className="text-sm font-medium text-zinc-500">전체 {result.totalElements}건 · {result.number + 1}/{result.totalPages}쪽</span>
+          <div className="flex gap-2">
+            <button type="button" disabled={result.number <= 0} onClick={() => setCurrentPage(result.number - 1)} className="btn-secondary">이전</button>
+            <button type="button" disabled={result.number + 1 >= result.totalPages} onClick={() => setCurrentPage(result.number + 1)} className="btn-secondary">다음</button>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -112,10 +125,10 @@ export function MyReports() {
   if (!user) return null;
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8 sm:px-6">
+    <main className="page-container space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">내 신고</h1><p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">내가 접수한 신고와 현재 처리 상태를 확인합니다.</p></div>
-        <Link href="/settings" className="text-sm font-semibold text-zinc-600 hover:underline dark:text-zinc-300">설정으로 돌아가기</Link>
+        <div><h1 className="page-title">내 신고</h1><p className="page-subtitle">내가 접수한 신고와 현재 처리 상태를 확인합니다.</p></div>
+        <Link href="/settings" className="btn-secondary">설정으로 돌아가기</Link>
       </div>
       <MyReportsList key={user.id} />
     </main>

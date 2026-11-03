@@ -21,14 +21,6 @@ export interface PostMedia {
   durationSeconds?: number | null;
 }
 
-export interface ExternalLinkCard {
-  url: string;
-  host: string;
-  title: string;
-  description: string;
-  thumbnailUrl: string | null;
-}
-
 export interface ReposterInfo {
   userId: string;
   nickname: string;
@@ -46,7 +38,6 @@ export interface PostRecord {
   game?: string | null;
   content: string | null;
   media: PostMedia[];
-  externalLink?: ExternalLinkCard | null;
   likes: number;
   comments: number;
   shares: number;
@@ -319,13 +310,11 @@ export async function fetchFeed(
 
 export async function createJsonPost(payload: {
   content?: string;
-  externalLinkUrl?: string;
 }) {
   const post = await apiRequest<PostRecord>('/api/v1/posts', {
     method: 'POST',
     body: JSON.stringify({
       content: payload.content || null,
-      externalLinkUrl: payload.externalLinkUrl || null,
     }),
   });
 

@@ -14,7 +14,6 @@ import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 
 export type PostDraft = {
   content: string;
-  externalLinkUrl: string;
   imageFiles: File[];
   videoFile: File | null;
   thumbnailFile: File | null;
@@ -54,7 +53,7 @@ function createPendingId() {
 
 async function sendPostDraft(draft: PostDraft): Promise<MultipartPostResult> {
   if (draft.imageFiles.length === 0 && !draft.videoFile) {
-    return { kind: 'post', post: await createJsonPost({ content: draft.content, externalLinkUrl: draft.externalLinkUrl }) };
+    return { kind: 'post', post: await createJsonPost({ content: draft.content }) };
   }
 
   const formData = new FormData();

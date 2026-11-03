@@ -14,7 +14,7 @@ interface AuthPageShellProps {
 }
 
 const titleClassName = 'text-4xl font-black tracking-tighter text-black';
-const descriptionClassName = 'text-[16px] font-medium leading-relaxed text-zinc-600';
+const descriptionClassName = 'text-base font-medium leading-relaxed text-zinc-600';
 
 // 좌측 로고 패널과 우측 폼 영역으로 나뉜 인증 화면의 공통 레이아웃.
 export function AuthPageShell({ title, description, icon, back, children }: AuthPageShellProps) {
@@ -44,7 +44,7 @@ export function AuthPageShell({ title, description, icon, back, children }: Auth
             <div className="rounded-full border border-zinc-200 p-1.5 transition-colors group-hover:border-black">
               <ChevronLeft size={18} />
             </div>
-            <span className="text-[15px]">{back.label}</span>
+            <span className="text-base">{back.label}</span>
           </Link>
         ) : null}
 

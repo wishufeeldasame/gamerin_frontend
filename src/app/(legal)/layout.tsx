@@ -17,7 +17,7 @@ export default function LegalLayout({ children }: { children: ReactNode }) {
             개인정보 처리방침
           </Link>
         </nav>
-        <article className="space-y-8 text-[15px] leading-7 text-zinc-700">{children}</article>
+        <article className="space-y-8 text-base leading-7 text-zinc-700">{children}</article>
       </div>
     </main>
   );

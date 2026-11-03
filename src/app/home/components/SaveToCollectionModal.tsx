@@ -234,7 +234,7 @@ export default function SaveToCollectionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 px-4"
+      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -245,19 +245,19 @@ export default function SaveToCollectionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-lg bg-white shadow-2xl dark:bg-surface"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-surface"
       >
-        <header className="relative flex h-14 items-center justify-center border-b border-zinc-200 px-14 dark:border-neutral-700">
-          <h2 id={titleId} className="text-base font-bold text-zinc-950 dark:text-zinc-100">
+        <header className="relative flex h-16 items-center border-b border-zinc-100 px-5 pr-14 md:px-6 dark:border-neutral-700">
+          <h2 id={titleId} className="text-xl font-black text-black dark:text-zinc-100">
             모음집에 저장
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="모달 닫기"
-            className="absolute right-4 flex h-9 w-9 items-center justify-center text-zinc-500 transition hover:text-zinc-950 dark:text-zinc-400 dark:hover:text-white"
+            className="btn-icon absolute right-3"
           >
-            <X size={22} />
+            <X size={20} />
           </button>
         </header>
 

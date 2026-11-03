@@ -3,8 +3,6 @@
 import {
   ArrowLeft,
   CheckCheck,
-  ChevronDown,
-  ChevronUp,
   CircleAlert,
   Ellipsis,
   ImagePlus,
@@ -64,7 +62,8 @@ import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 const MESSAGE_PAGE_SIZE = 30;
 
 const MAX_MESSAGE_LENGTH = 2000;
-const CONVERSATION_PREVIEW_COUNT = 5;
+// 대화 목록 API는 전체를 한 번에 주므로 화면에는 나눠 그리고 끝에 닿으면 더 그린다.
+const CONVERSATION_RENDER_STEP = 20;
 const MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS = 5;
 
 
@@ -150,50 +149,43 @@ function ConversationCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-[28px] p-4 text-left transition-all active:scale-[0.99] ${
+      aria-current={active ? 'true' : undefined}
+      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
         active
-          ? 'bg-black text-white shadow-xl dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none dark:ring-1 dark:ring-[#f5b93d]/45'
-          : 'border border-transparent text-black hover:border-zinc-100 hover:bg-zinc-50 dark:hover:bg-surface-elevated'
+          ? 'bg-zinc-100 shadow-[inset_3px_0_0_#000] dark:bg-surface-elevated dark:shadow-[inset_3px_0_0_#f5b93d]'
+          : 'hover:bg-zinc-50 dark:hover:bg-surface-elevated'
       }`}
     >
-      <div className="mb-2 flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <UserAvatar
-            name={conversation.recipient.name}
-            imageUrl={conversation.recipient.profileImageUrl}
-            sizes="48px"
-            className={`h-12 w-12 rounded-2xl text-sm font-black ${
-              active ? 'bg-zinc-800 text-white dark:bg-avatar dark:text-zinc-200' : 'bg-black text-white dark:bg-avatar dark:text-zinc-200'
-            }`}
-          />
-          <div className="min-w-0">
-            <p className="flex min-w-0 items-center gap-1 text-sm font-black">
-              <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
-              <MembershipBadge active={conversation.recipient.membershipBadge} />
-            </p>
-            <p
-              className={`truncate text-[11px] font-bold tracking-widest ${
-                active ? 'text-white/55 dark:text-zinc-400' : 'text-zinc-400'
-              }`}
-            >
+      <UserAvatar
+        name={conversation.recipient.name}
+        imageUrl={conversation.recipient.profileImageUrl}
+        sizes="44px"
+        className="h-11 w-11 shrink-0 rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between gap-2">
+          <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
+            <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
+            <MembershipBadge active={conversation.recipient.membershipBadge} />
+            <span className="truncate text-xs font-bold text-zinc-400">
               <HighlightedText text={conversation.recipient.handle} query={query} />
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 flex-col items-end gap-2">
-          <span className={`text-[10px] font-black ${active ? 'text-white/45 dark:text-zinc-400' : 'text-zinc-300'}`}>
+            </span>
+          </p>
+          <span className="shrink-0 text-xs font-bold text-zinc-400">
             <RelativeTime createdAt={conversation.updatedAt} />
           </span>
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-2">
+          <p className={`truncate text-sm ${conversation.unreadCount > 0 ? 'font-bold text-black dark:text-zinc-100' : 'font-medium text-zinc-500'}`}>
+            <HighlightedText text={getLastPreview(conversation)} query={query} />
+          </p>
           {conversation.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-[10px] font-black text-black">
+            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-2xs font-black text-black">
               {conversation.unreadCount}
             </span>
           ) : null}
         </div>
       </div>
-      <p className={`truncate pl-1 text-sm font-medium ${active ? 'text-white/70 dark:text-zinc-400' : 'text-zinc-500'}`}>
-        <HighlightedText text={getLastPreview(conversation)} query={query} />
-      </p>
     </button>
   );
 }
@@ -239,7 +231,7 @@ function NewChatPicker({
   }, [query]);
 
   return (
-    <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-3">
+    <div className="rounded-3xl border border-zinc-100 bg-zinc-50 p-3">
       <div className="mb-3 flex items-center justify-between px-2">
         <p className="text-xs font-black uppercase tracking-widest text-zinc-400">새 대화</p>
         <button
@@ -321,7 +313,7 @@ function SharedPostCard({
       className="mt-3 block w-full overflow-hidden rounded-2xl border border-white/20 bg-white text-left text-black shadow-sm transition hover:border-black"
     >
       <div className="border-b border-zinc-100 px-4 py-3">
-        <p className="text-[11px] font-black uppercase tracking-widest text-zinc-400">공유 게시글</p>
+        <p className="text-xs font-black uppercase tracking-widest text-zinc-400">공유 게시글</p>
         <p className="mt-1 text-sm font-black text-black">{message.sharedPost.author}</p>
         <p className="text-xs font-bold text-zinc-400">@{message.sharedPost.authorHandle}</p>
       </div>
@@ -362,7 +354,7 @@ function ImageLightbox({
         <img
           src={image.url}
           alt={image.name}
-          className="max-h-[88dvh] w-auto max-w-full rounded-[28px] object-contain shadow-2xl"
+          className="max-h-[88dvh] w-auto max-w-full rounded-3xl object-contain shadow-2xl"
         />
         <p className="mt-3 text-center text-sm font-bold text-white/80">{image.name}</p>
       </div>
@@ -445,7 +437,7 @@ function MessageAttachmentMedia({
   }
 
   if (attachment.type === 'video') {
-    return <video controls src={objectUrl} className="max-h-80 w-full bg-black object-cover" />;
+    return <video controls playsInline preload="metadata" src={objectUrl} className="max-h-80 w-full bg-black object-contain" />;
   }
 
   return (
@@ -484,21 +476,43 @@ function MessageBubble({
   onOpenPost: (postId: string) => void;
   onOpenImage: (attachment: ChatAttachment) => void;
 }) {
+  // 모바일에는 호버가 없으니 내 메시지를 길게 누르면 메뉴를 연다.
+  const longPressTimerRef = useRef<number | null>(null);
+  const cancelLongPress = () => {
+    if (longPressTimerRef.current !== null) window.clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+  };
+  const startLongPress = (event: React.PointerEvent) => {
+    if (!mine || event.pointerType !== 'touch') return;
+    cancelLongPress();
+    longPressTimerRef.current = window.setTimeout(() => {
+      longPressTimerRef.current = null;
+      onToggleAction();
+    }, 500);
+  };
+
   return (
-    <div className={`flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex items-start gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
       {!mine ? (
         <UserAvatar
           name={recipientName}
           imageUrl={recipientImageUrl}
           sizes="32px"
-          className="h-8 w-8 rounded-xl bg-zinc-200 text-[10px] font-black text-black dark:bg-neutral-700"
+          className="h-8 w-8 shrink-0 rounded-xl bg-zinc-200 text-2xs font-black text-black dark:bg-neutral-700"
         />
       ) : null}
 
       <div className={`max-w-[76%] ${mine ? 'items-end' : 'items-start'}`}>
         <div
-          className={`relative flex items-end gap-3 ${mine ? 'justify-end' : 'justify-start'}`}
+          className={`group relative flex items-end gap-1 ${mine ? 'justify-end' : 'justify-start'}`}
           data-message-action-root="true"
+          onPointerDown={startLongPress}
+          onPointerUp={cancelLongPress}
+          onPointerMove={cancelLongPress}
+          onPointerCancel={cancelLongPress}
+          onContextMenu={(event) => {
+            if (mine && window.matchMedia('(pointer: coarse)').matches) event.preventDefault();
+          }}
         >
           {mine && isActionOpen ? (
             <div className="absolute bottom-1 right-full mr-3 flex h-10 items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
@@ -515,7 +529,7 @@ function MessageBubble({
           ) : null}
 
           <div
-            className={`rounded-[28px] px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+            className={`rounded-2xl px-4 py-2.5 text-base font-medium leading-relaxed shadow-sm max-md:select-none max-md:[-webkit-touch-callout:none] ${
               mine
                 ? 'rounded-br-none bg-black text-white dark:bg-[#f5b93d] dark:text-[#1a1406]'
                 : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
@@ -530,7 +544,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className="mb-1 rounded-full p-2 text-zinc-300 transition hover:bg-white hover:text-zinc-500 dark:hover:bg-surface-elevated"
+              className={`mb-1 hidden rounded-full p-2 text-zinc-400 transition hover:bg-white hover:text-zinc-600 focus-visible:opacity-100 md:inline-flex dark:hover:bg-surface-elevated ${isActionOpen ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100'}`}
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -539,7 +553,7 @@ function MessageBubble({
         </div>
 
         <div
-          className={`mt-2 flex items-center gap-1 text-[10px] font-black uppercase text-zinc-300 dark:text-zinc-400 ${
+          className={`mt-1 flex items-center gap-1 text-2xs font-bold text-zinc-400 dark:text-zinc-400 ${
             mine ? 'justify-end' : 'justify-start'
           }`}
         >
@@ -573,7 +587,7 @@ function PendingMessageBubble({
     <div className="flex items-end justify-end gap-3" data-pending-message-id={pendingMessage.id}>
       <div className="flex max-w-[76%] flex-col items-end">
         <div
-          className={`rounded-[28px] rounded-br-none px-6 py-4 text-[15px] font-medium leading-relaxed shadow-sm ${
+          className={`rounded-3xl rounded-br-none px-6 py-4 text-base font-medium leading-relaxed shadow-sm ${
             failed ? 'bg-black/60 text-white ring-2 ring-red-400 dark:bg-[#b8892c] dark:text-[#1a1406]' : 'bg-black/70 text-white dark:bg-[#c99a35] dark:text-[#1a1406]'
           }`}
         >
@@ -583,7 +597,7 @@ function PendingMessageBubble({
               {pendingMessage.attachments.map((attachment) => (
                 <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
                   {attachment.type === 'video' ? (
-                    <video src={attachment.previewUrl} muted controls className="max-h-80 w-full bg-black object-cover" />
+                    <video src={attachment.previewUrl} muted controls playsInline className="max-h-80 w-full bg-black object-contain" />
                   ) : (
                     <button
                       type="button"
@@ -623,7 +637,7 @@ function PendingMessageBubble({
             </button>
           </div>
         ) : (
-          <div role="status" className="mt-2 flex items-center gap-1 text-[10px] font-black text-zinc-400">
+          <div role="status" className="mt-2 flex items-center gap-1 text-2xs font-black text-zinc-400">
             <Loader2 size={12} className="animate-spin" />
             <span>{hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
           </div>
@@ -657,7 +671,9 @@ export default function MessagesPage() {
   const [hasNextByConversation, setHasNextByConversation] = useState<Record<string, boolean>>({});
   const [activeConversationId, setActiveConversationId] = useState('');
   const [query, setQuery] = useState('');
-  const [conversationListExpanded, setConversationListExpanded] = useState(false);
+  const [conversationRenderCount, setConversationRenderCount] = useState(CONVERSATION_RENDER_STEP);
+  const conversationListRef = useRef<HTMLDivElement | null>(null);
+  const conversationSentinelRef = useRef<HTMLDivElement | null>(null);
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState<DraftAttachment[]>([]);
   const [preparingImages, setPreparingImages] = useState(false);
@@ -671,10 +687,20 @@ export default function MessagesPage() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  // 모바일에서 대화창을 열면 하단 탭바를 숨겨 대화 영역을 넓힌다(globals.css의 data-chat-open 규칙).
+  useEffect(() => {
+    if (mobileView !== 'chat') return;
+    document.body.dataset.chatOpen = 'true';
+    return () => {
+      delete document.body.dataset.chatOpen;
+    };
+  }, [mobileView]);
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
   const [composerError, setComposerError] = useState('');
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
+  const messageScrollRef = useRef<HTMLDivElement | null>(null);
+  const olderMessagesSentinelRef = useRef<HTMLDivElement | null>(null);
   const [messageActionLoading, setMessageActionLoading] = useState(false);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const requestedConversationId = searchParams.get('conversationId') ?? '';
@@ -1083,25 +1109,30 @@ export default function MessagesPage() {
     user,
   ]);
 
+  // 새 대화만 열고 보내지 않은 빈 대화는 지금 보고 있을 때만 목록에 남긴다.
+  const listedConversations = useMemo(
+    () => conversations.filter((conversation) => conversation.messages.length > 0 || conversation.id === activeConversationId),
+    [activeConversationId, conversations],
+  );
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
-    if (!normalized) return conversations;
+    if (!normalized) return listedConversations;
 
-    return conversations.filter((conversation) =>
+    return listedConversations.filter((conversation) =>
       [
         conversation.recipient.name,
         conversation.recipient.handle,
         getLastPreview(conversation),
       ].some((value) => value.toLowerCase().includes(normalized))
     );
-  }, [conversations, query]);
-  const hasHiddenConversations = filteredConversations.length > CONVERSATION_PREVIEW_COUNT;
+  }, [listedConversations, query]);
+  const hasHiddenConversations = filteredConversations.length > conversationRenderCount;
   const visibleConversations = useMemo(() => {
-    if (!hasHiddenConversations || conversationListExpanded) {
+    if (!hasHiddenConversations) {
       return filteredConversations;
     }
 
-    const previewConversations = filteredConversations.slice(0, CONVERSATION_PREVIEW_COUNT);
+    const previewConversations = filteredConversations.slice(0, conversationRenderCount);
     const activeConversationInList = filteredConversations.find(
       (conversation) => conversation.id === activeConversationId
     );
@@ -1113,11 +1144,28 @@ export default function MessagesPage() {
       return previewConversations;
     }
 
-    return [...previewConversations.slice(0, CONVERSATION_PREVIEW_COUNT - 1), activeConversationInList];
-  }, [activeConversationId, conversationListExpanded, filteredConversations, hasHiddenConversations]);
+    return [...previewConversations, activeConversationInList];
+  }, [activeConversationId, conversationRenderCount, filteredConversations, hasHiddenConversations]);
 
   useEffect(() => {
-    setConversationListExpanded(false);
+    const sentinel = conversationSentinelRef.current;
+    if (!sentinel || !hasHiddenConversations) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setConversationRenderCount((count) => count + CONVERSATION_RENDER_STEP);
+        }
+      },
+      { root: conversationListRef.current, rootMargin: '200px 0px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasHiddenConversations, visibleConversations.length]);
+
+  useEffect(() => {
+    setConversationRenderCount(CONVERSATION_RENDER_STEP);
   }, [query]);
 
   const handleSelectConversation = (conversationId: string) => {
@@ -1344,6 +1392,30 @@ export default function MessagesPage() {
     });
   };
 
+  // 위로 스크롤해 맨 위에 닿으면 이전 메시지를 불러오고, 보던 위치를 그대로 유지한다.
+  const loadOlderMessagesRef = useRef(handleLoadOlderMessages);
+  loadOlderMessagesRef.current = handleLoadOlderMessages;
+  useEffect(() => {
+    const sentinel = olderMessagesSentinelRef.current;
+    const container = messageScrollRef.current;
+    if (!sentinel || !container || !hasNextMessages) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        const previousHeight = container.scrollHeight;
+        const previousTop = container.scrollTop;
+        void loadOlderMessagesRef.current().then(() => {
+          window.requestAnimationFrame(() => {
+            container.scrollTop = container.scrollHeight - previousHeight + previousTop;
+          });
+        });
+      },
+      { root: container, rootMargin: '120px 0px 0px 0px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeConversationId, hasNextMessages]);
+
   const handleDeleteMessage = async (messageId: string) => {
     if (!activeConversation || messageActionLoading) return;
 
@@ -1534,19 +1606,14 @@ export default function MessagesPage() {
           mobileView === 'chat' ? 'hidden' : 'flex'
         }`}
       >
-        <div className="p-6 pb-4">
+        <div className="px-4 pb-4 pt-6 md:px-8">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-black tracking-tight text-black">메시지</h1>
+              <h1 className="page-title">메시지</h1>
               <div className="mt-1 flex items-center gap-2">
                 <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                  대화 {conversations.length}개
+                  대화 {listedConversations.length}개
                 </p>
-                {hasHiddenConversations ? (
-                  <span className="rounded-full bg-zinc-100 px-2 py-1 text-[10px] font-black text-zinc-500">
-                    {visibleConversations.length}/{filteredConversations.length}
-                  </span>
-                ) : null}
               </div>
             </div>
             <button
@@ -1573,7 +1640,7 @@ export default function MessagesPage() {
           </label>
         </div>
 
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 pb-4">
+        <div ref={conversationListRef} className="flex-1 space-y-1 overflow-y-auto px-2 pb-4 md:px-4">
           {showNewChat ? (
             <NewChatPicker
               onStart={handleStartConversation}
@@ -1604,21 +1671,10 @@ export default function MessagesPage() {
                 />
               ))}
 
-              {hasHiddenConversations ? (
-                <div className="flex justify-center pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setConversationListExpanded((current) => !current)}
-                    className="inline-flex items-center gap-2 rounded-2xl border border-zinc-200 bg-white px-5 py-3 text-xs font-black text-black shadow-sm transition hover:border-black hover:shadow-md"
-                  >
-                    {conversationListExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                    {conversationListExpanded ? '가리기' : '더보기'}
-                  </button>
-                </div>
-              ) : null}
+              {hasHiddenConversations ? <div ref={conversationSentinelRef} aria-hidden="true" className="h-px" /> : null}
             </>
           ) : (
-            <div className="rounded-[28px] border border-dashed border-zinc-200 p-6 text-center">
+            <div className="rounded-3xl border border-dashed border-zinc-200 p-6 text-center">
               <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
               <p className="text-sm font-black text-zinc-500">시작된 대화가 없습니다.</p>
             </div>
@@ -1627,7 +1683,7 @@ export default function MessagesPage() {
       </section>
 
       <section
-        className={`min-w-0 flex-1 flex-col bg-[radial-gradient(circle_at_top,_rgba(245,185,61,0.12),_transparent_26%),linear-gradient(180deg,_rgba(250,250,250,0.92),_rgba(244,244,245,0.55))] md:flex dark:bg-none dark:bg-background ${
+        className={`min-w-0 flex-1 flex-col bg-[#fafafa] md:flex dark:bg-background ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
@@ -1662,7 +1718,7 @@ export default function MessagesPage() {
                     <ShieldCheck size={16} className="shrink-0 text-blue-500" />
                   </div>
                   <p
-                    className={`mt-1 text-[11px] font-black tracking-widest ${
+                    className={`mt-1 text-xs font-black tracking-widest ${
                       activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
                     }`}
                   >
@@ -1681,7 +1737,7 @@ export default function MessagesPage() {
                   <Ellipsis size={24} />
                 </button>
                 {headerMenuOpen ? (
-                  <div className="absolute right-0 top-full z-20 mt-3 w-52 rounded-[24px] border border-zinc-100 bg-white p-2 shadow-2xl">
+                  <div className="absolute right-0 top-full z-20 mt-3 w-52 rounded-2xl border border-zinc-100 bg-white p-2 shadow-2xl">
                     <button
                       type="button"
                       onClick={() => void handleLeaveActiveConversation()}
@@ -1696,17 +1752,12 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8">
-              {hasNextMessages ? (
-                <div className="mb-6 flex justify-center">
-                  <button
-                    type="button"
-                    onClick={handleLoadOlderMessages}
-                    disabled={loadingOlderMessages}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {loadingOlderMessages ? '이전 메시지 불러오는 중...' : '이전 메시지 더보기'}
-                  </button>
+            <div ref={messageScrollRef} className="flex-1 overflow-y-auto p-4 md:p-8">
+              {hasNextMessages ? <div ref={olderMessagesSentinelRef} aria-hidden="true" className="h-px" /> : null}
+              {loadingOlderMessages ? (
+                <div role="status" className="mb-4 flex items-center justify-center gap-2 text-xs font-bold text-zinc-400">
+                  <Loader2 size={14} className="animate-spin" />
+                  이전 메시지 불러오는 중
                 </div>
               ) : null}
 
@@ -1734,7 +1785,7 @@ export default function MessagesPage() {
                             }
                           }}
                           data-message-id={chatMessage.id}
-                          className={`rounded-[32px] transition-[box-shadow,background-color] duration-500 ${
+                          className={`rounded-3xl transition-[box-shadow,background-color] duration-500 ${
                             highlightedMessageId === chatMessage.id
                               ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
                               : ''
@@ -1845,7 +1896,7 @@ export default function MessagesPage() {
 
               <div
                 ref={attachmentMenuRef}
-                className="relative mx-auto flex max-w-4xl items-center gap-3 rounded-[28px] bg-zinc-50 p-2 shadow-inner transition focus-within:bg-white focus-within:ring-2 focus-within:ring-black"
+                className="relative mx-auto flex max-w-4xl items-center gap-3 rounded-3xl bg-zinc-50 p-2 shadow-inner transition focus-within:bg-white focus-within:ring-2 focus-within:ring-black"
               >
                 <input
                   ref={imageInputRef}
@@ -1871,7 +1922,7 @@ export default function MessagesPage() {
                   <Plus size={20} />
                 </button>
                 {attachmentMenuOpen ? (
-                  <div className="absolute bottom-full left-0 z-20 mb-3 rounded-[24px] border border-zinc-100 bg-white p-2 shadow-2xl">
+                  <div className="absolute bottom-full left-0 z-20 mb-3 rounded-2xl border border-zinc-100 bg-white p-2 shadow-2xl">
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
@@ -1902,16 +1953,20 @@ export default function MessagesPage() {
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   maxLength={MAX_MESSAGE_LENGTH}
-                  placeholder={`${activeConversation.recipient.name}님에게 메시지 보내기`}
-                  className="min-w-0 flex-1 bg-transparent px-2 text-[15px] font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
+                  placeholder="메시지 입력"
+                  aria-label={`${activeConversation.recipient.name}님에게 메시지 보내기`}
+                  className="min-w-0 flex-1 bg-transparent px-2 text-base font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
                 />
-                <span
-                  className={`shrink-0 text-xs font-bold ${
-                    message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
-                  }`}
-                >
-                  {message.length}/{MAX_MESSAGE_LENGTH}
-                </span>
+                {/* 한도에 가까워질 때만 글자 수를 보여 입력칸을 넓게 쓴다. */}
+                {message.length >= MAX_MESSAGE_LENGTH * 0.9 ? (
+                  <span
+                    className={`shrink-0 text-xs font-bold tabular-nums ${
+                      message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                    }`}
+                  >
+                    {message.length}/{MAX_MESSAGE_LENGTH}
+                  </span>
+                ) : null}
                 <button
                   type="submit"
                   disabled={preparingImages || (!message.trim() && attachments.length === 0)}

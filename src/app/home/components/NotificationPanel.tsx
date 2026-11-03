@@ -188,6 +188,24 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
     }
   };
 
+  // 목록 끝에 닿으면 다음 쪽을 이어 불러온다.
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const listRef = useRef<HTMLDivElement | null>(null);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasNext || !nextCursor) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) void loadMoreRef.current();
+      },
+      { root: listRef.current, rootMargin: '200px 0px' },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasNext, nextCursor]);
+
   const markAsRead = async (notification: NotificationRecord) => {
     if (notification.read) {
       return;
@@ -264,14 +282,14 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
         ref={panelRef}
         initial={{ opacity: 0, y: 10, scale: 0.95 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-[28px] border border-zinc-100 bg-white shadow-2xl dark:border-line dark:bg-surface"
+        className="fixed right-4 top-20 z-[70] flex max-h-[calc(100dvh-6rem)] w-[min(380px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-zinc-100 bg-white shadow-2xl dark:border-line dark:bg-surface"
       >
         <div className="sticky top-0 flex items-center justify-between border-b border-zinc-100 bg-white p-5 dark:border-line dark:bg-surface">
           <div className="flex items-center gap-2">
             <Bell size={18} className="text-black dark:text-zinc-100" />
             <div>
               <h2 className="text-lg font-black text-black dark:text-zinc-100">알림</h2>
-              <p className="text-[11px] font-bold text-zinc-400">읽지 않은 알림 {unreadCount}개</p>
+              <p className="text-xs font-bold text-zinc-400">읽지 않은 알림 {unreadCount}개</p>
             </div>
           </div>
           <button
@@ -284,7 +302,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div ref={listRef} className="min-h-0 flex-1 overflow-y-auto">
           {loading ? (
             <div className="flex items-center justify-center gap-2 px-5 py-16 text-sm font-black text-zinc-400">
               <Loader2 size={18} className="animate-spin" />
@@ -312,47 +330,55 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
                   type="button"
                   onClick={() => void handleNotificationClick(notification)}
                   disabled={pending}
-                  className={`flex w-full cursor-pointer items-start gap-4 border-b border-zinc-50 p-5 text-left transition hover:bg-zinc-50 disabled:cursor-wait dark:border-line dark:hover:bg-surface-elevated ${
-                    !notification.read ? 'bg-[#f5b93d]/10' : ''
-                  } ${!href ? 'cursor-default' : ''}`}
+                  className={`flex w-full cursor-pointer items-start gap-3 border-b border-zinc-50 px-5 py-4 text-left transition hover:bg-zinc-50 disabled:cursor-wait dark:border-line dark:hover:bg-surface-elevated ${!href ? 'cursor-default' : ''}`}
                 >
                   <div className="relative shrink-0">
-                    <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-lg">
+                    <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200">
                       {notification.actor?.profileImageUrl ? (
                         <Image
                           src={notification.actor.profileImageUrl}
                           alt={actorName}
                           fill
                           unoptimized
-                          sizes="48px"
+                          sizes="40px"
                           className="object-cover"
                         />
                       ) : (
                         getInitials(actorName)
                       )}
                     </div>
-                    {!notification.read ? (
-                      <div className="absolute -right-1 -top-1 h-3 w-3 rounded-full border-2 border-white bg-red-500 dark:border-surface" />
-                    ) : null}
+                    {/* 알림 종류는 아바타 모서리 배지로 보여 준다. */}
+                    <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-white shadow ring-1 ring-zinc-100 dark:bg-surface dark:ring-line [&_svg]:h-3 [&_svg]:w-3">
+                      {getNotificationIcon(presentation.iconKind)}
+                    </span>
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-snug text-zinc-700 dark:text-zinc-200">
+                    <p className={`text-sm leading-snug ${notification.read ? 'font-medium text-zinc-500' : 'font-bold text-black dark:text-zinc-100'}`}>
                       {notification.actor?.membershipBadge ? (
                         <span className="mr-1 inline-flex align-middle"><MembershipBadge active /></span>
                       ) : null}
                       {presentation.message}
                     </p>
-                    <p className="mt-1 text-[11px] font-bold text-zinc-400">
+                    <p className="mt-1 text-xs font-bold text-zinc-400">
                       <RelativeTime createdAt={notification.createdAt} />
                     </p>
                   </div>
 
-                  <div className="shrink-0 self-center">{getNotificationIcon(presentation.iconKind)}</div>
+                  {!notification.read ? (
+                    <span aria-label="읽지 않음" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-red-500" />
+                  ) : null}
                 </button>
               );
             })
           )}
+          {hasNext ? <div ref={sentinelRef} aria-hidden="true" className="h-px" /> : null}
+          {loadingMore ? (
+            <div role="status" className="flex items-center justify-center gap-2 py-4 text-xs font-bold text-zinc-400">
+              <Loader2 size={14} className="animate-spin" />
+              불러오는 중
+            </div>
+          ) : null}
         </div>
 
         <div className="flex items-center gap-2 bg-zinc-50 p-4 dark:bg-background">
@@ -360,21 +386,11 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef }
             type="button"
             onClick={() => void handleMarkAllAsRead()}
             disabled={unreadCount === 0 || markingAll}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 py-3 text-xs font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+            className="btn-primary flex-1"
           >
             {markingAll ? <Loader2 size={14} className="animate-spin" /> : <CheckCheck size={14} />}
             모두 읽음
           </button>
-          {hasNext ? (
-            <button
-              type="button"
-              onClick={() => void loadMore()}
-              disabled={loadingMore}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-neutral-700 dark:bg-surface dark:text-zinc-300 dark:hover:border-zinc-400"
-            >
-              {loadingMore ? '로딩 중' : '더보기'}
-            </button>
-          ) : null}
         </div>
       </motion.div>
     </>,

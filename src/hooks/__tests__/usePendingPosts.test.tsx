@@ -28,7 +28,7 @@ function deferred<T>() {
 }
 
 function draft(overrides: Partial<PostDraft> = {}): PostDraft {
-  return { content: '첫 게시물', externalLinkUrl: '', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
+  return { content: '첫 게시물', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
 }
 
 const createdPost = { postId: 'post-1', content: '첫 게시물' } as PostRecord;
@@ -100,7 +100,7 @@ describe('usePendingPosts', () => {
     await act(async () => result.current.retry(result.current.pendingPosts[0].id));
 
     expect(createJsonPost).toHaveBeenCalledTimes(2);
-    expect(createJsonPost).toHaveBeenLastCalledWith({ content: '첫 게시물', externalLinkUrl: '' });
+    expect(createJsonPost).toHaveBeenLastCalledWith({ content: '첫 게시물' });
     expect(onCreated).toHaveBeenCalledWith(createdPost);
     expect(result.current.pendingPosts).toEqual([]);
   });

@@ -52,6 +52,7 @@ import {
   type PaymentStatus,
 } from '@/lib/mentoring-api';
 import { fetchMyMileageBalance } from '@/lib/mileage-api';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 import type { PageResponse } from '@/types/api';
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
@@ -147,6 +148,15 @@ function splitProgramContent(rawContent?: string | null) {
     method: methodMatch?.[1]?.trim() ?? '',
     content: contentMatch?.[1]?.trim() ?? safeContent,
   };
+}
+
+// 리뷰가 없으면 0.0 대신 리뷰 없음으로 보여 낮은 평점처럼 보이지 않게 한다.
+function formatRatingValue(stats: { ratingAvg: number; reviewCount: number } | null | undefined) {
+  return stats && stats.reviewCount > 0 ? stats.ratingAvg.toFixed(1) : '-';
+}
+
+function formatRatingLabel(stats: { ratingAvg: number; reviewCount: number } | null | undefined) {
+  return stats && stats.reviewCount > 0 ? `평점 ${stats.ratingAvg.toFixed(1)}` : '리뷰 없음';
 }
 
 function MembershipBadgeInline({ active }: { active?: boolean }) {
@@ -1002,6 +1012,14 @@ export default function MentoringPage() {
     setReviewContent('');
   };
 
+  // 위에 떠 있는 모달부터 하나씩 닫는다.
+  useEscapeKey(() => {
+    if (showMileageShortageModal) setShowMileageShortageModal(false);
+    else if (reviewTarget) closeReviewModal();
+    else if (selectedOwnedProgramId) setSelectedOwnedProgramId(null);
+    else if (selectedProgram && !detailLoading) closeProgramDetail();
+  }, Boolean(showMileageShortageModal || reviewTarget || selectedOwnedProgramId || selectedProgram));
+
   const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -1070,11 +1088,10 @@ export default function MentoringPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <main className="mx-auto max-w-6xl px-5 py-10">
-        <div className="mb-8 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <main className="page-container">
+        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.22em] text-zinc-400">멘토링</p>
-            <h1 className="mt-2 text-4xl font-black tracking-tight text-black">멘토링</h1>
+            <h1 className="page-title">멘토링</h1>
           </div>
 
           <div className="grid grid-cols-2 gap-1 rounded-2xl border border-zinc-200 bg-white p-1 sm:flex sm:gap-0">
@@ -1098,7 +1115,7 @@ export default function MentoringPage() {
           </div>
         </div>
 
-        {notice ? <div className="mb-5 rounded-2xl bg-black px-5 py-3 text-sm font-black text-white">{notice}</div> : null}
+        {notice ? <div role="status" className="mb-5 rounded-xl bg-black px-4 py-3 text-sm font-bold text-white">{notice}</div> : null}
 
         {authMessage ? (
           <div className="mb-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-5 dark:border-yellow-900 dark:bg-yellow-950/40">
@@ -1117,7 +1134,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={goToMileageCharge}
-                  className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
+                  className="btn-primary"
                 >
                   카카오페이로 충전
                 </button>
@@ -1125,7 +1142,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={() => logout({ redirectTo: '/login' })}
-                  className="rounded-xl bg-black px-4 py-3 text-sm font-black text-white"
+                  className="btn-primary"
                 >
                   다시 로그인
                 </button>
@@ -1189,11 +1206,11 @@ export default function MentoringPage() {
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div>
                           <div className="mb-2 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
+                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">
                               {gameLabel(program.gameName)}
                             </span>
                             <span
-                              className={`rounded-full px-3 py-1 text-[11px] font-black ${
+                              className={`rounded-full px-3 py-1 text-xs font-black ${
                                 program.status === 'ACTIVE'
                                   ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
                                   : 'bg-zinc-100 text-zinc-500'
@@ -1207,7 +1224,7 @@ export default function MentoringPage() {
                             {splitProgramContent(program.content).content}
                           </p>
                           <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · 평점 {(mentorStatsById[program.mentorId]?.ratingAvg ?? 0).toFixed(1)}
+                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · {formatRatingLabel(mentorStatsById[program.mentorId])}
                           </p>
                         </div>
 
@@ -1239,12 +1256,13 @@ export default function MentoringPage() {
                 </div>
               )}
 
+              {totalPages > 1 ? (
               <div className="mt-5 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => setProgramPageNumber((page) => Math.max(page - 1, 0))}
                   disabled={programPageNumber <= 0}
-                  className="rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                  className="btn-secondary"
                 >
                   이전
                 </button>
@@ -1255,11 +1273,12 @@ export default function MentoringPage() {
                   type="button"
                   onClick={() => setProgramPageNumber((page) => Math.min(page + 1, totalPages - 1))}
                   disabled={programPageNumber >= totalPages - 1}
-                  className="rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-black disabled:opacity-40"
+                  className="btn-secondary"
                 >
                   다음
                 </button>
               </div>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1281,7 +1300,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={() => router.push(`/wallet?returnTo=${encodeURIComponent('/mentoring?tab=mine')}`)}
-                  className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                  className="btn-primary"
                 >
                   <Wallet size={16} />
                   충전하기
@@ -1342,7 +1361,7 @@ export default function MentoringPage() {
 
                   <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                     <div className="rounded-xl bg-zinc-50 p-3">
-                      <p className="text-lg font-black text-black">{mentorProfile.ratingAvg.toFixed(1)}</p>
+                      <p className="text-lg font-black text-black">{formatRatingValue(mentorProfile)}</p>
                       <p className="text-xs font-bold text-zinc-400">평점</p>
                     </div>
                     <div className="rounded-xl bg-zinc-50 p-3">
@@ -1394,7 +1413,7 @@ export default function MentoringPage() {
                                   <h3 className="mt-2 text-xl font-black">{program.title}</h3>
                                 </div>
                                 <span
-                                  className={`rounded-full px-3 py-1 text-[11px] font-black ${
+                                  className={`rounded-full px-3 py-1 text-xs font-black ${
                                     isSelected
                                       ? 'bg-white/15 text-white'
                                       : program.status === 'ACTIVE'
@@ -1422,7 +1441,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={() => changeTab('become')}
-                  className="mx-auto inline-flex items-center gap-2 rounded-xl bg-black px-6 py-4 text-sm font-black text-white"
+                  className="btn-primary mx-auto"
                 >
                   <Plus size={17} />
                   멘토 되기
@@ -1532,7 +1551,7 @@ export default function MentoringPage() {
                   <button
                     type="submit"
                     disabled={pendingAction === 'save-program' || !gamesReady}
-                    className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
+                    className="btn-primary mt-5 w-full"
                   >
                     <Plus size={17} />
                     {pendingAction === 'save-program' ? '저장 중...' : '프로그램 등록'}
@@ -1557,7 +1576,7 @@ export default function MentoringPage() {
                   <button
                     type="submit"
                     disabled={pendingAction === 'register-mentor'}
-                    className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
+                    className="btn-primary mt-4 w-full"
                   >
                     <Plus size={17} />
                     {pendingAction === 'register-mentor' ? '등록 중...' : '멘토 등록'}
@@ -1576,7 +1595,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={() => setShowMentorForm(true)}
-                  className="mt-7 inline-flex items-center gap-2 rounded-xl bg-black px-6 py-4 text-sm font-black text-white"
+                  className="btn-primary mt-7"
                 >
                   <Plus size={17} />
                   멘토 등록하기
@@ -1588,7 +1607,7 @@ export default function MentoringPage() {
 
         {detailLoading || selectedProgram ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
             onClick={() => {
               if (!detailLoading) {
                 closeProgramDetail();
@@ -1632,7 +1651,7 @@ export default function MentoringPage() {
 
                     <div className="mt-5 grid grid-cols-3 gap-3 text-center">
                       <div className="rounded-xl bg-zinc-50 p-3">
-                        <p className="text-lg font-black text-black">{(selectedMentorStats?.ratingAvg ?? 0).toFixed(1)}</p>
+                        <p className="text-lg font-black text-black">{formatRatingValue(selectedMentorStats)}</p>
                         <p className="text-xs font-bold text-zinc-400">평점</p>
                       </div>
                       <div className="rounded-xl bg-zinc-50 p-3">
@@ -1735,7 +1754,7 @@ export default function MentoringPage() {
                       <button
                         type="submit"
                         disabled={pendingAction === `apply:${selectedProgram.id}`}
-                        className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-black px-5 py-4 text-sm font-black text-white disabled:bg-zinc-200"
+                        className="btn-primary mt-4 w-full"
                       >
                         <CreditCard size={17} />
                         {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
@@ -1750,7 +1769,7 @@ export default function MentoringPage() {
 
         {showMileageShortageModal ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 px-4 py-8"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
             onClick={() => setShowMileageShortageModal(false)}
           >
             <div
@@ -1802,7 +1821,7 @@ export default function MentoringPage() {
                 <button
                   type="button"
                   onClick={goToMileageCharge}
-                  className="inline-flex h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                  className="btn-primary flex-1"
                 >
                   <Wallet size={16} />
                   카카오페이로 충전
@@ -1814,7 +1833,7 @@ export default function MentoringPage() {
 
         {selectedOwnedProgram ? (
           <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4 py-8"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
             onClick={() => setSelectedOwnedProgramId(null)}
           >
             <div
@@ -1844,7 +1863,7 @@ export default function MentoringPage() {
                     <Star size={16} className="text-yellow-500" />
                     평균 별점
                   </p>
-                  <p className="mt-2 text-2xl font-black text-black">{mentorProfile?.ratingAvg.toFixed(1) ?? '0.0'}</p>
+                  <p className="mt-2 text-2xl font-black text-black">{formatRatingValue(mentorProfile)}</p>
                 </div>
                 <div className="rounded-xl bg-zinc-50 p-4">
                   <p className="text-sm font-black text-black">리뷰 수</p>
@@ -1932,7 +1951,7 @@ export default function MentoringPage() {
         ) : null}
 
         {reviewTarget ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 px-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
             <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -2004,7 +2023,7 @@ export default function MentoringPage() {
                   <button
                     type="submit"
                     disabled={pendingAction === `review:${reviewTarget.id}`}
-                    className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white disabled:bg-zinc-300"
+                    className="btn-primary"
                   >
                     {pendingAction === `review:${reviewTarget.id}` ? '등록 중...' : '리뷰 등록'}
                   </button>
@@ -2132,7 +2151,7 @@ function ApplicationCard({
             {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} />
           </p>
         </div>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-[11px] font-black text-zinc-500">
+        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">
           {statusLabel[application.status] ?? application.status}
         </span>
       </div>

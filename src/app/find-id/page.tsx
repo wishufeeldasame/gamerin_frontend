@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Search, AlertCircle } from 'lucide-react';
+import { Mail, AlertCircle } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { getApiBaseUrl } from '@/lib/api-base';
@@ -81,7 +81,7 @@ export default function FindIdPage() {
             value={email}
             onChange={handleInputChange}
             placeholder="이메일 입력"
-            icon={<Search size={20} />}
+            icon={<Mail size={20} />}
             invalid={errorType !== 'none'}
             highlightIconOnError
           />
@@ -103,14 +103,14 @@ export default function FindIdPage() {
         <button
           type="submit"
           disabled={!email.trim()}
-          className="h-14 w-full rounded-full bg-black text-[16px] font-black text-white transition-all active:scale-[0.98] hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all active:scale-[0.98] hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
         >
           아이디 찾기
         </button>
       </form>
 
       <div className="border-t border-zinc-100 pt-10 text-center">
-        <p className="text-[15px] font-medium text-zinc-600">
+        <p className="text-base font-medium text-zinc-600">
           비밀번호를 잊으셨나요?{' '}
           <Link
             href="/auth/forgot-password"

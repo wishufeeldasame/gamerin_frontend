@@ -54,3 +54,6 @@ next-env.d.ts
 !/CLAUDE.md
 
 /docs/local
+
+# 수동 캡처 결과물
+/screenshots/

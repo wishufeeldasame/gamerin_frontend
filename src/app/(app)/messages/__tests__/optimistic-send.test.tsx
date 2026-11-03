@@ -46,7 +46,8 @@ type Listener = (event: { data: string }) => void;
 const conversation: Conversation = {
   id: 'conv-1',
   recipient: { id: 'user-2', name: '상대', handle: 'other', role: '', online: false },
-  messages: [],
+  // 목록은 메시지가 있는 대화만 보여 주므로 마지막 메시지 하나를 둔다.
+  messages: [{ id: 'message-0', senderId: 'recipient-1', text: '안녕하세요', createdAt: '2026-10-06T15:05:00+09:00', read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null }],
   unreadCount: 0,
   updatedAt: '2026-10-05T12:00:00.000Z',
 };
@@ -85,7 +86,7 @@ function sentClientMessageId(call = 0): string {
 
 async function renderPage() {
   const view = render(<MessagesPage />);
-  const input = await screen.findByPlaceholderText('상대님에게 메시지 보내기');
+  const input = await screen.findByLabelText('상대님에게 메시지 보내기');
   return { ...view, input };
 }
 

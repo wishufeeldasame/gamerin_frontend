@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2, User } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
@@ -67,7 +68,7 @@ export default function ForgotPasswordPage() {
         <button
           type="button"
           onClick={() => router.replace('/login')}
-          className="h-14 w-full rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
+          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
         >
           로그인하러 가기
         </button>
@@ -112,11 +113,20 @@ export default function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={!normalizedHandle || isSubmitting}
-          className="h-14 w-full rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
         >
           {isSubmitting ? '전송 중...' : '비밀번호 재설정 메일 받기'}
         </button>
       </form>
+
+      <div className="border-t border-zinc-100 pt-10 text-center">
+        <p className="text-base font-medium text-zinc-600">
+          아이디를 잊으셨나요?{' '}
+          <Link href="/find-id" className="ml-1.5 font-black text-black underline-offset-4 hover:underline">
+            아이디 찾기
+          </Link>
+        </p>
+      </div>
     </AuthPageShell>
   );
 }

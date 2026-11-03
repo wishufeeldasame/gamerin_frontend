@@ -54,12 +54,14 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     const item = media[0];
     if (item.mediaType === 'VIDEO') {
       return (
-        <div className="pointer-events-none relative z-10 px-5 pb-4">
-          <div className="pointer-events-auto overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner" data-card-open-ignore="true">
+        <div className="pointer-events-none relative z-10 px-4 pb-3 md:px-5">
+          <div className="pointer-events-auto overflow-hidden rounded-xl bg-black" data-card-open-ignore="true">
             <video
               controls
+              playsInline
+              preload="metadata"
               poster={item.thumbnailUrl ?? undefined}
-              className="max-h-[420px] w-full bg-black object-cover"
+              className="max-h-[420px] w-full bg-black object-contain"
               src={item.mediaUrl}
             />
           </div>
@@ -68,8 +70,8 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     }
 
     return (
-      <div className="pointer-events-none relative z-10 px-5 pb-4">
-        <div className="relative overflow-hidden rounded-[24px] border border-zinc-50 shadow-inner">
+      <div className="pointer-events-none relative z-10 px-4 pb-3 md:px-5">
+        <div className="relative overflow-hidden rounded-xl border border-zinc-100">
           <PostImage
             src={item.mediaUrl}
             imageNumber={1}
@@ -84,13 +86,15 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
   }
 
   return (
-    <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-2 px-5 pb-4">
+    <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-1.5 px-4 pb-3 md:px-5">
       {media.slice(0, 4).map((item, index) => (
-        <div key={item.mediaId} className="relative overflow-hidden rounded-[20px] border border-zinc-50">
+        <div key={item.mediaId} className="relative overflow-hidden rounded-xl border border-zinc-100">
           {item.mediaType === 'VIDEO' ? (
             <div className="pointer-events-auto" data-card-open-ignore="true">
               <video
                 controls
+                playsInline
+                preload="metadata"
                 poster={item.thumbnailUrl ?? undefined}
                 className="h-52 w-full bg-black object-cover"
                 src={item.mediaUrl}
@@ -273,7 +277,7 @@ export function Post({
     <>
       <motion.article
         whileHover={{ y: -4 }}
-        className={`relative isolate overflow-hidden rounded-[32px] border border-zinc-100 bg-white shadow-sm transition-all duration-300 hover:shadow-xl ${
+        className={`relative isolate overflow-hidden border-b border-zinc-100 bg-white transition-all duration-300 md:rounded-2xl md:border md:shadow-sm md:hover:shadow-xl ${
           onOpenDetail ? 'cursor-pointer' : ''
         }`}
       >
@@ -282,43 +286,45 @@ export function Post({
             type="button"
             onClick={() => onOpenDetail(post)}
             aria-label={`${post.author}님의 게시물 열기`}
-            className="absolute inset-0 z-0 rounded-[32px] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+            className="absolute inset-0 z-0 focus:outline-none md:rounded-2xl focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
           />
         ) : null}
         {post.reposterInfo ? (
-          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-5 py-3 text-xs font-bold text-zinc-500 dark:border-line dark:text-zinc-400">
+          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5 text-xs font-bold text-zinc-500 md:px-5 dark:border-line dark:text-zinc-400">
             <Repeat2 size={15} className="text-emerald-500" />
-            <span>
-              <span className="inline-flex items-center gap-1 align-middle">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>님이 리포스트했습니다
-              {' · '}
-              <RelativeTime createdAt={post.reposterInfo.repostedAt} />
+            <span className="flex min-w-0 items-center">
+              <span className="inline-flex shrink-0 items-center gap-1">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>
+              <span className="truncate">
+                님이 리포스트했습니다{' · '}
+                <RelativeTime createdAt={post.reposterInfo.repostedAt} />
+              </span>
             </span>
           </div>
         ) : null}
 
-        <div className="pointer-events-none relative z-20 p-5">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="pointer-events-none relative z-20 px-4 pb-3 pt-4 md:px-5 md:pt-5">
+        <div className="mb-3 flex items-center justify-between">
           <Link
             href={`/profile/${encodeURIComponent(post.authorHandle)}`}
-            className="pointer-events-auto flex items-center gap-4"
+            className="pointer-events-auto flex min-w-0 items-center gap-3"
             data-card-open-ignore="true"
           >
             {post.authorProfileImageUrl ? (
-              <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-2xl shadow-inner">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl">
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
               </div>
             ) : (
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-inner">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
                 {initials}
               </div>
             )}
 
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-2">
-                <h2 className="text-[16px] font-black tracking-tight text-black">{post.author}</h2>
+                <h2 className="text-base font-black tracking-tight text-black">{post.author}</h2>
                 <MembershipBadge active={post.authorMembershipBadge} />
               </div>
-              <span className="text-[11px] font-bold text-zinc-400">
+              <span className="text-xs font-bold text-zinc-400">
                 @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
               </span>
             </div>
@@ -329,7 +335,7 @@ export function Post({
               type="button"
               ref={menuTriggerRef}
               onClick={toggleMenu}
-              className="rounded-xl p-2 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+              className="btn-icon -mr-2"
               aria-label="게시물 메뉴"
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
@@ -396,7 +402,7 @@ export function Post({
         </div>
 
         {post.content ? (
-          <p onClick={handleBodyClick} className="pointer-events-auto w-full cursor-text select-text px-1 text-left text-[15px] font-medium leading-7 text-zinc-800">
+          <p onClick={handleBodyClick} className="pointer-events-auto w-full cursor-text select-text text-left text-base font-medium leading-7 text-zinc-800">
             <HashtagText text={post.content} />
           </p>
         ) : null}
@@ -404,8 +410,8 @@ export function Post({
 
         {hasMedia ? <MediaBlock key={post.postId} media={post.media} /> : null}
 
-        <div className="pointer-events-none relative z-10 flex items-center justify-between border-t border-zinc-50 bg-white px-6 py-4 text-zinc-400 [&_button]:pointer-events-auto [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-4 [&_button]:focus-visible:outline-black dark:[&_button]:focus-visible:outline-white">
-          <div className="flex items-center gap-6">
+        <div className="pointer-events-none relative z-10 flex items-center justify-between border-t border-zinc-50 bg-white px-2 py-0.5 text-zinc-400 md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-4 [&_button]:focus-visible:outline-black dark:[&_button]:focus-visible:outline-white">
+          <div className="flex items-center gap-1 md:gap-3">
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
@@ -470,7 +476,7 @@ export function Post({
           <button
             type="button"
             onClick={() => { closeAll(); setShareOpen(true); }}
-            className="rounded-xl p-2 text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+            className="flex items-center rounded-full text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
             aria-label="게시물 공유"
           >
             <Share2 size={20} />
