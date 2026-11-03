@@ -4,6 +4,7 @@ import { useToast } from '@/app/context/ToastContext';
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { Skeleton } from 'skullet/react';
 import {
   Settings,
   Edit3,
@@ -107,6 +108,27 @@ const GAME_ICON_MAP: Record<string, { url: string; invertInDark?: boolean }> = {
   CS2: { url: '/images/games/cs2.png', invertInDark: true },
   'APEX LEGENDS': { url: '/images/games/apexlegend.png', invertInDark: true },
 };
+
+// skullet이 측정해 스켈레톤으로 그리는 자리 표시용 게시물 목록(실제 데이터 아님)
+function PostListSkeletonSample() {
+  return (
+    <div className="space-y-4">
+      {[0, 1].map((index) => (
+        <article key={index} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-800" />
+            <div>
+              <p className="text-sm font-black">사용자 닉네임</p>
+              <p className="text-xs">@handle · 방금 전</p>
+            </div>
+          </div>
+          <p className="mt-3 text-sm leading-6">게시물 본문이 들어갈 자리입니다. 게시물 본문이 들어갈 자리입니다. 게시물 본문이 들어갈 자리입니다.</p>
+          <div className="mt-3 h-48 w-full rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+        </article>
+      ))}
+    </div>
+  );
+}
 
 function getGameIconMeta(gameName: string) {
   return GAME_ICON_MAP[gameName.trim().toUpperCase()] ?? null;
@@ -1323,7 +1345,9 @@ export default function ProfilePage() {
         {activeTab === 'posts' ? (
           <div className="md:space-y-4">
             {postsLoading ? (
-              <div className="py-16 text-center text-sm font-bold text-zinc-400">게시물을 불러오는 중...</div>
+              <Skeleton loading label="게시물을 불러오는 중">
+                <PostListSkeletonSample />
+              </Skeleton>
             ) : postsError ? (
               <div className="py-16 text-center">
                 <p className="font-black text-red-500">{postsError}</p>
