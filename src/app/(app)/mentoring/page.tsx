@@ -17,6 +17,7 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { ProgramListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
@@ -1191,9 +1192,7 @@ export default function MentoringPage() {
               </div>
 
               {programsLoading ? (
-                <div className="flex h-56 items-center justify-center rounded-2xl bg-zinc-50">
-                  <Loader2 className="animate-spin text-zinc-400" />
-                </div>
+                <ProgramListSkeleton />
               ) : visiblePrograms.length > 0 ? (
                 <div className="grid gap-4">
                   {visiblePrograms.map((program) => (

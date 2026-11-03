@@ -6,6 +6,7 @@ import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'rea
 import { Hash, Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Post } from '@/app/home/components/Post';
+import { PostListSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
   fetchSearchAccounts,
   fetchSearchHashtags,
@@ -477,9 +478,7 @@ function SearchPageContent() {
 
         <section className="mt-8 min-h-72" aria-live="polite">
           {loading ? (
-            <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface">
-              검색 결과를 불러오는 중...
-            </div>
+            activeTab === 'accounts' ? <UserRowsSkeleton /> : <PostListSkeleton count={3} label="검색 결과를 불러오는 중" />
           ) : error ? (
             <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
               <p className="font-black text-red-500 dark:text-red-300">{error}</p>
