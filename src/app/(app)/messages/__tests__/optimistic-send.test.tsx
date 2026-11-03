@@ -188,6 +188,22 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(screen.getAllByText('다시')).toHaveLength(1);
   });
 
+  it('첫 메시지 전송이 실패한 빈 대화는 다른 대화로 옮겨도 목록에 남긴다', async () => {
+    const emptyConversation = { ...conversation, messages: [] };
+    const otherConversation = { ...conversation, id: 'conv-2', recipient: { ...conversation.recipient, id: 'user-3', name: '다른이', handle: 'another' } };
+    api.fetchConversationList.mockResolvedValue([emptyConversation, otherConversation]);
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('서버 오류', 500));
+    const { input } = await renderPage();
+
+    send(input, '첫 메시지');
+    expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /다른이/ }));
+
+    await waitFor(() => expect(screen.queryByLabelText('상대님에게 메시지 보내기')).not.toBeInTheDocument());
+    expect(screen.getAllByRole('button').some((button) => button.textContent?.includes('상대other'))).toBe(true);
+  });
+
   it('실패한 메시지를 삭제하면 목록에서 빼고 첨부 미리보기 URL을 해제한다', async () => {
     api.sendConversationMessage.mockRejectedValueOnce(new ApiError('서버 오류', 500));
     const { container } = await renderPage();

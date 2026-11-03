@@ -544,7 +544,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className={`mb-1 hidden rounded-full p-2 text-zinc-400 transition hover:bg-white hover:text-zinc-600 focus-visible:opacity-100 md:inline-flex dark:hover:bg-surface-elevated ${isActionOpen ? 'md:opacity-100' : 'md:opacity-0 md:group-hover:opacity-100'}`}
+              className={`mb-1 rounded-full p-2 text-zinc-400 transition hover:bg-white hover:text-zinc-600 focus-visible:opacity-100 dark:hover:bg-surface-elevated ${isActionOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -1110,9 +1110,16 @@ export default function MessagesPage() {
   ]);
 
   // 새 대화만 열고 보내지 않은 빈 대화는 지금 보고 있을 때만 목록에 남긴다.
+  // 전송 대기·실패 메시지가 있으면 재시도할 수 있도록 남긴다.
   const listedConversations = useMemo(
-    () => conversations.filter((conversation) => conversation.messages.length > 0 || conversation.id === activeConversationId),
-    [activeConversationId, conversations],
+    () =>
+      conversations.filter(
+        (conversation) =>
+          conversation.messages.length > 0 ||
+          conversation.id === activeConversationId ||
+          (pendingByConversation[conversation.id]?.length ?? 0) > 0,
+      ),
+    [activeConversationId, conversations, pendingByConversation],
   );
   const filteredConversations = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -1402,10 +1409,13 @@ export default function MessagesPage() {
     const observer = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
+        const loadingConversationId = activeConversationIdRef.current;
         const previousHeight = container.scrollHeight;
         const previousTop = container.scrollTop;
         void loadOlderMessagesRef.current().then(() => {
           window.requestAnimationFrame(() => {
+            // 불러오는 사이 다른 대화로 바뀌었으면 그 대화의 스크롤은 건드리지 않는다.
+            if (activeConversationIdRef.current !== loadingConversationId) return;
             container.scrollTop = container.scrollHeight - previousHeight + previousTop;
           });
         });
