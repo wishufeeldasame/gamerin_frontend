@@ -1,7 +1,10 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import Link from 'next/link';
+import { PostListSkeleton, ProfileSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
   Settings,
   Edit3,
@@ -16,17 +19,21 @@ import {
   Trash2,
   Tv,
   MessageCircle,
+  MoreHorizontal,
+  Flag,
   X,
-  Loader2,
   MapPin,
+  WalletCards,
+  Gamepad2,
 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
+import { ReportContentModal } from '@/app/home/components/Report';
 import {
   PostRecord,
   FollowUserRecord,
@@ -41,19 +48,69 @@ import {
   fetchUserPosts,
   followUser,
   getInitials,
-  likePost,
   unfollowUser,
   updateMyProfile,
-  unlikePost,
-  updatePostLikeState,
   uploadProfileImage,
 } from '@/lib/feed-api';
+import { updatePostsLikeState } from '@/lib/post-mutations';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
-import { PrivacySettings, USER_SETTINGS_CHANGED_EVENT, loadUserSettings } from '@/lib/user-settings';
+import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
+import {
+  disconnectGameStats,
+  fetchPubgSummary,
+  fetchLolSummary,
+  refreshR6Summary,
+  GameStatsApiError,
+  type GameName,
+  type PubgSummaryResponse,
+  type LolSummaryResponse,
+  type R6SummaryResponse,
+  type StatsMode,
+} from '@/lib/game-stats-api';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePostLike } from '@/hooks/usePostLike';
+import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
 type PostDetailTarget = 'post' | 'comments';
+
+const GAME_STATS_UI_CONFIG: Record<
+  GameName,
+  {
+    displayName: string;
+    disconnectable: boolean;
+  }
+> = {
+  LOL: {
+    displayName: 'League of Legends',
+    disconnectable: true,
+  },
+  PUBG: {
+    displayName: 'PUBG',
+    disconnectable: true,
+  },
+  R6: {
+    displayName: 'Rainbow Six Siege',
+    disconnectable: true,
+  },
+};
+
+const GAME_ICON_MAP: Record<string, { url: string; invertInDark?: boolean }> = {
+  PUBG: { url: '/images/games/pubg.png' },
+  R6: { url: '/images/games/rainbow6.png', invertInDark: true },
+  'RAINBOW SIX SIEGE': { url: '/images/games/rainbow6.png', invertInDark: true },
+  'LEAGUE OF LEGENDS': { url: '/images/games/lol.png' },
+  LOL: { url: '/images/games/lol.png' },
+  VALORANT: { url: '/images/games/valorant.png' },
+  'OVERWATCH 2': { url: '/images/games/overwatch2.png' },
+  CS2: { url: '/images/games/cs2.png', invertInDark: true },
+  'APEX LEGENDS': { url: '/images/games/apexlegend.png', invertInDark: true },
+};
+
+function getGameIconMeta(gameName: string) {
+  return GAME_ICON_MAP[gameName.trim().toUpperCase()] ?? null;
+}
 
 function withImageCacheBust(imageUrl: string | null | undefined) {
   if (!imageUrl) {
@@ -85,21 +142,21 @@ const connectedPlatformMeta: Record<
 > = {
   youtube: {
     label: 'YouTube',
-    placeholder: '@johndoe_gaming',
+    placeholder: '@채널 핸들',
     color: 'bg-red-500',
     icon: Tv,
     buildUrl: (handle) => `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`,
   },
   twitch: {
     label: 'Twitch',
-    placeholder: 'johndoe',
+    placeholder: '채널 ID',
     color: 'bg-purple-600',
     icon: Tv,
     buildUrl: (handle) => `https://www.twitch.tv/${handle.replace(/^@/, '')}`,
   },
   soop: {
     label: 'SOOP (AfreecaTV)',
-    placeholder: 'johndoe',
+    placeholder: '채널 ID',
     color: 'bg-blue-500',
     icon: Tv,
     buildUrl: (handle) => `https://ch.sooplive.co.kr/${handle.replace(/^@/, '')}`,
@@ -110,46 +167,206 @@ function normalizeHandle(value: string) {
   return value.trim().replace(/\s+/g, '').toLowerCase();
 }
 
-function formatGameStatsSummary(stats: unknown) {
+type GameStatsRecord = Record<string, unknown>;
+
+function toGameStatsRecord(stats: unknown): GameStatsRecord | null {
   if (!stats || typeof stats !== 'object' || Array.isArray(stats)) {
+    return null;
+  }
+
+  return stats as GameStatsRecord;
+}
+
+function readStringStat(record: GameStatsRecord, key: string) {
+  const value = record[key];
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function readNumberStat(record: GameStatsRecord, key: string) {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function isConnectedGameStats(stats: unknown) {
+  return toGameStatsRecord(stats)?.connected === true;
+}
+
+function readStatsMode(record: GameStatsRecord): StatsMode | null {
+  const value = readStringStat(record, 'statsMode');
+  return value === 'RANKED' || value === 'NORMAL' ? value : null;
+}
+
+function isCommonGameStats(gameName: string) {
+  const normalizedGameName = gameName.toLowerCase();
+  return normalizedGameName === 'pubg' || normalizedGameName === 'r6';
+}
+
+function getDisconnectableGameName(gameName: string): GameName | null {
+  const normalizedGameName = gameName.toUpperCase();
+
+  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6' && normalizedGameName !== 'LOL') {
+    return null;
+  }
+
+  return GAME_STATS_UI_CONFIG[normalizedGameName].disconnectable ? normalizedGameName : null;
+}
+
+function formatNullablePercent(value: number | null) {
+  if (value === null) {
+    return '-';
+  }
+
+  return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
+}
+
+function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: boolean) {
+  const record = toGameStatsRecord(stats);
+  if (!record) {
     return String(stats ?? '');
   }
 
-  const record = stats as Record<string, unknown>;
+  if (gameName.toUpperCase() === 'LOL') {
+    const tier = readStringStat(record, 'tierLabel');
+    const kda = readNumberStat(record, 'kda');
+    const games = readNumberStat(record, 'games');
+    if (kda === null && games === null) {
+      return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
+    }
+    return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
+      `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
+      games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
+  }
+
+  if (!isCommonGameStats(gameName)) {
+    return Object.entries(record)
+      .filter(
+        ([key]) =>
+          key !== 'accountId' && key !== 'playerNameNormalized',
+      )
+      .map(([key, value]) => `${key}: ${String(value)}`)
+      .join(' · ');
+  }
+
   const summaryParts: string[] = [];
+  const tierLabel = readStringStat(record, 'tierLabel');
+  const winRate = readNumberStat(record, 'winRate');
+  const statsMode = readStatsMode(record);
+  const kd = readNumberStat(record, 'kd');
+  const matches = readNumberStat(record, 'matches');
 
-  const kda = typeof record.kda === 'number' ? record.kda : null;
-  const winRate = typeof record.winRate === 'number' ? record.winRate : null;
-  const games = typeof record.games === 'number' ? record.games : null;
-  const tierLabel = typeof record.tierLabel === 'string' ? record.tierLabel : null;
-
-  if (tierLabel) {
+  if (statsMode === 'RANKED' && tierLabel) {
     summaryParts.push(tierLabel);
   }
 
-  if (kda !== null) {
-    summaryParts.push(`K/D ${kda.toFixed(2)}`);
+  summaryParts.push(`K/D ${kd === null ? '-' : kd.toFixed(2)}`);
+  summaryParts.push(`승률 ${formatNullablePercent(winRate)}`);
+  summaryParts.push(matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`);
+
+  return summaryParts.join(' · ');
+}
+
+function formatGameStatsDetail(gameName: string, stats: unknown) {
+  if (!isCommonGameStats(gameName)) {
+    return null;
   }
 
-  if (winRate !== null) {
-    summaryParts.push(`승률 ${winRate}%`);
+  const record = toGameStatsRecord(stats);
+  if (!record) {
+    return null;
   }
 
-  if (games !== null) {
-    summaryParts.push(`${games}게임`);
+  const playerName = readStringStat(record, 'playerName');
+  const statsMode = readStatsMode(record);
+  const statsModeLabel = statsMode === 'RANKED' ? '경쟁전' : statsMode === 'NORMAL' ? '일반전' : null;
+
+  return [statsModeLabel, playerName].filter(Boolean).join(' ') || null;
+}
+
+function removeGameStats(gameStats: UserProfile['gameStats'], gameName: string): UserProfile['gameStats'] {
+  const normalizedGameName = gameName.toLowerCase();
+  return Object.fromEntries(
+    Object.entries(gameStats).filter(([key]) =>
+      key.toLowerCase() !== normalizedGameName && !(normalizedGameName === 'lol' && key.toLowerCase() === 'riot'),
+    ),
+  );
+}
+
+function applyPubgSummary(gameStats: UserProfile['gameStats'], summary: PubgSummaryResponse) {
+  if (!summary.connected) {
+    return removeGameStats(gameStats, 'PUBG');
   }
 
-  if (summaryParts.length > 0) {
-    return summaryParts.join(' · ');
+  const existing = toGameStatsRecord(gameStats.PUBG) ?? {};
+
+  return {
+    ...gameStats,
+    PUBG: {
+      ...existing,
+      game: summary.game,
+      connected: true,
+      playerName: summary.playerName,
+      tierLabel: summary.tierLabel,
+      kd: summary.kd,
+      winRate: summary.winRate,
+      matches: summary.matches,
+      statsMode: summary.statsMode,
+    },
+  };
+}
+
+function applyR6Summary(gameStats: UserProfile['gameStats'], summary: R6SummaryResponse) {
+  if (!summary.connected) {
+    return removeGameStats(gameStats, 'R6');
   }
 
-  return Object.entries(record)
-    .filter(([key]) => key !== 'accountId')
-    .map(([key, value]) => `${key}: ${String(value)}`)
-    .join(' · ');
+  const existing = toGameStatsRecord(gameStats.R6) ?? {};
+  return {
+    ...gameStats,
+    R6: {
+      ...existing,
+      game: summary.game,
+      connected: true,
+      playerName: summary.playerName,
+      platform: summary.platform,
+      tierLabel: summary.tierLabel,
+      kd: summary.kd,
+      winRate: summary.winRate,
+      matches: summary.matches,
+      statsMode: summary.statsMode,
+      updatedAt: summary.updatedAt,
+    },
+  };
+}
+
+function applyLolSummary(gameStats: UserProfile['gameStats'], summary: LolSummaryResponse) {
+  if (!summary.connected) return removeGameStats(gameStats, 'LOL');
+  return {
+    ...gameStats,
+    LOL: { connected: true, tierLabel: summary.tierLabel, kda: summary.kda, winRate: summary.winRate, games: summary.games },
+  };
+}
+
+function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
+  if (!(error instanceof GameStatsApiError)) {
+    return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
+  }
+
+  if (gameName === 'R6') {
+    if (error.status === 404) return 'R6 계정을 찾지 못했습니다. Ubisoft 닉네임을 확인해 주세요.';
+    if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
+    if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  if (gameName === 'LOL' && (error.status === 403 || error.status === 503)) {
+    return 'Riot 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  return error.message;
 }
 
 export default function ProfilePage() {
+  const toast = useToast();
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
@@ -167,17 +384,17 @@ export default function ProfilePage() {
   const [followListError, setFollowListError] = useState<string | null>(null);
   const [followActionHandle, setFollowActionHandle] = useState<string | null>(null);
   const [showFetchStatsModal, setShowFetchStatsModal] = useState(false);
+  const [disconnectTarget, setDisconnectTarget] = useState<GameName | null>(null);
+  const [isDisconnectingGame, setIsDisconnectingGame] = useState(false);
   const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [profileReportMenuOpen, setProfileReportMenuOpen] = useState(false);
+  const [profileReportOpen, setProfileReportOpen] = useState(false);
   const [profileCover, setProfileCover] = useState<string | null>(null);
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [posts, setPosts] = useState<PostRecord[]>([]);
   const [mediaItems, setMediaItems] = useState<ProfileMediaItem[]>([]);
-  const [postsNextCursor, setPostsNextCursor] = useState<string | null>(null);
-  const [postsHasNext, setPostsHasNext] = useState(false);
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => loadUserSettings().privacy);
   const [connectedAccounts, setConnectedAccounts] = useState<Record<ConnectedPlatformId, ConnectedAccount | null>>({
     youtube: null,
     twitch: null,
@@ -189,9 +406,35 @@ export default function ProfilePage() {
     soop: '',
   });
   const [loading, setLoading] = useState(true);
-  const [loadingMorePosts, setLoadingMorePosts] = useState(false);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const profileHandle = profile?.handle ?? '';
+  const loadProfilePostPage = useCallback(
+    (cursor: string | null, { signal }: { signal: AbortSignal }) =>
+      fetchUserPosts(profileHandle, cursor, 20, { signal }),
+    [profileHandle],
+  );
+  const {
+    items: posts,
+    setItems: setPosts,
+    hasNext: postsHasNext,
+    loading: postsLoading,
+    loadingMore: loadingMorePosts,
+    error: postsError,
+    reload: reloadPosts,
+    loadMore: loadMorePosts,
+  } = useCursorList({
+    loadPage: loadProfilePostPage,
+    getKey: (post: PostRecord) => post.postId,
+    queryKey: profileHandle,
+    enabled: Boolean(profileHandle),
+    initialErrorMessage: '게시물을 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+  });
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   useEffect(() => {
     localStorage.removeItem('gamerin_profile_cover');
@@ -213,22 +456,6 @@ export default function ProfilePage() {
   }, []);
 
   useEffect(() => {
-    const syncPrivacySettings = () => {
-      const nextPrivacySettings = loadUserSettings().privacy;
-      setPrivacySettings(nextPrivacySettings);
-
-      if (!nextPrivacySettings.showStats && activeTab === 'stats') {
-        setActiveTab('posts');
-      }
-    };
-
-    window.addEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
-    return () => {
-      window.removeEventListener(USER_SETTINGS_CHANGED_EVENT, syncPrivacySettings);
-    };
-  }, [activeTab]);
-
-  useEffect(() => {
     let cancelled = false;
 
     const loadProfile = async () => {
@@ -239,14 +466,13 @@ export default function ProfilePage() {
         const shouldLoadMyProfile =
           !routeUserId || routeUserId === currentUser?.handle || routeUserId === currentUser?.id;
         const loadedProfile = shouldLoadMyProfile ? await fetchMyProfile() : await fetchUserProfile(targetHandle);
-        const [postPage, mediaPage] = await Promise.all([
-          fetchUserPosts(loadedProfile.handle),
-          fetchUserMedia(loadedProfile.handle),
-        ]);
+        const mediaPage = await fetchUserMedia(loadedProfile.handle);
         const followedByMe = shouldLoadMyProfile ? false : Boolean(loadedProfile.followedByMe);
+        const followsViewer = shouldLoadMyProfile ? false : Boolean(loadedProfile.followsViewer);
         const resolvedProfile = {
           ...loadedProfile,
           followedByMe,
+          followsViewer,
         };
 
         if (cancelled) {
@@ -254,9 +480,6 @@ export default function ProfilePage() {
         }
 
         setProfile(resolvedProfile);
-        setPosts(postPage.items);
-        setPostsNextCursor(postPage.nextCursor);
-        setPostsHasNext(postPage.hasNext);
         setMediaItems(mediaPage.items);
         setMediaNextCursor(mediaPage.nextCursor);
         setMediaHasNext(mediaPage.hasNext);
@@ -277,7 +500,7 @@ export default function ProfilePage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Failed to load profile.');
+          setError(loadError instanceof Error ? loadError.message : '프로필을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -297,48 +520,154 @@ export default function ProfilePage() {
       return [];
     }
 
-    return Object.entries(profile.gameStats).map(([gameName, stats]) => ({
+    const isOwnProfile = profile.handle === currentUser?.handle || profile.id === currentUser?.id;
+    // riotId는 본인 응답에만 포함되므로 다른 사용자 프로필에서는 닉네임을 표시하지 않는다.
+    const riotId = readStringStat(toGameStatsRecord(profile.gameStats.RIOT) ?? {}, 'riotId');
+    const entries = Object.entries(profile.gameStats).filter(([key]) => key.toUpperCase() !== 'RIOT');
+    if (isConnectedGameStats(profile.gameStats.RIOT) && !entries.some(([key]) => key.toUpperCase() === 'LOL')) {
+      entries.push(['LOL', { connected: true }]);
+    }
+    return entries.map(([gameName, stats]) => ({
       gameName,
-      summary: formatGameStatsSummary(stats),
+      displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
+      summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
+      detail: gameName.toUpperCase() === 'LOL'
+        ? riotId?.split('#')[0] ?? null
+        : formatGameStatsDetail(gameName, stats),
+      disconnectGameName: getDisconnectableGameName(gameName),
     }));
-  }, [profile?.gameStats]);
+  }, [profile?.gameStats, profile?.handle, profile?.id, currentUser?.handle, currentUser?.id]);
 
   const handleRefreshStats = async () => {
-    if (!profile || (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)) {
+    if (
+      !profile ||
+      isRefreshing || isDisconnectingGame ||
+      (profile.handle !== currentUser?.handle && profile.id !== currentUser?.id)
+    ) {
+      return;
+    }
+
+    const refreshRequests: Array<{
+      gameName: GameName;
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse>;
+    }> = [];
+
+    if (isConnectedGameStats(profile.gameStats.PUBG)) {
+      refreshRequests.push({ gameName: 'PUBG', request: fetchPubgSummary });
+    }
+    if (isConnectedGameStats(profile.gameStats.R6)) {
+      refreshRequests.push({ gameName: 'R6', request: refreshR6Summary });
+    }
+    if (isConnectedGameStats(profile.gameStats.RIOT) || isConnectedGameStats(profile.gameStats.LOL)) {
+      refreshRequests.push({ gameName: 'LOL', request: fetchLolSummary });
+    }
+
+    if (refreshRequests.length === 0) {
+      toast.info('새로고칠 연결된 게임 전적이 없습니다.');
       return;
     }
 
     try {
       setIsRefreshing(true);
-      const refreshed = await fetchMyProfile();
-      setProfile({
-        ...refreshed,
-        followedByMe: false,
+      const results = await Promise.allSettled(refreshRequests.map(({ request }) => request()));
+      let updatedGameStats = profile.gameStats;
+      const failures: string[] = [];
+      const disconnectedGames = new Set<string>();
+
+      results.forEach((result, index) => {
+        const gameName = refreshRequests[index]?.gameName;
+        if (!gameName) {
+          return;
+        }
+
+        if (result.status === 'rejected') {
+          failures.push(`${gameName}: ${getGameStatsErrorMessage(gameName, result.reason)}`);
+          return;
+        }
+
+        if (!result.value.connected) {
+          disconnectedGames.add(gameName);
+        }
+
+        updatedGameStats =
+          gameName === 'LOL'
+            ? applyLolSummary(updatedGameStats, result.value as LolSummaryResponse)
+            : gameName === 'R6'
+            ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
+            : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
-      setProfileCover(refreshed.coverImageUrl || null);
-      setProfileAvatar(refreshed.profileImageUrl);
-    } catch (refreshError) {
-      alert(refreshError instanceof Error ? refreshError.message : 'Failed to refresh profile.');
+
+      let nextProfile: UserProfile = {
+        ...profile,
+        gameStats: updatedGameStats,
+      };
+
+      try {
+        const refreshed = await fetchMyProfile();
+        nextProfile = {
+          ...refreshed,
+          followedByMe: false,
+        };
+        setProfileCover(refreshed.coverImageUrl || null);
+        setProfileAvatar(refreshed.profileImageUrl);
+      } catch (profileRefreshError) {
+        failures.push(
+          profileRefreshError instanceof Error
+            ? `프로필 반영: ${profileRefreshError.message}`
+            : '프로필 반영: 프로필을 다시 불러오지 못했습니다.',
+        );
+      }
+
+      for (const gameName of disconnectedGames) {
+        nextProfile = {
+          ...nextProfile,
+          gameStats: removeGameStats(nextProfile.gameStats, gameName),
+        };
+      }
+
+      setProfile(nextProfile);
+
+      if (failures.length > 0) {
+        toast.error(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
+      }
     } finally {
       setIsRefreshing(false);
     }
   };
 
-  const handleLoadMorePosts = async () => {
-    if (!profile || !postsHasNext || !postsNextCursor || loadingMorePosts) {
+  const handleGameConnected = async () => {
+    const refreshed = await fetchMyProfile();
+    setProfile({
+      ...refreshed,
+      followedByMe: false,
+    });
+    setProfileCover(refreshed.coverImageUrl || null);
+    setProfileAvatar(refreshed.profileImageUrl);
+  };
+
+  const handleDisconnectGame = async () => {
+    const gameName = disconnectTarget;
+
+    if (!gameName || isDisconnectingGame || isRefreshing) {
       return;
     }
 
     try {
-      setLoadingMorePosts(true);
-      const page = await fetchUserPosts(profile.handle, postsNextCursor);
-      setPosts((current) => [...current, ...page.items]);
-      setPostsNextCursor(page.nextCursor);
-      setPostsHasNext(page.hasNext);
-    } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : 'Failed to load more posts.');
+      setIsDisconnectingGame(true);
+      await disconnectGameStats(gameName);
+      setProfile((current) =>
+        current
+          ? {
+              ...current,
+              gameStats: removeGameStats(current.gameStats, gameName),
+            }
+          : current,
+      );
+      setDisconnectTarget(null);
+    } catch (disconnectError) {
+      toast.error(getGameStatsErrorMessage(gameName, disconnectError));
     } finally {
-      setLoadingMorePosts(false);
+      setIsDisconnectingGame(false);
     }
   };
 
@@ -354,7 +683,7 @@ export default function ProfilePage() {
       setMediaNextCursor(page.nextCursor);
       setMediaHasNext(page.hasNext);
     } catch (loadError) {
-      alert(loadError instanceof Error ? loadError.message : 'Failed to load more media.');
+      toast.error(loadError instanceof Error ? loadError.message : '미디어를 더 불러오지 못했습니다.');
     } finally {
       setLoadingMoreMedia(false);
     }
@@ -366,30 +695,21 @@ export default function ProfilePage() {
     );
   };
 
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+  };
+
   const handlePostDeleted = (postId: string) => {
     setPosts((current) => current.filter((item) => item.postId !== postId));
     setMediaItems((current) => current.filter((item) => item.postId !== postId));
-  };
-
-  const handleToggleLike = async (post: PostRecord) => {
-    const optimistic = updatePostLikeState(post);
-
-    setPosts((current) =>
-      current.map((item) => (item.postId === post.postId ? optimistic : item))
-    );
-
-    try {
-      if (post.likedByMe) {
-        await unlikePost(post.postId);
-      } else {
-        await likePost(post.postId);
-      }
-    } catch (likeError) {
-      setPosts((current) =>
-        current.map((item) => (item.postId === post.postId ? post : item))
-      );
-      alert(likeError instanceof Error ? likeError.message : 'Failed to update like.');
-    }
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
@@ -473,7 +793,7 @@ export default function ProfilePage() {
         followedByMe: previousFollowing,
         followersCount: previousFollowersCount,
       });
-      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+      toast.error(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowLoading(false);
     }
@@ -500,7 +820,7 @@ export default function ProfilePage() {
       setFollowNextCursor(page.nextCursor);
       setFollowHasNext(page.hasNext);
     } catch (loadError) {
-      setFollowListError(loadError instanceof Error ? loadError.message : 'Failed to load users.');
+      setFollowListError(loadError instanceof Error ? loadError.message : '사용자 목록을 불러오지 못했습니다.');
     } finally {
       setFollowListLoading(false);
       setFollowListLoadingMore(false);
@@ -545,7 +865,7 @@ export default function ProfilePage() {
           user.handle === target.handle ? { ...user, isFollowing: target.isFollowing } : user
         )
       );
-      alert(followError instanceof Error ? followError.message : 'Failed to update follow.');
+      toast.error(followError instanceof Error ? followError.message : '팔로우 상태를 변경하지 못했습니다.');
     } finally {
       setFollowActionHandle(null);
     }
@@ -559,7 +879,7 @@ export default function ProfilePage() {
   const handleConnectPlatform = (platformId: ConnectedPlatformId) => {
     const handle = normalizeHandle(platformInputs[platformId]);
     if (!handle) {
-      alert('연동할 계정 ID를 입력해주세요.');
+      toast.error('연동할 계정 ID를 입력해주세요.');
       return;
     }
 
@@ -590,7 +910,7 @@ export default function ProfilePage() {
   const renderConnectedAccounts = () => (
     <section className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
       <div className="mb-6">
-        <h2 className="text-3xl font-black text-black">연결된 계정</h2>
+        <h2 className="section-title">연결된 계정</h2>
         <p className="mt-1 text-sm font-bold text-zinc-400">
           YouTube, Twitch, SOOP 채널을 프로필에 표시할 수 있습니다.
         </p>
@@ -654,12 +974,12 @@ export default function ProfilePage() {
                         setPlatformInputs({ ...platformInputs, [platformId]: event.target.value })
                       }
                       placeholder={meta.placeholder}
-                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black"
+                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
                     <button
                       type="button"
                       onClick={() => handleConnectPlatform(platformId)}
-                      className="h-11 rounded-xl bg-black px-5 text-sm font-black text-white transition hover:bg-zinc-800"
+                      className="btn-primary"
                     >
                       연결
                     </button>
@@ -675,115 +995,170 @@ export default function ProfilePage() {
 
   if (!currentUser || loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse font-black uppercase italic text-zinc-400">Loading Gamer Data...</p>
-      </div>
+      <ProfileSkeleton />
     );
   }
 
   if (!profile) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="font-black text-red-500">{error ?? 'Profile not found.'}</p>
+      <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
+        <p className="font-black text-red-500">{error ?? '프로필을 찾을 수 없습니다.'}</p>
+        <Link
+          href="/home"
+          className="btn-primary"
+        >
+          홈으로 돌아가기
+        </Link>
       </div>
     );
   }
 
   const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
+  const disconnectTargetConfig = disconnectTarget ? GAME_STATS_UI_CONFIG[disconnectTarget] : null;
   const displayedCover =
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
-    { name: 'posts' as const, icon: <Grid size={16} /> },
-    ...(privacySettings.showStats ? [{ name: 'stats' as const, icon: <BarChart3 size={16} /> }] : []),
-    { name: 'media' as const, icon: <Layers size={16} /> },
+    { name: 'posts' as const, label: '게시물', icon: <Grid size={16} /> },
+    { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
+    { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
   ];
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl bg-white pb-20">
-      <div
-        className="relative h-56 overflow-hidden bg-zinc-950"
-        style={{
-          backgroundImage: `url(${displayedCover})`,
-          backgroundPosition: 'center',
-          backgroundSize: 'cover',
-        }}
-      >
+    <div className="mx-auto min-h-screen w-full max-w-6xl bg-background pb-20 md:px-8 md:pt-6">
+      <div className="relative h-32 overflow-hidden bg-zinc-950 md:h-56 md:rounded-2xl">
+        <Image
+          src={displayedCover}
+          alt={`${profile.nickname} profile cover`}
+          fill
+          priority
+          unoptimized
+          sizes="(max-width: 1152px) 100vw, 1152px"
+          className="object-cover"
+        />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
       </div>
 
-      <div className="px-8">
-        <div className="relative mb-8 flex items-end justify-between -mt-16">
+      <div className="px-4 md:px-6">
+        <div className="relative mb-4 flex items-end justify-between -mt-10 md:mb-8 md:-mt-16">
           <div className="relative">
-            <div className="relative flex h-36 w-36 items-center justify-center overflow-hidden rounded-[40px] border-[6px] border-white bg-black text-4xl font-black text-white shadow-2xl">
+            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
               {displayedAvatar ? (
                 <Image
                   src={displayedAvatar}
-                  alt="Profile"
+                  alt="프로필 이미지"
                   fill
                   unoptimized
-                  sizes="144px"
+                  sizes="(max-width: 768px) 80px, 144px"
                   className="object-cover"
                 />
               ) : (
                 getInitials(profile.nickname)
               )}
             </div>
-            <div className="absolute bottom-2 right-2 h-8 w-8 rounded-full border-4 border-white bg-green-500" />
           </div>
 
-          <div className="mb-2 flex gap-3">
+          <div className="flex flex-wrap justify-end gap-1.5 md:mb-1 md:gap-2">
             {isOwnProfile ? (
               <>
             <Link
+              href="/wallet"
+              className="btn-secondary-square max-md:h-9! max-md:w-9! lg:hidden"
+              aria-label="내 지갑"
+            >
+              <WalletCards size={18} />
+            </Link>
+            <Link
               href="/settings"
-              className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
+              className="btn-secondary-square max-md:h-9! max-md:w-9!"
               aria-label="설정"
             >
-              <Settings size={20} />
+              <Settings size={18} />
             </Link>
             <button
               onClick={() => setShowEditProfileModal(true)}
-              className="flex items-center gap-2 rounded-2xl bg-black px-8 py-3 text-sm font-black text-white shadow-lg shadow-zinc-200 transition-all hover:bg-zinc-800"
+              className="btn-primary max-md:h-9! max-md:px-3.5! max-md:text-xs!"
             >
-              <Edit3 size={18} />
-              Edit Profile
+              <Edit3 size={14} />
+              프로필 수정
             </button>
               </>
             ) : (
               <>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setProfileReportMenuOpen((current) => !current)}
+                    className="btn-secondary-square max-md:h-9! max-md:w-9!"
+                    aria-label="사용자 메뉴"
+                    aria-expanded={profileReportMenuOpen}
+                  >
+                    <MoreHorizontal size={18} />
+                  </button>
+
+                  {profileReportMenuOpen ? (
+                    <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileReportMenuOpen(false);
+                          setProfileReportOpen(true);
+                        }}
+                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      >
+                        <Flag size={15} />
+                        사용자 신고
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setProfileReportMenuOpen(false)}
+                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                      >
+                        취소
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
                 <button
                   type="button"
                   onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
-                  title="Message"
-                  className="rounded-2xl bg-zinc-100 p-3 text-black transition-all hover:bg-zinc-200"
-                  aria-label="Message"
+                  title="메시지"
+                  className="btn-secondary-square max-md:h-9! max-md:w-9!"
+                  aria-label="메시지"
                 >
-                  <MessageCircle size={20} />
+                  <MessageCircle size={18} />
                 </button>
                 <button
                   type="button"
                   onClick={handleToggleFollow}
                   disabled={followLoading}
-                  className={`flex items-center gap-2 rounded-2xl px-8 py-3 text-sm font-black shadow-lg shadow-zinc-200 transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
-                    isFollowing ? 'bg-zinc-100 text-black hover:bg-zinc-200' : 'bg-black text-white hover:bg-zinc-800'
-                  }`}
+                  className={`${isFollowing ? 'btn-secondary' : 'btn-primary'} max-md:h-9! max-md:px-3.5! max-md:text-xs!`}
                 >
-                  {isFollowing ? 'Following' : 'Follow'}
+                  {isFollowing ? '팔로잉' : '팔로우'}
                 </button>
               </>
             )}
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           <div>
-            <h1 className="text-4xl font-black uppercase italic tracking-tighter text-black">{profile.nickname}</h1>
-            <p className="font-bold tracking-tight text-zinc-400">@{profile.handle}</p>
+            <h1 className="page-title flex items-center gap-2">
+              {profile.nickname}
+              <MembershipBadge active={profile.membershipBadge} />
+            </h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
+              {!isOwnProfile && profile.followsViewer ? (
+                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black leading-none tracking-tight text-zinc-500">
+                  나를 팔로우합니다
+                </span>
+              ) : null}
+            </div>
           </div>
 
-          <p className="max-w-xl whitespace-pre-wrap text-[17px] font-medium leading-relaxed text-zinc-800">
-            {profile.bio || 'Tell your gaming story on GamerIN.'}
+          <p className="max-w-xl whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-800 md:text-base">
+            {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
           </p>
 
           {profile.location || profile.website ? (
@@ -808,52 +1183,46 @@ export default function ProfilePage() {
             </div>
           ) : null}
 
-          {!privacySettings.profilePublic ? (
-            <div className="inline-flex rounded-xl bg-zinc-100 px-4 py-2 text-sm font-black text-zinc-500">
-              비공개 프로필 모드
-            </div>
-          ) : null}
-
-          <div className="flex gap-8 pt-2">
+          <div className="flex flex-wrap gap-x-5 gap-y-1 md:gap-8">
             <button
               type="button"
               onClick={() => openFollowList('followers')}
               className="flex items-center gap-2 text-left transition hover:opacity-70"
             >
-              <span className="text-2xl font-black tracking-tighter text-black">
+              <span className="text-lg font-black text-black md:text-2xl">
                 {profile.followersCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Followers</span>
+              <span className="text-xs font-bold text-zinc-500">팔로워</span>
             </button>
             <button
               type="button"
               onClick={() => openFollowList('following')}
               className="flex items-center gap-2 text-left transition hover:opacity-70"
             >
-              <span className="text-2xl font-black tracking-tighter text-black">
+              <span className="text-lg font-black text-black md:text-2xl">
                 {profile.followingCount.toLocaleString()}
               </span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Following</span>
+              <span className="text-xs font-bold text-zinc-500">팔로잉</span>
             </button>
             <div className="flex items-center gap-2">
-              <span className="text-2xl font-black tracking-tighter text-black">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-400">Posts</span>
+              <span className="text-lg font-black text-black md:text-2xl">{profile.postCount.toLocaleString()}</span>
+              <span className="text-xs font-bold text-zinc-500">게시물</span>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="sticky top-16 z-10 mt-12 flex gap-10 border-b border-zinc-100 bg-white px-8">
+      <div className="sticky top-16 z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
         {tabs.map((tab) => (
           <button
             key={tab.name}
             onClick={() => setActiveTab(tab.name)}
-            className={`relative flex items-center gap-2 pb-5 text-sm font-black uppercase tracking-widest transition-all ${
+            className={`relative flex h-12 flex-1 items-center justify-center gap-2 text-sm font-black transition-all md:flex-none ${
               activeTab === tab.name ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-300 hover:text-zinc-500'
             }`}
           >
             {tab.icon}
-            {tab.name}
+            {tab.label}
             {activeTab === tab.name ? (
               <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black dark:bg-[#f5b93d]" />
             ) : null}
@@ -861,76 +1230,127 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      <div className="px-8 pt-10">
+      <div className="pt-0 md:pt-6">
         {activeTab === 'stats' ? (
-          <div className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-            <div className="mb-6 flex items-center justify-between">
-              <h2 className="text-3xl font-black text-black">Verified Stats</h2>
+          <div className="m-4 rounded-2xl border border-zinc-200 bg-white p-4 md:m-0 md:p-8">
+            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
+              <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
 
               {isOwnProfile ? (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-1.5 sm:gap-3">
                   <button
                     onClick={() => setShowFetchStatsModal(true)}
-                    className="flex items-center gap-2 rounded-xl bg-black px-4 py-2 text-sm font-bold text-white transition hover:bg-zinc-800"
+                    className="flex items-center gap-1 rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-800 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
                   >
-                    <Plus size={16} />
-                    stat+
+                    <Plus size={14} className="sm:size-4" />
+                    전적 추가
                   </button>
 
-                  <button onClick={handleRefreshStats} className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100">
+                  <button
+                    type="button"
+                    onClick={() => void handleRefreshStats()}
+                    disabled={isRefreshing || isDisconnectingGame}
+                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
+                    aria-label="연결된 게임 전적 새로고침"
+                  >
                     <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
                   </button>
                 </div>
               ) : null}
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-2 sm:space-y-4">
               {gameStatEntries.length === 0 ? (
                 <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
-                  No connected game stats yet.
+                  아직 연결된 게임 전적이 없습니다.
                 </div>
               ) : (
-                gameStatEntries.map((entry) => (
-                  <div
-                    key={entry.gameName}
-                    className="flex items-center justify-between rounded-2xl bg-zinc-50 px-4 py-5 md:px-5"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="h-12 w-12 rounded-xl bg-zinc-300" />
-                      <div>
-                        <p className="text-xl font-black text-black">{entry.gameName}</p>
-                        <p className="max-w-xl truncate text-base text-slate-600">{entry.summary}</p>
+                gameStatEntries.map((entry) => {
+                  const iconMeta = getGameIconMeta(entry.gameName);
+
+                  return (
+                    <div
+                      key={entry.gameName}
+                      className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-5 md:px-5"
+                    >
+                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:h-12 sm:w-12 sm:rounded-xl">
+                          {iconMeta ? (
+                            <Image
+                              src={iconMeta.url}
+                              alt={`${entry.gameName} 아이콘`}
+                              fill
+                              sizes="48px"
+                              className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
+                            />
+                          ) : (
+                            <Gamepad2 size={24} className="text-zinc-400" />
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
+                          {entry.detail ? (
+                            <p className="max-w-xl break-keep text-xs font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
+                          ) : null}
+                          <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex shrink-0 items-center gap-2 text-right">
+                        <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
+                        {isOwnProfile && entry.disconnectGameName ? (
+                          <button
+                            type="button"
+                            onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                            disabled={isRefreshing || isDisconnectingGame}
+                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        ) : null}
                       </div>
                     </div>
-
-                    <div className="text-right">
-                      <p className="text-sm font-black uppercase tracking-widest text-zinc-400">Live sync</p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
         ) : null}
 
         {activeTab === 'posts' ? (
-          <div className="mx-auto max-w-2xl space-y-4">
-            {posts.length === 0 ? (
-              <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Posts Yet</h3>
-                <p className="text-sm font-bold text-zinc-400">This profile has not published any posts yet.</p>
+          <div className="md:space-y-4">
+            {postsLoading ? (
+              <PostListSkeleton />
+            ) : postsError ? (
+              <div className="py-16 text-center">
+                <p className="font-black text-red-500">{postsError}</p>
+                <button
+                  type="button"
+                  onClick={() => void reloadPosts()}
+                  className="btn-primary mt-4"
+                >
+                  다시 시도
+                </button>
+              </div>
+            ) : posts.length === 0 ? (
+              <div className="py-16 text-center">
+                <h3 className="section-title mb-1">아직 게시물이 없습니다</h3>
+                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시물이 없습니다.</p>
               </div>
             ) : (
               posts.map((post) => (
                 <Post
                   key={post.postId}
                   post={post}
-                  onToggleLike={handleToggleLike}
+                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                  onToggleLike={toggleLike}
                   onOpenDetail={(selected) => handleOpenPost(selected.postId)}
                   onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
                   onShare={handlePostUpdated}
+                  onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={handlePostUpdated}
+                  onBookmarkChange={handleBookmarkChanged}
                 />
               ))
             )}
@@ -938,33 +1358,33 @@ export default function ProfilePage() {
             {postsHasNext ? (
               <button
                 type="button"
-                onClick={handleLoadMorePosts}
+                onClick={() => void loadMorePosts()}
                 disabled={loadingMorePosts}
-                className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                className="btn-secondary w-full"
               >
-                {loadingMorePosts ? 'Loading...' : 'Load More Posts'}
+                {loadingMorePosts ? '불러오는 중...' : '게시물 더 보기'}
               </button>
             ) : null}
           </div>
         ) : null}
 
         {activeTab === 'media' ? (
-          <div className="space-y-6">
+          <div className="space-y-4 p-4 md:space-y-6 md:p-0">
             {isOwnProfile ? renderConnectedAccounts() : null}
 
             {mediaItems.length === 0 ? (
-              <div className="py-24 text-center">
-                <h3 className="mb-1 text-lg font-black uppercase italic text-black">No Media Yet</h3>
-                <p className="text-sm font-bold text-zinc-400">Uploaded image and video posts will appear here.</p>
+              <div className="py-16 text-center">
+                <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
+                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시물이 여기에 표시됩니다.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+              <div className="grid grid-cols-3 gap-1 md:gap-4">
                 {mediaItems.map((item) => (
                   <button
                     key={item.mediaId}
                     type="button"
                     onClick={() => handleOpenPost(item.postId)}
-                    className="group relative aspect-square overflow-hidden rounded-[24px] border border-zinc-100 bg-zinc-50 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                     aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시물 상세 보기`}
                   >
                     {item.mediaType === 'VIDEO' ? (
@@ -978,14 +1398,14 @@ export default function ProfilePage() {
                           className="h-full w-full bg-black object-cover transition duration-300 group-hover:scale-105"
                         />
                         <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white">
-                          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
-                            <Play size={22} className="ml-0.5 fill-white" />
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm md:h-12 md:w-12">
+                            <Play size={18} className="ml-0.5 fill-white" />
                           </span>
                         </span>
                       </>
                     ) : (
                       <div className="relative h-full w-full">
-                        <Image src={item.mediaUrl} alt="Profile media" fill unoptimized className="object-cover" />
+                        <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
                       </div>
                     )}
                   </button>
@@ -998,16 +1418,51 @@ export default function ProfilePage() {
                 type="button"
                 onClick={handleLoadMoreMedia}
                 disabled={loadingMoreMedia}
-                className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                className="btn-secondary w-full"
               >
-                {loadingMoreMedia ? 'Loading...' : 'Load More Media'}
+                {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
               </button>
             ) : null}
           </div>
         ) : null}
       </div>
 
-      {isOwnProfile && showFetchStatsModal ? <FetchGameStatsModal onClose={() => setShowFetchStatsModal(false)} /> : null}
+      {isOwnProfile && showFetchStatsModal ? (
+        <FetchGameStatsModal
+          onClose={() => setShowFetchStatsModal(false)}
+          onConnected={handleGameConnected}
+        />
+      ) : null}
+      {isOwnProfile && disconnectTarget && disconnectTargetConfig ? (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
+            <h2 className="text-2xl font-black tracking-tight text-black">
+              {disconnectTargetConfig.displayName} 전적 연동을 해제할까요?
+            </h2>
+            <p className="mt-3 text-base font-bold text-zinc-500">
+              {disconnectTargetConfig.displayName} 전적만 프로필에서 제거됩니다. 다른 게임 전적은 유지됩니다.
+            </p>
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDisconnectTarget(null)}
+                disabled={isDisconnectingGame}
+                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDisconnectGame()}
+                disabled={isDisconnectingGame}
+                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated"
+              >
+                {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       {isOwnProfile && showEditProfileModal ? (
         <EditProfileModal
           onClose={() => setShowEditProfileModal(false)}
@@ -1022,41 +1477,50 @@ export default function ProfilePage() {
           onSaveUserInfo={handleSaveUserInfo}
         />
       ) : null}
+      {!isOwnProfile && profileReportOpen ? (
+        <ReportContentModal
+          targetType="USER"
+          targetId={profile.id}
+          title="사용자 신고"
+          author={profile.nickname}
+          authorHandle={profile.handle}
+          content={profile.bio}
+          emptyContentLabel="프로필 소개 없음"
+          onClose={() => setProfileReportOpen(false)}
+        />
+      ) : null}
       {followListType ? (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="max-h-[82vh] w-full max-w-lg overflow-hidden rounded-[32px] bg-white shadow-2xl">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
               <div>
                 <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
                   @{profile.handle}
                 </p>
                 <h2 className="text-2xl font-black text-black">
-                  {followListType === 'followers' ? 'Followers' : 'Following'}
+                  {followListType === 'followers' ? '팔로워' : '팔로잉'}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closeFollowList}
-                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black"
-                aria-label="Close"
+                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
+                aria-label="닫기"
               >
                 <X size={20} />
               </button>
             </div>
 
-            <div className="max-h-[58vh] overflow-y-auto p-4">
+            <div className="max-h-[58dvh] overflow-y-auto p-4">
               {followListLoading ? (
-                <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
-                  <Loader2 size={18} className="mr-2 animate-spin" />
-                  Loading users...
-                </div>
+                <UserRowsSkeleton />
               ) : followListError ? (
-                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   {followListError}
                 </div>
               ) : followUsers.length === 0 ? (
                 <div className="py-16 text-center text-sm font-bold text-zinc-400">
-                  No users yet.
+                  아직 사용자가 없습니다.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -1068,14 +1532,14 @@ export default function ProfilePage() {
                     return (
                       <div
                         key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50"
+                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
                       >
                         <Link
                           href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
                           onClick={closeFollowList}
                           className="flex min-w-0 flex-1 items-center gap-3"
                         >
-                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white">
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
                             {followUserRecord.profileImageUrl ? (
                               <Image
                                 src={followUserRecord.profileImageUrl}
@@ -1090,8 +1554,9 @@ export default function ProfilePage() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-black text-black">
-                              {followUserRecord.nickname}
+                            <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                              <span className="truncate">{followUserRecord.nickname}</span>
+                              <MembershipBadge active={followUserRecord.membershipBadge} />
                             </p>
                             <p className="truncate text-xs font-bold text-zinc-400">
                               @{followUserRecord.handle}
@@ -1115,7 +1580,7 @@ export default function ProfilePage() {
                                 : 'bg-black text-white hover:bg-zinc-800'
                             }`}
                           >
-                            {followUserRecord.isFollowing ? 'Following' : 'Follow'}
+                            {followUserRecord.isFollowing ? '팔로잉' : '팔로우'}
                           </button>
                         ) : null}
                       </div>
@@ -1133,7 +1598,7 @@ export default function ProfilePage() {
                   disabled={followListLoadingMore}
                   className="w-full rounded-2xl border border-zinc-100 bg-white px-5 py-3 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
                 >
-                  {followListLoadingMore ? 'Loading...' : 'Load More'}
+                  {followListLoadingMore ? '불러오는 중...' : '더 보기'}
                 </button>
               </div>
             ) : null}

@@ -1,11 +1,15 @@
 'use client';
 
+import { useToast } from '@/app/context/ToastContext';
+
 import Image from 'next/image';
 import { X, Camera, MapPin, Globe, AlignLeft, User } from 'lucide-react';
 import { useState, useRef, useEffect, type ChangeEvent, type MutableRefObject } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { compressProfileImage } from '@/lib/profile-image-compression';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
+import { getInitials } from '@/lib/feed-api';
+import { useEscapeKey } from '@/hooks/useEscapeKey';
 
 export interface EditProfileUserInfo {
   name: string;
@@ -91,6 +95,8 @@ export function EditProfileModal({
   userInfo,
   onSaveUserInfo,
 }: EditProfileModalProps) {
+  const toast = useToast();
+  useEscapeKey(onClose);
   const [formData, setFormData] = useState({
     name: userInfo?.name || '',
     bio: userInfo?.bio || '',
@@ -153,7 +159,7 @@ export function EditProfileModal({
       setCoverImageFile(compressedFile);
       setCoverPreview(previewUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to process cover image.');
+      toast.error(error instanceof Error ? error.message : '커버 이미지를 처리하지 못했습니다.');
     } finally {
       setProcessingImage(false);
       event.target.value = '';
@@ -179,7 +185,7 @@ export function EditProfileModal({
       setAvatarImageFile(compressedFile);
       setAvatarPreview(previewUrl);
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to process avatar image.');
+      toast.error(error instanceof Error ? error.message : '프로필 이미지를 처리하지 못했습니다.');
     } finally {
       setProcessingImage(false);
       event.target.value = '';
@@ -217,7 +223,7 @@ export function EditProfileModal({
       onSaveAvatar?.(avatarPreview);
       onClose();
     } catch (error) {
-      alert(error instanceof Error ? error.message : 'Failed to save profile.');
+      toast.error(error instanceof Error ? error.message : '프로필을 저장하지 못했습니다.');
     } finally {
       setSaving(false);
     }
@@ -231,38 +237,43 @@ export function EditProfileModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           onClick={onClose}
-          className="absolute inset-0 bg-black/80 backdrop-blur-sm"
+          className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         />
 
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="relative bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[40px] shadow-2xl scrollbar-hide"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="edit-profile-title"
+          className="relative bg-white w-full max-w-2xl max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl shadow-2xl scrollbar-hide"
         >
-          <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20">
+          <div className="sticky top-0 bg-white/80 backdrop-blur-md border-b border-zinc-100 px-8 py-5 flex items-center justify-between z-20 dark:bg-background/90">
             <div className="flex items-center gap-4">
               <button
+                type="button"
                 onClick={onClose}
-                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black"
+                aria-label="닫기"
+                className="w-10 h-10 rounded-full hover:bg-zinc-100 flex items-center justify-center transition-all text-zinc-400 hover:text-black dark:hover:bg-surface-elevated"
               >
                 <X size={24} />
               </button>
-              <h2 className="text-xl font-black text-black tracking-tighter italic uppercase">Edit Profile</h2>
+              <h2 id="edit-profile-title" className="text-xl font-black tracking-tight text-black">프로필 수정</h2>
             </div>
             <button
               onClick={handleSave}
               disabled={saving || processingImage}
-              className="px-8 py-2.5 bg-black text-white font-black rounded-2xl hover:bg-zinc-800 transition-all text-sm shadow-lg shadow-zinc-200 disabled:bg-zinc-300"
+              className="btn-primary"
             >
-              {processingImage ? 'PROCESSING...' : saving ? 'SAVING...' : 'SAVE'}
+              {processingImage ? '이미지 처리 중...' : saving ? '저장 중...' : '저장'}
             </button>
           </div>
 
           <div onClick={handleCoverClick} className="relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden">
             <Image
               src={coverPreview}
-              alt="Cover"
+              alt="커버 이미지"
               fill
               unoptimized
               sizes="(max-width: 768px) 100vw, 768px"
@@ -273,8 +284,8 @@ export function EditProfileModal({
                 <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl">
                   <Camera size={24} />
                 </div>
-                <span className="text-white text-[11px] font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity">
-                  Change Cover
+                <span className="text-white text-xs font-black uppercase tracking-widest opacity-0 group-hover:opacity-100 pointer-coarse:opacity-100 transition-opacity">
+                  커버 이미지 변경
                 </span>
               </div>
             </div>
@@ -284,9 +295,9 @@ export function EditProfileModal({
                 event.stopPropagation();
                 handleResetCover();
               }}
-              className="absolute bottom-4 right-4 rounded-xl bg-white/90 px-4 py-2 text-[11px] font-black uppercase tracking-widest text-black shadow-lg transition hover:bg-white"
+              className="absolute bottom-4 right-4 rounded-xl bg-white/90 px-4 py-2 text-xs font-black uppercase tracking-widest text-black shadow-lg transition hover:bg-white dark:bg-surface/90 dark:hover:bg-surface-elevated"
             >
-              Reset Cover
+              커버 이미지 초기화
             </button>
             <input
               ref={fileInputRef}
@@ -299,15 +310,17 @@ export function EditProfileModal({
 
           <div className="px-8 -mt-16 relative z-10">
             <div className="relative w-32 h-32 group cursor-pointer" onClick={handleAvatarClick}>
-              <div className="relative w-full h-full bg-black rounded-[40px] border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden">
+              <div className="relative w-full h-full bg-black rounded-3xl border-[6px] border-white flex items-center justify-center text-white text-3xl font-black shadow-2xl overflow-hidden dark:border-neutral-950">
                 {avatarPreview ? (
-                  <Image src={avatarPreview} alt="Avatar" fill unoptimized sizes="128px" className="object-cover" />
+                  <Image src={avatarPreview} alt="프로필 이미지" fill unoptimized sizes="128px" className="object-cover" />
                 ) : (
-                  (formData.name || 'U').slice(0, 2).toUpperCase()
+                  getInitials(formData.name, 'U')
                 )}
               </div>
-              <div className="absolute inset-0 bg-black/40 rounded-[40px] opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center border-4 border-white/0 group-hover:border-white/20">
-                <Camera className="w-8 h-8 text-white" />
+              <div className="absolute inset-0 rounded-3xl bg-black/0 transition-colors group-hover:bg-black/30" />
+              {/* 이니셜과 겹치지 않도록 카메라는 모서리 배지로 둔다. */}
+              <div className="absolute -bottom-1 -right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-black text-white shadow-lg dark:border-neutral-950">
+                <Camera size={16} />
               </div>
             </div>
             <input
@@ -322,31 +335,31 @@ export function EditProfileModal({
           <div className="p-8 space-y-8">
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest ml-1">
-                <User size={14} /> Name
+                <User size={14} /> 이름
               </label>
               <input
                 type="text"
                 value={formData.name}
                 onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.nameMax}
-                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all"
-                placeholder="Enter your name"
+                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
+                placeholder="이름을 입력하세요"
               />
             </div>
 
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest ml-1">
-                <AlignLeft size={14} /> Bio
+                <AlignLeft size={14} /> 자기소개
               </label>
               <textarea
                 value={formData.bio}
                 onChange={(event) => setFormData({ ...formData, bio: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.bioMax}
-                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none"
-                placeholder="Tell your gaming story"
+                className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
+                placeholder="게임 이야기를 소개해 보세요"
               />
               <div className="flex justify-end pr-2">
-                <span className="text-[10px] font-black text-zinc-300 uppercase tracking-widest">
+                <span className="text-2xs font-black text-zinc-300 uppercase tracking-widest">
                   {formData.bio.length} / 160
                 </span>
               </div>
@@ -355,26 +368,26 @@ export function EditProfileModal({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest ml-1">
-                  <MapPin size={14} /> Location
+                  <MapPin size={14} /> 지역
                 </label>
                 <input
                   type="text"
                   value={formData.location}
                   onChange={(event) => setFormData({ ...formData, location: event.target.value })}
                   maxLength={PROFILE_FIELD_LIMITS.locationMax}
-                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
+                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold focus:outline-none focus:border-black focus:bg-white transition-all dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
                 />
               </div>
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest ml-1">
-                  <Globe size={14} /> Website
+                  <Globe size={14} /> 웹사이트
                 </label>
                 <input
                   type="text"
                   value={formData.website}
                   onChange={(event) => setFormData({ ...formData, website: event.target.value })}
                   maxLength={PROFILE_FIELD_LIMITS.websiteMax}
-                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-[15px] font-bold focus:outline-none focus:border-black focus:bg-white transition-all"
+                  className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold focus:outline-none focus:border-black focus:bg-white transition-all dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
                 />
               </div>
             </div>

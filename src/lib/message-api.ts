@@ -1,5 +1,15 @@
-import { clearStoredAuth, ensureAccessToken, refreshAccessToken } from '@/lib/auth-store';
+import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
+import { isApiOriginUrl, toAbsoluteAssetUrl } from '@/lib/asset-url';
+import {
+  ApiError,
+  AUTH_REQUIRED_MESSAGE,
+  type ApiClientConfig,
+  type ApiRequestOptions,
+  apiRequest,
+  apiRequestBlob,
+  forceRefreshAccessToken,
+} from '@/lib/api-client';
 import { PostRecord } from '@/lib/feed-api';
 import {
   ChatAttachment,
@@ -11,22 +21,29 @@ import {
   sortConversationsByUpdatedAt,
 } from '@/lib/message-store';
 
-const API_BASE = getApiBaseUrl();
-const MESSAGE_BASE = `${API_BASE}/api/v1/messages`;
+const MESSAGE_BASE = '/api/v1/messages';
 
-type ApiEnvelope<T> = {
-  success: boolean;
-  data: T;
-  message?: string;
+const MESSAGE_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) =>
+    new ApiError(
+      message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+        ? AUTH_REQUIRED_MESSAGE
+        : '메시지 요청을 처리하지 못했습니다.'),
+      status,
+      reason,
+    ),
 };
 
-type RequestOptions = Omit<RequestInit, 'headers'> & {
-  headers?: Record<string, string>;
+const MESSAGE_ATTACHMENT_CLIENT: ApiClientConfig = {
+  toError: ({ reason, status, message }) =>
+    new ApiError(
+      message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
+        ? AUTH_REQUIRED_MESSAGE
+        : '메시지 첨부 파일을 불러오지 못했습니다.'),
+      status,
+      reason,
+    ),
 };
-
-function createMessageAuthError() {
-  return new Error('Authentication is required or the token has expired.');
-}
 
 type ConversationPayload = {
   id: string;
@@ -45,6 +62,7 @@ type MessagePayload = {
   deliveryStatus: 'sent';
   attachments: AttachmentPayload[];
   sharedPost: SharedPostPayload | null;
+  clientMessageId?: string | null;
 };
 
 type AttachmentPayload = {
@@ -75,20 +93,12 @@ export type MessageRealtimeEvent = {
   messageId: string;
 };
 
-function normalizeUrl(url: string) {
-  if (/^https?:\/\//i.test(url)) {
-    return url;
-  }
-
-  return `${API_BASE}${url.startsWith('/') ? url : `/${url}`}`;
-}
-
 function toAttachment(payload: AttachmentPayload): ChatAttachment {
   return {
     id: payload.id,
     type: payload.type,
     name: payload.name,
-    url: normalizeUrl(payload.url),
+    url: toAbsoluteAssetUrl(payload.url) ?? payload.url,
   };
 }
 
@@ -114,6 +124,7 @@ function toMessage(payload: MessagePayload): ChatMessage {
     deliveryStatus: payload.deliveryStatus,
     attachments: (payload.attachments ?? []).map(toAttachment),
     sharedPost: toSharedPost(payload.sharedPost),
+    clientMessageId: payload.clientMessageId ?? null,
   };
 }
 
@@ -127,98 +138,31 @@ function toConversation(payload: ConversationPayload): Conversation {
   };
 }
 
-async function messageRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const send = async (accessToken: string) => {
-    const headers = new Headers(options.headers);
-    headers.set('Authorization', `Bearer ${accessToken}`);
-
-    if (!(options.body instanceof FormData) && options.body && !headers.has('Content-Type')) {
-      headers.set('Content-Type', 'application/json');
-    }
-
-    const response = await fetch(`${MESSAGE_BASE}${path}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-    const payload = (await response.json().catch(() => null)) as ApiEnvelope<T> | { message?: string } | null;
-    return { response, payload };
-  };
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw createMessageAuthError();
-  }
-
-  let result = await send(accessToken);
-
-  if (result.response.status === 401) {
-    accessToken = await refreshAccessToken();
-    if (!accessToken) {
-      throw createMessageAuthError();
-    }
-
-    result = await send(accessToken);
-  }
-
-  if (!result.response.ok) {
-    if (result.response.status === 401) {
-      clearStoredAuth();
-      throw createMessageAuthError();
-    }
-
-    throw new Error(result.payload?.message ?? 'Message request failed.');
-  }
-
-  return (result.payload as ApiEnvelope<T>).data;
+function messageRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
+  return apiRequest<T>(`${MESSAGE_BASE}${path}`, MESSAGE_CLIENT, options);
 }
 
 export async function fetchMessageAttachmentBlob(url: string) {
-  const send = async (accessToken: string) =>
-    fetch(url, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-      credentials: 'include',
-    });
-
-  let accessToken = await ensureAccessToken();
-  if (!accessToken) {
-    throw createMessageAuthError();
+  const attachmentUrl = toAbsoluteAssetUrl(url);
+  if (!attachmentUrl) {
+    throw new ApiError('메시지 첨부 파일을 불러오지 못했습니다.', 0, 'unavailable');
   }
 
-  let response = await send(accessToken);
-
-  if (response.status === 401) {
-    accessToken = await refreshAccessToken();
-    if (!accessToken) {
-      throw createMessageAuthError();
-    }
-    response = await send(accessToken);
+  if (isApiOriginUrl(attachmentUrl)) {
+    return apiRequestBlob(attachmentUrl, MESSAGE_ATTACHMENT_CLIENT);
   }
 
-  if (!response.ok) {
-    if (response.status === 401) {
-      clearStoredAuth();
-      throw createMessageAuthError();
-    }
-    throw new Error('Message attachment request failed.');
+  // API origin이 아닌 주소에는 토큰과 쿠키를 보내지 않고, 실패해도 세션을 갱신·종료하지 않는다.
+  const generation = getAuthGeneration();
+  const response = await fetch(attachmentUrl, { credentials: 'omit' }).catch(() => null);
+  assertCurrentAuthGeneration(generation);
+  if (!response?.ok) {
+    throw new ApiError('메시지 첨부 파일을 불러오지 못했습니다.', 0, 'unavailable');
   }
 
-  return response.blob();
-}
-
-export function isMessageAuthError(error: unknown) {
-  if (!(error instanceof Error)) return false;
-  const message = error.message.toLowerCase();
-  return (
-    message.includes('로그인이 필요') ||
-    message.includes('인증') ||
-    message.includes('토큰') ||
-    message.includes('authentication') ||
-    message.includes('token')
-  );
+  const blob = await response.blob();
+  assertCurrentAuthGeneration(generation);
+  return blob;
 }
 
 export async function fetchConversationList() {
@@ -226,12 +170,20 @@ export async function fetchConversationList() {
   return sortConversationsByUpdatedAt(data.map(toConversation));
 }
 
-export async function openMessageEventSource() {
+export async function openMessageEventSource(options: { forceRefresh?: boolean } = {}) {
+  const generation = getAuthGeneration();
+
+  if (options.forceRefresh) {
+    await forceRefreshAccessToken(MESSAGE_CLIENT);
+  }
+
   await messageRequest<{ expiresAt: string }>('/stream-token', {
     method: 'POST',
   });
 
-  return new EventSource(`${MESSAGE_BASE}/stream`, { withCredentials: true });
+  // 강제 refresh와 stream-token 발급 사이에 사용자가 바뀌었으면 이전 사용자의 연결을 시작하지 않는다.
+  assertCurrentAuthGeneration(generation);
+  return new EventSource(`${getApiBaseUrl()}${MESSAGE_BASE}/stream`, { withCredentials: true });
 }
 
 export function parseMessageRealtimeEvent(rawData: string): MessageRealtimeEvent {
@@ -308,14 +260,20 @@ export async function sendConversationMessage(payload: {
   content?: string;
   sharedPostId?: string | null;
   attachments?: File[];
+  // 재시도해도 같은 값을 보내면 서버가 처음 저장한 메시지를 돌려준다.
+  clientMessageId?: string;
 }) {
-  const { conversationId, attachments = [], content = '', sharedPostId = null } = payload;
+  const { conversationId, attachments = [], content = '', sharedPostId = null, clientMessageId } = payload;
 
   if (attachments.length > 0) {
     const formData = new FormData();
 
     if (content.trim()) {
       formData.append('content', content.trim());
+    }
+
+    if (clientMessageId) {
+      formData.append('clientMessageId', clientMessageId);
     }
 
     for (const attachment of attachments) {
@@ -335,6 +293,7 @@ export async function sendConversationMessage(payload: {
     body: JSON.stringify({
       content: content.trim(),
       sharedPostId,
+      clientMessageId,
     }),
   });
 

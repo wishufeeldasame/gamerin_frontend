@@ -12,6 +12,9 @@
 
 # testing
 /coverage
+/test-results/
+/playwright-report/
+/blob-report/
 
 # next.js
 /.next/
@@ -45,7 +48,12 @@ next-env.d.ts
 # IDEs and editors
 .vscode/
 .idea/
-.codex
 
-AGENTS.md
-CLAUDE.md 
+# Shared repository instructions
+!/AGENTS.md
+!/CLAUDE.md
+
+/docs/local
+
+# 수동 캡처 결과물
+/screenshots/

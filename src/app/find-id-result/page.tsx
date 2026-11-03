@@ -23,14 +23,14 @@ function FindIdResultPageContent() {
       : "정보 없음";
 
   return (
-    <div className="flex min-h-screen bg-white font-sans text-black">
+    <div className="flex min-h-screen bg-background font-sans text-black">
       
       {/* 1. 왼쪽: GamerIN 로고 전용 영역 */}
-      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100">
+      <div className="hidden md:flex flex-[0_0_45%] items-center justify-center p-12 bg-gray-50/50 border-r border-gray-100 dark:border-line dark:bg-surface">
         <div className="relative w-80 h-80 flex items-center justify-center">
           <Image 
             src="/logo.png" 
-            alt="GamerIN Logo" 
+            alt="GamerIN 로고"
             width={600}
             height={600}
             className="object-contain drop-shadow-2xl"
@@ -46,7 +46,7 @@ function FindIdResultPageContent() {
           <div className="p-1.5 rounded-full border border-zinc-200 group-hover:border-black transition-colors">
             <ChevronLeft size={18} />
           </div>
-          <span className="text-[15px]">로그인 페이지로 돌아가기</span>
+          <span className="text-base">로그인 페이지로 돌아가기</span>
         </Link>
         
         <div className="w-full max-w-[420px] mx-auto space-y-10 pt-16 md:pt-0">
@@ -59,7 +59,7 @@ function FindIdResultPageContent() {
               <h1 className="text-4xl font-black text-black tracking-tighter">
                 아이디를 찾았습니다
               </h1>
-              <p className="text-[16px] text-zinc-600 font-medium">
+              <p className="text-base text-zinc-600 font-medium">
                 회원님의 정보와 일치하는 아이디입니다.
               </p>
             </div>
@@ -67,7 +67,7 @@ function FindIdResultPageContent() {
 
           {/* 결과 카드 */}
           <div className="p-8 border border-zinc-200 rounded-3xl bg-zinc-50 space-y-2">
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">User ID</p>
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">아이디</p>
             <p className="text-3xl font-black text-black tracking-tight">
               {maskedHandle || "조회 결과 없음"}
             </p>
@@ -80,12 +80,12 @@ function FindIdResultPageContent() {
 
           <Link
             href="/login"
-            className="flex items-center justify-center w-full h-14 bg-black text-white rounded-full font-black text-[16px] hover:bg-zinc-800 transition-all active:scale-[0.98] no-underline"
+            className="flex items-center justify-center w-full h-12 bg-black text-white rounded-xl font-black text-base hover:bg-zinc-800 transition-all active:scale-[0.98] no-underline"
           >
             로그인하러 가기
           </Link>
 
-          <div className="pt-6 border-t border-zinc-100 text-center text-[15px]">
+          <div className="pt-6 border-t border-zinc-100 text-center text-base">
             <span className="text-zinc-500 font-medium">비밀번호도 모르시겠나요?</span>
             <Link href="/auth/forgot-password" className="ml-2 font-black text-black hover:underline underline-offset-4">
               비밀번호 찾기
@@ -99,9 +99,9 @@ function FindIdResultPageContent() {
 
 function FindIdResultPageFallback() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-white font-sans text-black">
+    <div className="flex min-h-screen items-center justify-center bg-background font-sans text-black">
       <p className="text-sm font-black uppercase tracking-widest text-zinc-400">
-        Result Loading...
+        조회 결과를 불러오는 중...
       </p>
     </div>
   );
