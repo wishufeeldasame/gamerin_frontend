@@ -61,11 +61,10 @@ describe('SettingsPage', () => {
   it('shows only real account data as read-only values', () => {
     renderSettings();
 
-    const email = screen.getByLabelText('이메일');
     const handle = screen.getByLabelText('사용자 이름');
 
-    expect(email).toHaveValue('');
-    expect(email).toHaveAttribute('readonly');
+    // 서버가 이메일을 내려주지 않아 빈 이메일 칸은 보여주지 않는다.
+    expect(screen.queryByLabelText('이메일')).not.toBeInTheDocument();
     expect(handle).toHaveValue('@tester');
     expect(handle).toHaveAttribute('readonly');
     expect(screen.queryByText('전화번호')).not.toBeInTheDocument();

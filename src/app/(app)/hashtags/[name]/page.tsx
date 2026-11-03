@@ -3,7 +3,6 @@
 import Link from 'next/link';
 import { useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Hash } from 'lucide-react';
 import { Post } from '@/app/home/components/Post';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
@@ -75,41 +74,32 @@ export default function HashtagPostsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-8">
-      <header className="mb-8 rounded-[32px] border border-zinc-100 bg-white p-6 shadow-sm dark:border-line dark:bg-surface">
-        <div className="flex items-center gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
-            <Hash size={24} />
-          </span>
-          <div className="min-w-0">
-            <h1 className="truncate text-3xl font-black text-black dark:text-zinc-100">#{hashtagName}</h1>
-            <p className="mt-1 text-xs font-black uppercase tracking-widest text-zinc-400">
-              최신 게시글
-            </p>
-          </div>
-        </div>
+    <div className="page-container">
+      <header className="mb-6 min-w-0 md:mb-8">
+        <h1 className="page-title truncate">#{hashtagName}</h1>
+        <p className="page-subtitle">최신 게시글</p>
       </header>
 
       {loading ? (
-        <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+        <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
           게시글을 불러오는 중...
         </div>
       ) : error ? (
-        <div className="flex flex-col items-center gap-4 rounded-[32px] border border-red-100 bg-red-50 p-10 text-center dark:border-red-950 dark:bg-red-950/30">
+        <div className="flex flex-col items-center gap-4 rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-950 dark:bg-red-950/30">
           <p className="font-black text-red-500">{error}</p>
           <Link
             href="/home"
-            className="rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+            className="btn-primary"
           >
             홈으로 돌아가기
           </Link>
         </div>
       ) : posts.length === 0 ? (
-        <div className="rounded-[32px] border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center">
+        <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 p-10 text-center">
           <p className="font-black text-zinc-500">아직 이 해시태그의 게시글이 없습니다.</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="-mx-4 md:mx-0 md:space-y-4">
           {posts.map((post) => (
             <Post
               key={post.postId}

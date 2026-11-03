@@ -46,7 +46,8 @@ type Listener = (event: { data: string }) => void;
 const conversation: Conversation = {
   id: 'conv-1',
   recipient: { id: 'user-2', name: '상대', handle: 'other', role: '', online: false },
-  messages: [],
+  // 목록은 메시지가 있는 대화만 보여 주므로 마지막 메시지 하나를 둔다.
+  messages: [{ id: 'message-0', senderId: 'recipient-1', text: '안녕하세요', createdAt: '2026-10-06T15:05:00+09:00', read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null }],
   unreadCount: 0,
   updatedAt: '2026-10-05T12:00:00.000Z',
 };
@@ -85,7 +86,7 @@ function sentClientMessageId(call = 0): string {
 
 async function renderPage() {
   const view = render(<MessagesPage />);
-  const input = await screen.findByPlaceholderText('상대님에게 메시지 보내기');
+  const input = await screen.findByLabelText('상대님에게 메시지 보내기');
   return { ...view, input };
 }
 
@@ -185,6 +186,22 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(sentClientMessageId(1)).toBe(sentClientMessageId(0));
     await waitFor(() => expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument());
     expect(screen.getAllByText('다시')).toHaveLength(1);
+  });
+
+  it('첫 메시지 전송이 실패한 빈 대화는 다른 대화로 옮겨도 목록에 남긴다', async () => {
+    const emptyConversation = { ...conversation, messages: [] };
+    const otherConversation = { ...conversation, id: 'conv-2', recipient: { ...conversation.recipient, id: 'user-3', name: '다른이', handle: 'another' } };
+    api.fetchConversationList.mockResolvedValue([emptyConversation, otherConversation]);
+    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('서버 오류', 500));
+    const { input } = await renderPage();
+
+    send(input, '첫 메시지');
+    expect(await screen.findByRole('button', { name: '재시도' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /다른이/ }));
+
+    await waitFor(() => expect(screen.queryByLabelText('상대님에게 메시지 보내기')).not.toBeInTheDocument());
+    expect(screen.getAllByRole('button').some((button) => button.textContent?.includes('상대other'))).toBe(true);
   });
 
   it('실패한 메시지를 삭제하면 목록에서 빼고 첨부 미리보기 URL을 해제한다', async () => {

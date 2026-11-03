@@ -135,13 +135,30 @@ describe('NotificationPanel server synchronization', () => {
       );
     mocks.fetchUnreadNotificationCount.mockResolvedValue(2);
 
-    render(<NotificationPanel onClose={vi.fn()} />);
-    fireEvent.click(await screen.findByRole('button', { name: '더보기' }));
+    // 목록 끝 센티넬이 보이면 다음 쪽을 불러온다.
+    let intersect: IntersectionObserverCallback = () => {};
+    vi.stubGlobal('IntersectionObserver', class {
+      constructor(callback: IntersectionObserverCallback) {
+        intersect = callback;
+      }
+      observe() {}
+      disconnect() {}
+    });
 
-    await screen.findByText('두 번째님이 게시글을 좋아합니다.');
-    expect(screen.getAllByText('첫 번째님이 게시글을 좋아합니다.')).toHaveLength(1);
-    expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument();
-    expect(mocks.fetchNotifications).toHaveBeenCalledTimes(2);
+    try {
+      render(<NotificationPanel onClose={vi.fn()} />);
+      await screen.findByText('첫 번째님이 게시글을 좋아합니다.');
+      await act(async () => {
+        intersect([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+      });
+
+      await screen.findByText('두 번째님이 게시글을 좋아합니다.');
+      expect(screen.getAllByText('첫 번째님이 게시글을 좋아합니다.')).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument();
+      expect(mocks.fetchNotifications).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it('rolls back an optimistic read when the mutation fails', async () => {

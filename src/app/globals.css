@@ -27,6 +27,58 @@
   --color-surface-elevated: var(--surface-elevated);
   --color-line: var(--line);
   --color-avatar: var(--avatar);
+  /* 배지·카운터 전용 최소 글자 크기. 그 외 글자는 text-xs 이상 기본 단계만 쓴다. */
+  --text-2xs: 0.625rem;
+  --text-2xs--line-height: 1rem;
+}
+
+/* 화면 공통 단계. 페이지마다 제목·버튼 크기를 따로 정하지 않고 아래 유틸리티를 쓴다. */
+/* 앱 페이지 공통 본문 폭·여백. 멘토링 화면 기준(max-w-6xl). */
+@utility page-container {
+  @apply mx-auto w-full max-w-6xl px-4 py-6 md:px-8 md:py-10;
+}
+
+@utility page-title {
+  @apply text-2xl font-black tracking-tight md:text-3xl;
+  color: var(--foreground);
+}
+
+@utility page-subtitle {
+  @apply mt-1 text-sm font-medium text-zinc-500;
+}
+
+@utility section-title {
+  @apply text-lg font-black;
+  color: var(--foreground);
+}
+
+@utility btn-primary {
+  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-bold text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:focus-visible:ring-[#f5b93d] dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500;
+}
+
+@utility btn-secondary {
+  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-bold text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+}
+
+@utility input-base {
+  @apply h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm text-black outline-none transition-colors placeholder:text-zinc-400 focus:border-black dark:focus:border-[#f5b93d];
+}
+
+@utility btn-secondary-square {
+  @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+}
+
+@utility btn-icon {
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-surface-elevated dark:hover:text-zinc-100;
+}
+
+/* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대한다. 모바일에서만 16px로 올린다. */
+@media (max-width: 47.999rem) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 .dark {
@@ -37,6 +89,11 @@
   --surface-elevated: #1f1f24;
   --line: #2a2a30;
   --avatar: #303037;
+}
+
+/* 로딩 중 페이지가 짧아져 스크롤바가 사라졌다 생기면 가운데 정렬 본문이 좌우로 흔들린다. 자리를 항상 비워 둔다. */
+html {
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -88,4 +145,15 @@ body {
 .dark input::placeholder,
 .dark textarea::placeholder {
   color: #71717a;
+}
+
+/* 모바일 대화창을 열면 하단 탭바를 숨긴다(messages/page.tsx가 body에 data-chat-open을 단다). */
+@media (max-width: 47.999rem) {
+  body[data-chat-open] {
+    --tab-bar-height: 0px;
+  }
+
+  body[data-chat-open] [data-mobile-tab-bar] {
+    display: none;
+  }
 }

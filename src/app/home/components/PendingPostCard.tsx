@@ -23,28 +23,28 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
     <article
       aria-busy={!failed}
       aria-label={failed ? '업로드 실패한 게시물' : '업로드 중인 게시물'}
-      className={`overflow-hidden rounded-[32px] border bg-white shadow-sm ${
+      className={`overflow-hidden border-b bg-white md:rounded-2xl md:border md:shadow-sm ${
         failed ? 'border-red-200 dark:border-red-900' : 'border-zinc-100 dark:border-line'
       }`}
     >
-      <div className="p-5">
-        <div className="mb-4 flex items-center gap-4">
-          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-inner">
+      <div className="px-4 pb-3 pt-4 md:px-5 md:pt-5">
+        <div className="mb-3 flex items-center gap-3">
+          <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
             {user?.profileImageUrl ? (
-              <Image src={user.profileImageUrl} alt={author} fill unoptimized sizes="48px" className="object-cover" />
+              <Image src={user.profileImageUrl} alt={author} fill unoptimized sizes="40px" className="object-cover" />
             ) : (
               getInitials(author, 'G')
             )}
           </div>
           <div className="min-w-0">
-            <h2 className="truncate text-[16px] font-black tracking-tight text-black">{author}</h2>
+            <h2 className="truncate text-base font-black tracking-tight text-black">{author}</h2>
             {failed ? (
-              <p role="alert" className="flex items-center gap-1 text-[11px] font-bold text-red-500 dark:text-red-300">
+              <p role="alert" className="flex items-center gap-1 text-xs font-bold text-red-500 dark:text-red-300">
                 <CircleAlert size={12} className="shrink-0" />
                 {pendingPost.errorMessage}
               </p>
             ) : (
-              <p role="status" className="flex items-center gap-1 text-[11px] font-bold text-zinc-400">
+              <p role="status" className="flex items-center gap-1 text-xs font-bold text-zinc-400">
                 <Loader2 size={12} className="animate-spin" />
                 {hasVideo ? '동영상 업로드 중... 처리에 시간이 걸릴 수 있습니다' : '업로드 중...'}
               </p>
@@ -53,12 +53,9 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
         </div>
 
         {pendingPost.draft.content ? (
-          <p className="whitespace-pre-wrap break-words px-1 text-[15px] font-medium leading-7 text-zinc-800">
+          <p className="whitespace-pre-wrap break-words text-base font-medium leading-7 text-zinc-800">
             {pendingPost.draft.content}
           </p>
-        ) : null}
-        {pendingPost.draft.externalLinkUrl ? (
-          <p className="mt-2 truncate px-1 text-sm font-bold text-zinc-500">{pendingPost.draft.externalLinkUrl}</p>
         ) : null}
       </div>
 
@@ -66,7 +63,7 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
         <div className={`grid gap-1 ${pendingPost.previews.length > 1 ? 'grid-cols-2' : 'grid-cols-1'} ${failed ? '' : 'opacity-70'}`}>
           {pendingPost.previews.map((preview) =>
             preview.type === 'video' ? (
-              <video key={preview.url} src={preview.url} muted controls className="max-h-[420px] w-full bg-black object-contain" />
+              <video key={preview.url} src={preview.url} muted controls playsInline className="max-h-[420px] w-full bg-black object-contain" />
             ) : (
               // eslint-disable-next-line @next/next/no-img-element
               <img key={preview.url} src={preview.url} alt="" className="aspect-square w-full object-cover" />
@@ -76,7 +73,7 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
       ) : null}
 
       {failed ? (
-        <div className="flex justify-end gap-2 border-t border-zinc-50 px-6 py-3 dark:border-line">
+        <div className="flex justify-end gap-2 border-t border-zinc-50 px-4 py-3 md:px-5 dark:border-line">
           <button
             type="button"
             onClick={() => onRetry(pendingPost.id)}

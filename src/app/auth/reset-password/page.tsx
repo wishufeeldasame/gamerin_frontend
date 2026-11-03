@@ -115,7 +115,7 @@ function ResetPasswordPageContent() {
           </div>
           <button
             onClick={() => router.replace('/login')}
-            className="w-full h-14 bg-black text-white rounded-full font-black text-[16px] hover:bg-zinc-800 transition-all"
+            className="w-full h-12 bg-black text-white rounded-xl font-black text-base hover:bg-zinc-800 transition-all"
           >
             로그인하러 가기
           </button>
@@ -133,7 +133,7 @@ function ResetPasswordPageContent() {
       >
         <Link
           href="/auth/forgot-password"
-          className="flex h-14 w-full items-center justify-center rounded-full bg-black text-[16px] font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
+          className="flex h-12 w-full items-center justify-center rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
         >
           비밀번호 찾기로 이동
         </Link>
@@ -218,7 +218,7 @@ function ResetPasswordPageContent() {
         <button
           type="submit"
           disabled={!isPasswordValid || !isMatch || isSubmitting}
-          className="mt-4 w-full h-14 bg-black text-white rounded-full font-black text-[16px] hover:bg-zinc-800 transition-all active:scale-[0.98] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:cursor-not-allowed"
+          className="mt-4 w-full h-12 bg-black text-white rounded-xl font-black text-base hover:bg-zinc-800 transition-all active:scale-[0.98] disabled:bg-zinc-100 disabled:text-zinc-400 disabled:cursor-not-allowed"
         >
           {isSubmitting ? '변경 중...' : '비밀번호 변경하기'}
         </button>

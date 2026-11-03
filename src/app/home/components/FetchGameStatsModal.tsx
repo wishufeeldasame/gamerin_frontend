@@ -216,7 +216,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 backdrop-blur-sm">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -229,7 +229,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
           initial={{ scale: 0.9, opacity: 0, y: 20 }}
           animate={{ scale: 1, opacity: 1, y: 0 }}
           exit={{ scale: 0.9, opacity: 0, y: 20 }}
-          className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-[40px] bg-white shadow-2xl"
+          className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
         >
           <div className="bg-black p-8 text-white">
             <div className="mb-6 flex items-center justify-between">
@@ -253,7 +253,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
             {availableGames.map((game) => (
               <div
                 key={game.name}
-                className="group flex items-center justify-between gap-3 rounded-[28px] border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-surface dark:hover:!border-neutral-600 dark:hover:bg-surface-elevated"
+                className="group flex items-center justify-between gap-3 rounded-3xl border border-zinc-100 bg-zinc-50/50 p-5 transition-all hover:border-black hover:bg-white dark:bg-surface dark:hover:!border-neutral-600 dark:hover:bg-surface-elevated"
               >
                 <div className="flex min-w-0 flex-1 items-center gap-4">
                   <div className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-100 bg-white p-1 shadow-sm">
@@ -266,8 +266,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                     />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="mb-1 text-[15px] font-black leading-none text-black">{game.name}</h3>
-                    <p className="text-[11px] font-bold uppercase tracking-tight text-zinc-400">{game.description}</p>
+                    <h3 className="mb-1 text-base font-black leading-none text-black">{game.name}</h3>
+                    <p className="text-xs font-bold uppercase tracking-tight text-zinc-400">{game.description}</p>
                   </div>
                 </div>
 
@@ -289,7 +289,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
           <div className="border-t border-zinc-100 bg-zinc-50 p-8">
             <div className="flex items-center justify-center gap-2">
               <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-              <p className="text-center text-[11px] font-black uppercase tracking-widest text-zinc-400">
+              <p className="text-center text-xs font-black uppercase tracking-widest text-zinc-400">
                 암호화 활성: 게임 API를 통한 보안 연결
               </p>
             </div>
@@ -302,7 +302,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
               exit={{ opacity: 0, scale: 0.95 }}
               className="absolute inset-0 z-20 flex items-center justify-center bg-black/50 p-6"
             >
-              <div className="relative w-full max-w-md overflow-hidden rounded-[32px] border border-zinc-200 bg-white shadow-2xl">
+              <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-2xl">
                 <div className="border-b border-zinc-100 p-6">
                   <div className="flex items-center justify-between gap-4">
                     <div>
@@ -363,7 +363,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   <button
                     onClick={() => void handleSubmit()}
                     disabled={!transferConsent}
-                    className="flex-1 rounded-2xl bg-black px-4 py-3 text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="btn-primary flex-1"
                   >
                     연결
                   </button>

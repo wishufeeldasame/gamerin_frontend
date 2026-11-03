@@ -18,7 +18,7 @@ export function AuthStatusCard({ icon, title, description, children }: AuthStatu
         </div>
         <div className="space-y-2">
           <h1 className="text-3xl font-black tracking-tighter text-black">{title}</h1>
-          <p className="text-[15px] font-medium leading-relaxed text-zinc-600">{description}</p>
+          <p className="text-base font-medium leading-relaxed text-zinc-600">{description}</p>
         </div>
         {children}
       </div>

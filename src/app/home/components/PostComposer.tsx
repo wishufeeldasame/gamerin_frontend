@@ -3,10 +3,8 @@
 import { useToast } from '@/app/context/ToastContext';
 
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
-import Image from 'next/image';
-import { Hash, ImagePlus, Link2, Smile, Upload, Video, X } from 'lucide-react';
+import { Hash, ImagePlus, Upload, Video, X } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
-import { getInitials } from '@/lib/feed-api';
 import type { PostDraft } from '@/hooks/usePendingPosts';
 import { fetchHashtagSuggestions, type HashtagSummary } from '@/lib/community-search-api';
 import { convertImageForUpload, convertImagesForUpload, isHeicFile } from '@/lib/profile-image-compression';
@@ -187,7 +185,6 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   const thumbnailInputRef = useRef<HTMLInputElement | null>(null);
 
   const [content, setContent] = useState('');
-  const [externalLinkUrl, setExternalLinkUrl] = useState('');
   const [imageFiles, setImageFiles] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -301,7 +298,6 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
 
   const resetComposer = () => {
     setContent('');
-    setExternalLinkUrl('');
     setActiveHashtagQuery(null);
     setHashtagSuggestions([]);
     clearAttachments();
@@ -499,22 +495,16 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     !generatingThumbnails &&
     !preparingImages &&
     !preparingThumbnail &&
-    Boolean(content.trim() || externalLinkUrl.trim() || imageFiles.length > 0 || videoFile);
+    Boolean(content.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = () => {
     if (!user || !canSubmit) {
       return;
     }
 
-    if (hasFiles && externalLinkUrl.trim()) {
-      toast.error('미디어 업로드와 외부 링크 카드는 함께 사용할 수 없습니다.');
-      return;
-    }
-
     // 작성창은 바로 비우고 업로드는 피드의 임시 카드가 이어받는다.
     onSubmit?.({
       content: content.trim(),
-      externalLinkUrl: externalLinkUrl.trim(),
       imageFiles,
       videoFile,
       thumbnailFile: videoFile ? selectedThumbnail?.file ?? null : null,
@@ -523,256 +513,212 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   };
 
   return (
-    <section className="overflow-hidden rounded-[28px] border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="flex gap-4">
-        <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
-          {user?.profileImageUrl ? (
-            <Image
-              src={user.profileImageUrl}
-              alt={user.nickname}
-              fill
-              unoptimized
-              sizes="48px"
-              className="object-cover"
-            />
-          ) : (
-            user ? getInitials(user.nickname, 'JD') : 'JD'
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-4">
-          <textarea
-            ref={contentTextareaRef}
-            value={content}
-            onChange={handleContentChange}
-            onClick={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
-            onKeyUp={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
-            maxLength={MAX_POST_CONTENT_LENGTH}
-            placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
-            className="min-h-[96px] w-full resize-none rounded-[18px] border border-zinc-200 px-4 py-3 text-[17px] font-medium text-black outline-none transition focus:border-zinc-400 placeholder:text-zinc-500 dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
-          />
-          {activeHashtagQuery ? (
-            <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-white shadow-lg">
-              <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 text-xs font-black text-zinc-400">
-                <Hash size={14} />
-                <span>#{activeHashtagQuery.query}</span>
-              </div>
-
-              {loadingHashtagSuggestions ? (
-                <div className="px-4 py-3 text-sm font-bold text-zinc-400">해시태그를 찾는 중...</div>
-              ) : hashtagSuggestions.length > 0 ? (
-                <div className="max-h-48 overflow-y-auto py-1">
-                  {hashtagSuggestions.map((hashtag) => (
-                    <button
-                      key={hashtag.hashtagId}
-                      type="button"
-                      onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
-                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
-                    >
-                      <span className="font-black text-zinc-900">#{hashtag.name}</span>
-                      <span className="text-xs font-bold text-zinc-400">
-                        게시물 {hashtag.postCount.toLocaleString()}개
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : (
-                <div className="px-4 py-3 text-sm font-bold text-zinc-400">일치하는 해시태그가 없습니다.</div>
-              )}
+    <section className="border-b border-zinc-100 bg-white px-4 py-4 md:rounded-2xl md:border md:p-5 md:shadow-sm">
+      <div className="space-y-3">
+        <textarea
+          ref={contentTextareaRef}
+          value={content}
+          onChange={handleContentChange}
+          onClick={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
+          onKeyUp={(event) => updateActiveHashtagQuery(content, event.currentTarget.selectionStart)}
+          maxLength={MAX_POST_CONTENT_LENGTH}
+          aria-label="게시글 내용"
+          placeholder={user ? '무슨 생각을 하고 있나요?' : '로그인 후 게시글을 작성할 수 있습니다.'}
+          className="min-h-[88px] w-full resize-none rounded-xl bg-zinc-50 px-4 py-3 text-base font-medium text-black outline-none ring-1 ring-transparent transition placeholder:text-zinc-500 focus:bg-white focus:ring-zinc-300 dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
+        />
+        {activeHashtagQuery ? (
+          <div className="overflow-hidden rounded-xl border border-zinc-100 bg-white shadow-lg">
+            <div className="flex items-center gap-2 border-b border-zinc-100 px-4 py-2 text-xs font-black text-zinc-400">
+              <Hash size={14} />
+              <span>#{activeHashtagQuery.query}</span>
             </div>
-          ) : null}
-          <div
-            className={`text-right text-xs font-bold ${
-              content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
-            }`}
-          >
-            {content.length}/{MAX_POST_CONTENT_LENGTH}
+
+            {loadingHashtagSuggestions ? (
+              <div className="px-4 py-3 text-sm font-bold text-zinc-400">해시태그를 찾는 중...</div>
+            ) : hashtagSuggestions.length > 0 ? (
+              <div className="max-h-48 overflow-y-auto py-1">
+                {hashtagSuggestions.map((hashtag) => (
+                  <button
+                    key={hashtag.hashtagId}
+                    type="button"
+                    onClick={() => handleSelectHashtagSuggestion(hashtag.name)}
+                    className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                  >
+                    <span className="font-black text-zinc-900">#{hashtag.name}</span>
+                    <span className="text-xs font-bold text-zinc-400">
+                      게시물 {hashtag.postCount.toLocaleString()}개
+                    </span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="px-4 py-3 text-sm font-bold text-zinc-400">일치하는 해시태그가 없습니다.</div>
+            )}
           </div>
+        ) : null}
 
-          <input
-            value={externalLinkUrl}
-            onChange={(event) => setExternalLinkUrl(event.target.value)}
-            placeholder="외부 링크 URL"
-            className="w-full rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
-          />
+        {videoPreviewUrl ? (
+          <div className="space-y-3">
+            <div className="overflow-hidden rounded-xl bg-black">
+              <video
+                controls
+                playsInline
+                src={videoPreviewUrl}
+                poster={selectedThumbnail?.previewUrl ?? undefined}
+                className="max-h-[420px] w-full bg-black object-contain"
+              />
+            </div>
 
-          {videoPreviewUrl ? (
-            <div className="space-y-3">
-              <div className="overflow-hidden rounded-[18px] border border-zinc-200 bg-black">
-                <video
-                  controls
-                  src={videoPreviewUrl}
-                  poster={selectedThumbnail?.previewUrl ?? undefined}
-                  className="aspect-video w-full bg-black object-contain"
-                />
-              </div>
-
-              <div className="rounded-[18px] border border-zinc-200 bg-white p-4">
-                <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[18px] font-black text-black">썸네일 선택</p>
-                    <p className="text-sm font-medium text-zinc-500">
-                      생성된 썸네일을 선택하거나 직접 업로드할 수 있습니다.
-                    </p>
-                  </div>
-
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedThumbnailId(null)}
-                      className={`h-10 rounded-full border px-4 text-sm font-bold transition ${
-                        selectedThumbnailId === null
-                          ? 'border-zinc-900 bg-zinc-900 text-white'
-                          : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
-                      }`}
-                    >
-                      썸네일 없음
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => thumbnailInputRef.current?.click()}
-                      className="inline-flex h-10 items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-4 text-sm font-bold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
-                    >
-                      <Upload size={16} />
-                      업로드
-                    </button>
-                  </div>
+            <div className="rounded-xl border border-zinc-200 bg-white p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-black text-black">썸네일 선택</p>
+                  <p className="text-xs font-medium text-zinc-500">생성된 썸네일을 고르거나 직접 올릴 수 있어요.</p>
                 </div>
 
-                <input
-                  ref={thumbnailInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,.jpg,.jpeg,.png"
-                  className="hidden"
-                  onChange={handleThumbnailUpload}
-                />
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedThumbnailId(null)}
+                    className={`h-9 rounded-lg border px-3 text-xs font-bold transition ${
+                      selectedThumbnailId === null
+                        ? 'border-zinc-900 bg-zinc-900 text-white'
+                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-zinc-300'
+                    }`}
+                  >
+                    썸네일 없음
+                  </button>
 
-                {generatingThumbnails ? (
-                  <div className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
-                    썸네일 후보를 준비하고 있습니다...
-                  </div>
-                ) : (
-                  <div className="flex gap-3 overflow-x-auto pb-1">
-                    {thumbnailOptions.map((option) => {
-                      const isSelected = option.id === selectedThumbnailId;
-
-                      return (
-                        <button
-                          key={option.id}
-                          type="button"
-                          onClick={() => setSelectedThumbnailId(option.id)}
-                          className={`shrink-0 overflow-hidden rounded-[16px] border text-left transition ${
-                            isSelected ? 'border-zinc-900 shadow-sm' : 'border-zinc-200 hover:border-zinc-300'
-                          }`}
-                        >
-                          <div className="h-20 w-32 bg-zinc-100">
-                            {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={option.previewUrl} alt={option.label} className="h-full w-full object-cover" />
-                          </div>
-                          <div className="flex items-center justify-between px-3 py-2">
-                            <span className="text-sm font-bold text-zinc-800">{option.label}</span>
-                            {option.kind === 'uploaded' ? (
-                              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[11px] font-black text-zinc-500">
-                                직접 선택
-                              </span>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : null}
-
-          {preparingImages ? (
-            <div role="status" className="rounded-2xl bg-zinc-50 px-4 py-6 text-sm font-bold text-zinc-500">
-              사진을 준비하고 있습니다...
-            </div>
-          ) : null}
-
-          {imagePreviewUrls.length > 0 ? (
-            <div className="grid grid-cols-2 gap-3">
-              {imagePreviewUrls.map((url, index) => (
-                <div key={url} className="overflow-hidden rounded-[18px] border border-zinc-200 bg-zinc-50">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={url} alt={`선택한 이미지 ${index + 1}`} className="h-44 w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => thumbnailInputRef.current?.click()}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-3 text-xs font-bold text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-100"
+                  >
+                    <Upload size={14} />
+                    업로드
+                  </button>
                 </div>
-              ))}
-            </div>
-          ) : null}
+              </div>
 
-          <div className="flex flex-col gap-3 border-t border-zinc-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-wrap items-center gap-5 text-zinc-500">
               <input
-                ref={imageInputRef}
+                ref={thumbnailInputRef}
                 type="file"
-                multiple
                 accept="image/jpeg,image/png,.jpg,.jpeg,.png"
                 className="hidden"
-                onChange={handleImageSelect}
-              />
-              <input
-                ref={videoInputRef}
-                type="file"
-                accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v"
-                className="hidden"
-                onChange={handleVideoSelect}
+                onChange={handleThumbnailUpload}
               />
 
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
-              >
-                <ImagePlus size={18} />
-                사진
-              </button>
+              {generatingThumbnails ? (
+                <div className="rounded-lg bg-zinc-50 px-4 py-4 text-sm font-bold text-zinc-500">
+                  썸네일 후보를 준비하고 있습니다...
+                </div>
+              ) : (
+                <div className="flex gap-3 overflow-x-auto pb-1">
+                  {thumbnailOptions.map((option) => {
+                    const isSelected = option.id === selectedThumbnailId;
 
-              <button
-                type="button"
-                onClick={() => videoInputRef.current?.click()}
-                className="inline-flex items-center gap-2 text-[17px] font-medium transition hover:text-black"
-              >
-                <Video size={18} />
-                동영상
-              </button>
-
-              <div className="inline-flex items-center gap-2 text-[17px] font-medium text-zinc-400">
-                <Smile size={18} />
-                기분
-              </div>
-
-              <div className="hidden items-center gap-2 rounded-2xl bg-zinc-50 px-3 py-2 text-xs font-black text-zinc-500 md:flex">
-                <Link2 size={14} />
-                {externalLinkUrl.trim() ? '링크 카드' : '링크 없음'}
-              </div>
-
-              {hasFiles || externalLinkUrl.trim() ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    clearAttachments();
-                    setExternalLinkUrl('');
-                  }}
-                  className="inline-flex items-center gap-2 text-sm font-bold text-zinc-400 transition hover:text-black"
-                >
-                  <X size={16} />
-                  지우기
-                </button>
-              ) : null}
+                    return (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSelectedThumbnailId(option.id)}
+                        className={`shrink-0 overflow-hidden rounded-lg border text-left transition ${
+                          isSelected ? 'border-zinc-900 ring-1 ring-zinc-900' : 'border-zinc-200 hover:border-zinc-300'
+                        }`}
+                      >
+                        <div className="h-16 w-28 bg-zinc-100">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={option.previewUrl} alt={option.label} className="h-full w-full object-cover" />
+                        </div>
+                        <div className="flex items-center justify-between gap-2 px-2 py-1.5">
+                          <span className="text-xs font-bold text-zinc-800">{option.label}</span>
+                          {option.kind === 'uploaded' ? (
+                            <span className="rounded-full bg-zinc-100 px-1.5 py-0.5 text-2xs font-black text-zinc-500">
+                              직접 선택
+                            </span>
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          </div>
+        ) : null}
 
-            <button
-              type="button"
-              disabled={!canSubmit}
-              onClick={handleSubmit}
-              className={`inline-flex h-11 items-center justify-center rounded-2xl px-7 text-lg font-medium text-white transition ${
-                canSubmit ? 'bg-black hover:bg-zinc-800' : 'cursor-not-allowed bg-zinc-300 dark:bg-surface-elevated dark:text-zinc-500'
-              }`}
-            >
+        {preparingImages ? (
+          <div role="status" className="rounded-xl bg-zinc-50 px-4 py-4 text-sm font-bold text-zinc-500">
+            사진을 준비하고 있습니다...
+          </div>
+        ) : null}
+
+        {imagePreviewUrls.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {imagePreviewUrls.map((url, index) => (
+              <div key={url} className="overflow-hidden rounded-xl bg-zinc-50">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={url} alt={`선택한 이미지 ${index + 1}`} className="aspect-square w-full object-cover" />
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        <div className="flex items-center gap-1">
+          <input
+            ref={imageInputRef}
+            type="file"
+            multiple
+            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+            className="hidden"
+            onChange={handleImageSelect}
+          />
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/x-m4v,.mp4,.mov,.m4v"
+            className="hidden"
+            onChange={handleVideoSelect}
+          />
+
+          <button
+            type="button"
+            onClick={() => imageInputRef.current?.click()}
+            aria-label="사진 추가"
+            title="사진 추가"
+            className="btn-icon -ml-2"
+          >
+            <ImagePlus size={20} />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => videoInputRef.current?.click()}
+            aria-label="동영상 추가"
+            title="동영상 추가"
+            className="btn-icon"
+          >
+            <Video size={20} />
+          </button>
+
+          {hasFiles ? (
+            <button type="button" onClick={clearAttachments} aria-label="첨부 지우기" title="첨부 지우기" className="btn-icon">
+              <X size={20} />
+            </button>
+          ) : null}
+
+          <div className="ml-auto flex items-center gap-3">
+            {content.length > 0 ? (
+              <span
+                className={`text-xs font-bold tabular-nums ${
+                  content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                }`}
+              >
+                {content.length}/{MAX_POST_CONTENT_LENGTH}
+              </span>
+            ) : null}
+
+            <button type="button" disabled={!canSubmit} onClick={handleSubmit} className="btn-primary">
               게시
             </button>
           </div>

@@ -164,8 +164,8 @@ function HomePageContent() {
   }, [handleAutoLoadMore, hasNext, loadMoreError, nextCursor]);
 
   return (
-    <div className="flex justify-center overflow-visible">
-      <main className="min-h-screen max-w-2xl flex-1 border-x border-zinc-50 dark:border-line">
+    <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
+      <main className="min-h-screen min-w-0 flex-1">
         <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
           {[
             { label: '추천', value: 'all' as const },
@@ -175,7 +175,7 @@ function HomePageContent() {
               key={tab.value}
               onClick={() => handleTabChange(tab.value)}
               aria-pressed={activeTab === tab.value}
-              className={`relative flex-1 py-4 text-[15px] font-black transition-all ${
+              className={`relative flex-1 py-4 text-base font-black transition-all ${
                 activeTab === tab.value ? 'text-black dark:!text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:!text-white'
               }`}
             >
@@ -190,11 +190,11 @@ function HomePageContent() {
           ))}
         </div>
 
-        <div className="space-y-6 p-4">
+        <div className="md:space-y-4 md:py-6">
           <PostComposer onSubmit={handleSubmitPost} />
 
           {pendingPosts.length > 0 ? (
-            <div className="space-y-4">
+            <div className="md:space-y-4">
               {pendingPosts.map((pendingPost) => (
                 <PendingPostCard
                   key={pendingPost.id}
@@ -207,19 +207,19 @@ function HomePageContent() {
           ) : null}
 
           {loading ? (
-            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+            <div className="m-4 rounded-2xl border border-zinc-100 bg-white p-8 text-center text-sm font-bold text-zinc-400 md:m-0">
               피드를 불러오는 중...
             </div>
           ) : error ? (
-            <div className="rounded-[32px] border border-red-100 bg-red-50 p-10 text-center font-black text-red-500 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <div className="m-4 rounded-2xl border border-red-100 bg-red-50 p-8 text-center text-sm font-bold text-red-500 md:m-0 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {error}
             </div>
           ) : posts.length === 0 ? (
-            <div className="rounded-[32px] border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
+            <div className="m-4 rounded-2xl border border-zinc-100 bg-white p-8 text-center text-sm font-bold text-zinc-400 md:m-0">
               아직 게시글이 없습니다.
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="md:space-y-4">
               {posts.map((post, index) => (
                 <motion.div
                   key={post.postId}
@@ -263,7 +263,7 @@ function HomePageContent() {
               {loadMoreError ? (
                 <div
                   role="alert"
-                  className="flex items-center justify-between gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  className="m-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 md:m-0 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
                 >
                   <span>{loadMoreError}</span>
                   <button
@@ -280,7 +280,7 @@ function HomePageContent() {
         </div>
       </main>
 
-      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 p-6 xl:block">
+      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 py-6 xl:block">
         <RightSidebar />
       </aside>
     </div>

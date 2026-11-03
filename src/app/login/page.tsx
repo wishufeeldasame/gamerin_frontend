@@ -252,10 +252,10 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-background px-5 py-8 font-sans text-black sm:px-8">
-      <div className="grid w-full max-w-5xl items-center gap-10 lg:grid-cols-[1fr_380px] lg:gap-16">
-        <section className="flex justify-center lg:justify-start">
-          <div className="relative flex h-44 w-44 items-center justify-center sm:h-64 sm:w-64 lg:h-80 lg:w-80">
+    <main className="flex min-h-screen bg-background font-sans text-black">
+      {/* 아이디·비밀번호 찾기(AuthPageShell)와 같은 왼쪽 로고 패널 */}
+      <section className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center dark:border-line dark:bg-surface">
+          <div className="relative flex h-80 w-80 items-center justify-center">
             <Image
               src="/logo.png"
               alt="GamerIN Logo"
@@ -265,9 +265,13 @@ export default function LoginPage() {
               priority
             />
           </div>
-        </section>
+      </section>
 
-        <section className="w-full space-y-7">
+      <div className="flex flex-1 flex-col justify-center px-5 py-8 sm:px-8 lg:p-16 xl:p-24">
+        <section className="mx-auto w-full max-w-[420px] space-y-7">
+          <div className="relative mx-auto flex h-36 w-36 items-center justify-center md:hidden">
+            <Image src="/logo.png" alt="GamerIN Logo" width={300} height={300} className="object-contain drop-shadow-xl" priority />
+          </div>
           <div className="space-y-2 text-center lg:text-left">
             <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
             <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
@@ -290,18 +294,18 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={handleGoogleLogin}
-              className="group flex h-12 w-full items-center justify-center gap-3 rounded-full border border-zinc-300 bg-white transition-all hover:border-zinc-800 hover:bg-zinc-50"
+              className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white transition-all hover:border-zinc-800 hover:bg-zinc-50"
             >
               <Image src="/google.png" alt="Google" width={20} height={20} />
-              <span className="text-[15px] font-bold text-zinc-900">Google로 계속하기</span>
+              <span className="text-base font-bold text-zinc-900">Google로 계속하기</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowIdLogin((current) => !current)}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-full border border-zinc-300 bg-white transition-all hover:border-zinc-800"
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white transition-all hover:border-zinc-800"
             >
-              <span className="text-[15px] font-bold text-zinc-900">
+              <span className="text-base font-bold text-zinc-900">
                 {showIdLogin ? '닫기' : 'ID로 로그인'}
               </span>
               <ChevronDown
@@ -350,7 +354,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={loginLoading || isLoggingOut}
-                  className="h-12 w-full rounded-full bg-black text-[15px] font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="h-12 w-full rounded-xl bg-black text-base font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isLoggingOut ? '이전 세션 정리 중...' : loginLoading ? '로그인 중...' : '로그인'}
                 </button>
@@ -393,7 +397,7 @@ export default function LoginPage() {
           </div>
 
           <div className="border-t border-zinc-100 pt-7 text-center lg:text-left">
-            <p className="text-[15px] font-medium text-zinc-600">
+            <p className="text-base font-medium text-zinc-600">
               아직 계정이 없으신가요?
               <button
                 type="button"
@@ -408,7 +412,7 @@ export default function LoginPage() {
       </div>
 
       {showSignupModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4 py-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6">
           <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
             <button
               type="button"
@@ -568,7 +572,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={!isStep1Valid}
-                  className={`mt-8 w-full rounded-full py-4 text-lg font-bold transition ${
+                  className={`mt-8 w-full rounded-xl py-3.5 text-base font-bold transition ${
                     !isStep1Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
                   }`}
                 >
@@ -659,7 +663,7 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={!isStep2Valid || signupPending}
-                  className={`mt-4 w-full rounded-full py-4 text-lg font-bold transition ${
+                  className={`mt-4 w-full rounded-xl py-3.5 text-base font-bold transition ${
                     !isStep2Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
                   }`}
                 >

@@ -49,7 +49,7 @@ describe('MyReports', () => {
       .mockResolvedValueOnce(page([{ ...report, id: 'report-b', reportCode: 'RPT-1002', details: '신고 설명', targetSnippet: '접수 당시 내용' }], { number: 1, totalPages: 2, totalElements: 21 }));
     render(<MyReports />);
     await screen.findByRole('cell', { name: 'RPT-1001' });
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
     await screen.findByRole('cell', { name: 'RPT-1002' });
     expect(mocks.fetchMyReports).toHaveBeenLastCalledWith({ page: 1, size: 20 }, expect.any(AbortSignal));
     expect(screen.queryByText('RPT-1001')).not.toBeInTheDocument();
@@ -80,7 +80,7 @@ describe('MyReports', () => {
       .mockResolvedValueOnce(page([{ ...report, id: 'next-report', reportCode: 'RPT-2001', reporterId: 'user-b' }]));
     const view = render(<MyReports />);
     await screen.findByRole('cell', { name: 'RPT-1001' });
-    fireEvent.click(screen.getByRole('button', { name: '2' }));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
     await waitFor(() => expect(mocks.fetchMyReports).toHaveBeenCalledTimes(2));
     const previousSignal = mocks.fetchMyReports.mock.calls[1][1] as AbortSignal;
     mocks.auth.user = { id: 'user-b' };

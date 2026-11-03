@@ -31,7 +31,7 @@ export function AuthTextField({
   const padding = icon || isReset ? 'px-14' : 'px-5';
   const typography = isReset
     ? 'placeholder:text-zinc-400'
-    : 'text-[15px] placeholder:font-medium placeholder:text-zinc-400';
+    : 'text-base placeholder:font-medium placeholder:text-zinc-400';
   const state = invalid
     ? 'border-red-500 ring-1 ring-red-500 dark:!border-red-400 dark:ring-red-400'
     : isReset

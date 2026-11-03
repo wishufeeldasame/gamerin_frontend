@@ -207,7 +207,7 @@ export function KakaoPaymentDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-5"
       onMouseDown={phase === 'confirm' || phase === 'canceled' ? onClose : undefined}
     >
       <section
@@ -254,7 +254,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={() => void startPayment()}
-                className="h-12 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                className="btn-primary"
               >
                 다시 결제하기
               </button>
@@ -284,7 +284,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={stopPayment}
-                className="h-12 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                className="btn-primary"
               >
                 결제 중단
               </button>
@@ -321,7 +321,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={() => void startPayment()}
-                className="h-12 rounded-xl bg-black px-4 text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black"
+                className="btn-primary"
               >
                 카카오페이로 결제
               </button>

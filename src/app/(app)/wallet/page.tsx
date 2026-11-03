@@ -118,11 +118,12 @@ function WalletContent() {
   const hasMore = tab === 'mileage' ? !mileageLast : Boolean(paymentCursor);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-7 sm:px-6 sm:py-10">
+    // 불러오는 동안 화면보다 짧아지면 스크롤바가 사라졌다 다시 생겨 깜빡인다.
+    <div className={`page-container ${loading ? 'min-h-[100dvh]' : ''}`}>
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-3xl font-black tracking-tight text-black dark:text-zinc-100">내 지갑</h1>
-          <p className="mt-2 text-sm font-bold text-zinc-500">카카오페이로 충전하고 멘토링에 바로 사용하세요.</p>
+          <h1 className="page-title">내 지갑</h1>
+          <p className="page-subtitle">카카오페이로 충전하고 멘토링에 바로 사용하세요.</p>
         </div>
         <Link href="/membership" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-black text-black dark:border-neutral-700 dark:bg-surface dark:text-zinc-100">
           <Crown size={17} className="text-amber-600 dark:text-[#f5b93d]" /> 멤버십 혜택 <ChevronRight size={16} />
@@ -153,7 +154,7 @@ function WalletContent() {
           {loading ? (
             <div className="grid min-h-44 place-items-center"><Loader2 className="animate-spin text-zinc-400" /></div>
           ) : products.length > 0 ? (
-            <div role="radiogroup" aria-labelledby="charge-package-title" className="mt-5 grid grid-cols-1 gap-2.5 lg:grid-cols-2 lg:gap-3">
+            <div role="radiogroup" aria-labelledby="charge-package-title" className="mt-5 grid grid-cols-2 gap-2.5 lg:gap-3">
               {products.map((product, index) => {
                 const selected = product.productCode === selectedCode;
                 return (
@@ -202,7 +203,7 @@ function WalletContent() {
             type="button"
             disabled={!selectedProduct || selectedForPayment !== null}
             onClick={() => selectedProduct && setSelectedForPayment(selectedProduct)}
-            className="mt-5 inline-flex h-12 w-full items-center justify-center rounded-xl bg-black px-5 text-sm font-black text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black dark:disabled:bg-neutral-700 dark:disabled:text-zinc-400"
+            className="btn-primary mt-5 w-full"
           >
             {selectedProduct ? `카카오페이로 ${money(selectedProduct.price)}원 결제` : '충전 금액을 선택해주세요'}
           </button>
@@ -279,9 +280,9 @@ function HistoryRow({ title, description, amount, positive, badge }: {
       <div className="min-w-0">
         <p className="flex min-w-0 items-center gap-2 text-sm font-black text-black dark:text-zinc-100">
           <span className="truncate">{title}</span>
-          {badge ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-black ${badge.className}`}>{badge.label}</span> : null}
+          {badge ? <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-black ${badge.className}`}>{badge.label}</span> : null}
         </p>
-        <p className="mt-1 truncate text-xs font-bold text-zinc-400">{description}</p>
+        <p className="mt-1 text-xs font-bold text-zinc-400 [overflow-wrap:anywhere]">{description}</p>
       </div>
       <strong className={['shrink-0 text-sm font-black', positive ? 'text-blue-600 dark:text-blue-300' : 'text-black dark:text-zinc-100'].join(' ')}>
         {amount}
@@ -300,7 +301,7 @@ function EmptyHistory({ loading, message }: { loading: boolean; message: string 
 
 export default function WalletPage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<div className="min-h-[100dvh]" />}>
       <WalletContent />
     </Suspense>
   );

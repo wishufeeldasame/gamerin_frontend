@@ -10,6 +10,7 @@ import { NotificationPanel } from "./NotificationPanel";
 import { fetchUnreadNotificationCount } from "@/lib/notification-api";
 import { subscribeToNotificationInvalidation } from "@/lib/notification-sync";
 import { useVisiblePolling } from "@/hooks/useVisiblePolling";
+import { getInitials } from "@/lib/feed-api";
 import { usePopup } from "@/app/context/PopupContext";
 import { useDismissable } from "@/hooks/useDismissable";
 import { MembershipBadge } from './MembershipBadge';
@@ -143,7 +144,7 @@ export function Header() {
     <header className="fixed inset-x-0 top-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-b border-[#d69a1f] bg-[#f5b93d] dark:border-line dark:bg-surface">
       <div className="mx-auto flex h-16 max-w-[1600px] items-center gap-2 px-4 sm:gap-4 sm:px-6">
         {/* 로고 영역 */}
-        <div className="min-w-0 flex-1 lg:max-w-[240px]">
+        <div className={`min-w-0 flex-1 lg:max-w-[240px] ${mobileSearchOpen ? 'hidden md:block' : ''}`}>
           <Link
             href="/home"
             className="text-[1.6rem] font-semibold leading-none text-white sm:text-[2.05rem] dark:text-[#f5b93d]"
@@ -158,7 +159,7 @@ export function Header() {
           <div
             className={`${
               mobileSearchOpen
-                ? 'absolute inset-x-0 top-full flex border-b border-[#d69a1f] bg-[#f5b93d] px-4 py-3 dark:border-line dark:bg-surface'
+                ? 'flex min-w-0'
                 : 'hidden'
             } flex-1 justify-start md:static md:flex md:border-0 md:bg-transparent md:p-0 md:dark:bg-transparent`}
           >
@@ -181,14 +182,14 @@ export function Header() {
                 }}
                 placeholder="게임, 플레이어, 게시글 검색..."
                 aria-label="통합 검색"
-                className="w-full !bg-transparent text-sm text-black caret-black outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:!text-zinc-400"
+                className="w-full !bg-transparent text-base text-black caret-black md:text-sm outline-none placeholder:text-zinc-500 dark:!bg-transparent dark:text-zinc-100 dark:caret-zinc-100 dark:placeholder:!text-zinc-400"
               />
             </form>
           </div>
         ) : null}
 
         {/* 오른쪽 유저 액션 영역 */}
-        <div className="flex min-w-0 flex-1 items-center justify-end gap-1 sm:gap-3 lg:max-w-md">
+        <div className={`ml-auto flex min-w-0 items-center justify-end gap-1 sm:gap-3 lg:max-w-md ${mobileSearchOpen ? 'flex-none md:flex-1' : 'flex-1'}`}>
           {user ? (
             /* A. 로그인 상태: 알림, 메시지, 유저 아바타, 로그아웃 */
             <>
@@ -196,26 +197,26 @@ export function Header() {
                 <button
                   type="button"
                   onClick={() => setMobileSearchOpen((current) => !current)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 md:hidden dark:text-zinc-200 dark:hover:bg-white/10"
+                  className="flex h-10 w-10 items-center justify-center rounded-full text-black transition hover:bg-black/5 md:hidden dark:text-zinc-200 dark:hover:bg-white/10"
                   aria-label={mobileSearchOpen ? "검색 닫기" : "검색 열기"}
                   aria-expanded={mobileSearchOpen}
                 >
-                  {mobileSearchOpen ? <X size={18} strokeWidth={2.1} /> : <Search size={18} strokeWidth={2.1} />}
+                  {mobileSearchOpen ? <X size={20} strokeWidth={2.1} /> : <Search size={20} strokeWidth={2.1} />}
                 </button>
               ) : null}
               <button
                 type="button"
                 ref={notificationTriggerRef}
                 onClick={toggleNotification}
-                className="relative flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 dark:text-zinc-200 dark:hover:bg-white/10"
+                className="relative flex h-10 w-10 items-center justify-center rounded-full text-black transition hover:bg-black/5 dark:text-zinc-200 dark:hover:bg-white/10"
                 aria-label="알림"
                 aria-expanded={notificationOpen}
                 aria-controls={notificationOpen ? notificationId : undefined}
               >
-                <Bell size={18} strokeWidth={2.1} />
+                <Bell size={20} strokeWidth={2.1} />
                 {notificationUnreadCount > 0 ? (
-                  <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#f5b93d] bg-red-600 px-1 text-[9px] font-black leading-none text-white dark:border-surface">
-                    {notificationUnreadCount}
+                  <span className="absolute right-0 top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-[#f5b93d] bg-red-600 px-1 text-2xs font-black leading-none text-white dark:border-surface">
+                    {notificationUnreadCount > 99 ? '99+' : notificationUnreadCount}
                   </span>
                 ) : null}
               </button>
@@ -229,18 +230,18 @@ export function Header() {
               ) : null}
               <Link
                 href="/messages"
-                className="flex h-9 w-9 items-center justify-center rounded-full text-black transition hover:bg-black/5 dark:text-zinc-200 dark:hover:bg-white/10"
+                className="flex h-10 w-10 items-center justify-center rounded-full text-black transition hover:bg-black/5 dark:text-zinc-200 dark:hover:bg-white/10"
                 aria-label="메시지"
               >
-                <MessageSquare size={18} strokeWidth={2.1} />
+                <MessageSquare size={20} strokeWidth={2.1} />
               </Link>
               
-              <div className="ml-1 flex items-center gap-2 border-l border-black/10 pl-2 sm:ml-2 sm:gap-3 sm:pl-3 dark:border-white/10">
+              <div className={`ml-1 items-center gap-2 border-l border-black/10 pl-2 sm:ml-2 sm:gap-3 sm:pl-3 dark:border-white/10 ${mobileSearchOpen ? 'hidden md:flex' : 'flex'}`}>
                 <div className="hidden lg:block text-right">
-                   <p className="text-[11px] font-black text-black leading-none uppercase tracking-tighter dark:text-zinc-100">
+                   <p className="text-xs font-black text-black leading-none uppercase tracking-tighter dark:text-zinc-100">
                      <span className="inline-flex items-center gap-1">{user.nickname}<MembershipBadge active={user.membershipBadge} /></span>
                    </p>
-                   <p className="text-[9px] font-bold text-black/60 uppercase mt-0.5 dark:text-zinc-400">
+                   <p className="text-2xs font-bold text-black/60 uppercase mt-0.5 dark:text-zinc-400">
                      {user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                    </p>
                 </div>
@@ -255,13 +256,15 @@ export function Header() {
                       className="object-cover"
                     />
                   ) : (
-                    user.nickname.substring(0, 1).toUpperCase()
+                    getInitials(user.nickname, 'U')
                   )}
                 </div>
-                <button 
+                <button
+                  type="button"
                   onClick={() => logout()}
-                  className="p-1.5 text-black/40 hover:text-black transition-colors dark:text-zinc-500 dark:hover:text-zinc-200"
+                  className="hidden h-10 w-10 items-center justify-center rounded-full text-black/50 transition-colors hover:text-black lg:flex dark:text-zinc-500 dark:hover:text-zinc-200"
                   title="로그아웃"
+                  aria-label="로그아웃"
                 >
                   <LogOut size={16} />
                 </button>

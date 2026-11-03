@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { Bookmark, BookOpen, Home, LogOut, MessageSquare, User, WalletCards } from 'lucide-react';
+import { getInitials } from '@/lib/feed-api';
 import { useAuth } from '@/app/context/AuthContext';
 import { MembershipBadge } from './MembershipBadge';
 
@@ -37,6 +38,7 @@ export function MobileTabBar() {
   return (
     <nav
       aria-label="주요 메뉴"
+      data-mobile-tab-bar
       className="fixed inset-x-0 bottom-0 z-40 pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] border-t border-zinc-100 bg-white pb-[env(safe-area-inset-bottom)] lg:hidden dark:border-line dark:bg-surface"
     >
       <ul className="grid h-16 grid-cols-5">
@@ -45,7 +47,7 @@ export function MobileTabBar() {
             <Link
               href={item.href}
               aria-current={item.isActive ? 'page' : undefined}
-              className={`flex h-full flex-col items-center justify-center gap-1 text-[11px] font-black ${
+              className={`flex h-full flex-col items-center justify-center gap-1 text-xs font-black ${
                 item.isActive ? 'text-zinc-950 dark:text-[#f5b93d]' : 'text-zinc-400 dark:text-zinc-500'
               }`}
             >
@@ -79,7 +81,7 @@ export function Sidebar() {
               }`}
             >
               <item.icon size={22} strokeWidth={isActive ? 3 : 2} className="shrink-0" />
-              <span className="text-[15px] tracking-tight">{item.label}</span>
+              <span className="text-base tracking-tight">{item.label}</span>
             </Link>
           );
         })}
@@ -87,7 +89,7 @@ export function Sidebar() {
 
       {user ? (
         <div className="mt-8 border-t border-zinc-100 pt-6 dark:border-line">
-          <div className="rounded-[28px] border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-line dark:bg-surface-elevated">
+          <div className="rounded-3xl border border-zinc-100 bg-zinc-50 p-4 shadow-sm dark:border-line dark:bg-surface-elevated">
             <div className="mb-4 flex items-center gap-3">
               <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-md dark:ring-1 dark:ring-white/10">
                 {user.profileImageUrl ? (
@@ -100,15 +102,15 @@ export function Sidebar() {
                     className="object-cover"
                   />
                 ) : (
-                  user.nickname ? user.nickname.substring(0, 1).toUpperCase() : 'U'
+                  getInitials(user.nickname ?? '', 'U')
                 )}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="flex min-w-0 items-center gap-1 text-[13px] font-black leading-tight text-black dark:text-zinc-100">
+                <p className="flex min-w-0 items-center gap-1 text-sm font-black leading-tight text-black dark:text-zinc-100">
                   <span className="truncate">{user.nickname}</span>
                   <MembershipBadge active={user.membershipBadge} />
                 </p>
-                <p className="mt-0.5 text-[10px] font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
+                <p className="mt-0.5 text-2xs font-bold uppercase tracking-tighter text-zinc-400 dark:text-zinc-500">
                   {!user.gameTier || user.gameTier === 'Unranked' ? '미배치' : user.gameTier}
                 </p>
               </div>
@@ -116,7 +118,7 @@ export function Sidebar() {
 
             <button
               onClick={() => logout()}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-[10px] font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 dark:border-neutral-700 dark:bg-black dark:text-zinc-400 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white py-2.5 text-2xs font-black uppercase tracking-widest text-zinc-400 transition-all hover:border-red-100 hover:bg-red-50 hover:text-red-500 dark:border-neutral-700 dark:bg-black dark:text-zinc-400 dark:hover:border-red-500/30 dark:hover:bg-red-500/10 dark:hover:text-red-300"
             >
               <LogOut size={14} strokeWidth={3} />
               로그아웃

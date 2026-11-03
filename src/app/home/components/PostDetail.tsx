@@ -32,6 +32,7 @@ import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
+import { RelatedHashtagPosts } from './RelatedHashtagPosts';
 import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from './MembershipBadge';
@@ -454,7 +455,7 @@ export function PostDetail({
         <p className="font-black text-red-500">{error ?? '게시물을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
-          className="inline-flex rounded-xl bg-black px-5 py-3 text-sm font-black text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:bg-white dark:text-black dark:hover:bg-zinc-200"
+          className="btn-primary"
         >
           홈으로 돌아가기
         </Link>
@@ -474,28 +475,28 @@ export function PostDetail({
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
       <button
         onClick={onBack}
-        className="group mb-8 flex items-center gap-2 text-sm font-black uppercase tracking-widest text-zinc-400 transition-all hover:text-black"
+        className="group flex h-11 items-center gap-2 px-4 text-sm font-bold text-zinc-500 transition-all hover:text-black md:mb-2 md:px-0"
       >
         <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-1" />
         <span>피드로 돌아가기</span>
       </button>
 
-      <article className="rounded-[40px] border border-zinc-100 bg-white shadow-sm">
-        <div className="p-8">
-          <div className="mb-8 flex items-center justify-between">
-            <Link href={`/profile/${encodeURIComponent(post.authorHandle)}`} className="flex items-center gap-4">
+      <article className="border-y border-zinc-100 bg-white md:rounded-2xl md:border md:shadow-sm">
+        <div className="px-4 py-4 md:p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <Link href={`/profile/${encodeURIComponent(post.authorHandle)}`} className="flex min-w-0 items-center gap-3">
               {post.authorProfileImageUrl ? (
-                <div className="relative h-14 w-14 overflow-hidden rounded-[20px]">
+                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl">
                   <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
                 </div>
               ) : (
-                <div className="flex h-14 w-14 items-center justify-center rounded-[20px] bg-black text-lg font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-xl">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
                   {getInitials(post.author)}
                 </div>
               )}
               <div>
                 <div className="flex items-center gap-2">
-                  <h2 className="text-xl font-black tracking-tighter text-black">{post.author}</h2>
+                  <h2 className="text-base font-black tracking-tight text-black">{post.author}</h2>
                   <MembershipBadge active={post.authorMembershipBadge} />
                 </div>
                 <p className="text-xs font-bold text-zinc-400">
@@ -508,16 +509,16 @@ export function PostDetail({
                 type="button"
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
-                className="rounded-2xl p-3 text-zinc-300 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+                className="btn-icon -mr-2"
                 aria-label="게시물 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
               >
-                <MoreHorizontal size={24} />
+                <MoreHorizontal size={20} />
               </button>
 
               {menuOpen ? (
-                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-12 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-11 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
                   {canReportPost ? (
                     <button
                       type="button"
@@ -575,24 +576,26 @@ export function PostDetail({
           </div>
 
           {post.content ? (
-            <p className="mb-8 text-lg font-medium leading-relaxed text-zinc-800">
+            <p className="mb-4 break-words text-base font-medium leading-7 text-zinc-800">
               <HashtagText text={post.content} />
             </p>
           ) : null}
 
           {post.media.length > 0 ? (
-            <div className="mb-8 space-y-3">
+            <div className="mb-4 space-y-2">
               {post.media.map((item, index) =>
                 item.mediaType === 'VIDEO' ? (
                   <video
                     key={item.mediaId}
                     controls
+                    playsInline
+                    preload="metadata"
                     poster={item.thumbnailUrl ?? undefined}
                     src={item.mediaUrl}
-                    className="max-h-[520px] w-full rounded-[24px] bg-black object-cover"
+                    className="max-h-[520px] w-full rounded-xl bg-black object-contain"
                   />
                 ) : (
-                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-[24px] border border-zinc-50">
+                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-xl border border-zinc-100">
                     <PostImage
                       src={item.mediaUrl}
                       imageNumber={index + 1}
@@ -606,8 +609,8 @@ export function PostDetail({
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between border-y border-zinc-50 py-6">
-            <div className="flex items-center gap-8">
+          <div className="-mx-2 flex items-center justify-between border-y border-zinc-50 py-1 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:px-2">
+            <div className="flex items-center gap-1 md:gap-3">
               <button
                 type="button"
                 onClick={handleToggleLike}
@@ -618,11 +621,11 @@ export function PostDetail({
                   post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
                 } disabled:cursor-not-allowed disabled:opacity-60`}
               >
-                <Heart size={22} className={post.likedByMe ? 'fill-red-500' : ''} />
+                <Heart size={20} className={post.likedByMe ? 'fill-red-500' : ''} />
                 <span>{post.likes}</span>
               </button>
-              <div className="flex items-center gap-2 text-sm font-black text-zinc-400">
-                <MessageCircle size={22} />
+              <div className="flex min-h-11 items-center gap-2 px-2 text-sm font-black text-zinc-400">
+                <MessageCircle size={20} />
                 <span>{post.comments}</span>
               </div>
               <button
@@ -637,7 +640,7 @@ export function PostDetail({
                   post.isReposted ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'
                 }`}
               >
-                <Repeat2 size={22} />
+                <Repeat2 size={20} />
                 <span>{post.repostCount}</span>
               </button>
               {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
@@ -651,23 +654,27 @@ export function PostDetail({
                   bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
                 }`}
               >
-                <Bookmark size={22} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : ''} />
+                <Bookmark size={20} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : ''} />
               </button>
             </div>
             <button
               type="button"
               onClick={() => { closeAll(); setShareOpen(true); }}
-              className="text-zinc-400 transition-all hover:text-black"
+              className="flex items-center text-zinc-400 transition-all hover:text-black"
               aria-label="게시물 공유"
             >
-              <Send size={22} />
+              <Send size={20} />
             </button>
           </div>
 
-          <div id="comments" ref={commentsSectionRef} className="mt-10 scroll-mt-24 space-y-8">
-            <div className="flex gap-4">
-              <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-zinc-100 text-xs font-black text-zinc-500">
-                나
+          <div id="comments" ref={commentsSectionRef} className="mt-4 scroll-mt-24 space-y-4">
+            <div className="flex gap-3">
+              <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+                {user?.profileImageUrl ? (
+                  <Image src={user.profileImageUrl} alt={user.nickname} fill unoptimized sizes="40px" className="object-cover" />
+                ) : (
+                  getInitials(user?.nickname ?? '나')
+                )}
               </div>
               <form
                 className="relative flex-1"
@@ -719,11 +726,11 @@ export function PostDetail({
                   }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
-                  className="w-full resize-none rounded-2xl border-none bg-zinc-50 px-5 py-4 text-[15px] font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
-                  rows={3}
+                  className="w-full resize-none rounded-xl border-none bg-zinc-50 px-4 pb-11 pt-3 text-base font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
+                  rows={2}
                 />
                 <span
-                  className={`absolute bottom-4 right-14 text-xs font-bold ${
+                  className={`absolute bottom-4 right-14 text-xs font-bold tabular-nums ${
                     commentText.length >= MAX_COMMENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
                   }`}
                 >
@@ -733,9 +740,9 @@ export function PostDetail({
                   type="submit"
                   aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-4 right-4 rounded-xl bg-black p-2 text-white transition-all hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+                  className="absolute bottom-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-black text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
                 >
-                  <Send size={18} />
+                  <Send size={16} />
                 </button>
               </form>
             </div>
@@ -832,6 +839,8 @@ export function PostDetail({
           </div>
         </div>
       </article>
+
+      <RelatedHashtagPosts content={post.content} excludePostId={post.postId} />
 
       {shareOpen ? (
         <SharePostModal

@@ -117,7 +117,7 @@ export function EditPostModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/55 px-4"
+      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
       onMouseDown={saving ? undefined : onClose}
       data-card-open-ignore="true"
     >
@@ -171,7 +171,7 @@ export function EditPostModal({
             type="button"
             onClick={() => void save()}
             disabled={saving || expired || unchanged}
-            className="h-12 rounded-xl bg-black px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 dark:bg-[#f5b93d] dark:text-black dark:disabled:bg-neutral-700 dark:disabled:text-zinc-400"
+            className="btn-primary"
           >
             {saving ? '수정하는 중…' : '수정하기'}
           </button>
