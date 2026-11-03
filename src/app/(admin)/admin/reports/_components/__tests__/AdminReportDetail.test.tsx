@@ -164,6 +164,19 @@ describe('AdminReportDetail', () => {
     expect(screen.queryByRole('button', { name: '검토 시작' })).not.toBeInTheDocument();
   });
 
+  it('keeps the review form input when a 409 leaves the report in review', async () => {
+    mocks.resolveAdminReport.mockRejectedValueOnce(new ApiError('이미 정산된 멘토링이라 환불할 수 없습니다.', 409));
+    render(<AdminReportDetail reportCode="RPT-001" />);
+    const reason = await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.');
+    fireEvent.change(reason, { target: { value: '보존할 근거' } });
+    fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('환불할 수 없습니다');
+    await waitFor(() => expect(mocks.fetchAdminReportDetail).toHaveBeenCalledTimes(2));
+    expect(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.')).toHaveValue('보존할 근거');
+  });
+
   it('does not turn an absent target into zero reports or an actionable user', async () => {
     mocks.fetchAdminReportDetail.mockResolvedValue({ ...detail, targetUser: null });
     render(<AdminReportDetail reportCode="RPT-001" />);

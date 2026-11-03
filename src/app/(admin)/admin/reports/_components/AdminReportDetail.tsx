@@ -184,8 +184,13 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
     } catch (error: unknown) {
       if (!mounted.current || (error instanceof DOMException && error.name === 'AbortError')) return;
       setActionError(error instanceof Error ? error.message : '신고 처리에 실패했습니다.');
-      // 409: 다른 관리자가 먼저 처리했거나 허용되지 않는 전이이므로 최신 상태를 다시 불러온다.
-      if (error instanceof ApiError && error.status === 409) setRevision((value) => value + 1);
+      // 409: 다른 관리자가 먼저 처리했거나 처리할 수 없는 상태라 최신 상태를 다시 불러온다.
+      // 로딩 화면 없이 상세만 바꿔, 신고가 IN_REVIEW로 남으면 판정 폼 입력이 유지된다.
+      if (error instanceof ApiError && error.status === 409) {
+        void fetchAdminReportDetail(reportCode)
+          .then((fresh) => { if (mounted.current) setDetail(fresh); })
+          .catch(() => {}); // 재조회 실패는 이미 보여 준 409 메시지로 충분하다.
+      }
     } finally {
       actionLock.current = false;
       if (mounted.current) setSubmitting(false);
