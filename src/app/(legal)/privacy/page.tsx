@@ -7,6 +7,7 @@ import {
   LegalSection,
   LegalTable,
 } from '../_components/LegalDocument';
+import { PRIVACY_VERSION } from '@/lib/legal-versions';
 
 export const metadata: Metadata = { title: '개인정보 처리방침 | GamerIN' };
 
@@ -61,6 +62,7 @@ export default function PrivacyPage() {
           rows={[
             ['이메일 가입', '이메일, 아이디(handle), 닉네임, 비밀번호(복호화할 수 없는 해시로 저장)'],
             ['Google 가입', 'Google 계정 고유 식별자, Google 이메일, Google 표시 이름, 아이디(handle), 닉네임'],
+            ['가입 동의 기록(공통)', '동의한 항목(만 14세 이상, 이용약관, 개인정보 처리방침), 동의한 약관·처리방침 버전, 동의 시각'],
           ]}
         />
         <p>프로필 사진은 Google에서 가져오지 않습니다.</p>
@@ -127,6 +129,7 @@ export default function PrivacyPage() {
               '프로젝트 종료 시까지. 탈퇴 후에는 익명화된 계정에 연결됩니다',
             ],
             ['이메일 인증 기록(이메일 주소 포함)', '프로젝트 종료 시까지'],
+            ['가입 동의 기록(동의 항목, 버전, 동의 시각)', '프로젝트 종료 시까지. 탈퇴 후에는 익명화된 계정에 연결됩니다'],
             ['비밀번호 재설정 토큰', '발급 후 30분 유효, 탈퇴 시 삭제'],
             ['로그인 세션 기록(IP, User-Agent), 서버 접속 기록, 관리자 처리 기록, 백업 데이터', '프로젝트 종료 시까지'],
           ]}
@@ -304,7 +307,7 @@ export default function PrivacyPage() {
           이 처리방침을 변경하면 시행 전에 서비스 공지 또는 이 화면으로 알립니다. 이용자의 권리에 중대한 영향을 주는 변경은
           개정 전 또는 개정 즉시 별도로 안내합니다. 이전 처리방침이 생기면 이 화면에서 확인할 수 있게 합니다.
         </p>
-        <LegalList items={['버전: 1.0', `공고일·시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
+        <LegalList items={[`버전: ${PRIVACY_VERSION}`, `공고일·시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
       </LegalSection>
     </>
   );

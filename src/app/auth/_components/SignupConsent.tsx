@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { PRIVACY_VERSION, TERMS_VERSION } from '@/lib/legal-versions';
 
 export interface SignupConsentValue {
   age: boolean;
@@ -9,6 +10,15 @@ export interface SignupConsentValue {
 export const EMPTY_SIGNUP_CONSENT: SignupConsentValue = { age: false, terms: false, privacy: false };
 
 export const isSignupConsentComplete = ({ age, terms, privacy }: SignupConsentValue) => age && terms && privacy;
+
+// 가입 요청 본문의 동의 필드. 서버가 동의 항목과 함께 약관 버전을 검증·기록한다.
+export const toSignupConsentPayload = ({ age, terms, privacy }: SignupConsentValue) => ({
+  agreedToTerms: terms,
+  agreedToPrivacy: privacy,
+  agreedToAge14: age,
+  termsVersion: TERMS_VERSION,
+  privacyVersion: PRIVACY_VERSION,
+});
 
 const checkboxClassName = 'mt-0.5 h-5 w-5 shrink-0 accent-black dark:accent-[#f5b93d]';
 

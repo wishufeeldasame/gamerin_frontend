@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
-import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete } from '@/app/auth/_components/SignupConsent';
+import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { useAuth } from '@/app/context/AuthContext';
 import { SignupCompletedError, completeSocialSignup } from '@/lib/auth-api';
@@ -59,8 +59,7 @@ export default function SocialCompletePage() {
           signupToken,
           handle: trimmedHandle,
           nickname: trimmedNickname,
-          agreedToTerms: consent.terms,
-          agreedToPrivacy: consent.privacy,
+          ...toSignupConsentPayload(consent),
         }),
       );
       router.replace('/home');

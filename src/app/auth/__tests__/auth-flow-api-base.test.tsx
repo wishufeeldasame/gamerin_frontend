@@ -127,6 +127,9 @@ describe('인증 흐름 화면의 API 주소', () => {
       passwordConfirm: 'abcd123!',
       agreedToTerms: true,
       agreedToPrivacy: true,
+      agreedToAge14: true,
+      termsVersion: '1.0',
+      privacyVersion: '1.0',
       emailVerificationToken: 'verify-token',
     });
   });
@@ -164,6 +167,21 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
 
     expect(await screen.findByText('이미 사용 중인 아이디입니다.')).toBeInTheDocument();
+  });
+
+  it('약관 개정 400은 재인증 흐름이 아닌 일반 오류로 서버 message를 안내한다', async () => {
+    render(<LoginPage />);
+    await openSignupStep2();
+
+    vi.mocked(fetch).mockResolvedValueOnce(json(400, {
+      success: false,
+      message: '약관이 개정되었습니다. 페이지를 새로고침한 뒤 다시 동의해 주세요.',
+    }));
+    fillSignupStep2();
+    fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
+
+    expect(await screen.findByText('약관이 개정되었습니다. 페이지를 새로고침한 뒤 다시 동의해 주세요.')).toBeInTheDocument();
+    expect(screen.queryByPlaceholderText('이메일')).not.toBeInTheDocument();
   });
 
   it('가입이 이메일 인증 만료로 거절되면 1단계로 돌아가 재인증을 안내한다', async () => {
