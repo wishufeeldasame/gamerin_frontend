@@ -624,6 +624,12 @@ function appendBookmarkSearchParams(search: URLSearchParams, options: BookmarkRe
   }
 }
 
+export function fetchMyBookmarkCount(options: FeedRequestOptions = {}) {
+  return apiRequest<number>('/api/v1/users/me/bookmarks/count', {
+    signal: options.signal,
+  });
+}
+
 export async function fetchMyBookmarks(
   cursor?: string | null,
   size = 20,

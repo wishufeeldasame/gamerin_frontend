@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
   fetchCollectionBookmarks,
+  fetchMyBookmarkCount,
   fetchMyBookmarks,
 } from '@/lib/feed-api';
 import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
@@ -50,6 +51,9 @@ export default function BookmarksPage() {
   const [query, setQuery] = useState('');
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
+  const [totalBookmarkCount, setTotalBookmarkCount] = useState<number | null>(null);
+  const [countError, setCountError] = useState(false);
+  const [countRevision, setCountRevision] = useState(0);
   const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
   const collectionCountSyncBaseRef = useRef(collections);
   // 모음집 변경 응답이 늦게 와도 전환 후 목록을 건드리지 않도록 최신 선택값을 본다.
@@ -57,6 +61,22 @@ export default function BookmarksPage() {
   useEffect(() => {
     selectedCollectionIdRef.current = selectedCollectionId;
   }, [selectedCollectionId]);
+
+  // 전체 건수는 폴더, 검색, 페이지네이션으로 바뀌는 현재 목록과 분리한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    setTotalBookmarkCount(null);
+    setCountError(false);
+    void fetchMyBookmarkCount({ signal: controller.signal }).then(
+      (count) => {
+        if (!controller.signal.aborted) setTotalBookmarkCount(count);
+      },
+      () => {
+        if (!controller.signal.aborted) setCountError(true);
+      },
+    );
+    return () => controller.abort();
+  }, [countRevision]);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => {
     const requestOptions = {
@@ -173,6 +193,7 @@ export default function BookmarksPage() {
 
   const handlePostDeleted = (postId: string) => {
     removeBookmark(postId);
+    setCountRevision((current) => current + 1);
   };
 
   const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
@@ -237,7 +258,10 @@ export default function BookmarksPage() {
         <div className="flex gap-3 overflow-x-auto pb-2">
           <button
             type="button"
-            onClick={() => setSelectedCollectionId('all')}
+            onClick={() => {
+              setSelectedCollectionId('all');
+              if (countError) setCountRevision((current) => current + 1);
+            }}
             className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
               selectedCollectionId === 'all'
                 ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
@@ -248,7 +272,11 @@ export default function BookmarksPage() {
             <span>
               <strong className="block text-sm font-black">전체 북마크</strong>
               <small className="mt-1 block text-xs font-bold opacity-60">
-                {bookmarks.length}개 게시물
+                {countError
+                  ? '개수 확인 불가 · 재시도'
+                  : totalBookmarkCount === null
+                    ? '불러오는 중'
+                    : `${totalBookmarkCount}개 게시물`}
               </small>
             </span>
           </button>
@@ -393,6 +421,7 @@ export default function BookmarksPage() {
                     }
                   }}
                   onBookmarkSuccess={(changedPost, bookmarked) => {
+                    setCountRevision((current) => current + 1);
                     if (!bookmarked) {
                       collectionCountSyncBaseRef.current = collections;
                       setCollectionCountSyncPending(true);

@@ -190,7 +190,8 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/mentoring');
         await expect(page.getByRole('heading', { name: '멘토링', exact: true })).toBeVisible();
-        await expect(page.getByText('프로그램 둘러보기', { exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: '멘토링 프로그램 탐색', exact: true })).toBeVisible();
+        await expect(page.getByText('프로그램 둘러보기', { exact: true })).toHaveCount(0);
         await checkLayout(page, info, 'mentoring-find');
         await page.getByRole('button', { name: '내 멘토링', exact: true }).click();
         await expect(page.getByText('마일리지', { exact: true })).toBeVisible();

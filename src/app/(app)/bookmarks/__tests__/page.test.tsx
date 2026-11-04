@@ -6,6 +6,7 @@ import type { BookmarkCollection } from '@/types/bookmark';
 
 const api = vi.hoisted(() => ({
   fetchCollectionBookmarks: vi.fn(),
+  fetchMyBookmarkCount: vi.fn(),
   fetchMyBookmarks: vi.fn(),
   likePost: vi.fn(),
   unlikePost: vi.fn(),
@@ -38,6 +39,7 @@ vi.mock('@/lib/feed-api', async (importOriginal) => {
   return {
     ...actual,
     fetchCollectionBookmarks: api.fetchCollectionBookmarks,
+    fetchMyBookmarkCount: api.fetchMyBookmarkCount,
     fetchMyBookmarks: api.fetchMyBookmarks,
     likePost: api.likePost,
     unlikePost: api.unlikePost,
@@ -210,6 +212,7 @@ function deferred<T>() {
 describe('BookmarksPage state synchronization', () => {
   beforeEach(() => {
     api.fetchCollectionBookmarks.mockReset();
+    api.fetchMyBookmarkCount.mockReset();
     api.fetchMyBookmarks.mockReset();
     api.likePost.mockReset();
     api.unlikePost.mockReset();
@@ -217,8 +220,93 @@ describe('BookmarksPage state synchronization', () => {
     bookmarkContext.loading = false;
     api.fetchCollectionBookmarks.mockResolvedValue(pageWithPost);
     api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
+    api.fetchMyBookmarkCount.mockResolvedValue(2);
     api.likePost.mockResolvedValue(undefined);
     api.unlikePost.mockResolvedValue(undefined);
+  });
+
+  it('미분류와 다른 폴더의 목록이 비어도 전체 개수를 유지한다', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+    const allButton = getCollectionButton('전체 북마크');
+    await waitFor(() => expect(allButton).toHaveTextContent('2개 게시물'));
+
+    const unclassifiedRequest = deferred<typeof pageWithPost>();
+    api.fetchMyBookmarks.mockReturnValueOnce(unclassifiedRequest.promise);
+    fireEvent.click(getCollectionButton('미분류'));
+    expect(allButton).toHaveTextContent('2개 게시물');
+    await act(async () => {
+      unclassifiedRequest.resolve({ items: [], nextCursor: null, hasNext: false });
+    });
+    expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
+    expect(allButton).toHaveTextContent('2개 게시물');
+
+    api.fetchCollectionBookmarks.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
+    fireEvent.click(getCollectionButton('모음집 A'));
+    await waitFor(() => expect(api.fetchCollectionBookmarks).toHaveBeenCalled());
+    expect(allButton).toHaveTextContent('2개 게시물');
+
+    api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
+    fireEvent.click(allButton);
+    await screen.findByTestId('post-post-1');
+    expect(allButton).toHaveTextContent('2개 게시물');
+    expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(1);
+  });
+
+  it('검색, 미디어 필터, 더 보기와 무관하게 서버의 전체 개수를 표시한다', async () => {
+    api.fetchMyBookmarkCount.mockResolvedValue(25);
+    api.fetchMyBookmarks.mockResolvedValueOnce({ ...pageWithPost, nextCursor: 'next', hasNext: true });
+    render(<BookmarksPage />);
+    const moreButton = await screen.findByRole('button', { name: '더 보기' });
+    const allButton = getCollectionButton('전체 북마크');
+    expect(allButton).toHaveTextContent('25개 게시물');
+    fireEvent.click(moreButton);
+    await waitFor(() => expect(screen.queryByRole('button', { name: '더 보기' })).not.toBeInTheDocument());
+    expect(allButton).toHaveTextContent('25개 게시물');
+
+    api.fetchMyBookmarks.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
+    fireEvent.change(screen.getByPlaceholderText('게시물, 작성자, 게임 검색'), {
+      target: { value: '없는 검색어' },
+    });
+    await waitFor(() => expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument());
+    expect(allButton).toHaveTextContent('25개 게시물');
+    fireEvent.click(screen.getByRole('button', { name: '미디어만 보기' }));
+    await waitFor(() => expect(api.fetchMyBookmarks).toHaveBeenLastCalledWith(
+      null, 20, expect.objectContaining({ mediaOnly: true }), 'all',
+    ));
+    expect(allButton).toHaveTextContent('25개 게시물');
+    expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(1);
+  });
+
+  it('폴더에서 북마크를 해제하면 전체 개수를 다시 조회한다', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+    await selectCollection('모음집 A');
+    api.fetchMyBookmarkCount.mockResolvedValue(1);
+    fireEvent.click(screen.getByRole('button', { name: 'complete unbookmark' }));
+    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('1개 게시물'));
+    expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(2);
+  });
+
+  it('전체 개수 조회 실패를 0개로 표시하지 않고 카드 클릭으로 재시도한다', async () => {
+    api.fetchMyBookmarkCount.mockRejectedValueOnce(new Error('network error'));
+    render(<BookmarksPage />);
+    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('개수 확인 불가'));
+    api.fetchMyBookmarkCount.mockResolvedValue(0);
+    fireEvent.click(getCollectionButton('전체 북마크'));
+    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('0개 게시물'));
+  });
+
+  it('북마크 해제 전에 시작한 오래된 개수 응답을 무시한다', async () => {
+    const initialCount = deferred<number>();
+    api.fetchMyBookmarkCount.mockReturnValueOnce(initialCount.promise);
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+    api.fetchMyBookmarkCount.mockResolvedValue(1);
+    fireEvent.click(screen.getByRole('button', { name: 'complete unbookmark' }));
+    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('1개 게시물'));
+    await act(async () => initialCount.resolve(2));
+    expect(getCollectionButton('전체 북마크')).toHaveTextContent('1개 게시물');
   });
 
   it('좋아요의 알 수 없는 오류를 한국어로 안내하고 기존 상태로 롤백한다', async () => {
