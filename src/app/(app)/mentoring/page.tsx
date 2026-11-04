@@ -1458,6 +1458,17 @@ export default function MentoringPage() {
               <div className="flex h-64 items-center justify-center rounded-2xl bg-zinc-50">
                 <Loader2 className="animate-spin text-zinc-400" />
               </div>
+            ) : mentorProfile && mentorProfile.status !== 'ACTIVE' ? (
+              <section role="status" className="rounded-2xl border border-zinc-100 p-8 text-center">
+                <h2 className="text-2xl font-black text-black">
+                  {mentorProfile.status === 'PENDING_APPROVAL' ? '멘토 승인 대기 중' : '멘토 등록이 반려되었습니다'}
+                </h2>
+                <p className="mt-4 text-sm font-bold leading-6 text-zinc-500">
+                  {mentorProfile.status === 'PENDING_APPROVAL'
+                    ? '관리자 승인이 완료되면 프로그램을 등록할 수 있습니다.'
+                    : '멘토 승인이 완료되지 않아 프로그램을 등록할 수 없습니다.'}
+                </p>
+              </section>
             ) : mentorProfile ? (
               <section className="rounded-2xl border border-zinc-100 p-6">
                 <form onSubmit={handleSubmitProgram}>

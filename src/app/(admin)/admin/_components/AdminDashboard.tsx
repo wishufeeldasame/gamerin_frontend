@@ -70,7 +70,7 @@ function SummaryCards() {
     { label: '접수 대기 신고', value: stats.receivedReportsCount, icon: 'clock' as const, description: '접수 상태인 신고', unit: '건', iconBackground: '#fff4ed', iconColor: '#f79009' },
     { label: '검토 중 신고', value: stats.inReviewReportsCount, icon: 'review' as const, description: '관리자가 검토 중인 신고', unit: '건', iconBackground: '#eef4ff', iconColor: '#315ef5' },
     { label: '처리 완료 상태 신고', value: stats.resolvedReportsCount, icon: 'complete' as const, description: '현재 처리 완료 상태인 신고 수', unit: '건', iconBackground: '#ecfdf3', iconColor: '#12b76a' },
-    { label: '활성 제재 사용자', value: stats.activePenaltiesCount, icon: 'suspended' as const, description: '경고를 포함한 활성 제재 사용자', unit: '명', iconBackground: '#fef3f2', iconColor: '#f04438' },
+    { label: '활성 제재 사용자', value: stats.activePenaltiesCount, icon: 'suspended' as const, description: '현재 제재가 적용 중인 사용자', unit: '명', iconBackground: '#fef3f2', iconColor: '#f04438' },
   ];
 
   return (

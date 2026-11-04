@@ -26,7 +26,7 @@ describe('AdminDashboard', () => {
     expect(within(summary).getByText('처리 완료 상태 신고')).toBeInTheDocument();
     expect(within(summary).getByText('현재 처리 완료 상태인 신고 수')).toBeInTheDocument();
     expect(within(summary).queryByText('누적 처리 완료')).not.toBeInTheDocument();
-    expect(within(summary).getByText('경고를 포함한 활성 제재 사용자')).toBeInTheDocument();
+    expect(within(summary).getByText('현재 제재가 적용 중인 사용자')).toBeInTheDocument();
     expect(mocks.fetchAdminReports).toHaveBeenCalledWith({ page: 0, size: 10, sort: 'createdAt,desc' }, expect.any(AbortSignal));
     expect(screen.queryByText('신고 사유 분포')).not.toBeInTheDocument();
     expect(screen.queryByText(/예시 데이터/)).not.toBeInTheDocument();

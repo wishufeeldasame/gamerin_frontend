@@ -72,7 +72,7 @@
 - route group 이름은 URL에 포함되지 않는다.
 - `src/app/home/components/`: 피드, 게시물, 프로필, 멘토링 및 공통 모달 등 기존 컴포넌트가 모여 있다. 디렉토리 이름만 보고 `/home/...` 라우트라고 가정하지 않는다.
 - `src/app/(admin)/admin/`: 관리자 화면과 `_components`, `_data`가 있다.
-- 관리자 로그인은 `/api/v1/auth/login`과 `/api/v1/auth/me`를 호출하고 role을 확인한다. `AdminRouteGuard`와 `src/lib/admin-auth.ts`를 함께 확인한다. 대시보드에는 실제 신고 조회와 `_data` 기반 데모 통계가 혼재하므로 화면별 API 연동과 서버 인가를 따로 확인한다.
+- 관리자 로그인은 `/api/v1/auth/login`과 `/api/v1/auth/me`를 호출하고 role을 확인한다. `AdminRouteGuard`와 `src/lib/admin-auth.ts`를 함께 확인한다. 화면별 API 연동과 서버 인가를 따로 확인한다.
 - `src/app/auth/`, `src/app/login/` 및 계정 복구 화면을 함께 확인한다.
 - `find-Password`처럼 대소문자가 포함된 실제 경로를 보존한다.
 - `/`는 클라이언트 페이지 `src/app/page.tsx`가 인증 준비 후 로그인 여부에 따라 `/home` 또는 `/login`으로 `router.replace`한다. `next.config.ts`에는 redirect가 없고 `/uploads/:path*`의 조건부 rewrite만 있다.
