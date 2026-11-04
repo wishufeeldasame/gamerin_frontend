@@ -122,6 +122,37 @@ describe('AdminReportDetail', () => {
     expect(screen.getByRole('combobox', { name: '사용자 제재' })).toBeDisabled();
   });
 
+  it('멘토링 프로그램 신고(GENERAL)는 숨기기 옵션을, 신청 건 신고는 환불 안내를 보여 준다', async () => {
+    const mentoring = (stage: 'GENERAL' | 'FINISHED') => ({ ...detail, report: { ...detail.report, targetType: 'MENTORING' as const, stage } });
+    mocks.fetchAdminReportDetail.mockResolvedValue(mentoring('GENERAL'));
+    const { unmount } = render(<AdminReportDetail reportCode="RPT-001" />);
+    expect(await screen.findByLabelText('멘토링 숨기기')).toBeInTheDocument();
+    unmount();
+
+    mocks.fetchAdminReportDetail.mockResolvedValue(mentoring('FINISHED'));
+    render(<AdminReportDetail reportCode="RPT-001" />);
+    expect(await screen.findByText(/전액 환불되며/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('멘토링 숨기기')).not.toBeInTheDocument();
+  });
+
+  it('판정 응답의 escrowResult를 처리 결과에 표시한다', async () => {
+    mocks.fetchAdminReportDetail.mockResolvedValueOnce(detail).mockResolvedValue({ ...detail, report: { ...detail.report, status: 'RESOLVED' } });
+    mocks.resolveAdminReport.mockResolvedValueOnce({
+      ...detail,
+      report: { ...detail.report, status: 'RESOLVED' },
+      escrowResult: { outcome: 'REFUNDED', note: '멘티에게 강제 환불되었습니다.' },
+    });
+    render(<AdminReportDetail reportCode="RPT-001" />);
+    await waitFor(() => expect(screen.getByRole('combobox', { name: '사용자 제재' })).toBeEnabled());
+    fireEvent.change(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '환불 사유' } });
+    fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
+    expect(await screen.findByTestId('escrow-result')).toHaveTextContent('환불 - 멘티에게 강제 환불되었습니다.');
+    // 판정 직후 재조회(escrowResult 없음)가 끝나도 결과를 유지한다.
+    await waitFor(() => expect(mocks.fetchAdminReportDetail).toHaveBeenCalledTimes(2));
+    expect(screen.getByTestId('escrow-result')).toBeInTheDocument();
+  });
+
   it('keeps penalties disabled during lookup failure and allows retry', async () => {
     mocks.fetchAdminUser.mockRejectedValueOnce(new Error('조회 실패'));
     render(<AdminReportDetail reportCode="RPT-001" />);

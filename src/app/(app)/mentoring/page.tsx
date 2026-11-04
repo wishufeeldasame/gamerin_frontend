@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Check,
   Clock3,
+  Flag,
   CreditCard,
   Loader2,
   MessageCircle,
@@ -19,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { ReportContentModal } from '@/app/home/components/Report';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
 import { createConversation } from '@/lib/message-api';
 import {
@@ -270,6 +272,7 @@ export default function MentoringPage() {
 
   const [programForm, setProgramForm] = useState<ProgramForm>(defaultProgramForm);
   const [selectedProgram, setSelectedProgram] = useState<MentoringProgramDetailResponse | null>(null);
+  const [programReportOpen, setProgramReportOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [selectedProgramReviews, setSelectedProgramReviews] = useState<MentoringReviewResponse[]>([]);
@@ -745,6 +748,7 @@ export default function MentoringPage() {
 
   const closeProgramDetail = useCallback(() => {
     setSelectedProgram(null);
+    setProgramReportOpen(false);
     setSelectedProgramReviews([]);
     setSelectedProgramReviewsLoading(false);
     setApplicationMessage('');
@@ -1711,6 +1715,29 @@ export default function MentoringPage() {
                     )}
                   </div>
 
+                  {!currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                    <button
+                      type="button"
+                      onClick={() => setProgramReportOpen(true)}
+                      className="mt-5 inline-flex items-center gap-1.5 text-xs font-black text-zinc-400 hover:text-red-500"
+                    >
+                      <Flag size={13} />
+                      프로그램 신고
+                    </button>
+                  ) : null}
+                  {programReportOpen ? (
+                    <ReportContentModal
+                      targetType="MENTORING"
+                      targetId={selectedProgram.id}
+                      title="멘토링 프로그램 신고"
+                      author={selectedProgram.mentorNickname}
+                      authorHandle=""
+                      content={selectedProgram.title}
+                      emptyContentLabel="제목 없음"
+                      onClose={() => setProgramReportOpen(false)}
+                    />
+                  ) : null}
+
                   {currentUserOwnsProgram(selectedProgram.mentorId) ? (
                     <p className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-black text-zinc-500">
                       내가 등록한 프로그램입니다.
@@ -2130,6 +2157,7 @@ function ApplicationCard({
   onReview?: () => void;
   onReviewedClick?: () => void;
 }) {
+  const [reportOpen, setReportOpen] = useState(false);
   const actionPending = pendingAction.endsWith(`:${application.id}`);
   const guide = applicationGuide(role, application.status, application.paymentStatus);
   const chatEnabled = canOpenMentoringChat(application.status);
@@ -2265,6 +2293,17 @@ function ApplicationCard({
           </button>
         ) : null}
 
+        {role === 'mentee' && (application.status === 'ONGOING' || application.status === 'FINISHED') ? (
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-red-500 dark:bg-zinc-800"
+          >
+            <Flag size={14} />
+            이의제기
+          </button>
+        ) : null}
+
         {role === 'mentee' && application.status === 'COMPLETED' && !application.reviewed ? (
           <button
             type="button"
@@ -2289,6 +2328,18 @@ function ApplicationCard({
           </button>
         ) : null}
       </div>
+      {reportOpen ? (
+        <ReportContentModal
+          targetType="MENTORING"
+          targetId={application.id}
+          title="멘토링 이의제기"
+          author={application.mentorNickname}
+          authorHandle=""
+          content={application.programTitle}
+          emptyContentLabel="제목 없음"
+          onClose={() => setReportOpen(false)}
+        />
+      ) : null}
     </article>
   );
 }

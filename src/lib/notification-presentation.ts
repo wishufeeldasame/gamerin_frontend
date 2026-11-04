@@ -38,6 +38,7 @@ const NOTIFICATION_TYPE_LOOKUP = {
   mentoring_started: true,
   mentoring_finished: true,
   mentoring_completed: true,
+  mentoring_refunded: true,
   mentoring_review: true,
   mention: true,
 } satisfies Record<NotificationType, true>;
@@ -187,6 +188,12 @@ function getKnownNotificationPresentation(
     case 'mentoring_completed':
       return {
         message: '멘토링이 완료되었습니다.',
+        iconKind: 'graduation-cap',
+        href: getMentoringHref(notification),
+      };
+    case 'mentoring_refunded':
+      return {
+        message: '신고 처리 결과로 멘토링 비용이 환불되었습니다.',
         iconKind: 'graduation-cap',
         href: getMentoringHref(notification),
       };

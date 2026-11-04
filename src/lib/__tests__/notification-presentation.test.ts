@@ -106,6 +106,12 @@ describe('getNotificationPresentation', () => {
       href: '/mentoring?tab=mine&applicationId=application%2Fid&reviewId=review%2Fid',
     },
     {
+      type: 'mentoring_refunded',
+      message: '신고 처리 결과로 멘토링 비용이 환불되었습니다.',
+      iconKind: 'graduation-cap',
+      href: '/mentoring?tab=mine&applicationId=application%2Fid&reviewId=review%2Fid',
+    },
+    {
       type: 'mentoring_review',
       message: '플레이어님이 멘토링 리뷰를 남겼습니다.',
       iconKind: 'star',

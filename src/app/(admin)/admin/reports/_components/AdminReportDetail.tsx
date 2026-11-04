@@ -112,6 +112,8 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
   const [revision, setRevision] = useState(0);
   const [targetRetry, setTargetRetry] = useState(0);
   const [success, setSuccess] = useState(false);
+  // 에스크로 결과는 판정 응답에만 있고 재조회 응답에는 없어 따로 보관한다.
+  const [escrowResult, setEscrowResult] = useState<AdminReportDetailResponse['escrowResult']>(null);
   const actionLock = useRef(false);
   const mounted = useRef(true);
   useEffect(() => {
@@ -179,6 +181,7 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
       const response = submission ? await resolveAdminReport(reportCode, submission) : await startAdminReportReview(reportCode);
       if (!mounted.current) return;
       setDetail(response);
+      setEscrowResult(response.escrowResult ?? null);
       setRevision((value) => value + 1);
       setSuccess(Boolean(submission && response.report.status === 'RESOLVED'));
     } catch (error: unknown) {
@@ -228,9 +231,9 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
         {detail.report.status === 'RECEIVED' ? (
           <><p className="mt-4 text-sm text-[#667085]">검토를 시작하면 조치를 선택할 수 있습니다.</p><button type="button" className={`${buttonClass} mt-3 w-full`} disabled={submitting} onClick={() => void runAction()}>{submitting ? '시작 중...' : '검토 시작'}</button>{actionError ? <p role="alert" className="mt-2 text-sm text-[#b42318]">{actionError}</p> : null}</>
         ) : detail.report.status === 'IN_REVIEW' ? (
-          <><ReportReviewForm key={detail.report.id} targetType={report.targetType} canSanction={canSanction} sanctionUnavailableReason={unavailableReason} isSubmitting={submitting} submitError={actionError} onComplete={(submission) => void runAction(submission)} />{targetError ? <button type="button" className="mt-2 text-sm font-semibold text-[#315ef5]" onClick={() => setTargetRetry((value) => value + 1)}>대상 사용자 다시 확인</button> : null}</>
+          <><ReportReviewForm key={detail.report.id} targetType={report.targetType} stage={detail.report.stage} canSanction={canSanction} sanctionUnavailableReason={unavailableReason} isSubmitting={submitting} submitError={actionError} onComplete={(submission) => void runAction(submission)} />{targetError ? <button type="button" className="mt-2 text-sm font-semibold text-[#315ef5]" onClick={() => setTargetRetry((value) => value + 1)}>대상 사용자 다시 확인</button> : null}</>
         ) : (
-          <div className="mt-4 rounded-2xl bg-[#f9fafb] p-4 text-sm text-[#344054]"><p>{report.status === '처리 완료' ? '처리 완료된 신고입니다.' : '반려 처리된 신고입니다.'}</p>{actionError ? <p role="alert" className="mt-2 text-sm text-[#b42318]">{actionError}</p> : null}<Link href="/admin/audit-logs" className="mt-3 inline-block font-semibold text-[#315ef5]">전체 관리자 작업 이력으로 이동</Link></div>
+          <div className="mt-4 rounded-2xl bg-[#f9fafb] p-4 text-sm text-[#344054]"><p>{report.status === '처리 완료' ? '처리 완료된 신고입니다.' : '반려 처리된 신고입니다.'}</p>{escrowResult ? <p className="mt-2" data-testid="escrow-result">에스크로 결과: {{ REFUNDED: '환불', SETTLED: '정산', NOT_PERFORMED: '미수행' }[escrowResult.outcome]} - {escrowResult.note}</p> : null}{actionError ? <p role="alert" className="mt-2 text-sm text-[#b42318]">{actionError}</p> : null}<Link href="/admin/audit-logs" className="mt-3 inline-block font-semibold text-[#315ef5]">전체 관리자 작업 이력으로 이동</Link></div>
         )}
       </aside>
       {success ? <ReportProcessedToast isLeaving={false} /> : null}
