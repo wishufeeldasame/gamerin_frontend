@@ -106,7 +106,7 @@ export function ReportContentModal({
       setSubmitted(true);
     } catch (error) {
       setConfirmOpen(false);
-      if (error instanceof ReportApiError && error.status === 409) {
+      if (error instanceof ReportApiError && error.status === 409 && targetType !== 'MENTORING') {
         setSubmitError('이미 신고한 대상입니다.');
       } else {
         setSubmitError(error instanceof Error ? error.message : '신고 접수에 실패했습니다.');
@@ -179,7 +179,7 @@ export function ReportContentModal({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-black">{author}</p>
-                  <p className="truncate text-xs font-bold text-zinc-400">@{authorHandle}</p>
+                  {authorHandle ? <p className="truncate text-xs font-bold text-zinc-400">@{authorHandle}</p> : null}
                 </div>
               </div>
               <p className="line-clamp-2 text-sm font-medium leading-6 text-zinc-700">

@@ -20,6 +20,7 @@ export type NotificationType =
   | 'mentoring_started'
   | 'mentoring_finished'
   | 'mentoring_completed'
+  | 'mentoring_refunded'
   | 'mentoring_review'
   | 'mention';
 

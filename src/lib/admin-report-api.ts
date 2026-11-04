@@ -25,6 +25,8 @@ export interface AdminReportApiItem {
   reasonLabel: string;
   details: string | null;
   status: ReportStatus;
+  // 멘토링 신청 건 신고의 접수 단계. 프로그램 신고와 그 외 대상은 GENERAL.
+  stage?: 'GENERAL' | 'ONGOING' | 'FINISHED';
   assignedAdminId: string | null;
   assignedAdminNickname: string | null;
   createdAt: string;
@@ -45,6 +47,8 @@ export interface AdminReportDetailResponse {
   reporter: AdminReportApiUser;
   targetUser: AdminReportApiUser | null;
   contentHidden: boolean;
+  // 판정(resolve) 응답에만 채워지며 조회 응답이나 에스크로와 무관한 신고는 null/없음.
+  escrowResult?: { outcome: 'REFUNDED' | 'SETTLED' | 'NOT_PERFORMED'; note: string } | null;
 }
 
 export interface AdminReportSearchParams {

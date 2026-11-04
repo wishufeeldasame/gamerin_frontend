@@ -277,6 +277,29 @@ describe('메시지 화면 실시간 연결과 폴링 복구', () => {
     expect(mocks.stream).toHaveBeenCalledTimes(2);
   });
 
+  it('connection-replaced 수신 뒤에는 오류가 나도 재연결하지 않고 안내를 보여 준다', async () => {
+    vi.useFakeTimers();
+    const source = createEventSource() as ReturnType<typeof createEventSource> & { onerror?: () => void };
+    mocks.stream.mockResolvedValue(source);
+
+    render(<MessagesPage />);
+
+    await flushAsyncWork();
+    const replaced = source.addEventListener.mock.calls.find(([name]) => name === 'connection-replaced')?.[1];
+    expect(replaced).toBeTypeOf('function');
+    act(() => {
+      replaced();
+      source.onerror?.();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(source.close).toHaveBeenCalled();
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText(/실시간 연결이 종료되었습니다/).length).toBeGreaterThan(0);
+  });
+
   it('5초 폴링 실패 뒤에도 같은 대화를 재조회하고 성공 시 오류를 지운다', async () => {
     vi.useFakeTimers();
     mocks.messages
