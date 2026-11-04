@@ -3,7 +3,7 @@ import type { PageResponse } from '@/types/api';
 
 const MENTORING_BASE = '/api/v1/mentoring';
 
-export type MentorStatus = 'ACTIVE' | 'INACTIVE' | string;
+export type MentorStatus = 'PENDING_APPROVAL' | 'ACTIVE' | 'INACTIVE' | string;
 export type ProgramStatus = 'ACTIVE' | 'CLOSED';
 export type ApplicationStatus =
   | 'APPLIED'

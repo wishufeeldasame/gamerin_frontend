@@ -397,6 +397,27 @@ describe('MentoringPage game filter', () => {
     expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeDisabled();
   });
 
+  it.each([
+    ['PENDING_APPROVAL', '멘토 승인 대기 중'],
+    ['INACTIVE', '멘토 등록이 반려되었습니다'],
+  ])('멘토 상태가 %s이면 등록 폼 대신 안내를 보인다', async (status, heading) => {
+    const user = userEvent.setup();
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue({
+      userId: 'user-1',
+      nickname: '멘토',
+      status,
+      about: '소개',
+      ratingAvg: 0,
+      reviewCount: 0,
+      menteeCount: 0,
+    });
+    render(<MentoringPage />);
+
+    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    expect(await screen.findByText(heading)).toBeInTheDocument();
+    expect(screen.queryByText('프로그램 만들기')).not.toBeInTheDocument();
+  });
+
   it('오래된 /games 실패는 최신 성공 결과를 덮지 않는다', async () => {
     let rejectFirst: (reason: Error) => void = () => {};
     mentoringApi.fetchGames

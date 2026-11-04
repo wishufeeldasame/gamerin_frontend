@@ -9,9 +9,13 @@ const suggestedFriends = [
   { name: 'Theo Han', tag: '@theostream', badge: '크리에이터' },
 ];
 
+// 추천 친구는 실제 API(BE #168) 연동 전이라 숨긴다. 연동 후 true로 바꾸고 suggestedFriends를 API 데이터로 교체한다.
+const SHOW_SUGGESTED_FRIENDS = false;
+
 export function RightSidebar() {
   return (
     <aside className="space-y-6">
+      {SHOW_SUGGESTED_FRIENDS ? (
       <section className="rounded-3xl border border-zinc-100 bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center gap-2">
           <UserPlus size={20} className="text-black" />
@@ -45,6 +49,7 @@ export function RightSidebar() {
           모두 보기
         </button>
       </section>
+      ) : null}
 
       <footer className="space-x-3 px-6 text-xs font-bold text-zinc-400">
         <Link href="/terms" className="hover:underline">
