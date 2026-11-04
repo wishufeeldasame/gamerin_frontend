@@ -1259,7 +1259,7 @@ export default function MessagesPage() {
     requestedRecipientRef.current = requestedRecipientHandle;
 
     const existingConversation = conversations.find(
-      (conversation) => conversation.recipient.handle === requestedRecipientHandle
+      (conversation) => conversation.recipient.handle.replace(/^@/, '') === requestedRecipientHandle.replace(/^@/, '')
     );
 
     if (existingConversation) {

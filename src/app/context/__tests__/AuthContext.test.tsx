@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
@@ -127,6 +127,8 @@ describe('AuthProvider session clearing', () => {
     expect(screen.getByText('no-user')).toBeInTheDocument();
     expect(authStore.logoutAuthSession).toHaveBeenCalledWith({ notify: false });
     finishLogout?.();
+    await waitFor(() => expect(authStore.logoutAuthSession).toHaveBeenCalled());
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   describe('저장된 사용자 복원', () => {
