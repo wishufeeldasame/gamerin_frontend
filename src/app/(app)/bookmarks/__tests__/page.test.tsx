@@ -51,6 +51,7 @@ vi.mock('@/app/home/components/Post', () => ({
     post,
     likeLoading,
     onToggleLike,
+    onShare,
     onRepostChange,
     onBookmarkSuccess,
     onBookmarkChange,
@@ -59,6 +60,7 @@ vi.mock('@/app/home/components/Post', () => ({
     post: PostRecord;
     likeLoading?: boolean;
     onToggleLike?: (post: PostRecord) => void;
+    onShare?: (post: PostRecord) => void;
     onRepostChange?: (post: PostRecord) => void;
     onBookmarkSuccess?: (post: PostRecord, bookmarked: boolean) => void;
     onBookmarkChange?: (post: PostRecord, bookmarked: boolean) => void;
@@ -93,6 +95,12 @@ vi.mock('@/app/home/components/Post', () => ({
         }
       >
         update repost
+      </button>
+      <button
+        type="button"
+        onClick={() => onShare?.({ ...post, bookmarkedByMe: false })}
+      >
+        share unbookmarked post
       </button>
       <button
         type="button"
@@ -278,23 +286,31 @@ describe('BookmarksPage state synchronization', () => {
     expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(1);
   });
 
-  it('폴더에서 북마크를 해제하면 전체 개수를 다시 조회한다', async () => {
-    render(<BookmarksPage />);
-    await screen.findByTestId('post-post-1');
-    await selectCollection('모음집 A');
-    api.fetchMyBookmarkCount.mockResolvedValue(1);
-    fireEvent.click(screen.getByRole('button', { name: 'complete unbookmark' }));
-    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('1개 게시물'));
-    expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(2);
-  });
+  it.each(['complete unbookmark', 'share unbookmarked post'])(
+    '게시물이 목록에서 빠지면 이전 개수를 유지한 뒤 전체 개수를 갱신한다 (%s)',
+    async (action) => {
+      render(<BookmarksPage />);
+      await screen.findByTestId('post-post-1');
+      await selectCollection('모음집 A');
+      const allButton = getCollectionButton('전체 북마크');
+      expect(allButton).toHaveTextContent('2개 게시물');
+      const nextCount = deferred<number>();
+      api.fetchMyBookmarkCount.mockReturnValueOnce(nextCount.promise);
+      fireEvent.click(screen.getByRole('button', { name: action }));
+      expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
+      expect(allButton).toHaveTextContent('2개 게시물');
+      expect(api.fetchMyBookmarkCount).toHaveBeenCalledTimes(2);
+      await act(async () => nextCount.resolve(1));
+      expect(allButton).toHaveTextContent('1개 게시물');
+    },
+  );
 
-  it('전체 개수 조회 실패를 0개로 표시하지 않고 카드 클릭으로 재시도한다', async () => {
+  it('첫 개수 조회에 실패해도 북마크 목록을 표시한다', async () => {
     api.fetchMyBookmarkCount.mockRejectedValueOnce(new Error('network error'));
     render(<BookmarksPage />);
-    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('개수 확인 불가'));
-    api.fetchMyBookmarkCount.mockResolvedValue(0);
-    fireEvent.click(getCollectionButton('전체 북마크'));
-    await waitFor(() => expect(getCollectionButton('전체 북마크')).toHaveTextContent('0개 게시물'));
+    expect(await screen.findByTestId('post-post-1')).toBeInTheDocument();
+    expect(getCollectionButton('전체 북마크')).toHaveAccessibleName('전체 북마크');
+    expect(screen.queryByRole('button', { name: /개수.*다시 시도/ })).not.toBeInTheDocument();
   });
 
   it('북마크 해제 전에 시작한 오래된 개수 응답을 무시한다', async () => {

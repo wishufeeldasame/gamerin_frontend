@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { fetchMyBookmarkCount, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { clearStoredAuth, setAccessToken } from '@/lib/auth-store';
+import { installFetchRoutes, json } from '@/test/fetch-routes';
 
 vi.mock('@/lib/api-base', () => ({
   getApiBaseUrl: () => 'http://api.test',
@@ -20,5 +22,23 @@ describe('feed-api 이미지 주소', () => {
       { mediaUrl: 'http://api.test/uploads/a.png', thumbnailUrl: null },
       { mediaUrl: '', thumbnailUrl: 'https://cdn.test/t.png' },
     ]);
+  });
+});
+
+describe('fetchMyBookmarkCount', () => {
+  it('숫자 0은 개수로 반환하고 객체 형태의 응답은 거부한다', async () => {
+    const api = installFetchRoutes();
+    const path = '/api/v1/users/me/bookmarks/count';
+    api.route(path, () => json(200, { success: true, data: 0 }), () =>
+      json(200, { success: true, data: { count: 25 } }),
+    );
+    setAccessToken('test-token');
+
+    try {
+      await expect(fetchMyBookmarkCount()).resolves.toBe(0);
+      await expect(fetchMyBookmarkCount()).rejects.toThrow('전체 북마크 개수 응답이 올바르지 않습니다.');
+    } finally {
+      clearStoredAuth();
+    }
   });
 });

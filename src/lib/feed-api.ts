@@ -624,10 +624,14 @@ function appendBookmarkSearchParams(search: URLSearchParams, options: BookmarkRe
   }
 }
 
-export function fetchMyBookmarkCount(options: FeedRequestOptions = {}) {
-  return apiRequest<number>('/api/v1/users/me/bookmarks/count', {
+export async function fetchMyBookmarkCount(options: FeedRequestOptions = {}) {
+  const count = await apiRequest<unknown>('/api/v1/users/me/bookmarks/count', {
     signal: options.signal,
   });
+  if (typeof count !== 'number' || !Number.isSafeInteger(count) || count < 0) {
+    throw new Error('전체 북마크 개수 응답이 올바르지 않습니다.');
+  }
+  return count;
 }
 
 export async function fetchMyBookmarks(
