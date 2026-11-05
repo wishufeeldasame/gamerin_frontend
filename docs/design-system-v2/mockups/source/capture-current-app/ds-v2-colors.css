@@ -1,0 +1,62 @@
+/* Design System v2 색 배치만 적용(라이트 모드). 레이아웃·크기·간격은 기존 코드 그대로. */
+nextjs-portal { display: none !important; }
+
+html:not(.dark) {
+  /* bg/canvas(#FAFAFA)는 기존 레이아웃의 흰 sticky 영역과 경계가 생겨 흰색 유지 */
+  --v2-surface: #FFFFFF;           /* bg/surface */
+  --v2-subtle: #F4F4F5;            /* bg/subtle */
+  --v2-brand: #F5B93D;             /* bg/brand */
+  --v2-brand-hover: #DB9A1F;       /* bg/brand-hover */
+  --v2-brand-subtle: #FFF9EB;      /* bg/brand-subtle */
+  --v2-text: #151518;              /* text/primary */
+  --v2-text-2: #52525B;            /* text/secondary (D10) */
+  --v2-text-3: #71717A;            /* text/tertiary (D10) */
+  --v2-on-brand: #1A1406;          /* text/on-brand */
+  --v2-text-brand: #7D5310;        /* text/brand */
+  --v2-icon-brand: #DB9A1F;        /* icon/brand */
+  --v2-border: #E4E4E7;            /* border/default */
+}
+
+/* 헤더: 노란 바탕 → 흰 표면 + 하단 구분선, 로고는 진한 글자 */
+html:not(.dark) header.fixed { background: var(--v2-surface) !important; border-color: var(--v2-border) !important; }
+html:not(.dark) header.fixed a[href="/home"] { color: var(--v2-text) !important; }
+html:not(.dark) header.fixed [class*="bg-[#f3f1f7]"] { background: var(--v2-subtle) !important; border-color: transparent !important; box-shadow: none !important; }
+/* 알림 배지: 빨강 → 브랜드 노랑(헤더 표면 위) */
+html:not(.dark) header.fixed .bg-red-600 { background: var(--v2-brand) !important; color: var(--v2-on-brand) !important; border-color: var(--v2-surface) !important; }
+
+/* 사이드바: 표면 흰색, 활성 메뉴 검정 → 연노랑 + 노란 아이콘(그림자 제거) */
+html:not(.dark) aside.sticky { background: var(--v2-surface); }
+html:not(.dark) aside a.bg-black { background: var(--v2-brand-subtle) !important; color: var(--v2-text) !important; box-shadow: none !important; }
+html:not(.dark) aside a.bg-black svg { color: var(--v2-icon-brand); }
+
+/* Primary 액션: 검정 → 노랑 + 진한 글자 */
+html:not(.dark) .btn-primary,
+html:not(.dark) button.bg-black,
+html:not(.dark) main a.bg-black { background: var(--v2-brand) !important; color: var(--v2-on-brand) !important; box-shadow: none !important; }
+html:not(.dark) .btn-primary:hover:not(:disabled),
+html:not(.dark) button.bg-black:hover { background: var(--v2-brand-hover) !important; }
+html:not(.dark) .btn-primary:disabled { background: var(--v2-brand) !important; color: var(--v2-on-brand) !important; opacity: .4; }
+
+/* 이니셜 아바타: 검정 → 연노랑 + 브랜드 글자 */
+html:not(.dark) div.bg-black.text-white,
+html:not(.dark) span.bg-black.text-white { background: var(--v2-brand-subtle) !important; color: var(--v2-text-brand) !important; }
+
+/* 탭 활성 밑줄 등 빈 검정 표시선 → 노랑 */
+html:not(.dark) .bg-black:empty { background: var(--v2-brand) !important; }
+
+/* 해시태그·멘션: 초록 → text/brand */
+html:not(.dark) .text-emerald-700 { color: var(--v2-text-brand) !important; }
+
+/* 좋아요·북마크 활성: 빨강/검정 → 브랜드 노랑 */
+html:not(.dark) article .text-red-500 { color: var(--v2-icon-brand) !important; }
+html:not(.dark) article svg.fill-red-500 { fill: var(--v2-icon-brand) !important; }
+html:not(.dark) article svg.fill-black,
+html:not(.dark) article svg.fill-current.text-black { fill: var(--v2-icon-brand) !important; color: var(--v2-icon-brand) !important; }
+
+/* 회색 글자 대비(D10) */
+html:not(.dark) .text-zinc-400 { color: var(--v2-text-3) !important; }
+html:not(.dark) .text-zinc-500 { color: var(--v2-text-2) !important; }
+html:not(.dark) .text-zinc-300 { color: var(--v2-text-3) !important; }
+
+/* 모바일 하단 탭바 활성: 검정 아이콘 → 노란 아이콘 */
+html:not(.dark) [data-mobile-tab-bar] a[aria-current="page"] svg { color: var(--v2-icon-brand); }
