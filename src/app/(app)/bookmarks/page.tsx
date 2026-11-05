@@ -346,7 +346,7 @@ export default function BookmarksPage() {
           </p>
         </div>
       ) : (
-        <div className="-mx-4 md:mx-0 md:space-y-4">
+        <div className="space-y-3">
           {bookmarks.map((post, index) => (
               <motion.div
                 key={post.postId}

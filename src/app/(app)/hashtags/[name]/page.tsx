@@ -98,7 +98,7 @@ export default function HashtagPostsPage() {
           <p className="font-black text-zinc-500">아직 이 해시태그의 게시글이 없습니다.</p>
         </div>
       ) : (
-        <div className="-mx-4 md:mx-0 md:space-y-4">
+        <div className="space-y-3">
           {posts.map((post) => (
             <Post
               key={post.postId}

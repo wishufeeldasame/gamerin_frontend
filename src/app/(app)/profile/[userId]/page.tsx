@@ -1325,7 +1325,7 @@ export default function ProfilePage() {
         ) : null}
 
         {activeTab === 'posts' ? (
-          <div className="md:space-y-4">
+          <div className="space-y-3 p-4 md:p-0">
             {postsLoading ? (
               <PostListSkeleton />
             ) : postsError ? (

@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
+import { MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { PostComposer } from '@/app/home/components/PostComposer';
 import { PendingPostCard } from '@/app/home/components/PendingPostCard';
@@ -40,6 +41,7 @@ function HomePageContent() {
     loadingMore,
     error,
     loadMoreError,
+    reload,
     loadMore,
   } = useCursorList<PostRecord>({
     loadPage,
@@ -157,7 +159,7 @@ function HomePageContent() {
   return (
     <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
       <main className="min-h-screen min-w-0 flex-1">
-        <div className="sticky top-[var(--app-header-height)] z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
+        <div className="sticky top-[var(--app-header-height)] z-20 flex gap-7 border-b border-line bg-canvas px-4 md:px-0">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -166,26 +168,23 @@ function HomePageContent() {
               key={tab.value}
               onClick={() => handleTabChange(tab.value)}
               aria-pressed={activeTab === tab.value}
-              className={`relative flex-1 py-4 text-base font-black transition-all ${
-                activeTab === tab.value ? 'text-black dark:!text-[#f5b93d]' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-400 dark:hover:!text-white'
+              className={`relative py-3.5 text-body transition-colors ${
+                activeTab === tab.value ? 'font-bold text-fg-primary' : 'text-fg-tertiary hover:text-fg-secondary'
               }`}
             >
               {tab.label}
               {activeTab === tab.value ? (
-                <motion.div
-                  layoutId="underline"
-                  className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-black dark:bg-[#f5b93d]"
-                />
+                <motion.div layoutId="underline" className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />
               ) : null}
             </button>
           ))}
         </div>
 
-        <div className="md:space-y-4 md:py-6">
+        <div className="space-y-3 px-4 py-3 md:px-0">
           <PostComposer onSubmit={handleSubmitPost} />
 
           {pendingPosts.length > 0 ? (
-            <div className="md:space-y-4">
+            <div className="space-y-3">
               {pendingPosts.map((pendingPost) => (
                 <PendingPostCard
                   key={pendingPost.id}
@@ -198,19 +197,24 @@ function HomePageContent() {
           ) : null}
 
           {loading ? (
-            <div className="m-4 md:m-0">
-              <PostListSkeleton count={3} label="피드를 불러오는 중" />
-            </div>
+            <PostListSkeleton count={3} label="피드를 불러오는 중" />
           ) : error ? (
-            <div className="m-4 rounded-2xl border border-red-100 bg-red-50 p-8 text-center text-sm font-bold text-red-500 md:m-0 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-              {error}
+            <div role="alert" className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+                <MessageSquare size={20} strokeWidth={1.67} />
+              </span>
+              <p className="mt-4 text-body font-bold text-fg-primary">{error}</p>
+              <p className="mt-1 text-body text-fg-secondary">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
+              <button type="button" onClick={() => void reload()} className="btn-secondary mt-6">
+                다시 시도
+              </button>
             </div>
           ) : posts.length === 0 ? (
-            <div className="m-4 rounded-2xl border border-zinc-100 bg-white p-8 text-center text-sm font-bold text-zinc-400 md:m-0">
+            <div className="rounded-card border border-line-card bg-surface p-8 text-center text-body text-fg-tertiary">
               아직 게시글이 없습니다.
             </div>
           ) : (
-            <div className="md:space-y-4">
+            <div className="space-y-3">
               {posts.map((post, index) => (
                 <motion.div
                   key={post.postId}
@@ -244,22 +248,18 @@ function HomePageContent() {
               <div role="status" aria-live="polite" className="sr-only">
                 {loadingMore ? '게시글을 불러오는 중...' : null}
               </div>
-              {loadingMore ? (
-                <div className="m-4 md:m-0">
-                  <PostListSkeleton count={1} />
-                </div>
-              ) : null}
+              {loadingMore ? <PostListSkeleton count={1} /> : null}
 
               {loadMoreError ? (
                 <div
                   role="alert"
-                  className="m-4 flex items-center justify-between gap-3 rounded-2xl border border-red-100 md:m-0 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  className="flex items-center justify-between gap-3 rounded-card bg-danger-subtle px-4 py-3 text-label text-fg-danger"
                 >
                   <span>{loadMoreError}</span>
                   <button
                     type="button"
                     onClick={() => void loadMore()}
-                    className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300 dark:hover:border-red-400"
+                    className="btn-secondary h-8"
                   >
                     다시 시도
                   </button>

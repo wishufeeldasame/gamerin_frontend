@@ -9,9 +9,9 @@ const block = 'bg-zinc-200 dark:bg-zinc-800';
 export function PostListSkeleton({ count = 2, label = '게시물을 불러오는 중' }: { count?: number; label?: string }) {
   return (
     <Skeleton loading label={label}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {Array.from({ length: count }, (_, index) => (
-          <article key={index} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <article key={index} className="rounded-card border border-line-card bg-surface p-4 md:p-5">
             <div className="flex items-center gap-3">
               <div className={`h-10 w-10 rounded-full ${block}`} />
               <div>
