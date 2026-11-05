@@ -14,6 +14,7 @@ export type MessageRecipient = {
 
 export type SharedPostPreview = {
   postId: string;
+  postNumber: number;
   author: string;
   authorHandle: string;
   content: string;

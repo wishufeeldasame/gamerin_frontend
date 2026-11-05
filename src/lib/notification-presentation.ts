@@ -1,3 +1,4 @@
+import { getPostHref as buildPostHref } from '@/lib/feed-api';
 import type { NotificationRecord, NotificationType } from '@/lib/notification-api';
 
 export type NotificationIconKind =
@@ -58,12 +59,12 @@ function getActorSubject(notification: NotificationPresentationInput) {
 }
 
 function getPostHref(notification: NotificationPresentationInput, includeCommentId = false) {
-  const postId = getValue(notification.postId);
-  if (!postId) {
+  const postNumber = notification.postNumber;
+  if (postNumber == null) {
     return null;
   }
 
-  const pathname = `/posts/${encodeURIComponent(postId)}`;
+  const pathname = buildPostHref(postNumber);
   const commentId = includeCommentId ? getValue(notification.commentId) : null;
   if (!commentId) {
     return pathname;

@@ -68,7 +68,7 @@
 > 아래 경로는 현재 구현 탐색을 위한 참고다. 작업 전 실제 route와 component 위치를 다시 확인한다.
 
 - `src/app/(app)/layout.tsx`: 인증 준비 상태와 사용자를 확인하고 미로그인 시 `/login`으로 이동한다. Header와 Sidebar를 포함한 공통 셸이다.
-- `src/app/(app)/`: `home`, `messages`, `mentoring`, `bookmarks`, `posts/[postId]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
+- `src/app/(app)/`: `home`, `messages`, `mentoring`, `bookmarks`, `posts/[postNumber]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
 - route group 이름은 URL에 포함되지 않는다.
 - `src/app/home/components/`: 피드, 게시물, 프로필, 멘토링 및 공통 모달 등 기존 컴포넌트가 모여 있다. 디렉토리 이름만 보고 `/home/...` 라우트라고 가정하지 않는다.
 - `src/app/(admin)/admin/`: 관리자 화면과 `_components`, `_data`가 있다.

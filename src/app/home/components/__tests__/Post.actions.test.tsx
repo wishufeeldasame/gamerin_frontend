@@ -4,7 +4,7 @@ import { render } from '@/test/feedback';
 import type { PostRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
-  fetchPostDetail: vi.fn(), fetchPostComments: vi.fn(),
+  fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn(),
   repostPost: vi.fn(), unrepostPost: vi.fn(), likePost: vi.fn(), unlikePost: vi.fn(),
   sharePost: vi.fn(),
 }));
@@ -19,7 +19,7 @@ import { Post } from '../Post';
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author',
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author',
   authorProfileImageUrl: null, authorVerifiedBadge: false, content: '액션 접근성 테스트',
   media: [], likes: 2, comments: 0, shares: 0, repostCount: 3, isReposted: false,
   likedByMe: false, bookmarkedByMe: false, mine: false, createdAt: '2026-10-01T00:00:00Z',
@@ -28,15 +28,15 @@ const post: PostRecord = {
 async function show(kind: 'card' | 'detail', record = post) {
   if (kind === 'card') render(<Post post={record} />);
   else {
-    api.fetchPostDetail.mockResolvedValue(record);
-    render(<PostDetail postId={record.postId} onBack={vi.fn()} />);
+    api.fetchPostDetailByNumber.mockResolvedValue(record);
+    render(<PostDetail postNumber={record.postNumber} onBack={vi.fn()} />);
     await screen.findByRole('textbox', { name: '댓글 입력' });
   }
 }
 
 beforeEach(() => {
   vi.resetAllMocks();
-  api.fetchPostDetail.mockResolvedValue(post);
+  api.fetchPostDetailByNumber.mockResolvedValue(post);
   api.fetchPostComments.mockResolvedValue([]);
   api.repostPost.mockResolvedValue({ postId: post.postId, isReposted: true, repostCount: 4 });
   api.unrepostPost.mockResolvedValue({ postId: post.postId, isReposted: false, repostCount: 3 });
@@ -54,7 +54,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
     const onUpdated = vi.fn();
     const view = kind === 'card'
       ? render(<Post post={post} onShare={onUpdated} />)
-      : render(<PostDetail postId={post.postId} onBack={vi.fn()} onPostUpdated={onUpdated} />);
+      : render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onUpdated} />);
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
     fireEvent.click(screen.getByRole('button', { name: '게시물 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
@@ -80,7 +80,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
     const onUpdated = vi.fn();
     const view = kind === 'card'
       ? render(<Post post={post} onShare={onUpdated} />)
-      : render(<PostDetail postId={post.postId} onBack={vi.fn()} onPostUpdated={onUpdated} />);
+      : render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onUpdated} />);
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
     fireEvent.click(screen.getByRole('button', { name: '게시물 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));

@@ -4,7 +4,7 @@ import { render } from '@/test/feedback';
 import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
-  deletePost: vi.fn(), deleteComment: vi.fn(), fetchPostDetail: vi.fn(), fetchPostComments: vi.fn(),
+  deletePost: vi.fn(), deleteComment: vi.fn(), fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn(),
 }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'author' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({
@@ -16,7 +16,7 @@ import { Post } from '../Post';
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author',
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author',
   authorProfileImageUrl: null, authorVerifiedBadge: false,
   content: '테스트 게시물', media: [], likes: 0, comments: 1, shares: 0,
   isReposted: false, repostCount: 0, likedByMe: false, bookmarkedByMe: false,
@@ -39,7 +39,7 @@ function openDeletion(label = '게시물 메뉴') {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  api.fetchPostDetail.mockResolvedValue(post);
+  api.fetchPostDetailByNumber.mockResolvedValue(post);
   api.fetchPostComments.mockResolvedValue([comment]);
   api.deletePost.mockResolvedValue(undefined);
   api.deleteComment.mockResolvedValue(undefined);
@@ -94,7 +94,7 @@ describe('게시물 카드 확인창', () => {
 
 describe('게시물 상세 확인창', () => {
   it('댓글 삭제 Esc 취소 시 요청하지 않고 댓글 메뉴로 포커스를 돌린다', async () => {
-    render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} />);
     await screen.findByText(comment.content);
     const dialog = openDeletion('댓글 메뉴');
     fireEvent(dialog, new Event('cancel', { cancelable: true }));
@@ -104,7 +104,7 @@ describe('게시물 상세 확인창', () => {
   });
   it('댓글 삭제 확인 시 한 번만 요청하고 댓글과 개수를 갱신한다', async () => {
     const onPostUpdated = vi.fn();
-    render(<PostDetail postId={post.postId} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText(comment.content);
     fireEvent.click(within(openDeletion('댓글 메뉴')).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(screen.queryByText(comment.content)).not.toBeInTheDocument());
@@ -117,7 +117,7 @@ describe('게시물 상세 확인창', () => {
   ])('댓글 삭제 실패 시 댓글·개수는 유지하고 오류(%s)를 표시한다', async (error, message) => {
     api.deleteComment.mockRejectedValueOnce(error);
     const onPostUpdated = vi.fn();
-    render(<PostDetail postId={post.postId} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText(comment.content);
     fireEvent.click(within(openDeletion('댓글 메뉴')).getByRole('button', { name: '삭제' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
@@ -127,7 +127,7 @@ describe('게시물 상세 확인창', () => {
   it('상세 게시물 삭제는 확인 뒤에만 요청하고 기존 이동 콜백을 호출한다', async () => {
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
-    render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText(post.content!);
     const firstDialog = openDeletion();
     await act(async () => {
@@ -142,7 +142,7 @@ describe('게시물 상세 확인창', () => {
   });
   it('삭제 콜백이 없으면 뒤로 이동을 한 번만 호출한다', async () => {
     const onBack = vi.fn();
-    render(<PostDetail postId={post.postId} onBack={onBack} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={onBack} />);
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(onBack).toHaveBeenCalledOnce());
@@ -152,7 +152,7 @@ describe('게시물 상세 확인창', () => {
     api.deletePost.mockReturnValue(deletion.promise);
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
-    const view = render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
+    const view = render(<PostDetail postNumber={post.postNumber} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledOnce());
@@ -168,7 +168,7 @@ describe('게시물 상세 확인창', () => {
     api.deletePost.mockRejectedValueOnce(error);
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
-    render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
+    render(<PostDetail postNumber={post.postNumber} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     expect(await screen.findByRole('alert')).toHaveTextContent(message);
@@ -185,12 +185,12 @@ describe('게시물 상세 확인창', () => {
     api.deletePost.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
-    const view = render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
+    const view = render(<PostDetail postNumber={post.postNumber} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledTimes(1));
-    api.fetchPostDetail.mockResolvedValue({ ...post, postId: 'post-2', content: '다음 게시물' });
-    view.rerender(<PostDetail postId="post-2" onBack={onBack} onPostDeleted={onPostDeleted} />);
+    api.fetchPostDetailByNumber.mockResolvedValue({ ...post, postId: 'post-2', postNumber: 2, content: '다음 게시물' });
+    view.rerender(<PostDetail postNumber={2} onBack={onBack} onPostDeleted={onPostDeleted} />);
     await screen.findByText('다음 게시물');
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledTimes(2));

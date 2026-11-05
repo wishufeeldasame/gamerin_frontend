@@ -5,7 +5,7 @@ import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
   fetchPostComments: vi.fn(),
-  fetchPostDetail: vi.fn(),
+  fetchPostDetailByNumber: vi.fn(),
   refreshCollections: vi.fn(),
 }));
 
@@ -24,7 +24,7 @@ vi.mock('@/lib/feed-api', async (importOriginal) => {
   return {
     ...actual,
     fetchPostComments: api.fetchPostComments,
-    fetchPostDetail: api.fetchPostDetail,
+    fetchPostDetailByNumber: api.fetchPostDetailByNumber,
   };
 });
 
@@ -46,7 +46,7 @@ vi.mock('../SaveToCollectionModal', () => ({
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: 'Author',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -93,8 +93,8 @@ describe('PostDetail comment deep link', () => {
 
   beforeEach(() => {
     api.fetchPostComments.mockReset();
-    api.fetchPostDetail.mockReset();
-    api.fetchPostDetail.mockResolvedValue(post);
+    api.fetchPostDetailByNumber.mockReset();
+    api.fetchPostDetailByNumber.mockResolvedValue(post);
     scrollIntoView.mockReset();
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
@@ -111,9 +111,9 @@ describe('PostDetail comment deep link', () => {
     ['unknown failure', '게시물을 불러오지 못했습니다.'],
     [new Error('Request failed.'), 'Request failed.'],
   ])('게시물 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
-    api.fetchPostDetail.mockRejectedValue(error);
+    api.fetchPostDetailByNumber.mockRejectedValue(error);
     api.fetchPostComments.mockResolvedValue([]);
-    render(<PostDetail postId="post-1" onBack={vi.fn()} />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} />);
 
     expect(await screen.findByText(message)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '돌아가기' })).toBeInTheDocument();
@@ -126,7 +126,7 @@ describe('PostDetail comment deep link', () => {
     });
     api.fetchPostComments.mockReturnValue(commentsPromise);
 
-    render(<PostDetail postId="post-1" onBack={vi.fn()} initialCommentId="comment-2" />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} initialCommentId="comment-2" />);
 
     expect(screen.getByText('게시물을 불러오는 중...')).toBeInTheDocument();
     expect(scrollIntoView).not.toHaveBeenCalled();
@@ -147,7 +147,7 @@ describe('PostDetail comment deep link', () => {
   it('falls back to the comments section when the linked comment no longer exists', async () => {
     api.fetchPostComments.mockResolvedValue(comments);
 
-    render(<PostDetail postId="post-1" onBack={vi.fn()} initialCommentId="deleted-comment" />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} initialCommentId="deleted-comment" />);
 
     await screen.findByText('Target comment');
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
@@ -158,7 +158,7 @@ describe('PostDetail comment deep link', () => {
 
   it('게시물과 댓글에 ISO 및 한국어 절대 시각 툴팁을 표시한다', async () => {
     api.fetchPostComments.mockResolvedValue(comments);
-    render(<PostDetail postId="post-1" onBack={vi.fn()} />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} />);
     await screen.findByText('Target comment');
     const times = document.querySelectorAll('time');
     expect(times).toHaveLength(3);
@@ -171,7 +171,7 @@ describe('PostDetail comment deep link', () => {
   it('keeps the existing target=comments section scroll behavior', async () => {
     api.fetchPostComments.mockResolvedValue(comments);
 
-    render(<PostDetail postId="post-1" onBack={vi.fn()} initialScrollTarget="comments" />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} initialScrollTarget="comments" />);
 
     await screen.findByText('Target comment');
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
@@ -179,10 +179,10 @@ describe('PostDetail comment deep link', () => {
   });
 
   it('shows the server error and a link back home when the post does not exist', async () => {
-    api.fetchPostDetail.mockRejectedValue(new Error('게시물을 찾을 수 없습니다.'));
+    api.fetchPostDetailByNumber.mockRejectedValue(new Error('게시물을 찾을 수 없습니다.'));
     api.fetchPostComments.mockResolvedValue([]);
 
-    render(<PostDetail postId="missing-post" onBack={vi.fn()} />);
+    render(<PostDetail postNumber={999} onBack={vi.fn()} />);
 
     expect(await screen.findByText('게시물을 찾을 수 없습니다.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');

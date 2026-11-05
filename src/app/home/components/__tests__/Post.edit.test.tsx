@@ -5,7 +5,7 @@ import { ApiError } from '@/lib/api-client';
 import type { PostRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
-  updatePostContent: vi.fn(), fetchPostDetail: vi.fn(), fetchPostComments: vi.fn(),
+  updatePostContent: vi.fn(), fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn(),
 }));
 const auth = vi.hoisted(() => ({ user: { handle: 'author', membershipBadge: true } as { handle: string; membershipBadge: boolean } }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => auth }));
@@ -20,7 +20,7 @@ import { canEditPost } from '../EditPostModal';
 
 const inMinutes = (minutes: number) => new Date(Date.now() + minutes * 60_000).toISOString();
 const basePost: PostRecord = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author',
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author',
   authorProfileImageUrl: null, authorVerifiedBadge: false,
   content: '처음 본문', media: [], likes: 0, comments: 0, shares: 0,
   isReposted: false, repostCount: 0, likedByMe: false, bookmarkedByMe: false,
@@ -118,10 +118,10 @@ describe('게시물 카드 수정', () => {
 
 describe('게시물 상세 수정', () => {
   it('저장하면 상세 본문을 바꾸고 부모에 갱신을 알린다', async () => {
-    api.fetchPostDetail.mockResolvedValue(basePost);
+    api.fetchPostDetailByNumber.mockResolvedValue(basePost);
     api.updatePostContent.mockResolvedValue({ ...basePost, content: '상세에서 고침', editCount: 1 });
     const onPostUpdated = vi.fn();
-    render(<PostDetail postId="post-1" onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText('처음 본문');
 
     const dialog = openEditor();
