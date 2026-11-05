@@ -8,6 +8,7 @@ import { fetchMyMileageBalance, fetchMyMileageTransactions, type MileageTransact
 import { fetchMyPayments, fetchPaymentProducts, type PaymentProduct, type PaymentResponse } from '@/lib/payment-api';
 import { safeReturnTo } from '@/lib/payment-return';
 import { KakaoPaymentDialog } from './_components/KakaoPaymentDialog';
+import { ChargeProductsSkeleton } from '@/app/home/components/LoadingSkeletons';
 
 type HistoryTab = 'mileage' | 'payment';
 const MILEAGE_PAGE_SIZE = 10;
@@ -152,7 +153,7 @@ function WalletContent() {
           <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">충전 금액 선택</p>
           <h2 id="charge-package-title" className="mt-1 text-xl font-black text-black dark:text-zinc-100">얼마를 충전할까요?</h2>
           {loading ? (
-            <div className="grid min-h-44 place-items-center"><Loader2 className="animate-spin text-zinc-400" /></div>
+            <ChargeProductsSkeleton />
           ) : products.length > 0 ? (
             <div role="radiogroup" aria-labelledby="charge-package-title" className="mt-5 grid grid-cols-2 gap-2.5 lg:gap-3">
               {products.map((product, index) => {

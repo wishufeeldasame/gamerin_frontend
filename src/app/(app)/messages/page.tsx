@@ -59,6 +59,7 @@ import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { ConversationListSkeleton, MessageThreadSkeleton } from '@/app/home/components/LoadingSkeletons';
 
 const MESSAGE_PAGE_SIZE = 30;
 
@@ -1694,10 +1695,7 @@ export default function MessagesPage() {
           ) : null}
 
           {loadingConversations ? (
-            <div className="flex items-center justify-center py-10 text-sm font-bold text-zinc-400">
-              <Loader2 size={16} className="mr-2 animate-spin" />
-              대화 목록을 불러오는 중...
-            </div>
+            <ConversationListSkeleton />
           ) : filteredConversations.length > 0 ? (
             <>
               {visibleConversations.map((conversation) => (
@@ -1803,12 +1801,7 @@ export default function MessagesPage() {
               ) : null}
 
               {loadingMessages && activeMessages.length === 0 ? (
-                <div className="flex h-full items-center justify-center">
-                  <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
-                    <Loader2 size={18} className="animate-spin" />
-                    메시지를 불러오는 중...
-                  </div>
-                </div>
+                <MessageThreadSkeleton />
               ) : activeMessages.length > 0 || activePendingMessages.length > 0 ? (
                 <div className="space-y-6">
                   {activeMessages.map((chatMessage, index) => {

@@ -10,6 +10,7 @@ import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
 import { usePostLike } from '@/hooks/usePostLike';
+import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { type PostRecord, fetchFeed, getPostHref } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
@@ -197,8 +198,8 @@ function HomePageContent() {
           ) : null}
 
           {loading ? (
-            <div className="m-4 rounded-2xl border border-zinc-100 bg-white p-8 text-center text-sm font-bold text-zinc-400 md:m-0">
-              피드를 불러오는 중...
+            <div className="m-4 md:m-0">
+              <PostListSkeleton count={3} label="피드를 불러오는 중" />
             </div>
           ) : error ? (
             <div className="m-4 rounded-2xl border border-red-100 bg-red-50 p-8 text-center text-sm font-bold text-red-500 md:m-0 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
@@ -240,13 +241,12 @@ function HomePageContent() {
                 />
               ) : null}
 
+              <div role="status" aria-live="polite" className="sr-only">
+                {loadingMore ? '게시글을 불러오는 중...' : null}
+              </div>
               {loadingMore ? (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-zinc-400"
-                >
-                  게시글을 불러오는 중...
+                <div className="m-4 md:m-0">
+                  <PostListSkeleton count={1} />
                 </div>
               ) : null}
 
