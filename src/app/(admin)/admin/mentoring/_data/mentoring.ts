@@ -10,5 +10,5 @@ export const mentorStatusLabels: Record<AdminMentorStatus, string> = {
 
 export const programStatusLabels: Record<AdminProgramStatus, string> = {
   ACTIVE: '운영 중',
-  CLOSED: '종료',
+  CLOSED: '마감',
 };

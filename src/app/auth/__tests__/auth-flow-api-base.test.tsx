@@ -32,7 +32,7 @@ const codeConfirmed = () => json(200, { success: true, data: { verificationToken
 
 function fillSignupStep1() {
   fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
-  fireEvent.change(screen.getByPlaceholderText('이름'), { target: { value: '데모' } });
+  fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
   fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo@gamerin.test' } });
 }
 
@@ -82,7 +82,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     render(<LoginPage />);
     applyRequestTimeApi();
 
-    fireEvent.click(screen.getByRole('button', { name: /ID로 로그인/ }));
+    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo01' } });
     fireEvent.change(screen.getByPlaceholderText('비밀번호'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
@@ -94,7 +94,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
     render(<LoginPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /ID로 로그인/ }));
+    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
     fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo01' } });
     fireEvent.change(screen.getByPlaceholderText('비밀번호'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
@@ -190,12 +190,12 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     vi.mocked(fetch).mockResolvedValueOnce(json(400, {
       success: false,
-      message: '이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해주세요.',
+      message: '이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해 주세요.',
     }));
     fillSignupStep2();
     fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
 
-    expect(await screen.findByText(/이메일 인증을 다시 진행해주세요/)).toBeInTheDocument();
+    expect(await screen.findByText(/이메일 인증을 다시 진행해 주세요/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('이메일')).toHaveValue('demo@gamerin.test');
     expect(screen.getByRole('button', { name: '인증번호 받기' })).toBeEnabled();
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
@@ -297,7 +297,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
   it('로그인은 Enter(폼 제출)로 보내고 자동 완성 속성을 가진다', async () => {
     render(<LoginPage />);
-    fireEvent.click(screen.getByRole('button', { name: /ID로 로그인/ }));
+    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
 
     const handle = screen.getByPlaceholderText('아이디');
     const password = screen.getByPlaceholderText('비밀번호');
@@ -315,13 +315,13 @@ describe('인증 흐름 화면의 API 주소', () => {
     render(<LoginPage />);
     fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
 
-    fireEvent.change(screen.getByPlaceholderText('이름'), { target: { value: '데' } });
+    fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데' } });
     fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo' } });
 
-    expect(screen.getByText('닉네임은 2~20자로 입력해주세요.')).toBeInTheDocument();
-    expect(screen.getByText('올바른 이메일 형식으로 입력해주세요.')).toBeInTheDocument();
+    expect(screen.getByText('닉네임은 2~20자로 입력해 주세요.')).toBeInTheDocument();
+    expect(screen.getByText('올바른 이메일 형식으로 입력해 주세요.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-    expect(screen.getByPlaceholderText('이름')).toHaveAttribute('maxlength', '20');
+    expect(screen.getByPlaceholderText('닉네임')).toHaveAttribute('maxlength', '20');
   });
 
   it('회원가입 2단계는 대문자 아이디와 약한 비밀번호를 안내하고 제출을 막는다', async () => {
@@ -350,7 +350,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
-    expect(screen.getByText('아이디는 3~20자로 입력해주세요.')).toBeInTheDocument();
+    expect(screen.getByText('아이디는 3~20자로 입력해 주세요.')).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 

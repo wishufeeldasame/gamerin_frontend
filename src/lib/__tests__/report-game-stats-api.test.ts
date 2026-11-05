@@ -54,7 +54,7 @@ describe('report-api', () => {
 
     await expect(report.fetchReportReasons()).rejects.toMatchObject({
       status: 403,
-      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.',
     });
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
     expect(store.getAccessToken()).toBeNull();
@@ -67,7 +67,7 @@ describe('report-api', () => {
     await expect(report.fetchReportReasons()).rejects.toMatchObject({
       status: 401,
       reason: 'unauthenticated',
-      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해 주세요.',
     });
   });
 
@@ -75,7 +75,7 @@ describe('report-api', () => {
     api.route(REASONS, () => json(200, []));
 
     await expect(report.fetchReportReasons()).rejects.toMatchObject({
-      message: '신고 API 응답 형식이 올바르지 않습니다.',
+      message: '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.',
     });
     expect(store.getAccessToken()).toBe('token-a');
   });
@@ -139,7 +139,7 @@ describe('game-stats-api', () => {
     await expect(gameStats.disconnectGameStats('PUBG')).resolves.toBeNull();
     await expect(gameStats.refreshR6Summary()).rejects.toMatchObject({
       status: 200,
-      message: '게임 전적 응답 형식이 올바르지 않습니다.',
+      message: '게임 전적을 불러오는 중 오류가 발생했습니다.',
     });
   });
 });

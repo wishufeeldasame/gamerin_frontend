@@ -28,10 +28,10 @@ function deferred<T>() {
 }
 
 function draft(overrides: Partial<PostDraft> = {}): PostDraft {
-  return { content: '첫 게시물', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
+  return { content: '첫 게시글', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
 }
 
-const createdPost = { postId: 'post-1', postNumber: 1, content: '첫 게시물' } as PostRecord;
+const createdPost = { postId: 'post-1', postNumber: 1, content: '첫 게시글' } as PostRecord;
 const createdResult: MultipartPostResult = { kind: 'post', post: createdPost };
 const videoFile = () => new File(['v'], 'v.mp4', { type: 'video/mp4' });
 
@@ -55,7 +55,7 @@ describe('usePendingPosts', () => {
     vi.restoreAllMocks();
   });
 
-  it('제출 즉시 임시 게시물을 보여주고 성공하면 서버 게시물로 교체한다', async () => {
+  it('제출 즉시 임시 게시글을 보여주고 성공하면 서버 게시글로 교체한다', async () => {
     const request = deferred<MultipartPostResult>();
     vi.mocked(createMultipartPost).mockReturnValue(request.promise);
     const onCreated = vi.fn();
@@ -73,7 +73,7 @@ describe('usePendingPosts', () => {
       ],
     });
     const formData = vi.mocked(createMultipartPost).mock.calls[0][0];
-    expect(formData.get('content')).toBe('첫 게시물');
+    expect(formData.get('content')).toBe('첫 게시글');
     expect(formData.getAll('mediaFiles')).toHaveLength(2);
 
     await act(async () => request.resolve(createdResult));
@@ -94,13 +94,13 @@ describe('usePendingPosts', () => {
     expect(result.current.pendingPosts[0]).toMatchObject({
       status: 'failed',
       errorMessage: '서버 오류',
-      draft: { content: '첫 게시물' },
+      draft: { content: '첫 게시글' },
     });
 
     await act(async () => result.current.retry(result.current.pendingPosts[0].id));
 
     expect(createJsonPost).toHaveBeenCalledTimes(2);
-    expect(createJsonPost).toHaveBeenLastCalledWith({ content: '첫 게시물' });
+    expect(createJsonPost).toHaveBeenLastCalledWith({ content: '첫 게시글' });
     expect(onCreated).toHaveBeenCalledWith(createdPost);
     expect(result.current.pendingPosts).toEqual([]);
   });
@@ -135,7 +135,7 @@ describe('usePendingPosts', () => {
     expect(onCreated).not.toHaveBeenCalled();
   });
 
-  it('영상은 처리 작업이 끝날 때까지 업로드 중으로 두고 완료되면 게시물을 전달하고 완료 알림을 호출한다', async () => {
+  it('영상은 처리 작업이 끝날 때까지 업로드 중으로 두고 완료되면 게시글을 전달하고 완료 알림을 호출한다', async () => {
     vi.useFakeTimers();
     vi.mocked(createMultipartPost).mockResolvedValue({ kind: 'videoJob', job: videoJob('QUEUED') });
     vi.mocked(fetchPostVideoJob)

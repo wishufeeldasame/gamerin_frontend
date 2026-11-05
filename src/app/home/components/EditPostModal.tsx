@@ -35,7 +35,7 @@ export async function requestPostEdit({
     return;
   }
   const confirmed = await confirm({
-    message: '게시물 수정은 멤버십 혜택이에요. 멤버십 화면으로 이동할까요?',
+    message: '게시글 수정은 멤버십 혜택입니다. 멤버십 화면으로 이동할까요?',
     confirmLabel: '멤버십 보기',
     returnFocusTo,
   });
@@ -47,10 +47,10 @@ function editErrorMessage(error: unknown) {
   const message = error instanceof Error ? error.message : '';
   if (/[가-힣]/.test(message)) return message;
   const status = (error as { status?: number }).status;
-  if (status === 403) return '멤버십이 유효할 때만 본인 게시물을 수정할 수 있어요.';
-  if (status === 409) return '수정 가능 시간이 지났거나 이미 수정한 게시물이에요.';
-  if (status === 404) return '게시물을 찾을 수 없어요.';
-  return '게시물을 수정하지 못했어요. 잠시 후 다시 시도해주세요.';
+  if (status === 403) return '멤버십이 유효할 때만 본인 게시글을 수정할 수 있습니다.';
+  if (status === 409) return '수정 가능 시간이 지났거나 이미 수정한 게시글입니다.';
+  if (status === 404) return '게시글을 찾을 수 없습니다.';
+  return '게시글을 수정하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 }
 
 export function EditPostModal({
@@ -132,9 +132,9 @@ export function EditPostModal({
         className="w-full max-w-lg rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-line dark:bg-surface"
       >
         <div className="flex items-baseline justify-between gap-3">
-          <h2 id="edit-post-title" className="text-xl font-black text-black dark:text-zinc-100">게시물 수정</h2>
+          <h2 id="edit-post-title" className="text-xl font-black text-black dark:text-zinc-100">게시글 수정</h2>
           <span className={`text-xs font-black ${expired ? 'text-red-500' : 'text-zinc-400'}`} aria-live="polite">
-            {expired ? '수정 가능 시간이 지났어요' : `남은 시간 ${Math.ceil(remainingMs / MINUTE_MS)}분`}
+            {expired ? '수정 가능 시간이 지났습니다' : `남은 시간 ${Math.ceil(remainingMs / MINUTE_MS)}분`}
           </span>
         </div>
 
@@ -144,13 +144,13 @@ export function EditPostModal({
           onChange={(event) => setContent(event.target.value)}
           maxLength={MAX_POST_CONTENT_LENGTH}
           disabled={saving}
-          aria-label="게시물 본문"
+          aria-label="게시글 본문"
           className="mt-4 min-h-40 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition focus:border-[#f5b93d] dark:focus:!border-[#f5b93d]"
         />
         <p className={`mt-1 text-right text-xs font-bold ${content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'}`}>
           {content.length}/{MAX_POST_CONTENT_LENGTH}
         </p>
-        <p className="mt-2 text-xs font-bold text-zinc-500">이미지·영상은 수정할 수 없어요. 게시물당 1회만 수정됩니다.</p>
+        <p className="mt-2 text-xs font-bold text-zinc-500">이미지·영상은 수정할 수 없습니다. 게시글당 1회만 수정할 수 있습니다.</p>
 
         {error ? (
           <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
@@ -173,7 +173,7 @@ export function EditPostModal({
             disabled={saving || expired || unchanged}
             className="btn-primary"
           >
-            {saving ? '수정하는 중…' : '수정하기'}
+            {saving ? '수정하는 중...' : '수정하기'}
           </button>
         </div>
       </section>

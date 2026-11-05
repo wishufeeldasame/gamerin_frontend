@@ -114,7 +114,7 @@ function collectionButton(name = 'A') {
 
 async function openCollectionModal() {
   await waitFor(() => {
-    expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
   });
   fireEvent.click(await screen.findByRole('button', { name: '북마크 해제' }));
   await screen.findByRole('dialog');
@@ -168,7 +168,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
       expect(collectionCheckbox).toBeEnabled();
     });
     expect(globalCollectionReads()).toHaveLength(2);
@@ -213,17 +213,17 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
-      expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
+      expect(within(collectionButton('B')).getByText('4개 게시글')).toBeInTheDocument();
       expect(collectionACheckbox).toBeEnabled();
     });
 
     fireEvent.click(collectionACheckbox);
     await waitFor(() => {
       expect(api.addPostToBookmarkCollection).toHaveBeenCalledWith('collection-a', 'post-1');
-      expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
     });
-    expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton('B')).getByText('4개 게시글')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
     });
@@ -245,7 +245,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
       expect(screen.getByRole('checkbox', { name: '모음집 A' })).toBeEnabled();
     });
-    expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(globalCollectionReads()).toHaveLength(2);
   });
@@ -268,7 +268,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: '전체 북마크 해제' }));
     await waitFor(() => {
       expect(api.unbookmarkPost).toHaveBeenCalledOnce();
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: '북마크 저장' })).toBeInTheDocument();
     });
     expect(globalCollectionReads()).toHaveLength(2);

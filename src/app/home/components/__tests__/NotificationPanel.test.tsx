@@ -92,8 +92,8 @@ describe('NotificationPanel server synchronization', () => {
       </>;
     }
     render(<HeaderHarness />);
-    const first = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
-    const second = screen.getByRole('button', { name: /두 번째님이 게시글을 좋아합니다/ });
+    const first = await screen.findByRole('button', { name: /첫 번째님이 내 게시글을 좋아합니다/ });
+    const second = screen.getByRole('button', { name: /두 번째님이 내 게시글을 좋아합니다/ });
     act(() => { fireEvent.click(first); fireEvent.click(second); });
     expect(screen.getByLabelText('헤더 읽지 않은 알림')).toHaveTextContent('0');
     expect(screen.getByText('읽지 않은 알림 0개')).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe('NotificationPanel server synchronization', () => {
     mocks.fetchNotifications.mockResolvedValue(page([notification('1', '첫 번째')], null, false));
     mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
     render(<NotificationPanel onClose={vi.fn()} />);
-    await screen.findByText('첫 번째님이 게시글을 좋아합니다.');
+    await screen.findByText('첫 번째님이 내 게시글을 좋아합니다.');
     const time = document.querySelector('time');
     expect(time).toHaveAttribute('dateTime', '2026-09-18T00:00:00.000Z');
     expect(time?.title).toMatch(/^2026년 9월 18일 (오전|오후) \d{1,2}:00$/);
@@ -118,14 +118,14 @@ describe('NotificationPanel server synchronization', () => {
     mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
 
     render(<NotificationPanel onClose={vi.fn()} />);
-    expect(await screen.findByText('첫 번째님이 게시글을 좋아합니다.')).toBeInTheDocument();
+    expect(await screen.findByText('첫 번째님이 내 게시글을 좋아합니다.')).toBeInTheDocument();
 
     invalidateNotifications('message-created');
 
     await waitFor(() => {
-      expect(screen.queryByText('첫 번째님이 게시글을 좋아합니다.')).not.toBeInTheDocument();
+      expect(screen.queryByText('첫 번째님이 내 게시글을 좋아합니다.')).not.toBeInTheDocument();
     });
-    expect(screen.getByText('두 번째님이 게시글을 좋아합니다.')).toBeInTheDocument();
+    expect(screen.getByText('두 번째님이 내 게시글을 좋아합니다.')).toBeInTheDocument();
   });
 
   it('deduplicates cursor results and stops when hasNext has no nextCursor', async () => {
@@ -148,13 +148,13 @@ describe('NotificationPanel server synchronization', () => {
 
     try {
       render(<NotificationPanel onClose={vi.fn()} />);
-      await screen.findByText('첫 번째님이 게시글을 좋아합니다.');
+      await screen.findByText('첫 번째님이 내 게시글을 좋아합니다.');
       await act(async () => {
         intersect([{ isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
       });
 
-      await screen.findByText('두 번째님이 게시글을 좋아합니다.');
-      expect(screen.getAllByText('첫 번째님이 게시글을 좋아합니다.')).toHaveLength(1);
+      await screen.findByText('두 번째님이 내 게시글을 좋아합니다.');
+      expect(screen.getAllByText('첫 번째님이 내 게시글을 좋아합니다.')).toHaveLength(1);
       expect(screen.queryByRole('button', { name: '더보기' })).not.toBeInTheDocument();
       expect(mocks.fetchNotifications).toHaveBeenCalledTimes(2);
     } finally {
@@ -168,7 +168,7 @@ describe('NotificationPanel server synchronization', () => {
     mocks.markNotificationRead.mockRejectedValue(new Error('읽음 실패'));
 
     render(<NotificationPanel onClose={vi.fn()} />);
-    const item = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
+    const item = await screen.findByRole('button', { name: /첫 번째님이 내 게시글을 좋아합니다/ });
     fireEvent.click(item);
 
     await waitFor(() => expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('읽음 실패'));
@@ -183,7 +183,7 @@ describe('NotificationPanel server synchronization', () => {
       .mockRejectedValueOnce(new Error('count failed'));
 
     render(<NotificationPanel onClose={vi.fn()} />);
-    const panel = await screen.findByRole('button', { name: /첫 번째님이 게시글을 좋아합니다/ });
+    const panel = await screen.findByRole('button', { name: /첫 번째님이 내 게시글을 좋아합니다/ });
     fireEvent.click(panel);
 
     await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/1'));

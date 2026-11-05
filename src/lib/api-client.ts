@@ -22,7 +22,7 @@ export type ApiFailureReason =
   // 성공 응답에 필요한 API envelope가 없음
   | 'invalid-response';
 
-export const AUTH_REQUIRED_MESSAGE = '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.';
+export const AUTH_REQUIRED_MESSAGE = '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해 주세요.';
 
 export class ApiError extends Error {
   constructor(

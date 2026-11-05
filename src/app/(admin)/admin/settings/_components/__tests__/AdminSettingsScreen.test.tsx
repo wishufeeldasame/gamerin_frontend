@@ -79,7 +79,7 @@ describe('AdminSettingsScreen', () => {
     fireEvent.click(save);
     fireEvent.click(save);
     expect(settingsApi.updateAdminSettings).toHaveBeenCalledTimes(1);
-    expect(screen.getByRole('button', { name: '저장 중…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '저장 중...' })).toBeDisabled();
     expect(screen.getByRole('button', { name: '되돌리기' })).toBeDisabled();
     expect(screen.getByLabelText('자동 숨김 임계값 (신고 수)')).toBeDisabled();
     resolve(configs({ AUTO_HIDE_ENABLED: 'false' }));

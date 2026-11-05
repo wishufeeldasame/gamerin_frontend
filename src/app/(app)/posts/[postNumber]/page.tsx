@@ -17,7 +17,7 @@ export default function PostPermalinkPage() {
       <main className="min-h-screen min-w-0 flex-1">
         <div className="md:py-6">
           {postNumber === null ? (
-            <p role="alert" className="p-6 text-center text-sm text-zinc-500">게시물을 찾을 수 없습니다.</p>
+            <p role="alert" className="p-6 text-center text-sm text-zinc-500">게시글을 찾을 수 없습니다.</p>
           ) : (
           <PostDetail
             postNumber={postNumber}

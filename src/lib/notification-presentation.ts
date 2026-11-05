@@ -122,7 +122,7 @@ function getKnownNotificationPresentation(
   switch (type) {
     case 'like':
       return {
-        message: `${actorSubject} 게시글을 좋아합니다.`,
+        message: `${actorSubject} 내 게시글을 좋아합니다.`,
         iconKind: 'heart',
         href: getPostHref(notification),
       };

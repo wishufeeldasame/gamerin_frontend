@@ -117,7 +117,7 @@ export function AdminAuditLogs() {
               ))}</tbody>
             </table>
           </div>
-        ) : <AdminStatePanel state="empty" title="조건에 맞는 작업 이력이 없습니다." description="필터를 변경하거나 나중에 다시 확인해주세요." />}
+        ) : <AdminStatePanel state="empty" title="조건에 맞는 작업 이력이 없습니다." description="필터를 변경하거나 나중에 다시 확인해 주세요." />}
         {!loading && !error && result ? <AdminPagination currentPage={result.number} totalPages={result.totalPages} totalItems={result.totalElements} pageSize={result.size} itemLabel="건" onPageChange={setCurrentPage} /> : null}
       </section>
     </div>

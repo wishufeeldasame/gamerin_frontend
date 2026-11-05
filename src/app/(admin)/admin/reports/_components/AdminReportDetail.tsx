@@ -86,7 +86,7 @@ function ReportPenaltyHistory({ userId, revision }: { userId: string; revision: 
           <ul className="mt-3 space-y-3">
             {data.content.map((penalty) => (
               <li key={penalty.id} className="rounded-xl bg-[#f9fafb] p-3 text-sm text-[#344054]">
-                <p className="font-semibold">{penaltyLabels[penalty.penaltyType]} · {penalty.isActive ? '활성' : '해제 또는 만료'}</p>
+                <p className="font-semibold">{penaltyLabels[penalty.penaltyType]} · {penalty.isActive ? '활성' : '해제·만료'}</p>
                 <p className="mt-1 whitespace-pre-wrap break-words">{penalty.reason}</p>
                 <p className="mt-1 text-xs text-[#667085]">시작: <RelativeTime createdAt={penalty.startAt} /> · 종료: <PenaltyEndTime penalty={penalty} /></p>
               </li>
@@ -221,7 +221,7 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
         <section className={cardClass}><h2 className="font-bold text-[#172033]">관련 사용자</h2><div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2"><UserCard user={report.reporterUser} label="신고자" /><UserCard user={report.targetUser} label="신고 대상 사용자" /></div></section>
         <section className={cardClass}><h2 className="font-bold text-[#172033]">신고 당시 내용 요약</h2><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-[#344054]">{report.content}</p></section>
         {(detail.report.targetType === 'POST' || detail.report.targetType === 'COMMENT') ? (
-          <section className={cardClass}><h2 className="font-bold text-[#172033]">신고에 따른 숨김 여부</h2><p className="mt-3 text-sm text-[#344054]">{detail.contentHidden ? '숨김' : '신고 숨김 없음'}</p><p className="mt-2 text-xs text-[#667085]">원본 콘텐츠의 모든 삭제·공개 상태를 나타내지는 않습니다.</p></section>
+          <section className={cardClass}><h2 className="font-bold text-[#172033]">신고에 따른 숨김 여부</h2><p className="mt-3 text-sm text-[#344054]">{detail.contentHidden ? '숨김' : '숨기지 않음'}</p><p className="mt-2 text-xs text-[#667085]">원본 콘텐츠의 모든 삭제·공개 상태를 나타내지는 않습니다.</p></section>
         ) : null}
         {targetId ? <ReportPenaltyHistory key={targetId} userId={targetId} revision={revision} /> : null}
       </div>

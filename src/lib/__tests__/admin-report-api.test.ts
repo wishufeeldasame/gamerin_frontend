@@ -78,7 +78,7 @@ describe('admin API requests', () => {
 
     await expect(fetchAdminReports({})).rejects.toMatchObject({
       status: 403,
-      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.',
     });
 
     expect(api.count('/api/v1/auth/refresh')).toBe(0);

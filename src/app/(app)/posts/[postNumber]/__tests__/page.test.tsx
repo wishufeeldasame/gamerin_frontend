@@ -61,6 +61,6 @@ describe('PostPermalinkPage comment deep link', () => {
     render(<PostPermalinkPage />);
 
     expect(screen.queryByTestId('post-detail')).not.toBeInTheDocument();
-    expect(screen.getByRole('alert')).toHaveTextContent('게시물을 찾을 수 없습니다.');
+    expect(screen.getByRole('alert')).toHaveTextContent('게시글을 찾을 수 없습니다.');
   });
 });

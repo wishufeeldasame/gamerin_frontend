@@ -56,7 +56,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
       ? render(<Post post={post} onShare={onUpdated} />)
       : render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onUpdated} />);
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
-    fireEvent.click(screen.getByRole('button', { name: '게시물 공유' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
     expect(api.sharePost).toHaveBeenCalledExactlyOnceWith(post.postId, 'COPY_LINK');
     fireEvent.click(screen.getByRole('button', { name: '닫기' }));
@@ -82,7 +82,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
       ? render(<Post post={post} onShare={onUpdated} />)
       : render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} onPostUpdated={onUpdated} />);
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
-    fireEvent.click(screen.getByRole('button', { name: '게시물 공유' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
     view.unmount();
     vi.useFakeTimers();

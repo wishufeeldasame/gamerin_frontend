@@ -32,7 +32,7 @@ export function RelatedHashtagPosts({ content, excludePostId }: { content: strin
   return (
     <section aria-labelledby="related-posts-title" className="mt-6 px-4 md:px-0">
       <h2 id="related-posts-title" className="section-title mb-3">
-        #{hashtag} 관련 게시물
+        #{hashtag} 관련 게시글
       </h2>
       <ul className="grid gap-2 md:grid-cols-2">
         {posts.map((item) => (

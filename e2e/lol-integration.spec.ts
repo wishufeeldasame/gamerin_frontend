@@ -78,10 +78,10 @@ for (const mode of [
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
     await expect(page.getByText('PLATINUM IV · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
-    await page.getByRole('button', { name: 'League of Legends 전적 연동 해제' }).click();
-    await page.getByRole('button', { name: '연동 해제', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'League of Legends 전적 연동 해제' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'PUBG 전적 연동 해제' })).toBeVisible();
+    await page.getByRole('button', { name: 'League of Legends 전적 연결 해제' }).click();
+    await page.getByRole('button', { name: '연결 해제', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'League of Legends 전적 연결 해제' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'PUBG 전적 연결 해제' })).toBeVisible();
     expect(calls.connects()).toBe(1);
     expect(calls.summaries()).toBe(2);
     expect(calls.disconnects()).toBe(1);
@@ -94,7 +94,7 @@ test('Riot 계정 연결 후 요약 조회 실패는 연결을 유지하고 새�
   await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
   await page.getByRole('button', { name: '연결', exact: true }).last().click();
   await expect(page.getByText('계정 연결됨 · 전적 새로고침으로 불러와 주세요.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'League of Legends 전적 연동 해제' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'League of Legends 전적 연결 해제' })).toBeVisible();
   await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
   await expect(page.getByText(/Riot API Key/)).toHaveCount(0);
   await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();

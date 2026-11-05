@@ -59,7 +59,7 @@ function EmptyState({ query, label, compact = false }: { query: string; label: s
     <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-line dark:bg-surface">
       <Search className="mx-auto text-zinc-300 dark:text-zinc-600" size={28} />
       <h2 className="section-title mt-3">
-        {query ? `${label} 결과가 없습니다.` : '검색어를 입력해 주세요.'}
+        {query ? (label === '전체' ? '검색 결과가 없습니다.' : `${label} 결과가 없습니다.`) : '검색어를 입력해 주세요.'}
       </h2>
       <p className="mt-2 text-sm font-bold text-zinc-400">
         {query ? '다른 키워드로 다시 검색해 보세요.' : '위 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
@@ -114,7 +114,7 @@ function HashtagCard({ hashtag }: { hashtag: HashtagSummary }) {
         </span>
         <div className="min-w-0">
           <p className="truncate text-sm font-black text-black dark:text-zinc-100">#{hashtag.name}</p>
-          <p className="text-xs font-bold text-zinc-400">게시물 {hashtag.postCount.toLocaleString()}개</p>
+          <p className="text-xs font-bold text-zinc-400">게시글 {hashtag.postCount.toLocaleString()}개</p>
         </div>
       </div>
     </Link>

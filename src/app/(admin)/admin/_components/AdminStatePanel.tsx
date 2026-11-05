@@ -11,17 +11,17 @@ type AdminStatePanelProps = {
 const stateDefaults = {
   loading: {
     title: '데이터를 불러오는 중입니다.',
-    description: '잠시만 기다려주세요.',
+    description: '잠시만 기다려 주세요.',
     icon: LoaderCircle,
   },
   empty: {
     title: '표시할 데이터가 없습니다.',
-    description: '검색 조건을 변경하거나 나중에 다시 확인해주세요.',
+    description: '검색 조건을 변경하거나 나중에 다시 확인해 주세요.',
     icon: Inbox,
   },
   error: {
     title: '데이터를 불러오지 못했습니다.',
-    description: '잠시 후 다시 시도해주세요.',
+    description: '잠시 후 다시 시도해 주세요.',
     icon: CircleAlert,
   },
 } as const;

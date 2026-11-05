@@ -111,7 +111,7 @@ describe('Post bookmark collection synchronization', () => {
     mocks.unbookmarkPost.mockResolvedValue(undefined);
   });
 
-  it('게시물과 리포스트에 ISO와 한국어 절대 시각을 표시한다', () => {
+  it('게시글과 리포스트에 ISO와 한국어 절대 시각을 표시한다', () => {
     render(<Post post={{
       ...bookmarkedPost,
       reposterInfo: { userId: 'reposter', nickname: '리포스터', repostedAt: '2026-09-18T00:00:00Z' },
@@ -124,7 +124,7 @@ describe('Post bookmark collection synchronization', () => {
     for (const time of times) expect(time.title).toMatch(/^2026년 9월 \d+일 (오전|오후) \d{1,2}:00$/);
   });
 
-  it('게시물·리포스트의 빈 날짜와 잘못된 날짜도 안전한 문자열로 표시한다', () => {
+  it('게시글·리포스트의 빈 날짜와 잘못된 날짜도 안전한 문자열로 표시한다', () => {
     render(<Post post={{
       ...bookmarkedPost, createdAt: 'invalid',
       reposterInfo: { userId: 'reposter', nickname: '리포스터', repostedAt: '' },

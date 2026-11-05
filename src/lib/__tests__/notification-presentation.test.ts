@@ -36,7 +36,7 @@ describe('getNotificationPresentation', () => {
   const cases = [
     {
       type: 'like',
-      message: '플레이어님이 게시글을 좋아합니다.',
+      message: '플레이어님이 내 게시글을 좋아합니다.',
       iconKind: 'heart',
       href: '/posts/42',
     },

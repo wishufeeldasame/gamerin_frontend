@@ -18,7 +18,7 @@ const dateTime = (value: string | null) => {
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString('ko-KR');
 };
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : '지갑 정보를 불러오지 못했어요.';
+  error instanceof Error ? error.message : '지갑 정보를 불러오지 못했습니다.';
 
 // 08 문서 12-7절. CREATED·READY·FAILED·EXPIRED는 결제가 일어나지 않아 목록에서 뺀다.
 const PAYMENT_BADGE: Partial<Record<PaymentResponse['status'], { label: string; className: string }>> = {
@@ -205,7 +205,7 @@ function WalletContent() {
             onClick={() => selectedProduct && setSelectedForPayment(selectedProduct)}
             className="btn-primary mt-5 w-full"
           >
-            {selectedProduct ? `카카오페이로 ${money(selectedProduct.price)}원 결제` : '충전 금액을 선택해주세요'}
+            {selectedProduct ? `카카오페이로 ${money(selectedProduct.price)}원 결제` : '충전 금액을 선택해 주세요'}
           </button>
         </div>
       </section>

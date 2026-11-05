@@ -15,7 +15,7 @@ describe('RelatedHashtagPosts', () => {
     expect(firstHashtag(null)).toBeNull();
   });
 
-  it('현재 게시물은 빼고 같은 태그 글을 보여 준다', async () => {
+  it('현재 게시글은 빼고 같은 태그 글을 보여 준다', async () => {
     mocks.fetchHashtagPosts.mockResolvedValue({ items: [post('current', '지금 글 #CS2'), post('other', '다른 글 #CS2')], nextCursor: null, hasNext: false });
     render(<RelatedHashtagPosts content="지금 글 #CS2" excludePostId="current" />);
 

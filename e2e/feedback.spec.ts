@@ -88,8 +88,8 @@ for (const width of [390, 1280]) {
       await current.fill('current-password');
       await submit.focus();
       await page.keyboard.press('Enter');
-      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' });
-      await expect(error).toHaveText(/비밀번호 입력칸을 모두 채워주세요/);
+      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' });
+      await expect(error).toHaveText(/비밀번호 입력칸을 모두 채워 주세요/);
       await expect(error).toHaveAttribute('aria-live', 'assertive');
       await expect(submit).toBeFocused();
       await expect(current).toHaveValue('current-password');
@@ -135,7 +135,7 @@ for (const width of [390, 1280]) {
 test('카드 삭제: 초기 포커스·Tab 제한·Esc 취소·포커스 복귀와 확인 1회 요청', async ({ page }) => {
   const deletes = await mockApp(page);
   await page.goto('/home');
-  const menu = page.getByRole('button', { name: '게시물 메뉴', exact: true });
+  const menu = page.getByRole('button', { name: '게시글 메뉴', exact: true });
   await menu.click();
   await page.getByRole('button', { name: '삭제', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
@@ -253,7 +253,7 @@ for (const dark of [false, true]) {
     expect(contrast).toBeGreaterThanOrEqual(4.5);
     await page.getByRole('button', { name: '알림 닫기' }).click();
     await expect(toast).not.toBeVisible();
-    await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
+    await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
     await page.getByRole('button', { name: '삭제', exact: true }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();

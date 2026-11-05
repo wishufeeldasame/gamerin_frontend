@@ -16,7 +16,7 @@ describe('validateHandle', () => {
   });
 
   it.each(['', 'ab', 'a'.repeat(21)])('길이를 어기면 길이 안내를 한다: %s', (value) => {
-    expect(validateHandle(value)).toBe('아이디는 3~20자로 입력해주세요.');
+    expect(validateHandle(value)).toBe('아이디는 3~20자로 입력해 주세요.');
   });
 
   it.each(['Abc', 'ab.c', 'ab c', '아이디1'])('문자를 어기면 문자 안내를 한다: %s', (value) => {
@@ -30,7 +30,7 @@ describe('validateNickname', () => {
   });
 
   it.each(['', '가', ' a ', 'a'.repeat(21)])('%s는 길이를 어긴다', (value) => {
-    expect(validateNickname(value)).toBe('닉네임은 2~20자로 입력해주세요.');
+    expect(validateNickname(value)).toBe('닉네임은 2~20자로 입력해 주세요.');
   });
 });
 
@@ -51,10 +51,10 @@ describe('validatePassword', () => {
   });
 
   it('경계 길이를 확인한다', () => {
-    expect(validatePassword('abcd12!')).toBe('비밀번호는 8~20자로 입력해주세요.');
+    expect(validatePassword('abcd12!')).toBe('비밀번호는 8~20자로 입력해 주세요.');
     expect(validatePassword('abcd123!')).toBeNull();
     expect(validatePassword(`${'a'.repeat(17)}12!`)).toBeNull();
-    expect(validatePassword(`${'a'.repeat(18)}12!`)).toBe('비밀번호는 8~20자로 입력해주세요.');
+    expect(validatePassword(`${'a'.repeat(18)}12!`)).toBe('비밀번호는 8~20자로 입력해 주세요.');
   });
 
   it.each(['abcdefgh1', 'abcdefg!', '12345678!', 'ABCDEFGH', '12345678'])(

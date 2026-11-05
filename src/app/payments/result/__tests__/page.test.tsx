@@ -61,7 +61,7 @@ describe('PaymentResultPage', () => {
     state.query = 'orderId=o1&result=approval&pg_token=tok';
     render(<StrictMode><PaymentResultPage /></StrictMode>);
 
-    expect(await screen.findByText('10,000 M이 충전되었어요')).toBeInTheDocument();
+    expect(await screen.findByText('10,000 M이 충전되었습니다')).toBeInTheDocument();
     expect(paymentApi.approvePayment).toHaveBeenCalledTimes(1);
     expect(paymentApi.approvePayment).toHaveBeenCalledWith('o1', 'tok');
     expect(window.location.search).not.toContain('pg_token');
@@ -83,7 +83,7 @@ describe('PaymentResultPage', () => {
     });
     render(<PaymentResultPage />);
 
-    expect(await screen.findByText('멤버십이 2026-12-09까지 이용 가능해요')).toBeInTheDocument();
+    expect(await screen.findByText('멤버십이 2026-12-09까지 이용 가능합니다')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '멤버십 보기' })).toHaveAttribute('href', '/membership');
     expect(state.auth.updateUser).toHaveBeenCalledWith({ membershipBadge: true });
   });
@@ -92,7 +92,7 @@ describe('PaymentResultPage', () => {
     state.query = 'orderId=o1&result=cancel';
     render(<PaymentResultPage />);
 
-    expect(await screen.findByText('결제가 완료되지 않았어요')).toBeInTheDocument();
+    expect(await screen.findByText('결제가 완료되지 않았습니다')).toBeInTheDocument();
     expect(paymentApi.approvePayment).not.toHaveBeenCalled();
     expect(paymentApi.getPayment).toHaveBeenCalledWith('o1');
     expect(screen.getByRole('link', { name: '다시 결제하기' })).toHaveAttribute('href', '/wallet');
@@ -103,20 +103,20 @@ describe('PaymentResultPage', () => {
     state.auth = { user: null, isAuthReady: true, updateUser: vi.fn() };
     render(<PaymentResultPage />);
 
-    expect(await screen.findByText('로그인 후 결제 내역에서 결과를 확인해주세요')).toBeInTheDocument();
+    expect(await screen.findByText('로그인 후 결제 내역에서 결과를 확인해 주세요')).toBeInTheDocument();
     await waitFor(() => expect(paymentApi.approvePayment).not.toHaveBeenCalled());
   });
 
   it('orderId가 없거나 남의 주문이면 결제 정보를 찾을 수 없다고 안내한다', async () => {
     state.query = '';
     const { unmount } = render(<PaymentResultPage />);
-    expect(screen.getByText('결제 정보를 찾을 수 없어요')).toBeInTheDocument();
+    expect(screen.getByText('결제 정보를 찾을 수 없습니다')).toBeInTheDocument();
     unmount();
 
     state.query = 'orderId=o9';
     paymentApi.getPayment.mockRejectedValueOnce(Object.assign(new Error('권한이 없는 주문입니다.'), { status: 403 }));
     render(<PaymentResultPage />);
-    expect(await screen.findByText('결제 정보를 찾을 수 없어요')).toBeInTheDocument();
+    expect(await screen.findByText('결제 정보를 찾을 수 없습니다')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/home');
   });
 
@@ -128,7 +128,7 @@ describe('PaymentResultPage', () => {
     state.query = 'orderId=o1&result=approval&pg_token=tok';
     render(<PaymentResultPage />);
 
-    expect(screen.getByText('결제 결과를 전달하고 있어요')).toBeInTheDocument();
+    expect(screen.getByText('결제 결과를 처리하고 있습니다')).toBeInTheDocument();
     expect(postMessage).toHaveBeenCalledWith(
       { type: 'kakaopay-result', orderId: 'o1', result: 'approval', pgToken: 'tok' },
       window.location.origin,
@@ -157,7 +157,7 @@ describe('PaymentResultPage', () => {
     paymentApi.getPayment.mockResolvedValue({ ...approved, status: 'APPROVING' });
     render(<PaymentResultPage />);
 
-    expect(await screen.findByText('결제 결과를 확인하고 있어요')).toBeInTheDocument();
+    expect(await screen.findByText('결제 결과를 확인하고 있습니다')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: '다시 결제하기' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: '결제 내역 보기' })).toHaveAttribute('href', '/wallet?tab=payments');
 
@@ -168,7 +168,7 @@ describe('PaymentResultPage', () => {
     for (let i = 0; i < 10; i += 1) {
       await act(async () => { await vi.advanceTimersByTimeAsync(15_000); });
     }
-    expect(await screen.findByText('결제 내역에서 결과를 확인할 수 있어요')).toBeInTheDocument();
+    expect(await screen.findByText('결제 내역에서 결과를 확인할 수 있습니다')).toBeInTheDocument();
     const calls = paymentApi.getPayment.mock.calls.length;
     await act(async () => { await vi.advanceTimersByTimeAsync(60_000); });
     expect(paymentApi.getPayment).toHaveBeenCalledTimes(calls);

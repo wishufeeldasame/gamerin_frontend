@@ -42,13 +42,13 @@ export async function installAuditFixture(page: Page, theme: 'light' | 'dark', o
       if (mode === 'loading') { await new Promise<void>(resolve => parked.add(resolve)); }
       if (path.endsWith('/auth/email-verifications')) { await route.fulfill({ json: { success: true, data: { expiresInSeconds: 300, resendCooldownSeconds: 60 } } }).catch(() => {}); return; }
       if (path.endsWith('/auth/email-verifications/confirm')) { await route.fulfill({ json: { success: true, data: { verificationToken: 'fe8-verification-token', expiresInSeconds: 1800 } } }).catch(() => {}); return; }
-      await route.fulfill({ status: 400, json: { success: false, message: '요청을 처리하지 못했습니다. 다시 시도해주세요.' } }).catch(() => {}); return;
+      await route.fulfill({ status: 400, json: { success: false, message: '요청을 처리하지 못했습니다. 다시 시도해 주세요.' } }).catch(() => {}); return;
     }
     // Keep SSE pending while measuring the initial failure: its onopen clears pageError.
     if (mode === 'error' && path.endsWith('/stream')) await new Promise<void>(resolve => parked.add(resolve));
     if (!publicAuth && !path.includes('/stream') && mode === 'loading') await new Promise<void>(resolve => parked.add(resolve));
     if (!publicAuth && !path.includes('/stream') && mode === 'error') {
-      await route.fulfill({ status: 500, json: { success: false, message: '조회하지 못했습니다. 다시 시도해주세요.' } }); return;
+      await route.fulfill({ status: 500, json: { success: false, message: '조회하지 못했습니다. 다시 시도해 주세요.' } }); return;
     }
     const empty = mode === 'empty';
     const posts = empty ? [] : [auditPost];

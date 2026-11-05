@@ -17,14 +17,14 @@ import { rememberPaymentReturnTo } from '@/lib/payment-return';
 const POPUP_NAME = 'gamerin-kakaopay';
 // 08 문서 12-13절: 카카오페이 권장 크기 확인 전까지 480×720.
 const POPUP_FEATURES = 'width=480,height=720';
-const POPUP_BLOCKED_MESSAGE = '팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단을 해제한 뒤 다시 시도해주세요.';
+const POPUP_BLOCKED_MESSAGE = '팝업이 차단되었습니다. 브라우저 주소창의 팝업 차단을 해제한 뒤 다시 시도해 주세요.';
 // 팝업이 결과를 보내고 바로 닫히면 closed 감지가 message보다 먼저 올 수 있어 잠시 기다린다.
 const CLOSED_GRACE_MS = 500;
 
 type Phase = 'confirm' | 'preparing' | 'waiting' | 'canceled';
 
 function errorMessage(error: unknown) {
-  return error instanceof Error ? error.message : '결제 요청을 처리하지 못했어요.';
+  return error instanceof Error ? error.message : '결제 요청을 처리하지 못했습니다.';
 }
 
 const resultHref = (orderId: string) => `/payments/result?orderId=${encodeURIComponent(orderId)}`;
@@ -140,7 +140,7 @@ export function KakaoPaymentDialog({
         popup?.close();
         // 첫 ready가 아직 처리 중이면 같은 requestId로 다시 확인하게 둔다.
         if (order.status === 'CREATED') {
-          throw new Error('결제를 준비하고 있어요. 잠시 후 다시 시도해주세요.');
+          throw new Error('결제를 준비하고 있습니다. 잠시 후 다시 시도해 주세요.');
         }
         // 같은 requestId로 이미 승인·확인 중인 주문이면 결과만 확인한다.
         if (order.status !== 'FAILED' && order.status !== 'EXPIRED' && order.status !== 'READY') {
@@ -148,7 +148,7 @@ export function KakaoPaymentDialog({
           return;
         }
         requestIdRef.current = null;
-        throw new Error('카카오페이 결제창을 열 수 없어요. 다시 시도해주세요.');
+        throw new Error('카카오페이 결제창을 열 수 없습니다. 다시 시도해 주세요.');
       }
 
       // 결제창까지 열린 주문은 끝났으므로 이후 결제는 새 주문으로 만든다.
@@ -202,7 +202,7 @@ export function KakaoPaymentDialog({
     : phase === 'waiting'
     ? '결제 진행 중'
     : phase === 'preparing'
-      ? '결제를 준비하고 있어요'
+      ? '결제를 준비하고 있습니다'
       : isMembership ? '멤버십 결제하기' : '카카오페이로 충전하기';
 
   return (
@@ -243,7 +243,7 @@ export function KakaoPaymentDialog({
         ) : phase === 'canceled' ? (
           <>
             <p className="mt-5 text-sm font-bold text-zinc-500" aria-live="polite">
-              카카오페이 결제창이 닫혀 결제가 진행되지 않았어요.
+              카카오페이 결제창이 닫혀 결제가 진행되지 않았습니다.
             </p>
             {error ? (
               <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
@@ -270,8 +270,8 @@ export function KakaoPaymentDialog({
         ) : phase === 'waiting' ? (
           <>
             <div className="mt-5 space-y-1 text-sm font-bold text-zinc-500" aria-live="polite">
-              <p>카카오페이 창에서 결제를 완료해주세요.</p>
-              <p>QR 또는 카카오톡 알림으로 결제할 수 있어요.</p>
+              <p>카카오페이 창에서 결제를 완료해 주세요.</p>
+              <p>QR 또는 카카오톡 알림으로 결제할 수 있습니다.</p>
             </div>
             <div className="mt-6 grid grid-cols-2 gap-2">
               <button
@@ -299,8 +299,8 @@ export function KakaoPaymentDialog({
               </p>
               <p className="mt-2 text-xs font-bold text-zinc-400">
                 {isMembership
-                  ? `${product.durationDays ?? 30}일 이용권이 적용됩니다. 자동 갱신되지 않아요.`
-                  : `${(product.mileage ?? product.price).toLocaleString('ko-KR')} M가 충전됩니다.`}
+                  ? `${product.durationDays ?? 30}일 이용권이 적용됩니다. 자동 갱신되지 않습니다.`
+                  : `${(product.mileage ?? product.price).toLocaleString('ko-KR')} M이 충전됩니다.`}
               </p>
             </div>
 

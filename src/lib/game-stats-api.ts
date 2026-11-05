@@ -79,7 +79,7 @@ const GAME_STATS_CLIENT: ApiClientConfig = {
     message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
       ? AUTH_REQUIRED_MESSAGE
       : reason === 'invalid-response'
-        ? '게임 전적 응답 형식이 올바르지 않습니다.'
+        ? '게임 전적을 불러오는 중 오류가 발생했습니다.'
         : '게임 전적 요청에 실패했습니다.'),
     reason,
   ),

@@ -57,7 +57,7 @@ describe('message-api 요청', () => {
       name: 'ApiError',
       status: 401,
       reason: 'unauthenticated',
-      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해 주세요.',
     });
     expect(client.isAuthError(error)).toBe(true);
     expect(store.getAccessToken()).toBeNull();
@@ -153,7 +153,7 @@ describe('DM 첨부', () => {
     api.route('/api/v1/messages/attachments/a-1', () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
     await expect(message.fetchMessageAttachmentBlob(ATTACHMENT)).rejects.toThrow(
-      '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+      '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해 주세요.',
     );
   });
 

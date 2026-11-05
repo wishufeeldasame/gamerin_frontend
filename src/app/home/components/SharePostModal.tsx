@@ -230,7 +230,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
           {selectedRecipients.length > 0 ? (
             <div className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500">
-              {selectedRecipients.map((recipient) => recipient.name).join(', ')} 에게 공유합니다.
+              {selectedRecipients.map((recipient) => recipient.name).join(', ')}에게 공유합니다.
             </div>
           ) : null}
 

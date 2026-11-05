@@ -156,7 +156,7 @@ function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promis
           ? AUTH_REQUIRED_MESSAGE
           : authRequired
             ? '멘토링 요청 처리에 실패했습니다.'
-            : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+            : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
         return new MentoringApiError(serverMessage ?? fallback, status, reason);
       },
     },

@@ -67,7 +67,7 @@ function validateProfileInput(userInfo: EditProfileUserInfo) {
   }
 
   if (userInfo.location.length > PROFILE_FIELD_LIMITS.locationMax) {
-    throw new Error('위치는 100자를 초과할 수 없습니다.');
+    throw new Error('지역은 100자를 초과할 수 없습니다.');
   }
 
   if (userInfo.website.length > PROFILE_FIELD_LIMITS.websiteMax) {
@@ -81,7 +81,7 @@ function validateProfileInput(userInfo: EditProfileUserInfo) {
         throw new Error();
       }
     } catch {
-      throw new Error('웹사이트 주소를 올바른 URL로 입력해주세요.');
+      throw new Error('웹사이트 주소를 올바른 URL로 입력해 주세요.');
     }
   }
 }
@@ -335,7 +335,7 @@ export function EditProfileModal({
           <div className="p-8 space-y-8">
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-black font-black text-xs uppercase tracking-widest ml-1">
-                <User size={14} /> 이름
+                <User size={14} /> 닉네임
               </label>
               <input
                 type="text"
@@ -343,7 +343,7 @@ export function EditProfileModal({
                 onChange={(event) => setFormData({ ...formData, name: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.nameMax}
                 className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
-                placeholder="이름을 입력하세요"
+                placeholder="닉네임을 입력하세요"
               />
             </div>
 
@@ -356,7 +356,7 @@ export function EditProfileModal({
                 onChange={(event) => setFormData({ ...formData, bio: event.target.value })}
                 maxLength={PROFILE_FIELD_LIMITS.bioMax}
                 className="w-full px-5 py-4 bg-zinc-50 border-2 border-transparent rounded-2xl text-black text-base font-bold placeholder-zinc-300 focus:outline-none focus:border-black focus:bg-white transition-all min-h-[120px] resize-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:bg-surface"
-                placeholder="게임 이야기를 소개해 보세요"
+                placeholder="나를 소개해 보세요"
               />
               <div className="flex justify-end pr-2">
                 <span className="text-2xs font-black text-zinc-300 uppercase tracking-widest">
