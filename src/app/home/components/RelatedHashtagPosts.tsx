@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fetchHashtagPosts } from '@/lib/community-search-api';
-import type { PostRecord } from '@/lib/feed-api';
+import { type PostRecord, getPostHref } from '@/lib/feed-api';
 import { RelativeTime } from './RelativeTime';
 
 const RELATED_POST_COUNT = 4;
@@ -32,13 +32,13 @@ export function RelatedHashtagPosts({ content, excludePostId }: { content: strin
   return (
     <section aria-labelledby="related-posts-title" className="mt-6 px-4 md:px-0">
       <h2 id="related-posts-title" className="section-title mb-3">
-        #{hashtag} 관련 게시물
+        #{hashtag} 관련 게시글
       </h2>
       <ul className="grid gap-2 md:grid-cols-2">
         {posts.map((item) => (
           <li key={item.postId}>
             <Link
-              href={`/posts/${encodeURIComponent(item.postId)}`}
+              href={getPostHref(item.postNumber)}
               className="block h-full rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-line dark:bg-surface"
             >
               <p className="text-xs font-bold text-zinc-400">

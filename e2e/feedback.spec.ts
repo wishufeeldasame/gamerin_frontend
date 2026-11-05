@@ -5,7 +5,7 @@ const user = {
   nickname: '작성자', role: 'ROLE_USER', status: 'ACTIVE',
 };
 const post = {
-  postId: 'post-1', author: user.nickname, authorHandle: user.handle,
+  postId: 'post-1', postNumber: 1, author: user.nickname, authorHandle: user.handle,
   authorProfileImageUrl: null, authorVerifiedBadge: false, content: '토스트 확인창 테스트',
   media: [], likes: 0, comments: 1, shares: 0, isReposted: false, repostCount: 0,
   likedByMe: false, bookmarkedByMe: false, mine: true, createdAt: '2026-10-01T00:00:00Z',
@@ -51,7 +51,7 @@ async function mockApp(page: Page, options: { posts?: typeof post[]; distinctLik
     else if (path.endsWith('/feed') || path.endsWith('/users/author/posts')) data = { items: options.posts ?? [post], hasNext: false, nextCursor: null };
     else if (path.endsWith('/users/author/media')) data = { items: [], hasNext: false, nextCursor: null };
     else if (path.endsWith('/posts/post-1/comments')) data = [comment];
-    else if (path.endsWith('/posts/post-1')) data = post;
+    else if (path.endsWith('/posts/by-number/1')) data = post;
     else if (path.includes('/collections')) data = [];
     else if (path.includes('unread-count')) data = { unreadCount: 0 };
     await route.fulfill({ json: { success: true, data } });
@@ -88,8 +88,8 @@ for (const width of [390, 1280]) {
       await current.fill('current-password');
       await submit.focus();
       await page.keyboard.press('Enter');
-      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' });
-      await expect(error).toHaveText(/비밀번호 입력칸을 모두 채워주세요/);
+      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' });
+      await expect(error).toHaveText(/비밀번호 입력칸을 모두 채워 주세요/);
       await expect(error).toHaveAttribute('aria-live', 'assertive');
       await expect(submit).toBeFocused();
       await expect(current).toHaveValue('current-password');
@@ -135,7 +135,7 @@ for (const width of [390, 1280]) {
 test('카드 삭제: 초기 포커스·Tab 제한·Esc 취소·포커스 복귀와 확인 1회 요청', async ({ page }) => {
   const deletes = await mockApp(page);
   await page.goto('/home');
-  const menu = page.getByRole('button', { name: '게시물 메뉴', exact: true });
+  const menu = page.getByRole('button', { name: '게시글 메뉴', exact: true });
   await menu.click();
   await page.getByRole('button', { name: '삭제', exact: true }).click();
   const dialog = page.getByRole('alertdialog');
@@ -159,7 +159,7 @@ test('카드 삭제: 초기 포커스·Tab 제한·Esc 취소·포커스 복귀�
 
 test('댓글 삭제: Esc 취소는 API를 호출하지 않고 댓글 메뉴로 복귀', async ({ page }) => {
   const deletes = await mockApp(page);
-  await page.goto('/posts/post-1');
+  await page.goto('/posts/1');
   await page.getByRole('button', { name: '댓글 메뉴' }).click();
   await page.getByRole('button', { name: '삭제', exact: true }).click();
   await page.keyboard.press('Escape');
@@ -253,7 +253,7 @@ for (const dark of [false, true]) {
     expect(contrast).toBeGreaterThanOrEqual(4.5);
     await page.getByRole('button', { name: '알림 닫기' }).click();
     await expect(toast).not.toBeVisible();
-    await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
+    await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
     await page.getByRole('button', { name: '삭제', exact: true }).click();
     const dialog = page.getByRole('alertdialog');
     await expect(dialog).toBeVisible();

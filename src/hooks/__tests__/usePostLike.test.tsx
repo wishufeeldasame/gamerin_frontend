@@ -117,7 +117,7 @@ describe('usePostLike', () => {
     expect(applyLikeState).toHaveBeenCalledWith('post-1', true);
   });
 
-  it('같은 게시물의 중복 요청은 무시한다', async () => {
+  it('같은 게시글의 중복 요청은 무시한다', async () => {
     const request = deferred<void>();
     vi.mocked(likePost).mockReturnValue(request.promise);
     const applyLikeState = vi.fn();
@@ -138,7 +138,7 @@ describe('usePostLike', () => {
     });
   });
 
-  it('서로 다른 게시물 요청은 동시에 처리한다', async () => {
+  it('서로 다른 게시글 요청은 동시에 처리한다', async () => {
     const firstRequest = deferred<void>();
     const secondRequest = deferred<void>();
     vi.mocked(likePost)

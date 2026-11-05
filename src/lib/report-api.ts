@@ -46,7 +46,7 @@ const REPORT_CLIENT: ApiClientConfig = {
     message ?? (reason === 'unauthenticated' || reason === 'blocked' || status === 401
       ? AUTH_REQUIRED_MESSAGE
       : reason === 'invalid-response'
-        ? '신고 API 응답 형식이 올바르지 않습니다.'
+        ? '일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.'
         : '신고 요청 처리에 실패했습니다.'),
     status,
     reason,

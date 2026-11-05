@@ -45,7 +45,7 @@ describe('ReportContentModal', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: '스팸' }));
     fireEvent.change(screen.getByRole('textbox', { name: '신고 상세 내용' }), {
-      target: { value: '  반복 게시물입니다.  ' },
+      target: { value: '  반복 게시글입니다.  ' },
     });
     fireEvent.click(screen.getByRole('button', { name: '신고 접수' }));
     fireEvent.click(within(
@@ -57,7 +57,7 @@ describe('ReportContentModal', () => {
         targetType: 'POST',
         targetId: defaultProps.targetId,
         reasonCode: 'SPAM',
-        details: '반복 게시물입니다.',
+        details: '반복 게시글입니다.',
       });
     });
   });

@@ -20,6 +20,7 @@ export type NotificationType =
   | 'mentoring_started'
   | 'mentoring_finished'
   | 'mentoring_completed'
+  | 'mentoring_refunded'
   | 'mentoring_review'
   | 'mention';
 
@@ -37,6 +38,7 @@ export interface NotificationRecord<TType = NotificationType> {
   type: TType;
   actor: NotificationActor | null;
   postId: string | null;
+  postNumber: number | null;
   commentId: string | null;
   conversationId: string | null;
   messageId: string | null;
@@ -77,6 +79,7 @@ function normalizeNotification(notification: NotificationRecord): NotificationRe
     ...notification,
     actor: normalizeActor(notification.actor),
     postId: notification.postId ?? null,
+    postNumber: notification.postNumber ?? null,
     commentId: notification.commentId ?? null,
     conversationId: notification.conversationId ?? null,
     messageId: notification.messageId ?? null,

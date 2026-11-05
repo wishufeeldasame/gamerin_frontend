@@ -20,6 +20,7 @@ function createNotification(
       verifiedBadge: false,
     },
     postId: 'post/id',
+    postNumber: 42,
     commentId: 'comment/id',
     conversationId: 'conversation/id',
     messageId: 'message/id',
@@ -35,15 +36,15 @@ describe('getNotificationPresentation', () => {
   const cases = [
     {
       type: 'like',
-      message: '플레이어님이 게시글을 좋아합니다.',
+      message: '플레이어님이 내 게시글을 좋아합니다.',
       iconKind: 'heart',
-      href: '/posts/post%2Fid',
+      href: '/posts/42',
     },
     {
       type: 'comment',
       message: '플레이어님이 게시글에 댓글을 남겼습니다.',
       iconKind: 'message-circle',
-      href: '/posts/post%2Fid?commentId=comment%2Fid',
+      href: '/posts/42?commentId=comment%2Fid',
     },
     {
       type: 'follow',
@@ -55,7 +56,7 @@ describe('getNotificationPresentation', () => {
       type: 'repost',
       message: '플레이어님이 게시글을 리포스트했습니다.',
       iconKind: 'repeat',
-      href: '/posts/post%2Fid',
+      href: '/posts/42',
     },
     {
       type: 'direct_message',
@@ -106,6 +107,12 @@ describe('getNotificationPresentation', () => {
       href: '/mentoring?tab=mine&applicationId=application%2Fid&reviewId=review%2Fid',
     },
     {
+      type: 'mentoring_refunded',
+      message: '신고 처리 결과로 멘토링 비용이 환불되었습니다.',
+      iconKind: 'graduation-cap',
+      href: '/mentoring?tab=mine&applicationId=application%2Fid&reviewId=review%2Fid',
+    },
+    {
       type: 'mentoring_review',
       message: '플레이어님이 멘토링 리뷰를 남겼습니다.',
       iconKind: 'star',
@@ -115,7 +122,7 @@ describe('getNotificationPresentation', () => {
       type: 'mention',
       message: '플레이어님이 나를 언급했습니다.',
       iconKind: 'at-sign',
-      href: '/posts/post%2Fid?commentId=comment%2Fid',
+      href: '/posts/42?commentId=comment%2Fid',
     },
   ] satisfies ReadonlyArray<{
     type: NotificationType;
@@ -149,9 +156,9 @@ describe('getNotificationPresentation', () => {
   });
 
   it.each([
-    ['like', { postId: null }],
-    ['comment', { postId: null, commentId: null }],
-    ['mention', { postId: null, commentId: null }],
+    ['like', { postNumber: null }],
+    ['comment', { postNumber: null, commentId: null }],
+    ['mention', { postNumber: null, commentId: null }],
     ['direct_message', { conversationId: null, messageId: null }],
   ] satisfies ReadonlyArray<readonly [NotificationType, Partial<NotificationPresentationInput>]>) (
     'does not create an invalid destination for %s without its required reference',

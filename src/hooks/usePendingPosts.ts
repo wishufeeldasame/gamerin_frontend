@@ -41,7 +41,7 @@ type PendingPostsOptions = {
 };
 
 export const VIDEO_JOB_POLL_INTERVAL_MS = 3000;
-const VIDEO_PROCESSING_FAILED_MESSAGE = '동영상을 처리하지 못했습니다. 다시 시도해주세요.';
+const VIDEO_PROCESSING_FAILED_MESSAGE = '동영상을 처리하지 못했습니다. 다시 시도해 주세요.';
 
 function createPendingId() {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {

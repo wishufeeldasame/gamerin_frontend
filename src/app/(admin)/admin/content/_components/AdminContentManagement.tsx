@@ -210,7 +210,7 @@ function AdminContentManagementContent() {
             />
           </label>
           <p className="mt-1.5 text-xs text-[#98a2b3]">
-            서버 검색 API가 없어 현재 페이지 {PAGE_SIZE}건 안에서만 검색합니다.
+            현재 페이지의 {PAGE_SIZE}건 안에서만 검색합니다.
           </p>
         </div>
         <AdminRefreshStatus
@@ -288,7 +288,7 @@ function AdminContentManagementContent() {
                           />
                         ) : (
                           <span className="text-[11px] font-semibold text-[#98a2b3]">
-                            백엔드 복구 미지원
+                            복구 불가
                           </span>
                         )}
                       </td>

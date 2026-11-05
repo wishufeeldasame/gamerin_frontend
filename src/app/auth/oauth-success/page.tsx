@@ -57,7 +57,7 @@ export default function OAuthSuccessPage() {
                         <div className="h-12 w-12 animate-spin rounded-full border-4 border-zinc-200 border-t-black dark:border-neutral-700 dark:!border-t-[#f5b93d]" />
                         <h1 className="text-xl font-bold">로그인 처리 중</h1>
                         <p className="text-zinc-500">안전하게 로그인 세션을 설정하고 있습니다. 잠시만
-                            기다려주세요...</p>
+                            기다려 주세요...</p>
                     </>
                 )}
             </div>

@@ -5,7 +5,7 @@ import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
   bookmarkPost: vi.fn(), createComment: vi.fn(), deleteComment: vi.fn(),
-  deletePost: vi.fn(), fetchPostComments: vi.fn(), fetchPostDetail: vi.fn(),
+  deletePost: vi.fn(), fetchPostComments: vi.fn(), fetchPostDetailByNumber: vi.fn(),
   likePost: vi.fn(), repostPost: vi.fn(), unbookmarkPost: vi.fn(),
   unlikePost: vi.fn(), unrepostPost: vi.fn(),
 }));
@@ -39,7 +39,7 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 const basePost: PostRecord = {
-  postId: 'post-1', author: 'Author', authorHandle: 'author',
+  postId: 'post-1', postNumber: 1, author: 'Author', authorHandle: 'author',
   authorProfileImageUrl: null, authorVerifiedBadge: false, game: null,
   content: 'Post one', media: [], likes: 2, comments: 4, shares: 0,
   isReposted: false, repostCount: 1, likedByMe: false,
@@ -51,7 +51,7 @@ const makeComment = (commentId: string, content: string): CommentRecord => ({
   createdAt: '2026-10-10T00:01:00Z', mine: true,
 });
 async function renderDetail(onPostUpdated = vi.fn()) {
-  const result = render(<PostDetail postId="post-1" onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
+  const result = render(<PostDetail postNumber={1} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
   await screen.findByText('Post one');
   return { ...result, onPostUpdated };
 }
@@ -59,11 +59,11 @@ async function renderDetail(onPostUpdated = vi.fn()) {
 describe('PostDetail comment concurrency', () => {
   beforeEach(() => {
     Object.values(api).forEach((mock) => mock.mockReset());
-    api.fetchPostDetail.mockResolvedValue(basePost);
+    api.fetchPostDetailByNumber.mockResolvedValue(basePost);
     api.fetchPostComments.mockResolvedValue([]);
     api.bookmarkPost.mockResolvedValue(undefined);
     api.likePost.mockResolvedValue(undefined);
-    api.repostPost.mockResolvedValue({ postId: 'post-1', isReposted: true, repostCount: 2, repostedAt: null });
+    api.repostPost.mockResolvedValue({ postId: 'post-1', postNumber: 1, isReposted: true, repostCount: 2, repostedAt: null });
   });
 
   it('blocks Windows compositionend-before-Enter and allows the next Enter', async () => {
@@ -188,15 +188,15 @@ describe('PostDetail comment concurrency', () => {
     const oldRequest = deferred<CommentRecord>();
     const newRequest = deferred<CommentRecord>();
     api.createComment.mockReturnValueOnce(oldRequest.promise).mockReturnValueOnce(newRequest.promise);
-    api.fetchPostDetail.mockImplementation(async (postId: string) => ({
-      ...basePost, postId, content: postId === 'post-1' ? 'Post one' : 'Post two',
+    api.fetchPostDetailByNumber.mockImplementation(async (postNumber: number) => ({
+      ...basePost, postId: `post-${postNumber}`, postNumber, content: postNumber === 1 ? 'Post one' : 'Post two',
     }));
     const onPostUpdated = vi.fn();
     const { rerender } = await renderDetail(onPostUpdated);
     const firstInput = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(firstInput, { target: { value: 'old response' } });
     fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
-    rerender(<PostDetail postId="post-2" onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
+    rerender(<PostDetail postNumber={2} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText('Post two');
     const secondInput = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(secondInput, { target: { value: 'new response' } });
@@ -207,7 +207,7 @@ describe('PostDetail comment concurrency', () => {
     expect(screen.getByRole('button', { name: '댓글 전송' })).toBeDisabled();
     expect(onPostUpdated).not.toHaveBeenCalled();
     await act(async () => { newRequest.resolve(makeComment('new-comment', 'new response')); await newRequest.promise; });
-    expect(onPostUpdated.mock.calls[0][0]).toMatchObject({ postId: 'post-2', comments: 5 });
+    expect(onPostUpdated.mock.calls[0][0]).toMatchObject({ postId: 'post-2', postNumber: 2, comments: 5 });
   });
 
   it('ignores a response after unmount', async () => {

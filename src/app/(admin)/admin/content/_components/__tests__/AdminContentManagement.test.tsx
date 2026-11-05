@@ -87,7 +87,7 @@ describe('AdminContentManagement', () => {
       { page: 0, size: 20, sort: 'updatedAt,desc' },
       expect.any(AbortSignal),
     );
-    expect(screen.getByText('백엔드 복구 미지원')).toBeInTheDocument();
+    expect(screen.getByText('복구 불가')).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: '복구' })).toHaveLength(1);
   });
 

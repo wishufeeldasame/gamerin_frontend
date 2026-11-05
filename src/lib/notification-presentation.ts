@@ -1,3 +1,4 @@
+import { getPostHref as buildPostHref } from '@/lib/feed-api';
 import type { NotificationRecord, NotificationType } from '@/lib/notification-api';
 
 export type NotificationIconKind =
@@ -38,6 +39,7 @@ const NOTIFICATION_TYPE_LOOKUP = {
   mentoring_started: true,
   mentoring_finished: true,
   mentoring_completed: true,
+  mentoring_refunded: true,
   mentoring_review: true,
   mention: true,
 } satisfies Record<NotificationType, true>;
@@ -57,12 +59,12 @@ function getActorSubject(notification: NotificationPresentationInput) {
 }
 
 function getPostHref(notification: NotificationPresentationInput, includeCommentId = false) {
-  const postId = getValue(notification.postId);
-  if (!postId) {
+  const postNumber = notification.postNumber;
+  if (postNumber == null) {
     return null;
   }
 
-  const pathname = `/posts/${encodeURIComponent(postId)}`;
+  const pathname = buildPostHref(postNumber);
   const commentId = includeCommentId ? getValue(notification.commentId) : null;
   if (!commentId) {
     return pathname;
@@ -120,7 +122,7 @@ function getKnownNotificationPresentation(
   switch (type) {
     case 'like':
       return {
-        message: `${actorSubject} 게시글을 좋아합니다.`,
+        message: `${actorSubject} 내 게시글을 좋아합니다.`,
         iconKind: 'heart',
         href: getPostHref(notification),
       };
@@ -187,6 +189,12 @@ function getKnownNotificationPresentation(
     case 'mentoring_completed':
       return {
         message: '멘토링이 완료되었습니다.',
+        iconKind: 'graduation-cap',
+        href: getMentoringHref(notification),
+      };
+    case 'mentoring_refunded':
+      return {
+        message: '신고 처리 결과로 멘토링 비용이 환불되었습니다.',
         iconKind: 'graduation-cap',
         href: getMentoringHref(notification),
       };

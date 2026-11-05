@@ -14,7 +14,7 @@ import {
 } from '@/lib/public-request-error';
 
 const SUCCESS_MESSAGE =
-  '입력한 정보가 유효하면 비밀번호 재설정 메일을 발송했습니다.';
+  '입력한 정보가 유효하다면 비밀번호 재설정 메일이 발송됩니다.';
 const SUBMIT_ERROR_MESSAGE =
   '요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.';
 

@@ -96,7 +96,7 @@ describe('AdminLoginForm', () => {
 
   it('shows the login error without logging out (the session is cleaned by loginWithPassword)', async () => {
     authApi.loginWithPassword.mockRejectedValueOnce(
-      new Error('정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.'),
+      new Error('정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.'),
     );
 
     render(<AdminLoginForm />);

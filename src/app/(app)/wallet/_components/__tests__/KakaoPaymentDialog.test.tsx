@@ -101,9 +101,9 @@ describe('KakaoPaymentDialog', () => {
     render(<KakaoPaymentDialog product={product} onClose={vi.fn()} />);
 
     await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('결제를 준비하고 있어요.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('결제를 준비하고 있습니다.');
     await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
-    await screen.findByText('카카오페이 결제창을 열 수 없어요. 다시 시도해주세요.');
+    await screen.findByText('카카오페이 결제창을 열 수 없습니다. 다시 시도해 주세요.');
     await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
     await waitFor(() => expect(paymentApi.readyPayment).toHaveBeenCalledTimes(3));
 

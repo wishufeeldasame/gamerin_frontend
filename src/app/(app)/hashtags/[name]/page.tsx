@@ -8,7 +8,7 @@ import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
 import { fetchHashtagPosts } from '@/lib/community-search-api';
-import type { PostRecord } from '@/lib/feed-api';
+import { type PostRecord, getPostHref } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
@@ -105,8 +105,8 @@ export default function HashtagPostsPage() {
               post={post}
               likeLoading={Boolean(likeLoadingByPostId[post.postId])}
               onToggleLike={handleToggleLike}
-              onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
-              onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
+              onOpenDetail={(selected) => router.push(getPostHref(selected.postNumber))}
+              onOpenComments={(selected) => router.push(getPostHref(selected.postNumber, '?target=comments'))}
               onShare={handlePostUpdated}
               onRepostChange={handleRepostChanged}
               onBookmarkChange={handleBookmarkChanged}

@@ -3,8 +3,8 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 const account = { userId: 'viewer', handle: 'viewer', nickname: '테스터', role: 'USER', status: 'ACTIVE' };
 const createdAt = '2026-10-09T06:00:00Z';
 const post = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
-  authorVerifiedBadge: false, content: '다크 모드 확인용 게시물', game: null, media: [],
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  authorVerifiedBadge: false, content: '다크 모드 확인용 게시글', game: null, media: [],
   likes: 0, comments: 1, shares: 0, repostCount: 0, isReposted: false,
   likedByMe: false, bookmarkedByMe: false, mine: false, createdAt,
 };
@@ -37,13 +37,13 @@ async function mockApp(page: Page, theme: 'light' | 'dark', anonymous = false) {
     if (path.endsWith('/auth/refresh')) data = { userId: account.userId, accessToken: 'fe8-test-token' };
     else if (path.endsWith('/auth/me')) data = account;
     else if (path === '/api/v1/feed') data = { ...cursor, items: [post] };
-    else if (path === '/api/v1/posts/post-1') data = post;
+    else if (['/api/v1/posts/post-1', '/api/v1/posts/by-number/1'].includes(path)) data = post;
     else if (path.endsWith('/post-1/comments')) data = [{ commentId: 'comment-1', author: '댓글 작성자', authorHandle: 'commenter', content: '댓글 내용', createdAt, mine: false }];
     else if (path === '/api/v1/users/me' || path === '/api/v1/users/viewer') data = profile;
     else if (/\/users\/viewer\/(posts|media)$/.test(path)) data = cursor;
     else if (path.includes('/bookmark-collections')) data = [];
     else if (path.endsWith('/notifications/unread-count')) data = { unreadCount: 1 };
-    else if (path.endsWith('/notifications')) data = { ...cursor, items: [{ notificationId: 'notification-1', type: 'like', actor: { ...account, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', read: false, createdAt }] };
+    else if (path.endsWith('/notifications')) data = { ...cursor, items: [{ notificationId: 'notification-1', type: 'like', actor: { ...account, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', postNumber: 1, read: false, createdAt }] };
     else if (path.endsWith('/messages/conversations')) data = [{ id: 'conversation-1', recipient, messages, unreadCount: 0, updatedAt: createdAt }];
     else if (path.endsWith('/conversation-1/messages')) data = { ...cursor, items: messages };
     else if (path.endsWith('/recipients')) data = [recipient];
@@ -100,7 +100,7 @@ for (const width of [390, 1440]) {
       await mockApp(page, 'light'); await page.goto('/settings');
       const button = page.getByRole('button', { name: '비밀번호 변경', exact: true });
       await button.click();
-      await expect(page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' })).toBeVisible();
+      await expect(page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' })).toBeVisible();
       await page.mouse.move(0, 0);
       await expect(button).toHaveCSS('background-color', 'rgb(0, 0, 0)');
       await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
@@ -120,11 +120,11 @@ for (const width of [390, 1440]) {
       expect(await contrast(page.getByPlaceholder('무슨 생각을 하고 있나요?'), true)).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByPlaceholder('외부 링크 URL'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'home');
-      await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
+      await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
       await capture(page, info, 'post-menu'); await page.keyboard.press('Escape');
-      await expect(page.getByRole('button', { name: '게시물 메뉴', exact: true })).toBeFocused();
+      await expect(page.getByRole('button', { name: '게시글 메뉴', exact: true })).toBeFocused();
       await page.getByRole('button', { name: '알림', exact: true }).click();
-      const notification = page.getByText('테스터님이 게시글을 좋아합니다.');
+      const notification = page.getByText('테스터님이 내 게시글을 좋아합니다.');
       await expect(notification).toBeVisible(); expect(await contrast(notification)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'notifications');
     });
@@ -147,7 +147,7 @@ for (const width of [390, 1440]) {
       await expect(title).toBeVisible();
       await expect.poll(() => contrast(title)).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByRole('button', { name: '커버 이미지 초기화' }))).toBeGreaterThanOrEqual(4.5);
-      expect(await contrast(page.getByPlaceholder('이름을 입력하세요'), true)).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(page.getByPlaceholder('닉네임을 입력하세요'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'edit-profile');
       await page.goto('/profile/viewer'); await page.getByRole('button', { name: '전적', exact: true }).click();
       await page.getByRole('button', { name: '전적 추가', exact: true }).click();
@@ -157,15 +157,15 @@ for (const width of [390, 1440]) {
       await capture(page, info, 'game-stats');
     });
     test('share inputs, report selection, confirmation and failure', async ({ page }, info) => {
-      await mockApp(page, 'dark'); await page.goto('/posts/post-1');
+      await mockApp(page, 'dark'); await page.goto('/posts/1');
       expect(await contrast(page.getByRole('textbox', { name: '댓글 입력' }), true)).toBeGreaterThanOrEqual(4.5);
-      await page.getByRole('button', { name: '게시물 공유', exact: true }).click();
+      await page.getByRole('button', { name: '게시글 공유', exact: true }).click();
       expect(await contrast(page.getByPlaceholder('이름 또는 핸들 검색'), true)).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByPlaceholder('메시지 추가...'), true)).toBeGreaterThanOrEqual(4.5);
       await page.getByRole('button', { name: /대화상대/ }).click(); await capture(page, info, 'share-selected');
       await page.getByRole('button', { name: '닫기', exact: true }).click();
-      await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
-      await page.getByRole('button', { name: '게시물 신고', exact: true }).click();
+      await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
+      await page.getByRole('button', { name: '게시글 신고', exact: true }).click();
       await page.getByRole('button', { name: '스팸', exact: true }).click();
       expect(await contrast(page.getByText('스팸', { exact: true }))).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByRole('textbox', { name: '신고 상세 내용' }), true)).toBeGreaterThanOrEqual(4.5);
@@ -217,12 +217,12 @@ for (const width of [390, 1440]) {
     test('existing toast and confirmation remain dark and keyboard accessible', async ({ page }, info) => {
       await mockApp(page, 'dark'); await page.goto('/settings');
       await page.getByRole('button', { name: '비밀번호 변경', exact: true }).click();
-      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워주세요' });
+      const error = page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' });
       await expect(error).toBeVisible(); expect(await contrast(error.locator('p'))).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'toast');
       await page.getByRole('button', { name: '알림 닫기' }).click();
-      await page.route('**/api/v1/posts/post-1', route => route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } }));
-      await page.goto('/posts/post-1'); await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
+      await page.route('**/api/v1/posts/{post-1,by-number/1}', route => route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } }));
+      await page.goto('/posts/1'); await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
       await page.getByRole('button', { name: '삭제', exact: true }).click();
       const dialog = page.getByRole('alertdialog'); await expect(dialog).toBeVisible();
       expect(await contrast(dialog.locator('p'))).toBeGreaterThanOrEqual(4.5);

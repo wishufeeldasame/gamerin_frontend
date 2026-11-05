@@ -8,7 +8,7 @@ import {
   fetchCollectionBookmarks,
   fetchMyBookmarks,
 } from '@/lib/feed-api';
-import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
+import { type BookmarkScope, type PostRecord, getPostHref } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
@@ -176,9 +176,9 @@ export default function BookmarksPage() {
     removeBookmark(postId);
   };
 
-  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
+    router.push(getPostHref(postNumber, search));
   };
 
   return (
@@ -188,7 +188,7 @@ export default function BookmarksPage() {
         <div>
           <h1 className="page-title">북마크</h1>
           <p className="page-subtitle">
-            불러온 북마크 {bookmarks.length}개
+            북마크 {bookmarks.length}개
           </p>
         </div>
 
@@ -201,7 +201,7 @@ export default function BookmarksPage() {
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="게시물, 작성자, 게임 검색"
+              placeholder="게시글, 작성자, 게임 검색"
               className="w-full rounded-2xl border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-surface dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
             />
           </div>
@@ -227,7 +227,7 @@ export default function BookmarksPage() {
           <div>
             <h2 className="text-lg font-black text-black dark:text-zinc-100">모음집</h2>
             <p className="mt-1 text-xs font-bold text-zinc-400">
-              저장한 게시물을 모음집별로 확인하세요.
+              저장한 게시글을 모음집별로 확인하세요.
             </p>
           </div>
           <span className="text-xs font-black text-zinc-400">
@@ -249,7 +249,7 @@ export default function BookmarksPage() {
             <span>
               <strong className="block text-sm font-black">전체 북마크</strong>
               <small className="mt-1 block text-xs font-bold opacity-60">
-                {bookmarks.length}개 게시물
+                {bookmarks.length}개 게시글
               </small>
             </span>
           </button>
@@ -292,7 +292,7 @@ export default function BookmarksPage() {
                     {collection.name}
                   </strong>
                   <small className="mt-1 block text-xs font-bold opacity-60">
-                    {collectionCountSyncPending ? '동기화 중' : `${collection.bookmarkCount}개 게시물`}
+                    {collectionCountSyncPending ? '동기화 중' : `${collection.bookmarkCount}개 게시글`}
                   </small>
                 </span>
               </button>
@@ -334,12 +334,12 @@ export default function BookmarksPage() {
           </div>
           <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">
             {selectedCollection || selectedCollectionId === 'unclassified' || query.trim() || mediaOnly
-              ? '표시할 북마크가 없어요'
-              : '아직 저장한 게시물이 없어요'}
+              ? '표시할 북마크가 없습니다'
+              : '아직 저장한 게시글이 없습니다'}
           </h2>
           <p className="mt-3 text-sm font-bold text-zinc-400 dark:text-zinc-500">
             {selectedCollection || selectedCollectionId === 'unclassified'
-              ? '선택한 모음집 조건에 맞는 게시물이 없습니다.'
+              ? '선택한 모음집 조건에 맞는 게시글이 없습니다.'
               : query.trim() || mediaOnly
                 ? '검색어나 필터 조건을 바꿔보세요.'
                 : '피드에서 북마크 아이콘을 누르면 이곳에 저장됩니다.'}
@@ -375,8 +375,8 @@ export default function BookmarksPage() {
                   post={post}
                   likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                   onToggleLike={handleToggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                   onShare={handlePostUpdated}
                   onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}

@@ -7,13 +7,13 @@ import { fetchPaymentProducts, type PaymentProduct } from '@/lib/payment-api';
 import { KakaoPaymentDialog } from '../wallet/_components/KakaoPaymentDialog';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const CANCEL_IN_PROGRESS_MESSAGE = '이전 결제 취소를 처리하고 있습니다. 잠시 후 다시 시도해주세요.';
+const CANCEL_IN_PROGRESS_MESSAGE = '이전 결제 취소를 처리하고 있습니다. 잠시 후 다시 시도해 주세요.';
 
 // 혜택 문구는 정책(README 확정 표)과 같게 둔다. 서버 benefits는 요약 문자열이라 화면 설명은 여기서 붙인다.
 const benefits = [
-  { icon: Crown, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 왕관 배지가 표시돼요.' },
-  { icon: PencilLine, title: '게시물 1회 수정', description: '게시 후 1시간 이내, 게시물당 1번 본문을 수정할 수 있어요.' },
-  { icon: BadgePercent, title: '멘토 정산 수수료 10% → 5%', description: '멘토로 받은 멘토링의 GamerIN 정산 수수료가 낮아져요.' },
+  { icon: Crown, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 노란 체크 배지가 표시됩니다.' },
+  { icon: PencilLine, title: '게시글 1회 수정', description: '게시 후 1시간 이내, 게시글당 1번 본문을 수정할 수 있습니다.' },
+  { icon: BadgePercent, title: '멘토 정산 수수료 10% → 5%', description: '멘토로 진행한 멘토링의 GamerIN 정산 수수료가 낮아집니다.' },
 ];
 
 function formatDate(value: Date | string | null) {
@@ -39,7 +39,7 @@ export default function MembershipPage() {
       setProduct(products.find((item) => item.purpose === 'MEMBERSHIP_PASS') ?? null);
       setMembership(mine);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : '멤버십 정보를 불러오지 못했어요.');
+      setError(caught instanceof Error ? caught.message : '멤버십 정보를 불러오지 못했습니다.');
     } finally {
       setLoading(false);
     }
@@ -85,14 +85,14 @@ export default function MembershipPage() {
                 </p>
                 <p className="mt-4 text-2xl font-black text-black dark:text-zinc-100">만료일 {formatDate(membership?.expiresAt ?? null)}</p>
                 {nextExpiry ? (
-                  <p className="mt-2 text-sm font-bold text-zinc-500">지금 재구매하면 → {formatDate(nextExpiry)}</p>
+                  <p className="mt-2 text-sm font-bold text-zinc-500">지금 구매하면 만료일이 {formatDate(nextExpiry)}로 연장됩니다.</p>
                 ) : null}
-                <p className="mt-1 text-xs font-bold text-zinc-400">기간이 남아 있어도 구매하면 만료일에 {durationDays ?? 30}일이 더해져요.</p>
+                <p className="mt-1 text-xs font-bold text-zinc-400">기간이 남아 있어도 구매하면 만료일에 {durationDays ?? 30}일이 더해집니다.</p>
               </>
             ) : (
               <>
                 {expired ? (
-                  <p className="text-sm font-bold text-zinc-500">{formatDate(membership?.expiresAt ?? null)}에 만료되었어요</p>
+                  <p className="text-sm font-bold text-zinc-500">{formatDate(membership?.expiresAt ?? null)}에 만료되었습니다</p>
                 ) : null}
                 <p className="mt-1 text-2xl font-black text-black dark:text-zinc-100">
                   {durationDays ?? 30}일 이용권 {priceLabel}
@@ -107,7 +107,7 @@ export default function MembershipPage() {
               className="btn-primary mt-6 w-full sm:w-auto"
             >
               {!product
-                ? '현재 구매할 수 없어요'
+                ? '현재 구매할 수 없습니다'
                 : active
                   ? `${durationDays ?? 30}일 연장하기 ${priceLabel}`
                   : `카카오페이로 ${priceLabel} 결제`}

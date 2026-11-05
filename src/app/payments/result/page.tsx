@@ -117,7 +117,7 @@ function PaymentResult() {
       } catch (caught) {
         const status = (caught as { status?: number }).status;
         if (status === 403 || status === 404) setMissing(true);
-        else setError(caught instanceof Error ? caught.message : '결제 결과를 불러오지 못했어요.');
+        else setError(caught instanceof Error ? caught.message : '결제 결과를 불러오지 못했습니다.');
       }
     };
     void load();
@@ -181,29 +181,29 @@ function PaymentResult() {
   const returnTo = orderId ? readPaymentReturnTo(orderId) : null;
   const historyAction: Action = { href: '/wallet?tab=payments', label: '결제 내역 보기' };
   let tone: Tone = 'pending';
-  let title = '결제를 확인하고 있어요';
+  let title = '결제를 확인하고 있습니다';
   let description: string | null = null;
   let actions: Action[] = [];
 
   switch (view.kind) {
     case 'relay':
-      title = '결제 결과를 전달하고 있어요';
+      title = '결제 결과를 처리하고 있습니다';
       break;
     case 'missing':
       tone = 'fail';
-      title = '결제 정보를 찾을 수 없어요';
+      title = '결제 정보를 찾을 수 없습니다';
       actions = [{ href: '/home', label: '홈으로' }];
       break;
     case 'login':
       tone = 'lock';
-      title = '로그인 후 결제 내역에서 결과를 확인해주세요';
-      description = '승인되지 않은 결제는 15분 후 자동으로 정리돼요.';
+      title = '로그인 후 결제 내역에서 결과를 확인해 주세요';
+      description = '승인되지 않은 결제는 15분 후 자동으로 정리됩니다.';
       actions = [{ href: '/login', label: '로그인' }];
       break;
     case 'checking':
       if (error) {
         tone = 'fail';
-        title = '결제 결과를 확인하지 못했어요';
+        title = '결제 결과를 확인하지 못했습니다';
         description = error;
         actions = [historyAction];
       }
@@ -218,26 +218,26 @@ function PaymentResult() {
       if (current.status === 'APPROVED') {
         tone = 'success';
         if (isMembership) {
-          title = membershipUntil ? `멤버십이 ${membershipUntil}까지 이용 가능해요` : '멤버십 결제가 완료되었어요';
+          title = membershipUntil ? `멤버십이 ${membershipUntil}까지 이용 가능합니다` : '멤버십 결제가 완료되었습니다';
           actions = [{ href: '/membership', label: '멤버십 보기' }];
         } else {
           // 1원 = 1 M 정책이라 결제 금액이 곧 적립액이다.
-          title = `${(current.amount ?? 0).toLocaleString('ko-KR')} M이 충전되었어요`;
+          title = `${(current.amount ?? 0).toLocaleString('ko-KR')} M이 충전되었습니다`;
           actions = [{ href: '/wallet', label: '지갑으로' }];
           if (returnTo?.startsWith('/mentoring')) actions.push({ href: returnTo, label: '멘토링으로 돌아가기' });
         }
       } else if (isPaymentPending(current.status)) {
-        title = pollExpired ? '결제 내역에서 결과를 확인할 수 있어요' : '결제 결과를 확인하고 있어요';
-        description = pollExpired ? null : '잠시만 기다려주세요. 결과가 확정되면 자동으로 바뀌어요.';
+        title = pollExpired ? '결제 내역에서 결과를 확인할 수 있습니다' : '결제 결과를 확인하고 있습니다';
+        description = pollExpired ? null : '잠시만 기다려 주세요. 결과가 확정되면 자동으로 바뀝니다.';
         actions = [historyAction];
       } else if (current.status === 'CANCELED') {
         tone = 'fail';
-        title = '결제가 취소되었어요';
+        title = '결제가 취소되었습니다';
         actions = [historyAction];
       } else if (['FAILED', 'EXPIRED', 'READY', 'CREATED'].includes(current.status)) {
         // cancel·fail 복귀는 서버 주문이 READY로 남는다(09 문서 13-9절).
         tone = 'fail';
-        title = '결제가 완료되지 않았어요';
+        title = '결제가 완료되지 않았습니다';
         actions = [retry];
       }
       break;

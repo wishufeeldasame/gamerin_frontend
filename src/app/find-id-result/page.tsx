@@ -86,7 +86,7 @@ function FindIdResultPageContent() {
           </Link>
 
           <div className="pt-6 border-t border-zinc-100 text-center text-base">
-            <span className="text-zinc-500 font-medium">비밀번호도 모르시겠나요?</span>
+            <span className="text-zinc-500 font-medium">비밀번호도 잊으셨나요?</span>
             <Link href="/auth/forgot-password" className="ml-2 font-black text-black hover:underline underline-offset-4">
               비밀번호 찾기
             </Link>

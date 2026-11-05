@@ -30,7 +30,7 @@ const ACCEPTED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png']);
 // 서버가 게시물·DM 이미지를 긴 변 2048px로 저장하므로 그 이상은 보내지 않는다.
 const UPLOAD_IMAGE_MAX_DIMENSION = 2048;
 const UPLOAD_IMAGE_QUALITY = 0.9;
-const HEIC_DECODE_ERROR = '이 브라우저에서는 HEIC 사진을 변환할 수 없습니다. JPEG로 변환한 뒤 다시 올려주세요.';
+const HEIC_DECODE_ERROR = '이 브라우저에서는 HEIC 사진을 변환할 수 없습니다. JPEG로 변환한 뒤 다시 올려 주세요.';
 
 export function isHeicFile(file: File) {
   return /^image\/hei[cf]/i.test(file.type) || /\.hei[cf]$/i.test(file.name);
@@ -95,7 +95,7 @@ export async function compressProfileImage(file: File, target: ProfileImageUploa
     maxDimension = Math.floor(maxDimension / 2);
   }
 
-  throw new Error('이미지를 충분히 압축할 수 없습니다. 더 작은 이미지를 선택해주세요.');
+  throw new Error('이미지를 충분히 압축할 수 없습니다. 더 작은 이미지를 선택해 주세요.');
 }
 
 function loadImage(file: File) {

@@ -6,7 +6,7 @@ const date = '2026-10-09T06:00:00Z';
 const cursor = { items: [], nextCursor: null, hasNext: false };
 const pageOf = (content: unknown[]) => ({ content, number: 0, size: 10, totalPages: content.length ? 1 : 0, totalElements: content.length, first: true, last: true, empty: !content.length });
 export const auditPost = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null, authorVerifiedBadge: false,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null, authorVerifiedBadge: false,
   content: '화면 대비 점검 @viewer #게임', game: null, media: [], likes: 2, comments: 1, shares: 0,
   repostCount: 0, isReposted: false, likedByMe: false, bookmarkedByMe: true, mine: false, createdAt: date,
 };
@@ -42,13 +42,13 @@ export async function installAuditFixture(page: Page, theme: 'light' | 'dark', o
       if (mode === 'loading') { await new Promise<void>(resolve => parked.add(resolve)); }
       if (path.endsWith('/auth/email-verifications')) { await route.fulfill({ json: { success: true, data: { expiresInSeconds: 300, resendCooldownSeconds: 60 } } }).catch(() => {}); return; }
       if (path.endsWith('/auth/email-verifications/confirm')) { await route.fulfill({ json: { success: true, data: { verificationToken: 'fe8-verification-token', expiresInSeconds: 1800 } } }).catch(() => {}); return; }
-      await route.fulfill({ status: 400, json: { success: false, message: '요청을 처리하지 못했습니다. 다시 시도해주세요.' } }).catch(() => {}); return;
+      await route.fulfill({ status: 400, json: { success: false, message: '요청을 처리하지 못했습니다. 다시 시도해 주세요.' } }).catch(() => {}); return;
     }
     // Keep SSE pending while measuring the initial failure: its onopen clears pageError.
     if (mode === 'error' && path.endsWith('/stream')) await new Promise<void>(resolve => parked.add(resolve));
     if (!publicAuth && !path.includes('/stream') && mode === 'loading') await new Promise<void>(resolve => parked.add(resolve));
     if (!publicAuth && !path.includes('/stream') && mode === 'error') {
-      await route.fulfill({ status: 500, json: { success: false, message: '조회하지 못했습니다. 다시 시도해주세요.' } }); return;
+      await route.fulfill({ status: 500, json: { success: false, message: '조회하지 못했습니다. 다시 시도해 주세요.' } }); return;
     }
     const empty = mode === 'empty';
     const posts = empty ? [] : [auditPost];
@@ -56,7 +56,7 @@ export async function installAuditFixture(page: Page, theme: 'light' | 'dark', o
     if (path.endsWith('/auth/refresh')) data = { userId: auditUser.userId, accessToken: 'fe8-audit-test-token' };
     else if (path.endsWith('/auth/me')) data = auditUser;
     else if (path === '/api/v1/feed' || path.endsWith('/bookmarks') || /\/hashtags\/[^/]+\/posts$/.test(path)) data = { ...cursor, items: posts };
-    else if (path === '/api/v1/posts/post-1') data = auditPost;
+    else if (['/api/v1/posts/post-1', '/api/v1/posts/by-number/1'].includes(path)) data = auditPost;
     else if (path.endsWith('/post-1/comments')) data = empty ? [] : [{ commentId: 'comment-1', author: '댓글 작성자', authorHandle: 'commenter', content: '댓글 내용', createdAt: date, mine: false }];
     else if (path === '/api/v1/users/me' || path === '/api/v1/users/viewer') data = shownProfile;
     else if (path === '/api/v1/users/recipient') data = { ...profile, id: 'recipient', handle: 'recipient', nickname: '대화상대' };
@@ -66,7 +66,7 @@ export async function installAuditFixture(page: Page, theme: 'light' | 'dark', o
     else if (path.endsWith('/bookmark-collections')) data = empty ? [] : [{ collectionId: 'collection-1', name: '게임 모음', bookmarkCount: 1 }];
     else if (path.includes('/bookmark-collections/')) data = [];
     else if (path.endsWith('/notifications/unread-count')) data = { unreadCount: empty ? 0 : 1 };
-    else if (path.endsWith('/notifications')) data = { ...cursor, items: empty ? [] : [{ notificationId: 'notification-1', type: 'like', actor: { ...auditUser, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', read: false, createdAt: date }] };
+    else if (path.endsWith('/notifications')) data = { ...cursor, items: empty ? [] : [{ notificationId: 'notification-1', type: 'like', actor: { ...auditUser, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', postNumber: 1, read: false, createdAt: date }] };
     else if (path.endsWith('/messages/conversations')) data = empty ? [] : [{ id: 'conversation-1', recipient, messages: shownChat, unreadCount: 0, updatedAt: date }];
     else if (path.endsWith('/conversation-1/messages')) data = { ...cursor, items: empty ? [] : shownChat };
     else if (path.endsWith('/recipients')) data = empty ? [] : [recipient];

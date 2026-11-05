@@ -106,7 +106,7 @@ export function ReportContentModal({
       setSubmitted(true);
     } catch (error) {
       setConfirmOpen(false);
-      if (error instanceof ReportApiError && error.status === 409) {
+      if (error instanceof ReportApiError && error.status === 409 && targetType !== 'MENTORING') {
         setSubmitError('이미 신고한 대상입니다.');
       } else {
         setSubmitError(error instanceof Error ? error.message : '신고 접수에 실패했습니다.');
@@ -179,7 +179,7 @@ export function ReportContentModal({
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-black text-black">{author}</p>
-                  <p className="truncate text-xs font-bold text-zinc-400">@{authorHandle}</p>
+                  {authorHandle ? <p className="truncate text-xs font-bold text-zinc-400">@{authorHandle}</p> : null}
                 </div>
               </div>
               <p className="line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
@@ -189,7 +189,7 @@ export function ReportContentModal({
           </section>
 
           <section>
-            <p className="mb-3 text-sm font-black text-black">신고 사유를 선택해주세요</p>
+            <p className="mb-3 text-sm font-black text-black">신고 사유를 선택해 주세요</p>
             <div className="space-y-2">
               {loadingReasons ? (
                 <p className="rounded-xl bg-zinc-50 px-4 py-4 text-center text-sm font-bold text-zinc-500">
@@ -247,7 +247,7 @@ export function ReportContentModal({
                   value={customReason}
                   onChange={(event) => setCustomReason(event.target.value)}
                   maxLength={REPORT_DETAILS_MAX_LENGTH}
-                  placeholder={selectedReason === 'OTHER' ? '기타 신고 사유를 자세히 입력해주세요.' : '추가로 설명할 내용이 있다면 입력해주세요.'}
+                  placeholder={selectedReason === 'OTHER' ? '기타 신고 사유를 자세히 입력해 주세요.' : '추가로 설명할 내용이 있다면 입력해 주세요.'}
                   aria-label="신고 상세 내용"
                   aria-required={selectedReason === 'OTHER'}
                   className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d] dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
