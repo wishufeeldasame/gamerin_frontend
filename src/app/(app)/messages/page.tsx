@@ -1802,7 +1802,7 @@ export default function MessagesPage() {
                 </div>
               ) : null}
 
-              {loadingMessages && activeMessages.length === 0 && activePendingMessages.length === 0 ? (
+              {loadingMessages && activeMessages.length === 0 ? (
                 <div className="flex h-full items-center justify-center">
                   <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
                     <Loader2 size={18} className="animate-spin" />
