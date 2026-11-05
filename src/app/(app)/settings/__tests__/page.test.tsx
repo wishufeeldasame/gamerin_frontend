@@ -76,11 +76,11 @@ describe('SettingsPage', () => {
     renderSettings();
 
     fireEvent.click(screen.getByRole('button', { name: '테마' }));
-    fireEvent.click(screen.getByRole('button', { name: '다크 모드' }));
+    fireEvent.click(screen.getByRole('button', { name: '라이트 모드' }));
 
-    expect(document.documentElement).toHaveClass('dark');
-    expect(window.localStorage.getItem('gamerin_user_settings')).toBe('{"theme":"dark"}');
-    expect(screen.getByRole('button', { name: '다크 모드' })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.documentElement).not.toHaveClass('dark');
+    expect(window.localStorage.getItem('gamerin_user_settings')).toBe('{"theme":"light"}');
+    expect(screen.getByRole('button', { name: '라이트 모드' })).toHaveAttribute('aria-pressed', 'true');
     expect(screen.queryByText('변경사항이 저장되었습니다.')).not.toBeInTheDocument();
   });
 

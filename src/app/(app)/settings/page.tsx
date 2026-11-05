@@ -263,7 +263,7 @@ export default function SettingsPage() {
           </div>
 
           <div className="lg:col-span-3">
-            <div className="lg:rounded-xl lg:border lg:border-zinc-200 lg:bg-white lg:p-6">
+            <div className="lg:rounded-xl lg:border lg:border-line lg:bg-surface lg:p-6">
               {activeSection === 'account' && renderAccountSection()}
               {activeSection === 'appearance' && renderAppearanceSection()}
             </div>

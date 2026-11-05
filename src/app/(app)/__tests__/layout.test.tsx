@@ -11,11 +11,16 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => navigation,
+  usePathname: () => '/home',
 }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => auth,
 }));
-vi.mock('@/app/home/components/Header', () => ({ Header: () => <header>header</header> }));
+vi.mock('@/app/home/components/MobileTopBar', () => ({ MobileTopBar: () => <header>top-bar</header> }));
+vi.mock('@/hooks/useUnreadNotificationCount', async (importOriginal) => ({
+  ...await importOriginal<typeof import('@/hooks/useUnreadNotificationCount')>(),
+  useUnreadNotificationCount: () => [0, vi.fn()],
+}));
 vi.mock('@/app/home/components/Sidebar', () => ({
   Sidebar: () => <nav>sidebar</nav>,
   MobileTabBar: () => <nav>tab-bar</nav>,

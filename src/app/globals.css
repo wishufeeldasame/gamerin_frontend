@@ -10,26 +10,104 @@
   --surface-elevated: #fafafa;
   --line: #e4e4e7;
   --avatar: #000000;
+  /* 디자인 v2 토큰(docs/design-system-v2/README.md 2-2). 글자색 토큰은 fg- 접두사를 써서 text-brand(=배경색)와 text-fg-brand를 혼동하지 않게 한다. */
+  --canvas: #FAFAFA;
+  --subtle: #F4F4F5;
+  --inverse: #151518;
+  --brand: #F5B93D;
+  --brand-hover: #DB9A1F;
+  --brand-subtle: #FFF9EB;
+  --danger-subtle: #FEF2F2;
+  --success-subtle: #F0FDF4;
+  --nav-active: #E4E4E7;
+  --fg-primary: #151518;
+  --fg-secondary: #52525B;
+  --fg-tertiary: #71717A;
+  --fg-on-brand: #1A1406;
+  --fg-brand: #7D5310;
+  --fg-danger: #DC2626;
+  --fg-success: #16A34A;
+  --icon-primary: #151518;
+  --icon-secondary: #71717A;
+  --icon-brand: #DB9A1F;
+  --line-strong: #D4D4D8;
+  --line-focus: #F5B93D;
+  --line-danger: #DC2626;
+  --line-card: #E4E4E7;
   /* (app) 레이아웃의 모바일 하단 탭바(MobileTabBar) 높이. lg 이상에서는 탭바가 없다. */
   --tab-bar-height: calc(4rem + env(safe-area-inset-bottom));
+  /* (app) 레이아웃의 모바일 상단 바(MobileTopBar) 높이. lg 이상(L2)에는 상단 헤더가 없다. sticky 요소의 top 기준으로 쓴다. */
+  --app-header-height: calc(3.5rem + env(safe-area-inset-top));
 }
 
 @media (min-width: 64rem) {
   :root {
     --tab-bar-height: 0px;
+    --app-header-height: 0px;
   }
 }
 
 @theme inline {
+  /* v2 radius/md. 기본 rounded-md/lg는 rounded-xl 등 ~200곳 사용 때문에 덮어쓰지 않는다. */
+  --radius-control: 10px;
+  /* v2 radius/lg. 카드·패널 묶음용. */
+  --radius-card: 14px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-elevated: var(--surface-elevated);
   --color-line: var(--line);
   --color-avatar: var(--avatar);
+  --color-canvas: var(--canvas);
+  --color-subtle: var(--subtle);
+  --color-inverse: var(--inverse);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-danger-subtle: var(--danger-subtle);
+  --color-success-subtle: var(--success-subtle);
+  --color-nav-active: var(--nav-active);
+  --color-fg-primary: var(--fg-primary);
+  --color-fg-secondary: var(--fg-secondary);
+  --color-fg-tertiary: var(--fg-tertiary);
+  --color-fg-on-brand: var(--fg-on-brand);
+  --color-fg-brand: var(--fg-brand);
+  --color-fg-danger: var(--fg-danger);
+  --color-fg-success: var(--fg-success);
+  --color-icon-primary: var(--icon-primary);
+  --color-icon-secondary: var(--icon-secondary);
+  --color-icon-brand: var(--icon-brand);
+  --color-line-strong: var(--line-strong);
+  --color-line-focus: var(--line-focus);
+  --color-line-danger: var(--line-danger);
+  --color-line-card: var(--line-card);
   /* 배지·카운터 전용 최소 글자 크기. 그 외 글자는 text-xs 이상 기본 단계만 쓴다. */
   --text-2xs: 0.625rem;
   --text-2xs--line-height: 1rem;
+  --text-display: 1.75rem;
+  --text-display--line-height: 2.25rem;
+  --text-display--letter-spacing: -0.02em;
+  --text-display--font-weight: 700;
+  --text-title: 1.25rem;
+  --text-title--line-height: 1.75rem;
+  --text-title--letter-spacing: -0.015em;
+  --text-title--font-weight: 700;
+  --text-heading: 1rem;
+  --text-heading--line-height: 1.5rem;
+  --text-heading--letter-spacing: -0.01em;
+  --text-heading--font-weight: 700;
+  --text-body: 0.9375rem;
+  --text-body--line-height: 1.5rem;
+  --text-body--letter-spacing: -0.005em;
+  --text-body--font-weight: 400;
+  --text-label: 0.8125rem;
+  --text-label--line-height: 1.25rem;
+  --text-label--letter-spacing: 0;
+  --text-label--font-weight: 500;
+  --text-caption: 0.75rem;
+  --text-caption--line-height: 1rem;
+  --text-caption--letter-spacing: 0;
+  --text-caption--font-weight: 400;
 }
 
 /* 화면 공통 단계. 페이지마다 제목·버튼 크기를 따로 정하지 않고 아래 유틸리티를 쓴다. */
@@ -39,37 +117,38 @@
 }
 
 @utility page-title {
-  @apply text-2xl font-black tracking-tight md:text-3xl;
-  color: var(--foreground);
+  /* Figma 모바일 화면 제목은 Title(20), 데스크톱은 Display(28). 모바일 셸(탭바)과 같은 lg 기준으로 나눈다. */
+  @apply text-title lg:text-display;
+  color: var(--fg-primary);
 }
 
 @utility page-subtitle {
-  @apply mt-1 text-sm font-medium text-zinc-500;
+  @apply mt-1 text-body text-fg-secondary;
 }
 
 @utility section-title {
-  @apply text-lg font-black;
-  color: var(--foreground);
+  @apply text-title;
+  color: var(--fg-primary);
 }
 
 @utility btn-primary {
-  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-bold text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:focus-visible:ring-[#f5b93d] dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500;
+  @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-control bg-brand px-4 text-label text-fg-on-brand transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-fg-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility btn-secondary {
-  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-bold text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+  @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-control bg-subtle px-4 text-label text-fg-primary transition hover:bg-line disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility input-base {
-  @apply h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm text-black outline-none transition-colors placeholder:text-zinc-400 focus:border-black dark:focus:border-[#f5b93d];
+  @apply h-11 w-full rounded-control border border-line bg-subtle px-3.5 text-body text-fg-primary outline-none transition-colors placeholder:text-fg-tertiary focus:border-line-focus;
 }
 
 @utility btn-secondary-square {
-  @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-subtle text-label text-fg-primary transition hover:bg-line disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility btn-icon {
-  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-surface-elevated dark:hover:text-zinc-100;
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-icon-secondary transition hover:bg-subtle hover:text-icon-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 /* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대한다. 모바일에서만 16px로 올린다. */
@@ -82,6 +161,26 @@
 }
 
 .dark {
+  --canvas: #0C0C0E;
+  --subtle: #1F1F24;
+  --inverse: #FFFFFF;
+  --brand-hover: #FBCD5A;
+  --brand-subtle: #2A2112;
+  --danger-subtle: #2A1212;
+  --success-subtle: #0F2416;
+  --nav-active: #1F1F24;
+  --fg-primary: #F4F4F5;
+  --fg-secondary: #A1A1AA;
+  --fg-tertiary: #8B8B94;
+  --fg-brand: #F8C24A;
+  --fg-danger: #F87171;
+  --fg-success: #4ADE80;
+  --icon-primary: #F4F4F5;
+  --icon-secondary: #A1A1AA;
+  --icon-brand: #F5B93D;
+  --line-strong: #3F3F46;
+  --line-danger: #F87171;
+  --line-card: transparent;
   /* 바탕 → 표면 → 한 단계 밝은 표면 순으로 밝아지는 뉴트럴 3단계 (#138) */
   --background: #0c0c0e;
   --foreground: #ededef;
@@ -137,14 +236,21 @@ body {
 .dark input,
 .dark select,
 .dark textarea {
-  background-color: var(--surface-elevated);
-  border-color: #3f3f46;
-  color: var(--foreground);
+  background-color: var(--subtle);
+  border-color: var(--line);
+  color: var(--fg-primary);
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #71717a;
+  color: var(--fg-tertiary);
+}
+
+/* 레이어 밖 규칙이라 유틸리티 focus 색이 이길 수 없어 여기서 대신 지정한다. */
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: var(--line-focus);
 }
 
 /* 모바일 대화창을 열면 하단 탭바를 숨긴다(messages/page.tsx가 body에 data-chat-open을 단다). */

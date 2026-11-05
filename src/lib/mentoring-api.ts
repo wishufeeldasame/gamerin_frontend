@@ -1,5 +1,6 @@
 import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
+import { invalidateMileageAfter } from '@/lib/mileage-sync';
 
 const MENTORING_BASE = '/api/v1/mentoring';
 
@@ -245,11 +246,12 @@ export async function deleteMentoringProgram(programId: string) {
   });
 }
 
+// 신청하면 마일리지가 차감되고(MentoringService.applyToProgram) 취소하면 환불된다.
 export function applyToMentoringProgram(payload: { programId: string; message: string }) {
-  return mentoringRequest<MentoringApplicationResponse>(`${MENTORING_BASE}/applications`, {
+  return invalidateMileageAfter(mentoringRequest<MentoringApplicationResponse>(`${MENTORING_BASE}/applications`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export function fetchMenteeApplications(page = 0, size = 10) {
@@ -279,10 +281,10 @@ export function rejectMentoringApplication(applicationId: string) {
 }
 
 export function cancelMentoringApplication(applicationId: string) {
-  return mentoringRequest<MentoringApplicationResponse>(
+  return invalidateMileageAfter(mentoringRequest<MentoringApplicationResponse>(
     `${MENTORING_BASE}/applications/${applicationId}/cancel`,
     { method: 'PATCH' }
-  );
+  ));
 }
 
 export function startMentoringApplication(applicationId: string) {

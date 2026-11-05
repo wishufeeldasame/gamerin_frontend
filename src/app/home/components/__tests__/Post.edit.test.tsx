@@ -9,6 +9,8 @@ const api = vi.hoisted(() => ({
 }));
 const auth = vi.hoisted(() => ({ user: { handle: 'author', membershipBadge: true } as { handle: string; membershipBadge: boolean } }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => auth }));
+const navigation = vi.hoisted(() => ({ push: vi.fn() }));
+vi.mock('next/navigation', () => ({ useRouter: () => navigation }));
 vi.mock('@/lib/feed-api', async (original) => ({
   ...(await original<typeof import('@/lib/feed-api')>()), ...api,
 }));
@@ -113,6 +115,19 @@ describe('게시글 카드 수정', () => {
     expect(within(confirm).getByRole('button', { name: '멤버십 보기' })).toBeInTheDocument();
     fireEvent.click(within(confirm).getByRole('button', { name: '취소' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(navigation.push).not.toHaveBeenCalled();
+  });
+
+  it('멤버십 보기를 누르면 페이지를 새로 읽지 않고 앱 안에서 멤버십 화면으로 간다', async () => {
+    auth.user = { handle: 'author', membershipBadge: false };
+    render(<Post post={basePost} />);
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '수정' }));
+
+    const confirm = await screen.findByRole('dialog', { name: '작업 확인' });
+    fireEvent.click(within(confirm).getByRole('button', { name: '멤버십 보기' }));
+    await waitFor(() => expect(navigation.push).toHaveBeenCalledWith('/membership'));
+    expect(screen.queryByRole('dialog', { name: '게시글 수정' })).not.toBeInTheDocument();
   });
 });
 

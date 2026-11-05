@@ -5,6 +5,7 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
@@ -150,6 +151,7 @@ export function Post({
     return () => { shareLifetime.active = false; };
   }, [shareLifetime]);
   const { user } = useAuth();
+  const router = useRouter();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
   const [shareOpen, setShareOpen] = useState(false);
@@ -367,7 +369,7 @@ export function Post({
                       void requestPostEdit({
                         hasMembership: Boolean(user?.membershipBadge),
                         confirm,
-                        goToMembership: () => window.location.assign('/membership'),
+                        goToMembership: () => router.push('/membership'),
                         openEditor: () => setEditOpen(true),
                         returnFocusTo: menuTriggerRef.current,
                       });

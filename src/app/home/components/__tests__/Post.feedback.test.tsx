@@ -6,6 +6,7 @@ import type { CommentRecord, PostRecord } from '@/lib/feed-api';
 const api = vi.hoisted(() => ({
   deletePost: vi.fn(), deleteComment: vi.fn(), fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn(),
 }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'author' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({
   ...(await original<typeof import('@/lib/feed-api')>()), ...api,

@@ -7,7 +7,7 @@ export type UserSettings = {
 const USER_SETTINGS_KEY = 'gamerin_user_settings';
 
 export const defaultUserSettings: UserSettings = {
-  theme: 'light',
+  theme: 'dark',
 };
 
 export function loadUserSettings(): UserSettings {
@@ -39,6 +39,8 @@ export function applyThemeMode(theme: ThemeMode) {
   }
 
   document.documentElement.classList.toggle('dark', theme === 'dark');
+  // 설치형 웹앱의 제목 표시줄·상태 표시줄 색을 바탕(canvas)에 맞춘다.
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', theme === 'dark' ? '#0C0C0E' : '#FAFAFA');
 }
 
 export function saveUserSettings(settings: UserSettings) {

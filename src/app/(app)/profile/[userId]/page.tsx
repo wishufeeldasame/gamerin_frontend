@@ -1046,7 +1046,7 @@ export default function ProfilePage() {
       <div className="px-4 md:px-6">
         <div className="relative mb-4 flex items-end justify-between -mt-10 md:mb-8 md:-mt-16">
           <div className="relative">
-            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
+            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-background bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
               {displayedAvatar ? (
                 <Image
                   src={displayedAvatar}
@@ -1216,7 +1216,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="sticky top-16 z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
+      <div className="sticky top-[var(--app-header-height)] z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
         {tabs.map((tab) => (
           <button
             key={tab.name}
