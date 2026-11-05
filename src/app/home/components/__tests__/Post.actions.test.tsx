@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   repostPost: vi.fn(), unrepostPost: vi.fn(), likePost: vi.fn(), unlikePost: vi.fn(),
   sharePost: vi.fn(),
 }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/message-api', () => ({ searchMessageRecipients: vi.fn().mockResolvedValue([]), sharePostMessage: vi.fn() }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'viewer' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({

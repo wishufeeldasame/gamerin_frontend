@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   unbookmarkPost: vi.fn(),
 }));
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
 }));

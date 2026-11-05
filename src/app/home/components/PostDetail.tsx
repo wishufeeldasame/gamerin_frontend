@@ -5,6 +5,7 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePopup } from '@/app/context/PopupContext';
@@ -63,6 +64,7 @@ export function PostDetail({
   const deletePostLockRef = useRef(false);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
+  const router = useRouter();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
   const handledScrollKeyRef = useRef<string | null>(null);
@@ -540,7 +542,7 @@ export function PostDetail({
                         void requestPostEdit({
                           hasMembership: Boolean(user?.membershipBadge),
                           confirm,
-                          goToMembership: () => window.location.assign('/membership'),
+                          goToMembership: () => router.push('/membership'),
                           openEditor: () => setEditOpen(true),
                           returnFocusTo: menuTriggerRef.current,
                         });

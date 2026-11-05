@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   likePost: vi.fn(), repostPost: vi.fn(), unbookmarkPost: vi.fn(),
   unlikePost: vi.fn(), unrepostPost: vi.fn(),
 }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
 }));
