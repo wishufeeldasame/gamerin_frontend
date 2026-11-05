@@ -120,10 +120,14 @@ describe('MessagesPage 낙관적 전송', () => {
   });
 
   it('보내는 즉시 임시 메시지를 보여주고 연속 전송은 순서대로 하나씩 보낸다', async () => {
+    // 입력창이 먼저 열리고 대화 내역 응답은 늦게 도착하는 순서를 고정한다.
+    const history = deferred<{ items: ChatMessage[]; nextCursor: null; hasNext: boolean }>();
+    api.fetchConversationMessages.mockReturnValueOnce(history.promise);
     const first = deferred<ChatMessage>();
     const second = deferred<ChatMessage>();
     api.sendConversationMessage.mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const { input } = await renderPage();
+    expect(await screen.findByText('메시지를 불러오는 중...')).toBeInTheDocument();
 
     send(input, '첫째');
     expect(input).toHaveValue('');
@@ -134,6 +138,10 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(screen.getByText('둘째')).toBeInTheDocument();
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(1));
     expect(api.sendConversationMessage).toHaveBeenLastCalledWith(expect.objectContaining({ content: '첫째' }));
+
+    await act(async () => history.resolve({ items: [], nextCursor: null, hasNext: false }));
+    expect(screen.getByText('첫째')).toBeInTheDocument();
+    expect(screen.getByText('둘째')).toBeInTheDocument();
 
     await act(async () => first.resolve(serverMessage('m-1', '첫째', '2026-10-05T12:01:00.000Z')));
     await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));

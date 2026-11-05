@@ -6,6 +6,7 @@ import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
   fetchCollectionBookmarks,
+  fetchMyBookmarkCount,
   fetchMyBookmarks,
 } from '@/lib/feed-api';
 import { type BookmarkScope, type PostRecord, getPostHref } from '@/lib/feed-api';
@@ -50,6 +51,8 @@ export default function BookmarksPage() {
   const [query, setQuery] = useState('');
   const [mediaOnly, setMediaOnly] = useState(false);
   const [selectedCollectionId, setSelectedCollectionId] = useState<string>('all');
+  const [totalBookmarkCount, setTotalBookmarkCount] = useState<number | null>(null);
+  const [countRevision, setCountRevision] = useState(0);
   const [collectionCountSyncPending, setCollectionCountSyncPending] = useState(false);
   const collectionCountSyncBaseRef = useRef(collections);
   // 모음집 변경 응답이 늦게 와도 전환 후 목록을 건드리지 않도록 최신 선택값을 본다.
@@ -57,6 +60,18 @@ export default function BookmarksPage() {
   useEffect(() => {
     selectedCollectionIdRef.current = selectedCollectionId;
   }, [selectedCollectionId]);
+
+  // 전체 건수는 폴더, 검색, 페이지네이션으로 바뀌는 현재 목록과 분리한다.
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchMyBookmarkCount({ signal: controller.signal }).then(
+      (count) => {
+        if (!controller.signal.aborted) setTotalBookmarkCount(count);
+      },
+      () => {},
+    );
+    return () => controller.abort();
+  }, [countRevision]);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => {
     const requestOptions = {
@@ -157,7 +172,7 @@ export default function BookmarksPage() {
       return;
     }
 
-    removeBookmark(updatedPost.postId);
+    removeBookmarkAndRefreshCount(updatedPost.postId);
   };
 
   const handleRepostChanged = (updatedPost: PostRecord) => {
@@ -171,8 +186,9 @@ export default function BookmarksPage() {
     );
   };
 
-  const handlePostDeleted = (postId: string) => {
+  const removeBookmarkAndRefreshCount = (postId: string) => {
     removeBookmark(postId);
+    setCountRevision((current) => current + 1);
   };
 
   const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
@@ -247,9 +263,11 @@ export default function BookmarksPage() {
             <Bookmark size={20} className="fill-current" />
             <span>
               <strong className="block text-sm font-black">전체 북마크</strong>
-              <small className="mt-1 block text-xs font-bold opacity-60">
-                {bookmarks.length}개 게시글
-              </small>
+              {totalBookmarkCount !== null ? (
+                <small className="mt-1 block text-xs font-bold opacity-60">
+                  {totalBookmarkCount}개 게시물
+                </small>
+              ) : null}
             </span>
           </button>
 
@@ -380,7 +398,7 @@ export default function BookmarksPage() {
                   onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                   onShare={handlePostUpdated}
                   onRepostChange={handleRepostChanged}
-                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                  onDelete={(deletedPost) => removeBookmarkAndRefreshCount(deletedPost.postId)}
                   onBookmarkChange={handleBookmarkChanged}
                   onCollectionChange={(changedPost, collectionId, containsPost) => {
                     // 현재 보고 있는 모음집·미분류 조건에서 벗어난 게시물만 목록에서 뺀다.
@@ -393,6 +411,7 @@ export default function BookmarksPage() {
                     }
                   }}
                   onBookmarkSuccess={(changedPost, bookmarked) => {
+                    setCountRevision((current) => current + 1);
                     if (!bookmarked) {
                       collectionCountSyncBaseRef.current = collections;
                       setCollectionCountSyncPending(true);

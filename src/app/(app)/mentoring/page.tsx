@@ -1166,7 +1166,6 @@ export default function MentoringPage() {
             <div>
               <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램 둘러보기</p>
                   <h2 className="mt-1 text-2xl font-black text-black">멘토링 프로그램 탐색</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
                     게임별 프로그램을 찾고 상세 화면에서 바로 신청할 수 있습니다.

@@ -10,6 +10,11 @@
 백엔드에 유효한 `riot.api.key` 설정이 필요하다. Docker prod 구성에서는 `RIOT_API_KEY`를 전달하며, 키는 프론트에 설정하지 않는다.
 모의 API를 사용하는 브라우저 검증은 `npx playwright test lol-integration`으로 실행한다.
 
+## 북마크 API
+
+- `GET /api/v1/users/me/bookmarks/count`: 로그인한 사용자의 전체 북마크 개수를 조회한다. 프론트가 기대하는 성공 응답은 `{"success":true,"data":25}` 형태이며, `data`는 0 이상의 정수다.
+- `/bookmarks`의 전체 개수는 모음집, 검색어, 미디어 필터, 페이지네이션과 별도로 조회한다. 배포 시 해당 API를 지원하는 백엔드가 필요하다.
+
 ## 최근 작업 - 알림 프론트 연동
 
 * **26/08/18** 김서영
