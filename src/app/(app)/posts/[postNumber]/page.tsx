@@ -30,7 +30,7 @@ export default function PostPermalinkPage() {
         </div>
       </main>
 
-      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 py-6 xl:block">
+      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 py-6 xl:block">
         <RightSidebar />
       </aside>
     </div>

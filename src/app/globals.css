@@ -36,17 +36,22 @@
   --line-card: #E4E4E7;
   /* (app) 레이아웃의 모바일 하단 탭바(MobileTabBar) 높이. lg 이상에서는 탭바가 없다. */
   --tab-bar-height: calc(4rem + env(safe-area-inset-bottom));
+  /* (app) 레이아웃의 모바일 상단 바(MobileTopBar) 높이. lg 이상(L2)에는 상단 헤더가 없다. sticky 요소의 top 기준으로 쓴다. */
+  --app-header-height: calc(3.5rem + env(safe-area-inset-top));
 }
 
 @media (min-width: 64rem) {
   :root {
     --tab-bar-height: 0px;
+    --app-header-height: 0px;
   }
 }
 
 @theme inline {
   /* v2 radius/md. 기본 rounded-md/lg는 rounded-xl 등 ~200곳 사용 때문에 덮어쓰지 않는다. */
   --radius-control: 10px;
+  /* v2 radius/lg. 카드·패널 묶음용. */
+  --radius-card: 14px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);

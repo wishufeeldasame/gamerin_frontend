@@ -157,7 +157,7 @@ function HomePageContent() {
   return (
     <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
       <main className="min-h-screen min-w-0 flex-1">
-        <div className="sticky top-16 z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
+        <div className="sticky top-[var(--app-header-height)] z-20 flex border-b border-zinc-100 bg-white/80 backdrop-blur-md dark:border-line dark:bg-surface">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },
@@ -270,7 +270,7 @@ function HomePageContent() {
         </div>
       </main>
 
-      <aside className="sticky top-16 hidden h-[calc(100vh-4rem)] w-80 shrink-0 py-6 xl:block">
+      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 py-6 xl:block">
         <RightSidebar />
       </aside>
     </div>
