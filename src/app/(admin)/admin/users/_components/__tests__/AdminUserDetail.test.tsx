@@ -104,7 +104,7 @@ describe('관리자 사용자 상세 실제 제재 흐름', () => {
     fireEvent.click(button);
     expect(api.createAdminUserPenalty).toHaveBeenCalledTimes(1);
     expect(api.createAdminUserPenalty).toHaveBeenCalledWith(user.id, { penaltyType: 'SUSPENSION_3D', reason: '실제 제재 근거', durationDays: 3 }, expect.any(AbortSignal));
-    expect(screen.getByRole('button', { name: '처리 중…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '처리 중...' })).toBeDisabled();
     await act(async () => pending.resolve(penalty));
     await screen.findByText('사용자 제재를 적용했습니다.');
     expect(api.fetchAdminUser).toHaveBeenCalledWith(user.id, expect.any(AbortSignal));

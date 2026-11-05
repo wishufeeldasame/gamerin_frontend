@@ -13,6 +13,6 @@ export function fetchMyMembership() {
     toError: ({ reason, status, message }) =>
       reason === 'unauthenticated' || status === 401
         ? new ApiError(AUTH_REQUIRED_MESSAGE, 401, 'unauthenticated')
-        : new ApiError(message?.trim() ? message : '멤버십 정보를 불러오지 못했어요.', status, reason),
+        : new ApiError(message?.trim() ? message : '멤버십 정보를 불러오지 못했습니다.', status, reason),
   });
 }

@@ -207,7 +207,7 @@ describe('HomePage like rollback', () => {
     vi.stubGlobal('IntersectionObserver', MockIntersectionObserver);
   });
 
-  it('첫 피드를 불러오는 중에 업로드가 끝나도 늦게 온 피드 응답이 새 게시물을 지우지 않는다', async () => {
+  it('첫 피드를 불러오는 중에 업로드가 끝나도 늦게 온 피드 응답이 새 게시글을 지우지 않는다', async () => {
     const feed = createDeferred<{ items: PostRecord[]; nextCursor: null; hasNext: boolean }>();
     api.fetchFeed.mockReturnValueOnce(feed.promise);
     const uploaded = { ...initialPost, postId: 'uploaded-video', content: '방금 올린 영상' };
@@ -350,7 +350,7 @@ describe('HomePage like rollback', () => {
     const nextPost = {
       ...initialPost,
       postId: 'post-2',
-      content: '무한 스크롤로 불러온 게시물',
+      content: '무한 스크롤로 불러온 게시글',
     };
     api.fetchFeed
       .mockResolvedValueOnce({
@@ -403,7 +403,7 @@ describe('HomePage like rollback', () => {
     const nextPost = {
       ...initialPost,
       postId: 'post-2',
-      content: '재시도로 불러온 게시물',
+      content: '재시도로 불러온 게시글',
     };
     api.fetchFeed
       .mockResolvedValueOnce({
@@ -411,7 +411,7 @@ describe('HomePage like rollback', () => {
         nextCursor: 'cursor-1',
         hasNext: true,
       })
-      .mockRejectedValueOnce(new Error('다음 게시물을 불러오지 못했습니다.'))
+      .mockRejectedValueOnce(new Error('다음 게시글을 불러오지 못했습니다.'))
       .mockResolvedValueOnce({
         items: [nextPost],
         nextCursor: null,
@@ -432,7 +432,7 @@ describe('HomePage like rollback', () => {
 
     const retryButton = await screen.findByRole('button', { name: '다시 시도' });
     expect(retryButton.closest('[role="alert"]')).toHaveTextContent(
-      '다음 게시물을 불러오지 못했습니다.',
+      '다음 게시글을 불러오지 못했습니다.',
     );
     expect(api.fetchFeed).toHaveBeenCalledTimes(2);
     expect(observeIntersection).toHaveBeenCalledTimes(1);

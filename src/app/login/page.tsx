@@ -34,7 +34,7 @@ import {
 const BIRTH_DATE_ENABLED = false;
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  email_not_verified: 'Google 계정의 이메일이 인증되지 않아 계속할 수 없습니다. Google에서 이메일을 인증한 뒤 다시 시도해주세요.',
+  email_not_verified: 'Google 계정의 이메일이 인증되지 않아 계속할 수 없습니다. Google에서 이메일을 인증한 뒤 다시 시도해 주세요.',
 };
 
 const formatRemaining = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
@@ -206,7 +206,7 @@ export default function LoginPage() {
     event.preventDefault();
     if (loginLoading || isLoggingOut) return;
     if (!loginHandle.trim() || !loginPassword.trim()) {
-      setLoginError('아이디와 비밀번호를 입력해주세요.');
+      setLoginError('아이디와 비밀번호를 입력해 주세요.');
       return;
     }
 
@@ -274,7 +274,7 @@ export default function LoginPage() {
           </div>
           <div className="space-y-2 text-center lg:text-left">
             <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
-            <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">지금 가입하세요.</h1>
+            <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">GamerIN에 가입하기</h1>
           </div>
 
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
@@ -306,7 +306,7 @@ export default function LoginPage() {
               className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white transition-all hover:border-zinc-800"
             >
               <span className="text-base font-bold text-zinc-900">
-                {showIdLogin ? '닫기' : 'ID로 로그인'}
+                {showIdLogin ? '닫기' : '아이디로 로그인'}
               </span>
               <ChevronDown
                 size={18}
@@ -425,7 +425,7 @@ export default function LoginPage() {
 
             {signupStep === 1 ? (
               <form onSubmit={handleNextStep} noValidate>
-                <h2 className="mb-8 text-3xl font-extrabold text-black">계정을 생성하세요.</h2>
+                <h2 className="mb-8 text-3xl font-extrabold text-black">계정 만들기</h2>
                 <div className="mb-5">
                   <div className="relative">
                     <input
@@ -434,7 +434,7 @@ export default function LoginPage() {
                       autoComplete="nickname"
                       value={signupName}
                       onChange={(event) => setSignupName(event.target.value)}
-                      placeholder="이름"
+                      placeholder="닉네임"
                       maxLength={NICKNAME_MAX_LENGTH}
                       className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                     />
@@ -508,8 +508,8 @@ export default function LoginPage() {
                       </div>
                       <p className="ml-2 mt-2 text-sm text-gray-500 dark:text-zinc-400">
                         {codeSecondsLeft > 0
-                          ? `${emailCode.email}(으)로 보낸 인증번호를 입력해주세요.`
-                          : '인증번호가 만료되었습니다. 인증번호를 다시 받아주세요.'}
+                          ? `${emailCode.email}(으)로 보낸 인증번호를 입력해 주세요.`
+                          : '인증번호가 만료되었습니다. 인증번호를 다시 받아 주세요.'}
                       </p>
                     </>
                   ) : null}
@@ -587,7 +587,7 @@ export default function LoginPage() {
                   아이디와 비밀번호를 설정하세요.
                 </h2>
                 <p className="mb-10 text-base text-gray-600 dark:text-zinc-400">
-                  로그인에 사용할 아이디와 비밀번호를 입력해주세요.
+                  로그인에 사용할 아이디와 비밀번호를 입력해 주세요.
                 </p>
                 <div className="mb-5">
                   <div className="relative">

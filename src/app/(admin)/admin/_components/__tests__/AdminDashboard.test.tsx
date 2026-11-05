@@ -23,7 +23,7 @@ describe('AdminDashboard', () => {
     render(<AdminDashboard />);
     const summary = await screen.findByRole('region', { name: '관리 현황 요약' });
     expect(within(summary).getByText('401')).toBeInTheDocument();
-    expect(within(summary).getByText('처리 완료 상태 신고')).toBeInTheDocument();
+    expect(within(summary).getByText('처리 완료 신고')).toBeInTheDocument();
     expect(within(summary).getByText('현재 처리 완료 상태인 신고 수')).toBeInTheDocument();
     expect(within(summary).queryByText('누적 처리 완료')).not.toBeInTheDocument();
     expect(within(summary).getByText('현재 제재가 적용 중인 사용자')).toBeInTheDocument();
@@ -39,13 +39,13 @@ describe('AdminDashboard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('통계 오류');
     expect(screen.queryByRole('region', { name: '관리 현황 요약' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    expect(await screen.findByText('처리 완료 상태 신고')).toBeInTheDocument();
+    expect(await screen.findByText('처리 완료 신고')).toBeInTheDocument();
   });
 
   it('retains the last successful statistics when a refresh fails', async () => {
     mocks.fetchAdminDashboardStats.mockResolvedValueOnce(stats).mockRejectedValueOnce(new Error('갱신 실패'));
     render(<AdminDashboard />);
-    await screen.findByText('처리 완료 상태 신고');
+    await screen.findByText('처리 완료 신고');
     fireEvent.click(screen.getAllByRole('button', { name: '새로고침' })[0]);
     expect(await screen.findByText(/기존 현황을 유지했습니다/)).toHaveTextContent('갱신 실패');
     expect(screen.getByText('401')).toBeInTheDocument();

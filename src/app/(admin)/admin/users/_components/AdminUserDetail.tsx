@@ -127,7 +127,7 @@ export function AdminUserDetail({ handle }: { handle: string }) {
     event.preventDefault();
     if (controlsDisabled || mutationLock.current) return;
     if (!selectedSanction || !sanctionReason.trim()) {
-      setValidationError(!selectedSanction ? '제재 유형을 선택해주세요.' : '제재 사유는 필수입니다.');
+      setValidationError(!selectedSanction ? '제재 유형을 선택해 주세요.' : '제재 사유는 필수입니다.');
       return;
     }
     setValidationError('');
@@ -176,7 +176,7 @@ export function AdminUserDetail({ handle }: { handle: string }) {
       if (!stillCurrent() || (cause instanceof Error && cause.name === 'AbortError')) return;
       const message = cause instanceof Error ? cause.message : '요청을 처리하지 못했습니다.';
       if (applied) {
-        setSnapshot({ key: operationKey, user: null, penalties: null, error: '조치는 완료되었지만 최신 상태를 불러오지 못했습니다. 다시 조회해주세요. ' + message });
+        setSnapshot({ key: operationKey, user: null, penalties: null, error: '조치는 완료되었지만 최신 상태를 불러오지 못했습니다. 다시 조회해 주세요. ' + message });
       }
       setToast({ id: Date.now(), variant: 'error', title: applied ? '최신 상태 조회에 실패했습니다.' : '사용자 조치에 실패했습니다.', description: message });
     } finally {
@@ -229,7 +229,7 @@ export function AdminUserDetail({ handle }: { handle: string }) {
               <label htmlFor='sanction-type' className='mb-1.5 block text-[13px] font-semibold text-[#344054]'>제재 유형</label>
               <select id='sanction-type' value={sanctionType} onChange={(event) => { setSanctionType(event.target.value as AdminPenaltyType | ''); setValidationError(''); }} className='h-10 w-full rounded-2xl border border-[#d0d5dd] bg-white px-3 text-sm text-[#667085] disabled:bg-[#f2f4f7]'><option value=''>제재 유형 선택</option>{sanctionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
               <label htmlFor='sanction-reason' className='mt-4 mb-1.5 block text-[13px] font-semibold text-[#344054]'>제재 사유</label>
-              <textarea id='sanction-reason' value={sanctionReason} onChange={(event) => { setSanctionReason(event.target.value); setValidationError(''); }} placeholder='제재 근거를 구체적으로 작성해주세요.' className='h-[89px] w-full resize-none rounded-2xl border border-[#d0d5dd] bg-white p-3 text-sm text-[#172033] disabled:bg-[#f2f4f7]' />
+              <textarea id='sanction-reason' value={sanctionReason} onChange={(event) => { setSanctionReason(event.target.value); setValidationError(''); }} placeholder='제재 근거를 구체적으로 작성해 주세요.' className='h-[89px] w-full resize-none rounded-2xl border border-[#d0d5dd] bg-white p-3 text-sm text-[#172033] disabled:bg-[#f2f4f7]' />
               {validationError ? <p role='alert' className='mt-2 text-xs text-[#d92d20]'>{validationError}</p> : null}
               <button type='submit' className='mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white disabled:bg-[#98a2b3]'><ShieldCheck className='size-4' aria-hidden='true' />조치 내용 확인</button>
               <label htmlFor='revoke-penalty' className='mt-5 mb-1.5 block text-[13px] font-semibold text-[#344054]'>해제할 활성 제재</label>
@@ -244,10 +244,10 @@ export function AdminUserDetail({ handle }: { handle: string }) {
       <AdminDialog isOpen={confirmAction !== null} titleId='user-action-title' descriptionId='user-action-description' onClose={closeDialog} maxWidthClassName='max-w-[448px]'>
         <TriangleAlert className='size-8 text-[#d92d20]' aria-hidden='true' />
         <h2 id='user-action-title' className='mt-3 text-lg font-bold text-[#172033]'>{confirmAction === 'sanction' ? '사용자 제재 확인' : '선택한 제재 해제 확인'}</h2>
-        <p id='user-action-description' className='mt-2 text-sm text-[#667085]'>@{user.handle} · {confirmAction === 'sanction' ? selectedSanction?.label : selectedPenalty ? penaltyLabel(selectedPenalty) : '활성 제재를 확인해주세요.'}</p>
+        <p id='user-action-description' className='mt-2 text-sm text-[#667085]'>@{user.handle} · {confirmAction === 'sanction' ? selectedSanction?.label : selectedPenalty ? penaltyLabel(selectedPenalty) : '활성 제재를 확인해 주세요.'}</p>
         <p className='mt-3 whitespace-pre-wrap break-words rounded-2xl bg-[#f9fafb] p-3 text-sm text-[#344054]'>{confirmAction === 'sanction' ? sanctionReason.trim() : selectedPenalty?.reason}</p>
         {confirmAction === 'revoke' ? <p className='mt-3 text-xs text-[#667085]'>선택한 제재 한 건만 해제합니다. 계정 상태는 서버에서 다시 확인합니다.</p> : null}
-        <div className='mt-5 flex justify-end gap-2'><button type='button' disabled={mutationPending} onClick={closeDialog} className='h-10 rounded-2xl border border-[#d0d5dd] px-4 text-sm font-semibold text-[#344054]'>취소</button><button type='button' disabled={controlsDisabled || (confirmAction === 'revoke' && !selectedPenalty)} onClick={() => void confirmMutation()} className='h-10 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white disabled:bg-[#98a2b3]'>{mutationPending ? '처리 중…' : confirmAction === 'sanction' ? '제재 적용' : '제재 해제'}</button></div>
+        <div className='mt-5 flex justify-end gap-2'><button type='button' disabled={mutationPending} onClick={closeDialog} className='h-10 rounded-2xl border border-[#d0d5dd] px-4 text-sm font-semibold text-[#344054]'>취소</button><button type='button' disabled={controlsDisabled || (confirmAction === 'revoke' && !selectedPenalty)} onClick={() => void confirmMutation()} className='h-10 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white disabled:bg-[#98a2b3]'>{mutationPending ? '처리 중...' : confirmAction === 'sanction' ? '제재 적용' : '제재 해제'}</button></div>
       </AdminDialog>
       {toast ? <AdminToast key={toast.id} {...toast} onDismiss={() => setToast(null)} /> : null}
     </div>

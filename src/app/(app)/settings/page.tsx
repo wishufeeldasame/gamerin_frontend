@@ -34,12 +34,12 @@ export default function SettingsPage() {
 
   const handlePasswordChange = async () => {
     if (!passwordFields.current || !passwordFields.next || !passwordFields.confirm) {
-      toast.error('비밀번호 입력칸을 모두 채워주세요.');
+      toast.error('비밀번호 입력칸을 모두 채워 주세요.');
       return;
     }
 
     if (passwordFields.next !== passwordFields.confirm) {
-      toast.error('새 비밀번호 확인이 일치하지 않습니다.');
+      toast.error('새 비밀번호가 일치하지 않습니다.');
       return;
     }
 
@@ -100,19 +100,19 @@ export default function SettingsPage() {
         <div className="space-y-4">
           <div>
             <label htmlFor="account-handle" className="mb-2 block text-sm font-semibold text-zinc-700">
-              사용자 이름
+              아이디
             </label>
             <input
               id="account-handle"
               type="text"
               value={user?.handle ? `@${user.handle}` : ''}
               readOnly
-              placeholder="사용자 이름 정보가 없습니다"
+              placeholder="아이디 정보가 없습니다"
               aria-describedby="handle-description"
               className="input-base cursor-not-allowed bg-zinc-100 text-zinc-500 dark:placeholder:!text-zinc-400"
             />
             <span id="handle-description" className="mt-1 block text-xs text-zinc-500">
-              사용자 이름은 변경할 수 없습니다.
+              아이디는 변경할 수 없습니다.
             </span>
           </div>
         </div>
@@ -159,7 +159,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="border-t border-zinc-200 pt-6">
-        <h3 className="mb-4 text-lg font-black text-red-600 dark:text-red-300">위험 영역</h3>
+        <h3 className="mb-4 text-lg font-black text-red-600 dark:text-red-300">계정 삭제</h3>
         <div className="rounded-xl border border-zinc-200 p-4 dark:border-line">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

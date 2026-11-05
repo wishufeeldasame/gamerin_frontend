@@ -200,7 +200,7 @@ export function PostDetail({
         }
 
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '게시물을 불러오지 못했습니다.');
+          setError(loadError instanceof Error ? loadError.message : '게시글을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -422,7 +422,7 @@ export function PostDetail({
     closeMenu();
     try {
       const confirmed = await confirm({
-        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        message: '게시글을 삭제할까요?', confirmLabel: '삭제', danger: true,
         returnFocusTo: menuTriggerRef.current,
       });
       if (!confirmed || !isCurrent()) return;
@@ -433,7 +433,7 @@ export function PostDetail({
       if (onPostDeleted) onPostDeleted(submittedPostId);
       else onBack();
     } catch (deleteError) {
-      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시글을 삭제하지 못했습니다.');
     } finally {
       if (isCurrent()) {
         deletePostLockRef.current = false;
@@ -443,7 +443,7 @@ export function PostDetail({
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>;
+    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시글을 불러오는 중...</div>;
   }
 
   if (!post) {
@@ -452,7 +452,7 @@ export function PostDetail({
         <button onClick={onBack} className="font-black text-zinc-500 hover:text-black">
           돌아가기
         </button>
-        <p className="font-black text-red-500">{error ?? '게시물을 찾을 수 없습니다.'}</p>
+        <p className="font-black text-red-500">{error ?? '게시글을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
           className="btn-primary"
@@ -510,7 +510,7 @@ export function PostDetail({
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
                 className="btn-icon -mr-2"
-                aria-label="게시물 메뉴"
+                aria-label="게시글 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
               >
@@ -529,7 +529,7 @@ export function PostDetail({
                       className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Flag size={15} />
-                      게시물 신고
+                      게시글 신고
                     </button>
                   ) : null}
 
@@ -661,7 +661,7 @@ export function PostDetail({
               type="button"
               onClick={() => { closeAll(); setShareOpen(true); }}
               className="flex items-center text-zinc-400 transition-all hover:text-black"
-              aria-label="게시물 공유"
+              aria-label="게시글 공유"
             >
               <Send size={20} />
             </button>
@@ -882,7 +882,7 @@ export function PostDetail({
             setPost(nextPost);
             onPostUpdated?.(nextPost);
             setEditOpen(false);
-            toast.success('게시물을 수정했어요.');
+            toast.success('게시글을 수정했습니다.');
           }}
         />
       ) : null}
@@ -890,7 +890,7 @@ export function PostDetail({
         <ReportContentModal
           targetType="POST"
           targetId={post.postId}
-          title="게시물 신고"
+          title="게시글 신고"
           author={post.author}
           authorHandle={post.authorHandle}
           content={post.content}

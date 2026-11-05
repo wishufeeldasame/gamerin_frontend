@@ -56,7 +56,7 @@ describe('AdminReportDetail', () => {
     expect(mocks.fetchAdminUser).toHaveBeenCalledWith('target-id', expect.any(AbortSignal));
     expect(screen.queryByText('관련 신고 함께 처리')).not.toBeInTheDocument();
     expect(screen.queryByText('첨부 이미지 미리보기')).not.toBeInTheDocument();
-    expect(screen.getByText('신고 숨김 없음')).toBeInTheDocument();
+    expect(screen.getByText('숨기지 않음')).toBeInTheDocument();
     const time = document.querySelector('time');
     expect(time).toHaveAttribute('datetime', '2026-01-01T00:00:00.000Z');
     expect(time?.getAttribute('title')).toContain('2026년');
@@ -144,7 +144,7 @@ describe('AdminReportDetail', () => {
     });
     render(<AdminReportDetail reportCode="RPT-001" />);
     await waitFor(() => expect(screen.getByRole('combobox', { name: '사용자 제재' })).toBeEnabled());
-    fireEvent.change(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '환불 사유' } });
+    fireEvent.change(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '환불 사유' } });
     fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
     expect(await screen.findByTestId('escrow-result')).toHaveTextContent('환불 - 멘티에게 강제 환불되었습니다.');
@@ -168,7 +168,7 @@ describe('AdminReportDetail', () => {
     const select = await screen.findByRole('combobox', { name: '사용자 제재' });
     await waitFor(() => expect(select).toBeEnabled());
     fireEvent.change(select, { target: { value: 'SUSPENSION_3D' } });
-    fireEvent.change(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '반복적인 스팸' } });
+    fireEvent.change(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '반복적인 스팸' } });
     fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('이미 처리 완료');
@@ -184,7 +184,7 @@ describe('AdminReportDetail', () => {
       .mockResolvedValueOnce(detail)
       .mockResolvedValueOnce({ ...detail, report: { ...detail.report, status: 'REJECTED' } });
     render(<AdminReportDetail reportCode="RPT-001" />);
-    fireEvent.change(await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '근거' } });
+    fireEvent.change(await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.'), { target: { value: '근거' } });
     fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
 
@@ -198,14 +198,14 @@ describe('AdminReportDetail', () => {
   it('keeps the review form input when a 409 leaves the report in review', async () => {
     mocks.resolveAdminReport.mockRejectedValueOnce(new ApiError('이미 정산된 멘토링이라 환불할 수 없습니다.', 409));
     render(<AdminReportDetail reportCode="RPT-001" />);
-    const reason = await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.');
+    const reason = await screen.findByPlaceholderText('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.');
     fireEvent.change(reason, { target: { value: '보존할 근거' } });
     fireEvent.click(screen.getByRole('button', { name: '처리 내용 확인' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '처리 완료' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('환불할 수 없습니다');
     await waitFor(() => expect(mocks.fetchAdminReportDetail).toHaveBeenCalledTimes(2));
-    expect(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.')).toHaveValue('보존할 근거');
+    expect(screen.getByPlaceholderText('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.')).toHaveValue('보존할 근거');
   });
 
   it('does not turn an absent target into zero reports or an actionable user', async () => {

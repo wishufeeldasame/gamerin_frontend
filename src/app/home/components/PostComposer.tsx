@@ -546,7 +546,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
                   >
                     <span className="font-black text-zinc-900">#{hashtag.name}</span>
                     <span className="text-xs font-bold text-zinc-400">
-                      게시물 {hashtag.postCount.toLocaleString()}개
+                      게시글 {hashtag.postCount.toLocaleString()}개
                     </span>
                   </button>
                 ))}
@@ -573,7 +573,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-black text-black">썸네일 선택</p>
-                  <p className="text-xs font-medium text-zinc-500">생성된 썸네일을 고르거나 직접 올릴 수 있어요.</p>
+                  <p className="text-xs font-medium text-zinc-500">생성된 썸네일을 고르거나 직접 올릴 수 있습니다.</p>
                 </div>
 
                 <div className="flex gap-2">

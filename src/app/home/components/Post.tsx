@@ -252,7 +252,7 @@ export function Post({
     closeMenu();
     try {
       const confirmed = await confirm({
-        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        message: '게시글을 삭제할까요?', confirmLabel: '삭제', danger: true,
         returnFocusTo: menuTriggerRef.current,
       });
       if (!confirmed) return;
@@ -266,7 +266,7 @@ export function Post({
         }
       });
     } catch (deleteError) {
-      toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
+      toast.error(deleteError instanceof Error ? deleteError.message : '게시글을 삭제하지 못했습니다.');
     } finally {
       deleteLockRef.current = false;
       setDeleting(false);
@@ -285,7 +285,7 @@ export function Post({
           <button
             type="button"
             onClick={() => onOpenDetail(post)}
-            aria-label={`${post.author}님의 게시물 열기`}
+            aria-label={`${post.author}님의 게시글 열기`}
             className="absolute inset-0 z-0 focus:outline-none md:rounded-2xl focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
           />
         ) : null}
@@ -336,7 +336,7 @@ export function Post({
               ref={menuTriggerRef}
               onClick={toggleMenu}
               className="btn-icon -mr-2"
-              aria-label="게시물 메뉴"
+              aria-label="게시글 메뉴"
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
             >
@@ -355,7 +355,7 @@ export function Post({
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                   >
                     <Flag size={15} />
-                    게시물 신고
+                    게시글 신고
                   </button>
                 ) : null}
 
@@ -477,7 +477,7 @@ export function Post({
             type="button"
             onClick={() => { closeAll(); setShareOpen(true); }}
             className="flex items-center rounded-full text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
-            aria-label="게시물 공유"
+            aria-label="게시글 공유"
           >
             <Share2 size={20} />
           </button>
@@ -516,7 +516,7 @@ export function Post({
           onSaved={(saved) => {
             setEdited(saved);
             setEditOpen(false);
-            toast.success('게시물을 수정했어요.');
+            toast.success('게시글을 수정했습니다.');
           }}
         />
       ) : null}
@@ -525,7 +525,7 @@ export function Post({
         <ReportContentModal
           targetType="POST"
           targetId={post.postId}
-          title="게시물 신고"
+          title="게시글 신고"
           author={post.author}
           authorHandle={post.authorHandle}
           content={post.content}

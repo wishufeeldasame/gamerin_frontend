@@ -8,7 +8,7 @@ const ago = (seconds: number) => new Date(now.getTime() - seconds * 1000).toISOS
 
 describe.each([
   ['공통 표시', formatRelativeTimeLabel],
-  ['게시물 호출 형태', formatRelativeTime],
+  ['게시글 호출 형태', formatRelativeTime],
   ['대화 목록 호출 형태', formatConversationTime],
 ] as const)('%s', (_name, format) => {
   beforeEach(() => {

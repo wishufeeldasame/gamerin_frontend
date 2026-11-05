@@ -43,7 +43,7 @@ export interface PaymentPage {
   hasNext: boolean;
 }
 
-export const PAYMENT_UNAVAILABLE_MESSAGE = '결제 서비스를 잠시 사용할 수 없어요. 잠시 후 다시 시도해주세요.';
+export const PAYMENT_UNAVAILABLE_MESSAGE = '결제 서비스를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
 
 // 08 문서 12-8절 오류 표시. 401·차단은 api-client가 세션을 정리한다.
 const PAYMENT_CLIENT: ApiClientConfig = {

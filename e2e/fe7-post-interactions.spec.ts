@@ -12,7 +12,7 @@ for (const path of ['/home', '/posts/post-1']) {
       await route.fulfill({ json: { success: true, data: { postId: 'post-1', shares: 1 } } });
     });
     await page.goto(path);
-    await page.getByRole('button', { name: '게시물 공유' }).first().click();
+    await page.getByRole('button', { name: '게시글 공유' }).first().click();
     await page.getByRole('button', { name: '링크 복사' }).click();
     await expect.poll(() => started).toBe(true);
     await page.getByRole('button', { name: '닫기', exact: true }).click();
@@ -42,7 +42,7 @@ for (const leave of [false, true]) {
     });
     await page.goto('/home');
     await page.goto('/posts/post-1');
-    await page.getByRole('button', { name: '게시물 메뉴', exact: true }).click();
+    await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
     await page.getByRole('button', { name: '삭제', exact: true }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: '삭제', exact: true }).click();
     await expect.poll(() => started).toBe(true);
@@ -60,7 +60,7 @@ for (const leave of [false, true]) {
 
 const user = { userId: 'viewer', handle: 'viewer', nickname: '테스터', role: 'USER', status: 'ACTIVE' };
 const createdAt = '2026-10-09T00:00:00Z';
-const text = '선택 가능한 게시물 본문 @alpha #게임 a@abc.com @ABC @ab @abcdefghijklmnopqrstu';
+const text = '선택 가능한 게시글 본문 @alpha #게임 a@abc.com @ABC @ab @abcdefghijklmnopqrstu';
 const post = {
   postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, content: text, game: null, media: [],
@@ -76,7 +76,7 @@ const cursor = { items: [], nextCursor: null, hasNext: false };
 
 async function mockPostImages(page: Page, theme: 'light' | 'dark') {
   await mockApp(page, theme);
-  const imagePost = { ...post, content: '이미지 게시물 @user.name #게임 @USER.name @user.한글', media: [1, 2].map((number) => ({
+  const imagePost = { ...post, content: '이미지 게시글 @user.name #게임 @USER.name @user.한글', media: [1, 2].map((number) => ({
     mediaId: `image-${number}`, mediaType: 'IMAGE', mediaUrl: `/fe7-image-${number}.svg`, thumbnailUrl: null, sortOrder: number - 1,
   })) };
   await page.route('**/api/v1/feed?**', (route) => route.fulfill({
@@ -154,7 +154,7 @@ for (const width of [375, 1440]) {
         if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
         else await expect(page.locator('html')).not.toHaveClass(/dark/);
         const article = page.locator('article').first();
-        const overlay = article.getByRole('button', { name: '작성자님의 게시물 열기' });
+        const overlay = article.getByRole('button', { name: '작성자님의 게시글 열기' });
         await expect(overlay).toBeVisible();
         await expect(article).not.toHaveAttribute('role');
         expect(await article.locator('button button, button a, a button').count()).toBe(0);
@@ -165,9 +165,9 @@ for (const width of [375, 1440]) {
         await page.keyboard.press('Tab');
         await expect(article.getByRole('link').first()).toBeFocused();
         await page.keyboard.press('Tab');
-        await expect(article.getByRole('button', { name: '게시물 메뉴' })).toBeFocused();
+        await expect(article.getByRole('button', { name: '게시글 메뉴' })).toBeFocused();
 
-        const menus = page.getByRole('button', { name: '게시물 메뉴' });
+        const menus = page.getByRole('button', { name: '게시글 메뉴' });
         await menus.nth(0).click(); await menus.nth(1).click();
         await expect(menus.nth(0)).toHaveAttribute('aria-expanded', 'false');
         await expect(menus.nth(1)).toHaveAttribute('aria-expanded', 'true');
@@ -217,7 +217,7 @@ for (const width of [375, 1440]) {
         await expect(page.getByText('프로필을 찾을 수 없습니다.')).toBeVisible();
 
         await page.goto('/home');
-        await page.getByRole('button', { name: '작성자님의 게시물 열기', exact: true }).focus();
+        await page.getByRole('button', { name: '작성자님의 게시글 열기', exact: true }).focus();
         await page.keyboard.press('Enter');
         await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
       });
@@ -309,16 +309,16 @@ for (const width of [375, 1440]) {
         await mockPostImages(page, theme);
         for (const path of ['/home', '/posts/post-1']) {
           await page.goto(path);
-          const image = page.getByRole('button', { name: '게시물 이미지 2 확대 보기' });
+          const image = page.getByRole('button', { name: '게시글 이미지 2 확대 보기' });
           await expect(image).toBeVisible();
           await image.focus();
           const focusRing = image.locator('span[aria-hidden="true"]');
           await expect(focusRing).toHaveCSS('border-top-color', 'rgb(255, 255, 255)');
           expect(await focusRing.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe('none');
           await page.keyboard.press('Enter');
-          const preview = page.getByRole('dialog', { name: '게시물 이미지 2 확대' });
+          const preview = page.getByRole('dialog', { name: '게시글 이미지 2 확대' });
           await expect(preview).toBeVisible();
-          const expanded = preview.getByRole('img', { name: '확대된 게시물 이미지 2' });
+          const expanded = preview.getByRole('img', { name: '확대된 게시글 이미지 2' });
           await expect(expanded).toHaveJSProperty('src', new URL('/fe7-image-2.svg', page.url()).href);
           await expect(expanded).toHaveJSProperty('naturalWidth', 1200);
           const close = preview.getByRole('button', { name: '이미지 확대 닫기' });
@@ -351,7 +351,7 @@ for (const width of [375, 1440]) {
   }
 }
 
-test('카드·상세의 리포스트 실패 복원과 본인 게시물 설명을 확인한다', async ({ page }) => {
+test('카드·상세의 리포스트 실패 복원과 본인 게시글 설명을 확인한다', async ({ page }) => {
   await mockApp(page, 'light');
   let repostAttempts = 0;
   await page.route('**/api/v1/posts/*/reposts', (route) => {
@@ -404,9 +404,9 @@ test.describe('모바일 터치', () => {
     test(`${theme}: 사진 터치는 확대만 열고 본문 터치는 상세를 연다`, async ({ page }) => {
       await mockPostImages(page, theme);
       await page.goto('/home');
-      const image = page.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+      const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
       await image.tap();
-      const preview = page.getByRole('dialog', { name: '게시물 이미지 1 확대' });
+      const preview = page.getByRole('dialog', { name: '게시글 이미지 1 확대' });
       await expect(preview).toBeVisible();
       await expect(page).toHaveURL(/\/home$/);
       await preview.getByRole('button', { name: '이미지 확대 닫기' }).tap();
@@ -434,7 +434,7 @@ test('점은 카드·상세·댓글에서 핸들 구분자로 처리되고 원�
     await expect(mentions.first()).toHaveAttribute('href', '/profile/user');
     await expect(page.getByRole('link', { name: '@user.name', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: '@USER.name', exact: true })).toHaveCount(0);
-    await expect(page.getByText('이미지 게시물 @user.name #게임 @USER.name @user.한글', { exact: true })).toBeVisible();
+    await expect(page.getByText('이미지 게시글 @user.name #게임 @USER.name @user.한글', { exact: true })).toBeVisible();
     if (path.startsWith('/posts/')) {
       await expect(page.getByRole('link', { name: '@friend', exact: true })).toHaveAttribute('href', '/profile/friend');
       await expect(page.getByRole('link', { name: '#댓글태그' })).toHaveCount(0);
@@ -449,12 +449,12 @@ test('이미지 오류·배경 클릭·외부 화면 이동에도 확대 창과 
   await mockPostImages(page, 'light');
   await page.route('**/fe7-image-2.svg', (route) => route.fulfill({ status: 404, body: 'missing image' }));
   await page.goto('/home');
-  const broken = page.getByRole('button', { name: '게시물 이미지 2 확대 보기' });
+  const broken = page.getByRole('button', { name: '게시글 이미지 2 확대 보기' });
   await broken.click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('이미지를 불러오지 못했습니다.');
   await page.getByRole('button', { name: '이미지 확대 닫기' }).click();
   await expect(broken).toBeFocused();
-  const image = page.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+  const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
   await image.click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.mouse.click(2, 2);
@@ -474,7 +474,7 @@ test('이미지 오류·배경 클릭·외부 화면 이동에도 확대 창과 
 test('새 이미지 확대 Esc와 뒤늦게 열린 알림 팝업 Esc가 동시에 처리되지 않는다', async ({ page }) => {
   await mockPostImages(page, 'light');
   await page.goto('/home');
-  const image = page.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+  const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
   await image.click();
   await expect(page.getByRole('dialog')).toBeVisible();
   const bell = page.locator('header button[aria-label="알림"]');
@@ -542,7 +542,7 @@ test('검색·북마크·프로필·해시태그에서도 카드 키보드 진�
   await mockApp(page, 'light');
   for (const path of ['/search?q=게임&tab=posts', '/bookmarks', '/profile/viewer', '/hashtags/게임']) {
     await page.goto(path);
-    const overlay = page.getByRole('button', { name: '작성자님의 게시물 열기' }).first();
+    const overlay = page.getByRole('button', { name: '작성자님의 게시글 열기' }).first();
     await expect(overlay).toBeVisible();
     await overlay.focus();
     await page.keyboard.press('Enter');
@@ -589,7 +589,7 @@ test('본문·빈 영역 클릭과 비디오 컨트롤을 오버레이와 분리
   await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
   await expect(page).toHaveURL(/\/home$/);
   await video.click();
-  await expect(page.getByRole('button', { name: '작성자님의 게시물 열기', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: '작성자님의 게시글 열기', exact: true })).toBeVisible();
   await article.locator('p').first().click({ position: { x: 12, y: 12 } });
   await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
   await page.goto('/home');

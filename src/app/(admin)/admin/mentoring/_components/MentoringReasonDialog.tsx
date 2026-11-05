@@ -37,7 +37,7 @@ export function MentoringReasonDialog({ targetName, action, isSubmitting, error,
             disabled={isSubmitting}
             value={reason}
             onChange={(event) => { setReason(event.target.value); if (event.target.value.trim()) setShowError(false); }}
-            placeholder="처리 근거를 입력해주세요."
+            placeholder="처리 근거를 입력해 주세요."
             aria-invalid={showError}
             aria-describedby={showError ? 'mentoring-reason-error' : undefined}
             className="h-[89px] w-full resize-none rounded-2xl border border-[#d0d5dd] bg-white p-3 text-sm text-[#172033] outline-none focus:border-[#315ef5] focus:ring-2 focus:ring-[#315ef5]/10 disabled:bg-[#f2f4f7]"
@@ -47,7 +47,7 @@ export function MentoringReasonDialog({ targetName, action, isSubmitting, error,
         {error ? <p role="alert" className="mt-3 text-sm text-[#b42318]">{error}</p> : null}
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" disabled={isSubmitting} onClick={onCancel} className="h-10 rounded-2xl border border-[#d0d5dd] px-4 text-sm font-semibold text-[#344054] disabled:cursor-not-allowed">취소</button>
-          <button type="submit" disabled={isSubmitting} className="h-10 rounded-2xl bg-[#d92d20] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#98a2b3]">{isSubmitting ? '처리 중…' : action === 'reject' ? '반려 처리' : '숨김 처리'}</button>
+          <button type="submit" disabled={isSubmitting} className="h-10 rounded-2xl bg-[#d92d20] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#98a2b3]">{isSubmitting ? '처리 중...' : action === 'reject' ? '반려 처리' : '숨김 처리'}</button>
         </div>
       </form>
     </AdminDialog>

@@ -28,9 +28,9 @@ const basePost: PostRecord = {
 };
 
 function openEditor() {
-  fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+  fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
   fireEvent.click(screen.getByRole('button', { name: '수정' }));
-  return screen.getByRole('dialog', { name: '게시물 수정' });
+  return screen.getByRole('dialog', { name: '게시글 수정' });
 }
 
 beforeEach(() => {
@@ -50,14 +50,14 @@ describe('canEditPost', () => {
   });
 });
 
-describe('게시물 카드 수정', () => {
+describe('게시글 카드 수정', () => {
   it('남은 시간·글자 수를 보여주고 본문이 같으면 저장을 막는다', () => {
     render(<Post post={basePost} />);
     const dialog = openEditor();
 
     expect(within(dialog).getByText('남은 시간 42분')).toBeInTheDocument();
     expect(within(dialog).getByText('5/1000')).toBeInTheDocument();
-    expect(within(dialog).getByText('이미지·영상은 수정할 수 없어요. 게시물당 1회만 수정됩니다.')).toBeInTheDocument();
+    expect(within(dialog).getByText('이미지·영상은 수정할 수 없습니다. 게시글당 1회만 수정할 수 있습니다.')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: '수정하기' })).toBeDisabled();
   });
 
@@ -66,13 +66,13 @@ describe('게시물 카드 수정', () => {
     render(<Post post={basePost} />);
     const dialog = openEditor();
 
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시물 본문' }), { target: { value: '고친 본문' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시글 본문' }), { target: { value: '고친 본문' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '게시물 수정' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '게시글 수정' })).not.toBeInTheDocument());
     expect(screen.getByText('고친 본문')).toBeInTheDocument();
     expect(api.updatePostContent).toHaveBeenCalledWith('post-1', '고친 본문');
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     expect(screen.queryByRole('button', { name: '수정' })).not.toBeInTheDocument();
   });
 
@@ -81,10 +81,10 @@ describe('게시물 카드 수정', () => {
     render(<Post post={basePost} />);
     const dialog = openEditor();
 
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시물 본문' }), { target: { value: '고친 본문' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시글 본문' }), { target: { value: '고친 본문' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
-    expect(await within(dialog).findByRole('alert')).toHaveTextContent('수정 가능 시간이 지났거나 이미 수정한 게시물이에요.');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('수정 가능 시간이 지났거나 이미 수정한 게시글입니다.');
     expect(within(dialog).getByRole('button', { name: '수정하기' })).toBeEnabled();
   });
 
@@ -93,9 +93,9 @@ describe('게시물 카드 수정', () => {
     try {
       render(<Post post={{ ...basePost, editableUntil: inMinutes(0.5) }} />);
       const dialog = openEditor();
-      fireEvent.change(within(dialog).getByRole('textbox', { name: '게시물 본문' }), { target: { value: '고친 본문' } });
+      fireEvent.change(within(dialog).getByRole('textbox', { name: '게시글 본문' }), { target: { value: '고친 본문' } });
       act(() => { vi.advanceTimersByTime(31_000); });
-      expect(within(dialog).getByText('수정 가능 시간이 지났어요')).toBeInTheDocument();
+      expect(within(dialog).getByText('수정 가능 시간이 지났습니다')).toBeInTheDocument();
       expect(within(dialog).getByRole('button', { name: '수정하기' })).toBeDisabled();
     } finally {
       vi.useRealTimers();
@@ -105,18 +105,18 @@ describe('게시물 카드 수정', () => {
   it('멤버십이 아니면 혜택 안내 확인창을 띄우고 편집기를 열지 않는다', async () => {
     auth.user = { handle: 'author', membershipBadge: false };
     render(<Post post={basePost} />);
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     fireEvent.click(screen.getByRole('button', { name: '수정' }));
 
     const confirm = await screen.findByRole('dialog', { name: '작업 확인' });
-    expect(confirm).toHaveTextContent('게시물 수정은 멤버십 혜택이에요.');
+    expect(confirm).toHaveTextContent('게시글 수정은 멤버십 혜택입니다.');
     expect(within(confirm).getByRole('button', { name: '멤버십 보기' })).toBeInTheDocument();
     fireEvent.click(within(confirm).getByRole('button', { name: '취소' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 });
 
-describe('게시물 상세 수정', () => {
+describe('게시글 상세 수정', () => {
   it('저장하면 상세 본문을 바꾸고 부모에 갱신을 알린다', async () => {
     api.fetchPostDetail.mockResolvedValue(basePost);
     api.updatePostContent.mockResolvedValue({ ...basePost, content: '상세에서 고침', editCount: 1 });
@@ -125,10 +125,10 @@ describe('게시물 상세 수정', () => {
     await screen.findByText('처음 본문');
 
     const dialog = openEditor();
-    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시물 본문' }), { target: { value: '상세에서 고침' } });
+    fireEvent.change(within(dialog).getByRole('textbox', { name: '게시글 본문' }), { target: { value: '상세에서 고침' } });
     fireEvent.click(within(dialog).getByRole('button', { name: '수정하기' }));
 
-    await waitFor(() => expect(screen.queryByRole('dialog', { name: '게시물 수정' })).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: '게시글 수정' })).not.toBeInTheDocument());
     expect(screen.getByText('상세에서 고침')).toBeInTheDocument();
     expect(onPostUpdated).toHaveBeenLastCalledWith(expect.objectContaining({ content: '상세에서 고침', editCount: 1 }));
   });

@@ -76,14 +76,14 @@ describe('FE-7 shared menus and actions', () => {
     render(<><Header /><Post post={post} /><Post post={{ ...post, postId: 'post-2' }} /></>);
     const bell = screen.getByRole('button', { name: '알림' });
     fireEvent.click(bell);
-    await screen.findByText('알림 사용자님이 게시글을 좋아합니다.');
+    await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.');
     expect(screen.getByRole('button', { name: '알림 닫기' })).toHaveFocus();
     fireEvent.pointerDown(screen.getByRole('button', { name: '알림 닫기' }));
     expect(bell).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(bell).toHaveAttribute('aria-expanded', 'false');
     expect(bell).toHaveFocus();
-    const menus = screen.getAllByRole('button', { name: '게시물 메뉴' });
+    const menus = screen.getAllByRole('button', { name: '게시글 메뉴' });
     fireEvent.click(menus[0]); fireEvent.click(menus[1]);
     expect(menus[0]).toHaveAttribute('aria-expanded', 'false');
     expect(menus[1]).toHaveAttribute('aria-expanded', 'true');
@@ -97,7 +97,7 @@ describe('FE-7 shared menus and actions', () => {
     render(<Header />);
     const bell = screen.getByRole('button', { name: '알림' });
     fireEvent.click(bell);
-    fireEvent.click(await screen.findByText('알림 사용자님이 게시글을 좋아합니다.'));
+    fireEvent.click(await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.'));
     await waitFor(() => expect(api.push).toHaveBeenCalledWith('/posts/post-1'));
     expect(bell).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(bell);
@@ -140,7 +140,7 @@ describe('FE-7 shared menus and actions', () => {
     expect(screen.queryByRole('link', { name: '#댓글태그' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '댓글 메뉴' }));
     expect(screen.getByRole('button', { name: '댓글 신고' })).toBeInTheDocument();
-    const menu = screen.getByRole('button', { name: '게시물 메뉴' });
+    const menu = screen.getByRole('button', { name: '게시글 메뉴' });
     fireEvent.click(menu); fireEvent.keyDown(document, { key: 'Escape' });
     expect(menu).toHaveFocus();
     expect(screen.getByRole('button', { name: '댓글 신고' })).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('FE-7 shared menus and actions', () => {
     const article = view.container.querySelector('article')!;
     expect(article).not.toHaveAttribute('role');
     expect(article).not.toHaveAttribute('tabindex');
-    const overlay = screen.getByRole('button', { name: '작성자님의 게시물 열기' });
+    const overlay = screen.getByRole('button', { name: '작성자님의 게시글 열기' });
     expect(overlay.querySelector('a, button, input, video')).toBeNull();
     const user = userEvent.setup();
     overlay.focus();
@@ -223,7 +223,7 @@ describe('FE-7 shared menus and actions', () => {
     fireEvent.click(mention);
     fireEvent.click(screen.getByRole('button', { name: '좋아요 2개' }));
     fireEvent.click(screen.getByRole('button', { name: '댓글 보기' }));
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     expect(open).not.toHaveBeenCalled();
     expect(like).toHaveBeenCalledWith(post);
     expect(comments).toHaveBeenCalledWith(post);
@@ -239,7 +239,7 @@ describe('FE-7 shared menus and actions', () => {
   it('does not render an overlay without a detail callback and preserves comments fallback', () => {
     const comments = vi.fn();
     const view = render(<Post post={post} onOpenComments={comments} />);
-    expect(screen.queryByRole('button', { name: '작성자님의 게시물 열기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '작성자님의 게시글 열기' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '댓글 보기' }));
     expect(comments).toHaveBeenCalledWith(post);
     const open = vi.fn();

@@ -156,7 +156,7 @@ describe('mileage-api', () => {
 
     await expect(mileage.fetchMyMileageBalance()).rejects.toMatchObject({
       name: 'ApiError', status: 401, reason: 'unauthenticated',
-      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해주세요.',
+      message: '로그인이 필요하거나 인증이 만료되었습니다. 다시 로그인해 주세요.',
     });
   });
 

@@ -113,7 +113,7 @@ export function AdminSettingsScreen() {
     try {
       updates = changedSettings(settings, savedSettings);
     } catch (error) {
-      setSaveError(error instanceof Error ? error.message : '설정값을 확인해주세요.');
+      setSaveError(error instanceof Error ? error.message : '설정값을 확인해 주세요.');
       return;
     }
     if (Object.keys(updates).length === 0) {
@@ -133,7 +133,7 @@ export function AdminSettingsScreen() {
       setToast(true);
     } catch (error) {
       if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
-      setSaveError(error instanceof Error ? error.message : '설정을 저장하지 못했습니다. 다시 시도해주세요.');
+      setSaveError(error instanceof Error ? error.message : '설정을 저장하지 못했습니다. 다시 시도해 주세요.');
     } finally {
       saveLock.current = false;
       if (!controller.signal.aborted) setIsSaving(false);
@@ -160,7 +160,7 @@ export function AdminSettingsScreen() {
             disabled={!hasChanges || isSaving}
             onClick={() => void save()}
             className="h-10 rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white hover:bg-[#2448c9] disabled:cursor-not-allowed disabled:bg-[#98a2b3]"
-          >{isSaving ? '저장 중…' : '변경사항 저장'}</button>
+          >{isSaving ? '저장 중...' : '변경사항 저장'}</button>
         </div>
       }
     >

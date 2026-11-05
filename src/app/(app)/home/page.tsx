@@ -47,7 +47,7 @@ function HomePageContent() {
     queryKey: activeTab,
     enabled: !legacyPostId,
     initialErrorMessage: '피드를 불러오지 못했습니다.',
-    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
   });
   const loadMoreRef = useRef(loadMore);
   loadMoreRef.current = loadMore;
@@ -256,7 +256,7 @@ function HomePageContent() {
                   aria-live="polite"
                   className="py-4 text-center text-sm font-bold text-zinc-400 dark:text-zinc-400"
                 >
-                  게시물을 불러오는 중...
+                  게시글을 불러오는 중...
                 </div>
               ) : null}
 

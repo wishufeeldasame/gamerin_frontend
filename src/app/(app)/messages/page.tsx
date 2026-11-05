@@ -2022,7 +2022,7 @@ export default function MessagesPage() {
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
               <Inbox className="mx-auto mb-4 text-zinc-300" size={48} />
-              <p className="text-lg font-black text-black">대화를 선택해주세요.</p>
+              <p className="text-lg font-black text-black">대화를 선택해 주세요.</p>
             </div>
           </div>
         )}

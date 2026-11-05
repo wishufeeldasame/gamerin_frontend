@@ -43,15 +43,15 @@ describe.each(['card', 'detail'] as const)('%s image preview', (kind) => {
     const view = kind === 'card'
       ? render(<Post post={post} onOpenDetail={openDetail} />)
       : render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
-    const trigger = await screen.findByRole('button', { name: '게시물 이미지 2 확대 보기' });
+    const trigger = await screen.findByRole('button', { name: '게시글 이미지 2 확대 보기' });
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
     trigger.focus();
     const user = userEvent.setup();
     await user.keyboard('{Enter}');
-    const preview = screen.getByRole('dialog', { name: '게시물 이미지 2 확대' });
+    const preview = screen.getByRole('dialog', { name: '게시글 이미지 2 확대' });
     expect(preview).toHaveAttribute('open');
     expect(view.container.querySelector('article dialog')).toBeNull();
-    const imageSrc = within(preview).getByRole('img', { name: '확대된 게시물 이미지 2' }).getAttribute('src')!;
+    const imageSrc = within(preview).getByRole('img', { name: '확대된 게시글 이미지 2' }).getAttribute('src')!;
     expect(new URL(imageSrc, window.location.href).pathname).toBe('/image-2.png');
     const close = within(preview).getByRole('button', { name: '이미지 확대 닫기' });
     expect(close).toHaveFocus();
@@ -70,9 +70,9 @@ describe.each(['card', 'detail'] as const)('%s image preview', (kind) => {
 describe('image preview lifecycle and failures', () => {
   it('keeps a single card image expandable even without a detail callback', () => {
     render(<Post post={{ ...post, media: post.media.slice(0, 1) }} />);
-    expect(screen.queryByRole('button', { name: '작성자님의 게시물 열기' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' }));
-    expect(screen.getByRole('dialog', { name: '게시물 이미지 1 확대' })).toHaveAttribute('open');
+    expect(screen.queryByRole('button', { name: '작성자님의 게시글 열기' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' }));
+    expect(screen.getByRole('dialog', { name: '게시글 이미지 1 확대' })).toHaveAttribute('open');
   });
 
   it('keeps the preview open when StrictMode replays modal effects', async () => {
@@ -82,7 +82,7 @@ describe('image preview lifecycle and failures', () => {
       queueMicrotask(() => this.dispatchEvent(new Event('close')));
     });
     try {
-      await userEvent.setup().click(screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' }));
+      await userEvent.setup().click(screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' }));
       expect(screen.getByRole('dialog')).toHaveAttribute('open');
       expect(screen.getByRole('button', { name: '이미지 확대 닫기' })).toHaveFocus();
     } finally {
@@ -95,7 +95,7 @@ describe('image preview lifecycle and failures', () => {
     document.body.style.overflow = 'auto';
     try {
       render(standalone);
-      const trigger = screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+      const trigger = screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
       trigger.focus();
       const user = userEvent.setup();
       await user.keyboard(' ');
@@ -115,14 +115,14 @@ describe('image preview lifecycle and failures', () => {
 
   it('keeps a failed image closable and resets its failure when reopened', async () => {
     render(standalone);
-    const trigger = screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+    const trigger = screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
     fireEvent.click(trigger);
-    fireEvent.error(screen.getByRole('img', { name: '확대된 게시물 이미지 1' }));
+    fireEvent.error(screen.getByRole('img', { name: '확대된 게시글 이미지 1' }));
     expect(screen.getByRole('alert')).toHaveTextContent('이미지를 불러오지 못했습니다.');
     fireEvent.click(screen.getByRole('button', { name: '이미지 확대 닫기' }));
     expect(trigger).toHaveFocus();
     fireEvent.click(trigger);
-    expect(screen.getByRole('img', { name: '확대된 게시물 이미지 1' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: '확대된 게시글 이미지 1' })).toBeInTheDocument();
     expect(screen.queryByText('이미지를 불러오지 못했습니다.')).not.toBeInTheDocument();
   });
 
@@ -130,11 +130,11 @@ describe('image preview lifecycle and failures', () => {
     render(standalone);
     const show = vi.spyOn(HTMLDialogElement.prototype, 'showModal').mockImplementation(() => { throw new Error('unsupported'); });
     try {
-      const trigger = screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' });
+      const trigger = screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
       trigger.focus();
       fireEvent.click(trigger);
       await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-      expect(screen.getByRole('alert')).toHaveTextContent('이미지 확대를 열 수 없습니다.');
+      expect(screen.getByRole('alert')).toHaveTextContent('이미지를 확대할 수 없습니다.');
       expect(trigger).toHaveFocus();
     } finally {
       show.mockRestore();
@@ -145,7 +145,7 @@ describe('image preview lifecycle and failures', () => {
     const view = render(<Post post={post} />);
     const show = vi.spyOn(HTMLDialogElement.prototype, 'showModal');
     try {
-      fireEvent.click(screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' }));
+      fireEvent.click(screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' }));
       const dialog = screen.getByRole('dialog');
       view.rerender(<Post post={{ ...post, likes: 3 }} />);
       expect(screen.getByRole('dialog')).toBe(dialog);
@@ -158,7 +158,7 @@ describe('image preview lifecycle and failures', () => {
   it('closes the old preview when the post identity changes and restores overflow', () => {
     const previousOverflow = document.body.style.overflow;
     const view = render(<Post post={post} />);
-    fireEvent.click(screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' }));
     expect(document.body.style.overflow).toBe('hidden');
     view.rerender(<Post post={{ ...post, postId: 'post-2' }} />);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -168,7 +168,7 @@ describe('image preview lifecycle and failures', () => {
   it('cleans up an open preview on unmount and focuses a connected fallback', () => {
     const previousOverflow = document.body.style.overflow;
     const view = render(<main>{standalone}</main>);
-    fireEvent.click(screen.getByRole('button', { name: '게시물 이미지 1 확대 보기' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 이미지 1 확대 보기' }));
     view.rerender(<main>다음 화면</main>);
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     expect(document.body.style.overflow).toBe(previousOverflow);

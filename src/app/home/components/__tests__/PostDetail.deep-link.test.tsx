@@ -108,9 +108,9 @@ describe('PostDetail comment deep link', () => {
   });
 
   it.each([
-    ['unknown failure', '게시물을 불러오지 못했습니다.'],
+    ['unknown failure', '게시글을 불러오지 못했습니다.'],
     [new Error('Request failed.'), 'Request failed.'],
-  ])('게시물 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
+  ])('게시글 로딩 실패 시 한국어 대체 안내를 표시하고 Error.message는 유지한다 (%s)', async (error, message) => {
     api.fetchPostDetail.mockRejectedValue(error);
     api.fetchPostComments.mockResolvedValue([]);
     render(<PostDetail postId="post-1" onBack={vi.fn()} />);
@@ -128,7 +128,7 @@ describe('PostDetail comment deep link', () => {
 
     render(<PostDetail postId="post-1" onBack={vi.fn()} initialCommentId="comment-2" />);
 
-    expect(screen.getByText('게시물을 불러오는 중...')).toBeInTheDocument();
+    expect(screen.getByText('게시글을 불러오는 중...')).toBeInTheDocument();
     expect(scrollIntoView).not.toHaveBeenCalled();
 
     await act(async () => {
@@ -156,7 +156,7 @@ describe('PostDetail comment deep link', () => {
     expect(screen.getByText('Post content')).toBeInTheDocument();
   });
 
-  it('게시물과 댓글에 ISO 및 한국어 절대 시각 툴팁을 표시한다', async () => {
+  it('게시글과 댓글에 ISO 및 한국어 절대 시각 툴팁을 표시한다', async () => {
     api.fetchPostComments.mockResolvedValue(comments);
     render(<PostDetail postId="post-1" onBack={vi.fn()} />);
     await screen.findByText('Target comment');
@@ -179,12 +179,12 @@ describe('PostDetail comment deep link', () => {
   });
 
   it('shows the server error and a link back home when the post does not exist', async () => {
-    api.fetchPostDetail.mockRejectedValue(new Error('게시물을 찾을 수 없습니다.'));
+    api.fetchPostDetail.mockRejectedValue(new Error('게시글을 찾을 수 없습니다.'));
     api.fetchPostComments.mockResolvedValue([]);
 
     render(<PostDetail postId="missing-post" onBack={vi.fn()} />);
 
-    expect(await screen.findByText('게시물을 찾을 수 없습니다.')).toBeInTheDocument();
+    expect(await screen.findByText('게시글을 찾을 수 없습니다.')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
   });
 });

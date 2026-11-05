@@ -128,7 +128,7 @@ describe('loginWithPassword', () => {
   it('토큰이 없는 성공 응답은 거절한다', async () => {
     api.route('/api/v1/auth/login', () => json(200, { success: true, data: {} }));
 
-    await expect(auth.loginWithPassword('demo', 'pw')).rejects.toThrow('로그인 응답에 인증 토큰이 없습니다.');
+    await expect(auth.loginWithPassword('demo', 'pw')).rejects.toThrow('로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
     expect(api.count('/api/v1/auth/me')).toBe(0);
   });
 
@@ -722,7 +722,7 @@ describe('가입 이메일 인증', () => {
   it('인증 토큰 거절은 재인증 오류로, 그 밖의 거절은 서버 message로 거절한다', async () => {
     api.route(
       '/api/v1/auth/signup',
-      () => json(400, { success: false, message: '이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해주세요.' }),
+      () => json(400, { success: false, message: '이메일 인증이 만료되었거나 유효하지 않습니다. 이메일 인증을 다시 진행해 주세요.' }),
       () => json(409, { success: false, message: '이미 사용 중인 이메일입니다.' }),
     );
 
@@ -746,11 +746,11 @@ describe('가입 전 요청의 비-JSON 오류 응답', () => {
 
   it('일반 텍스트 오류는 본문을 안내한다', async () => {
     api.route('/api/v1/auth/email-verifications', () => new Response(
-      '잠시 후 다시 시도해주세요.',
+      '잠시 후 다시 시도해 주세요.',
       { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } },
     ));
 
     await expect(auth.requestSignupEmailVerification('demo@gamerin.test'))
-      .rejects.toMatchObject({ status: 503, message: '잠시 후 다시 시도해주세요.' });
+      .rejects.toMatchObject({ status: 503, message: '잠시 후 다시 시도해 주세요.' });
   });
 });

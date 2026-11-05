@@ -156,7 +156,7 @@ describe('MentoringPage error handling', () => {
     mentoringApi.fetchMentoringPrograms.mockRejectedValue(new ApiError('서버 안내입니다.', status, reason));
     render(<MentoringPage />);
 
-    expect(await screen.findByText('인증 확인이 필요합니다')).toBeInTheDocument();
+    expect(await screen.findByText('다시 로그인해 주세요')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '다시 로그인' })).toBeInTheDocument();
     expect(screen.getByText('서버 안내입니다.')).toBeInTheDocument();
   });
@@ -187,7 +187,7 @@ describe('MentoringPage error handling', () => {
     render(<MentoringPage />);
 
     await user.click(await screen.findByRole('button', { name: '리뷰 작성' }));
-    await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어주세요.'), '좋은 피드백이었습니다.');
+    await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어 주세요.'), '좋은 피드백이었습니다.');
     await user.click(screen.getByRole('button', { name: '리뷰 등록' }));
 
     expect(await screen.findByText('이미 리뷰 작성이 완료된 멘토링입니다.')).toBeInTheDocument();

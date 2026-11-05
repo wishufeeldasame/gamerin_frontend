@@ -1,5 +1,5 @@
 export const BLOCKED_ACCOUNT_MESSAGE =
-  '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.';
+  '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.';
 
 const blockedAccountStatuses = new Set([
   'INACTIVE',

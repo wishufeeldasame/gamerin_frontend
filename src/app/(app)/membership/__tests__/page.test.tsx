@@ -46,13 +46,13 @@ describe('MembershipPage', () => {
     const { unmount } = render(<MembershipPage />);
     expect(await screen.findByText('이용 중')).toBeInTheDocument();
     expect(screen.getByText('만료일 2099-11-09')).toBeInTheDocument();
-    expect(screen.getByText('지금 재구매하면 → 2099-12-09')).toBeInTheDocument();
+    expect(screen.getByText('지금 구매하면 만료일이 2099-12-09로 연장됩니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '30일 연장하기 4,900원' })).toBeEnabled();
     unmount();
 
     membershipApi.fetchMyMembership.mockResolvedValueOnce(membership(false, '2026-01-09T23:10:00+09:00'));
     render(<MembershipPage />);
-    expect(await screen.findByText('2026-01-09에 만료되었어요')).toBeInTheDocument();
+    expect(await screen.findByText('2026-01-09에 만료되었습니다')).toBeInTheDocument();
   });
 
   it('이용권 취소 진행 중 409는 문서 문구로 보여준다', async () => {
@@ -63,6 +63,6 @@ describe('MembershipPage', () => {
 
     await user.click(await screen.findByRole('button', { name: '카카오페이로 4,900원 결제' }));
     await user.click(screen.getByRole('button', { name: '카카오페이로 결제' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('이전 결제 취소를 처리하고 있습니다. 잠시 후 다시 시도해주세요.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('이전 결제 취소를 처리하고 있습니다. 잠시 후 다시 시도해 주세요.');
   });
 });

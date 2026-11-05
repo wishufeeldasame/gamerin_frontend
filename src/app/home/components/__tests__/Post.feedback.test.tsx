@@ -18,7 +18,7 @@ import { PostDetail } from '../PostDetail';
 const post: PostRecord = {
   postId: 'post-1', author: '작성자', authorHandle: 'author',
   authorProfileImageUrl: null, authorVerifiedBadge: false,
-  content: '테스트 게시물', media: [], likes: 0, comments: 1, shares: 0,
+  content: '테스트 게시글', media: [], likes: 0, comments: 1, shares: 0,
   isReposted: false, repostCount: 0, likedByMe: false, bookmarkedByMe: false,
   mine: true, createdAt: '2026-10-01T00:00:00Z',
 };
@@ -32,7 +32,7 @@ function deferred() {
   const promise = new Promise<void>((done) => { resolve = done; });
   return { promise, resolve };
 }
-function openDeletion(label = '게시물 메뉴') {
+function openDeletion(label = '게시글 메뉴') {
   fireEvent.click(screen.getByRole('button', { name: label }));
   fireEvent.click(screen.getByRole('button', { name: '삭제' }));
   return screen.getByRole('alertdialog');
@@ -45,15 +45,15 @@ beforeEach(() => {
   api.deleteComment.mockResolvedValue(undefined);
 });
 
-describe('게시물 카드 확인창', () => {
+describe('게시글 카드 확인창', () => {
   it('취소 시 요청하지 않고 닫힌 메뉴의 트리거로 포커스를 복원한다', async () => {
     render(<Post post={post} />);
     const dialog = openDeletion();
     fireEvent.click(within(dialog).getByRole('button', { name: '취소' }));
     await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     expect(api.deletePost).not.toHaveBeenCalled();
-    expect(screen.getByRole('button', { name: '게시물 메뉴' })).toHaveFocus();
-    expect(screen.getByRole('button', { name: '게시물 메뉴' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByRole('button', { name: '게시글 메뉴' })).toHaveFocus();
+    expect(screen.getByRole('button', { name: '게시글 메뉴' })).toHaveAttribute('aria-expanded', 'false');
   });
   it('연속 확인과 요청 대기 중 재클릭에도 한 번만 삭제하고 성공 콜백을 유지한다', async () => {
     const deletion = deferred();
@@ -64,14 +64,14 @@ describe('게시물 카드 확인창', () => {
     fireEvent.click(button);
     fireEvent.click(button);
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledTimes(1));
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     expect(screen.getByRole('button', { name: '삭제 중...' })).toBeDisabled();
     await act(async () => deletion.resolve());
     expect(onDelete).toHaveBeenCalledWith(post);
   });
   it.each([
     [new Error('삭제 실패'), '삭제 실패'],
-    [null, '게시물을 삭제하지 못했습니다.'],
+    [null, '게시글을 삭제하지 못했습니다.'],
   ])('실패 시 오류 토스트(%s)를 띄우고 재시도할 수 있다', async (error, message) => {
     api.deletePost.mockRejectedValueOnce(error);
     const onDelete = vi.fn();
@@ -83,7 +83,7 @@ describe('게시물 카드 확인창', () => {
     await waitFor(() => expect(onDelete).toHaveBeenCalledOnce());
     expect(api.deletePost).toHaveBeenCalledTimes(2);
   });
-  it('확인 대기 중 게시물 대상이 변경되면 삭제를 취소한다', async () => {
+  it('확인 대기 중 게시글 대상이 변경되면 삭제를 취소한다', async () => {
     const view = render(<Post post={post} />);
     openDeletion();
     view.rerender(<Post post={{ ...post, postId: 'post-2' }} />);
@@ -92,7 +92,7 @@ describe('게시물 카드 확인창', () => {
   });
 });
 
-describe('게시물 상세 확인창', () => {
+describe('게시글 상세 확인창', () => {
   it('댓글 삭제 Esc 취소 시 요청하지 않고 댓글 메뉴로 포커스를 돌린다', async () => {
     render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
     await screen.findByText(comment.content);
@@ -124,7 +124,7 @@ describe('게시물 상세 확인창', () => {
     expect(screen.getByText(comment.content)).toBeInTheDocument();
     expect(onPostUpdated).not.toHaveBeenCalled();
   });
-  it('상세 게시물 삭제는 확인 뒤에만 요청하고 기존 이동 콜백을 호출한다', async () => {
+  it('상세 게시글 삭제는 확인 뒤에만 요청하고 기존 이동 콜백을 호출한다', async () => {
     const onBack = vi.fn();
     const onPostDeleted = vi.fn();
     render(<PostDetail postId={post.postId} onBack={onBack} onPostDeleted={onPostDeleted} />);
@@ -163,7 +163,7 @@ describe('게시물 상세 확인창', () => {
   });
   it.each([
     [new Error('상세 삭제 실패'), '상세 삭제 실패'],
-    [null, '게시물을 삭제하지 못했습니다.'],
+    [null, '게시글을 삭제하지 못했습니다.'],
   ])('삭제 실패는 이동하지 않고 오류(%s) 표시 후 재시도할 수 있다', async (error, message) => {
     api.deletePost.mockRejectedValueOnce(error);
     const onBack = vi.fn();
@@ -189,14 +189,14 @@ describe('게시물 상세 확인창', () => {
     await screen.findByText(post.content!);
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledTimes(1));
-    api.fetchPostDetail.mockResolvedValue({ ...post, postId: 'post-2', content: '다음 게시물' });
+    api.fetchPostDetail.mockResolvedValue({ ...post, postId: 'post-2', content: '다음 게시글' });
     view.rerender(<PostDetail postId="post-2" onBack={onBack} onPostDeleted={onPostDeleted} />);
-    await screen.findByText('다음 게시물');
+    await screen.findByText('다음 게시글');
     fireEvent.click(within(openDeletion()).getByRole('button', { name: '삭제' }));
     await waitFor(() => expect(api.deletePost).toHaveBeenCalledTimes(2));
     await act(async () => first.resolve());
     expect(onPostDeleted).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     expect(screen.getByRole('button', { name: '삭제 중...' })).toBeDisabled();
     await act(async () => second.resolve());
     expect(onPostDeleted).toHaveBeenCalledExactlyOnceWith('post-2');

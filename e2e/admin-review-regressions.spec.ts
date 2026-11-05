@@ -130,13 +130,13 @@ for (const mode of [
     await changed.selectOption('검토 중');
     await expect(changed).toHaveValue('검토 중');
     await expect(changed).toBeDisabled();
-    await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.', { exact: true })).toBeVisible();
+    await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.', { exact: true })).toBeVisible();
     await expect(untouched).toBeEnabled();
     expect(resync.patches).toEqual([{ status: 'IN_REVIEW' }]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     resync.allowListRefresh();
     await page.getByRole('button', { name: '새로고침', exact: true }).press('Enter');
-    await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.', { exact: true })).toHaveCount(0);
+    await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.', { exact: true })).toHaveCount(0);
     // 검토 중으로 바뀐 신고는 목록에서 더 바꿀 수 없다(종결은 상세 화면의 판정으로만).
     await expect(changed).toHaveValue('검토 중');
     await expect(changed).toBeDisabled();
@@ -153,12 +153,12 @@ test('a committed report leaves its old status filter without another PATCH', as
   await page.getByRole('combobox', { name: '전체 상태', exact: true }).selectOption('접수');
   await expect(page.getByRole('button', { name: '새로고침', exact: true })).toBeEnabled();
   await page.getByRole('combobox', { name: 'RPT-RESYNC-1 상태 변경' }).selectOption('검토 중');
-  await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.', { exact: true })).toBeVisible();
+  await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.', { exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'RPT-RESYNC-1', exact: true })).toHaveCount(0);
   await expect(page.getByRole('combobox', { name: 'RPT-RESYNC-2 상태 변경' })).toBeEnabled();
   resync.allowListRefresh();
   await page.getByRole('button', { name: '새로고침', exact: true }).click();
-  await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.', { exact: true })).toHaveCount(0);
   expect(resync.patches).toEqual([{ status: 'IN_REVIEW' }]);
 });
 
@@ -193,7 +193,7 @@ for (const missStorageEvent of [false, true]) {
 
     const refreshesBeforeReload = session.refreshCount();
     await page.reload();
-    await expect(page.getByRole('heading', { name: '지금 가입하세요.' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'GamerIN에 가입하기' })).toBeVisible();
     expect(session.refreshCount()).toBe(refreshesBeforeReload);
     await secondPage.goto('/reports/my');
     await expect(secondPage.getByRole('cell', { name: 'RPT-ACCOUNT-B', exact: true })).toBeVisible();
