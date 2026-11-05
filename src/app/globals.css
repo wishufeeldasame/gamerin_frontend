@@ -45,6 +45,8 @@
 }
 
 @theme inline {
+  /* v2 radius/md. 기본 rounded-md/lg는 rounded-xl 등 ~200곳 사용 때문에 덮어쓰지 않는다. */
+  --radius-control: 10px;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
@@ -110,37 +112,38 @@
 }
 
 @utility page-title {
-  @apply text-2xl font-black tracking-tight md:text-3xl;
-  color: var(--foreground);
+  /* Figma 모바일 화면 제목은 Title(20), 데스크톱은 Display(28). 모바일 셸(탭바)과 같은 lg 기준으로 나눈다. */
+  @apply text-title lg:text-display;
+  color: var(--fg-primary);
 }
 
 @utility page-subtitle {
-  @apply mt-1 text-sm font-medium text-zinc-500;
+  @apply mt-1 text-body text-fg-secondary;
 }
 
 @utility section-title {
-  @apply text-lg font-black;
-  color: var(--foreground);
+  @apply text-title;
+  color: var(--fg-primary);
 }
 
 @utility btn-primary {
-  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-black px-5 text-sm font-bold text-white transition hover:bg-zinc-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-zinc-300 disabled:text-white dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#f8c957] dark:focus-visible:ring-[#f5b93d] dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500;
+  @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-control bg-brand px-4 text-label text-fg-on-brand transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-fg-tertiary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility btn-secondary {
-  @apply inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-bold text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+  @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-control bg-subtle px-4 text-label text-fg-primary transition hover:bg-line disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility input-base {
-  @apply h-11 w-full rounded-xl border border-zinc-200 bg-white px-4 text-sm text-black outline-none transition-colors placeholder:text-zinc-400 focus:border-black dark:focus:border-[#f5b93d];
+  @apply h-11 w-full rounded-control border border-line bg-subtle px-3.5 text-body text-fg-primary outline-none transition-colors placeholder:text-fg-tertiary focus:border-line-focus;
 }
 
 @utility btn-secondary-square {
-  @apply inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-zinc-200 bg-white text-zinc-700 transition hover:border-zinc-400 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 dark:border-line dark:bg-surface dark:text-zinc-200 dark:hover:border-zinc-500;
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-control bg-subtle text-label text-fg-primary transition hover:bg-line disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 @utility btn-icon {
-  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-black disabled:cursor-not-allowed disabled:opacity-50 dark:text-zinc-400 dark:hover:bg-surface-elevated dark:hover:text-zinc-100;
+  @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-icon-secondary transition hover:bg-subtle hover:text-icon-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
 /* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대한다. 모바일에서만 16px로 올린다. */
@@ -228,14 +231,21 @@ body {
 .dark input,
 .dark select,
 .dark textarea {
-  background-color: var(--surface-elevated);
-  border-color: #3f3f46;
-  color: var(--foreground);
+  background-color: var(--subtle);
+  border-color: var(--line);
+  color: var(--fg-primary);
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #71717a;
+  color: var(--fg-tertiary);
+}
+
+/* 레이어 밖 규칙이라 유틸리티 focus 색이 이길 수 없어 여기서 대신 지정한다. */
+.dark input:focus,
+.dark select:focus,
+.dark textarea:focus {
+  border-color: var(--line-focus);
 }
 
 /* 모바일 대화창을 열면 하단 탭바를 숨긴다(messages/page.tsx가 body에 data-chat-open을 단다). */
