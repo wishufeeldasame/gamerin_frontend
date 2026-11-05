@@ -53,12 +53,25 @@ describe('MobileTopBar', () => {
     expect(screen.queryByRole('dialog', { name: '검색' })).not.toBeInTheDocument();
   });
 
-  it('closes the search with Escape and returns focus to the button', () => {
+  it.each([
+    ['Escape', (input: HTMLElement) => fireEvent.keyDown(input, { key: 'Escape' })],
+    ['닫기 버튼', () => fireEvent.click(screen.getByRole('button', { name: '검색 닫기' }))],
+  ])('closes the modal before returning focus to the button (%s)', (_label, closeSearch) => {
     render(<MobileTopBar unreadCount={0} />);
     const trigger = screen.getByRole('button', { name: '검색 열기' });
     fireEvent.click(trigger);
-    fireEvent.keyDown(screen.getByRole('textbox', { name: '통합 검색' }), { key: 'Escape' });
+    const dialog = screen.getByRole('dialog', { name: '검색' }) as HTMLDialogElement;
+    // 실제 브라우저는 모달이 열린 동안 배경을 inert로 두어 focus()가 무시된다. 포커스 시점에 모달이 닫혀 있어야 한다.
+    let dialogOpenAtFocus: boolean | undefined;
+    const focus = HTMLElement.prototype.focus;
+    vi.spyOn(trigger, 'focus').mockImplementation(function (this: HTMLElement) {
+      dialogOpenAtFocus = dialog.open;
+      focus.call(this);
+    });
 
+    closeSearch(screen.getByRole('textbox', { name: '통합 검색' }));
+
+    expect(dialogOpenAtFocus).toBe(false);
     expect(screen.queryByRole('dialog', { name: '검색' })).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
   });

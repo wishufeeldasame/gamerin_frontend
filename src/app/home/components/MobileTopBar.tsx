@@ -22,24 +22,30 @@ function FullscreenSearch({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
+  // 모달이 열려 있는 동안 배경은 inert라 검색 버튼이 포커스를 받지 못한다. 먼저 닫고 나서 부모가 포커스를 돌린다.
+  const close = () => {
+    if (dialogRef.current?.open) dialogRef.current.close();
+    onClose();
+  };
+
   return (
     <dialog
       ref={dialogRef}
       aria-label="검색"
       onCancel={(event) => {
         event.preventDefault();
-        onClose();
+        close();
       }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
           event.stopPropagation();
-          onClose();
+          close();
         }
       }}
       className="m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 backdrop:bg-transparent"
     >
-      <SearchPanel variant="fullscreen" onClose={onClose} />
+      <SearchPanel variant="fullscreen" onClose={close} />
     </dialog>
   );
 }
