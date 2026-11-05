@@ -2,11 +2,47 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bell, Search } from 'lucide-react';
-import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useDesktopChange } from '@/hooks/useDesktopChange';
 import { SearchPanel } from './SearchPanel';
+
+// 전체 화면 검색(F9). 다른 모달처럼 네이티브 dialog의 showModal로 열어 배경을 비활성화(inert)하고 포커스를 안에 가둔다.
+function FullscreenSearch({ onClose }: { onClose: () => void }) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (dialog && !dialog.open) dialog.showModal();
+    // showModal은 첫 버튼(닫기)에 포커스를 준다. 바로 입력할 수 있게 입력창으로 옮긴다.
+    dialog?.querySelector('input')?.focus();
+    return () => {
+      if (dialog?.open) dialog.close();
+    };
+  }, []);
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-label="검색"
+      onCancel={(event) => {
+        event.preventDefault();
+        onClose();
+      }}
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          event.stopPropagation();
+          onClose();
+        }
+      }}
+      className="m-0 h-dvh max-h-none w-full max-w-none border-0 bg-transparent p-0 backdrop:bg-transparent"
+    >
+      <SearchPanel variant="fullscreen" onClose={onClose} />
+    </dialog>
+  );
+}
 
 // lg 미만 상단 바(F9): 로고·검색·알림. 검색은 전체 화면 패널, 알림은 /notifications 페이지로 연다.
 export function MobileTopBar({ unreadCount }: { unreadCount: number }) {
@@ -17,7 +53,10 @@ export function MobileTopBar({ unreadCount }: { unreadCount: number }) {
     setSearchOpen(false);
     searchTriggerRef.current?.focus();
   }, []);
-  useEscapeKey(closeSearch, searchOpen);
+  // 데스크톱 폭으로 넓히면 상단 바가 사라지므로 열린 검색도 닫는다(배경이 inert로 남지 않게).
+  useDesktopChange((isDesktop) => {
+    if (isDesktop) setSearchOpen(false);
+  }, searchOpen);
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 bg-canvas pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] lg:hidden">
@@ -47,14 +86,8 @@ export function MobileTopBar({ unreadCount }: { unreadCount: number }) {
         </Link>
       </div>
 
-      {searchOpen
-        ? createPortal(
-            <div role="dialog" aria-modal="true" aria-label="검색" className="fixed inset-0 z-[70] lg:hidden">
-              <SearchPanel variant="fullscreen" onClose={closeSearch} />
-            </div>,
-            document.body,
-          )
-        : null}
+      {/* lg:hidden인 header 밖(body)에 그려야 dialog가 숨겨진 조상에 묶이지 않는다. */}
+      {searchOpen ? createPortal(<FullscreenSearch onClose={closeSearch} />, document.body) : null}
     </header>
   );
 }

@@ -99,4 +99,25 @@ describe('Sidebar (L2)', () => {
     expect(await screen.findByText('10,400')).toBeInTheDocument();
     expect(mocks.fetchMyMileageBalance).toHaveBeenCalledTimes(3);
   });
+
+  it('closes an open slide panel when the window narrows to the mobile shell', () => {
+    const listeners = new Set<(event: { matches: boolean }) => void>();
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      matches: true,
+      addEventListener: (_: string, listener: (event: { matches: boolean }) => void) => listeners.add(listener),
+      removeEventListener: (_: string, listener: (event: { matches: boolean }) => void) => listeners.delete(listener),
+    })));
+    try {
+      render(<Sidebar unreadCount={0} onUnreadCountChange={vi.fn()} />);
+      const bell = screen.getByRole('button', { name: '알림' });
+      fireEvent.click(bell);
+      expect(screen.getByText('알림 패널')).toBeInTheDocument();
+
+      act(() => listeners.forEach((listener) => listener({ matches: false })));
+      expect(screen.queryByText('알림 패널')).not.toBeInTheDocument();
+      expect(bell).toHaveAttribute('aria-expanded', 'false');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });

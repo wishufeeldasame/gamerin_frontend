@@ -13,6 +13,7 @@ import { subscribeToMileageInvalidation } from '@/lib/mileage-sync';
 import { useAuth } from '@/app/context/AuthContext';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
+import { useDesktopChange } from '@/hooks/useDesktopChange';
 import { MembershipBadge } from './MembershipBadge';
 import { NotificationPanel } from './NotificationPanel';
 import { SearchPanel } from './SearchPanel';
@@ -248,6 +249,14 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
   const search = useShellPopup();
   const notification = useShellPopup();
   const panelOpen = search.isOpen || notification.isOpen;
+  // 패널은 body에 그려서 사이드바가 숨겨져도 남는다. 모바일 폭으로 줄이면 닫는다.
+  const { close: closeSearch } = search;
+  const { close: closeNotification } = notification;
+  useDesktopChange((isDesktop) => {
+    if (isDesktop) return;
+    closeSearch();
+    closeNotification();
+  }, panelOpen);
   const notificationOpen = notification.isOpen;
   const notificationPanelRef = notification.panelRef;
   useEffect(() => {

@@ -1,5 +1,6 @@
-import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { installDialogMock } from '@/test/feedback';
 
 const mocks = vi.hoisted(() => ({
   pathname: '/home',
@@ -15,8 +16,13 @@ import { MobileTopBar } from '../MobileTopBar';
 
 describe('MobileTopBar', () => {
   beforeEach(() => {
+    installDialogMock();
     mocks.pathname = '/home';
     mocks.push.mockReset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('links the bell to the notifications page with the unread count in its name', () => {
@@ -62,5 +68,20 @@ describe('MobileTopBar', () => {
     fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
     fireEvent.submit(screen.getByRole('textbox', { name: '통합 검색' }));
     expect(mocks.push).not.toHaveBeenCalled();
+  });
+
+  it('closes the search when the window widens to the desktop shell', () => {
+    const listeners = new Set<(event: { matches: boolean }) => void>();
+    vi.stubGlobal('matchMedia', vi.fn(() => ({
+      matches: false,
+      addEventListener: (_: string, listener: (event: { matches: boolean }) => void) => listeners.add(listener),
+      removeEventListener: (_: string, listener: (event: { matches: boolean }) => void) => listeners.delete(listener),
+    })));
+    render(<MobileTopBar unreadCount={0} />);
+    fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
+    expect(screen.getByRole('dialog', { name: '검색' })).toBeInTheDocument();
+
+    act(() => listeners.forEach((listener) => listener({ matches: true })));
+    expect(screen.queryByRole('dialog', { name: '검색' })).not.toBeInTheDocument();
   });
 });

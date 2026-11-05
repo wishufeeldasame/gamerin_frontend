@@ -190,4 +190,18 @@ describe('NotificationPanel server synchronization', () => {
     expect(within(document.body).getByText('읽지 않은 알림 0개')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
+
+  it('navigates from the page variant without calling the back action', async () => {
+    mocks.fetchNotifications.mockResolvedValue(page([notification('1', '첫 번째')], null, false));
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
+    const goBack = vi.fn();
+    render(<NotificationPanel variant="page" onClose={goBack} />);
+
+    fireEvent.click(await screen.findByRole('button', { name: /첫 번째님이 내 게시글을 좋아합니다/ }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/1'));
+    expect(goBack).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: '뒤로 가기' }));
+    expect(goBack).toHaveBeenCalledTimes(1);
+  });
 });

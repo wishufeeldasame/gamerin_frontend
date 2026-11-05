@@ -240,7 +240,8 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef, 
       return;
     }
 
-    onClose();
+    // 페이지의 onClose는 뒤로 가기라, 이동과 함께 부르면 기록이 엉킨다. 패널만 닫고 이동한다.
+    if (variant === 'panel') onClose();
     router.push(href);
   };
 
