@@ -1147,7 +1147,7 @@ export default function ProfilePage() {
           <div>
             <h1 className="page-title flex items-center gap-2">
               {profile.nickname}
-              <MembershipBadge active={profile.membershipBadge} />
+              <MembershipBadge active={profile.membershipBadge} size={24} />
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
