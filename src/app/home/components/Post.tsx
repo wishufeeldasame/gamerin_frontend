@@ -326,7 +326,6 @@ export function Post({
               </div>
               <span className="text-caption text-fg-tertiary">
                 @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
-                {post.game ? ` · ${post.game}` : null}
               </span>
             </div>
           </Link>
