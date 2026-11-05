@@ -124,7 +124,7 @@ for (const width of [390, 1440]) {
       await capture(page, info, 'post-menu'); await page.keyboard.press('Escape');
       await expect(page.getByRole('button', { name: '게시글 메뉴', exact: true })).toBeFocused();
       await page.getByRole('button', { name: '알림', exact: true }).click();
-      const notification = page.getByText('테스터님이 게시글을 좋아합니다.');
+      const notification = page.getByText('테스터님이 내 게시글을 좋아합니다.');
       await expect(notification).toBeVisible(); expect(await contrast(notification)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'notifications');
     });

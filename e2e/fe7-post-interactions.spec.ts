@@ -176,7 +176,7 @@ for (const width of [375, 1440]) {
         await expect(menus.nth(1)).toHaveAttribute('aria-expanded', 'false');
         const bell = page.getByRole('button', { name: '알림', exact: true });
         await bell.click();
-        await expect(page.getByText('알림 사용자님이 게시글을 좋아합니다.')).toBeVisible();
+        await expect(page.getByText('알림 사용자님이 내 게시글을 좋아합니다.')).toBeVisible();
         await expect(page.getByRole('button', { name: '알림 닫기' })).toBeFocused();
         await page.keyboard.press('Escape');
         await expect(bell).toBeFocused();

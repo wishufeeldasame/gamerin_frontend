@@ -129,7 +129,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         if (viewport.width >= 1024) await expect(page.getByText('미배치')).toHaveCount(2);
         await checkLayout(page, info, 'home');
         await page.getByRole('button', { name: '알림', exact: true }).click();
-        await expect(page.getByText('테스터님이 게시글을 좋아합니다.')).toBeVisible();
+        await expect(page.getByText('테스터님이 내 게시글을 좋아합니다.')).toBeVisible();
         await expect(page.locator('time').last()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await checkLayout(page, info, 'notifications');
 
