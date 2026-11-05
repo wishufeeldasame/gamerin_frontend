@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Post } from '@/app/home/components/Post';
+import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
 import { fetchHashtagPosts } from '@/lib/community-search-api';
@@ -81,9 +82,7 @@ export default function HashtagPostsPage() {
       </header>
 
       {loading ? (
-        <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400">
-          게시글을 불러오는 중...
-        </div>
+        <PostListSkeleton count={3} label="게시글을 불러오는 중" />
       ) : error ? (
         <div className="flex flex-col items-center gap-4 rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-950 dark:bg-red-950/30">
           <p className="font-black text-red-500">{error}</p>

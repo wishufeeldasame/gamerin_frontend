@@ -10,6 +10,7 @@ import {
 } from '@/lib/feed-api';
 import { type BookmarkScope, type PostRecord, getPostHref } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
+import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
@@ -314,9 +315,7 @@ export default function BookmarksPage() {
 
 
       {loading ? (
-        <div className="rounded-3xl border border-zinc-100 bg-white p-10 text-center font-black text-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-500">
-          북마크를 불러오는 중...
-        </div>
+        <PostListSkeleton count={3} label="북마크를 불러오는 중" />
       ) : error ? (
         <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
           <p className="font-black text-red-500 dark:text-red-300">{error}</p>

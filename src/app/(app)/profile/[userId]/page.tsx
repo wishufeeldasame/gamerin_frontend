@@ -4,6 +4,7 @@ import { useToast } from '@/app/context/ToastContext';
 
 import Image from 'next/image';
 import Link from 'next/link';
+import { PostListSkeleton, ProfileSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
   Settings,
   Edit3,
@@ -21,7 +22,6 @@ import {
   MoreHorizontal,
   Flag,
   X,
-  Loader2,
   MapPin,
   WalletCards,
   Gamepad2,
@@ -999,9 +999,7 @@ export default function ProfilePage() {
 
   if (!currentUser || loading) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse font-black uppercase italic text-zinc-400 dark:!text-zinc-100">프로필을 불러오는 중...</p>
-      </div>
+      <ProfileSkeleton />
     );
   }
 
@@ -1329,7 +1327,7 @@ export default function ProfilePage() {
         {activeTab === 'posts' ? (
           <div className="md:space-y-4">
             {postsLoading ? (
-              <div className="py-16 text-center text-sm font-bold text-zinc-400">게시글을 불러오는 중...</div>
+              <PostListSkeleton />
             ) : postsError ? (
               <div className="py-16 text-center">
                 <p className="font-black text-red-500">{postsError}</p>
@@ -1521,10 +1519,7 @@ export default function ProfilePage() {
 
             <div className="max-h-[58dvh] overflow-y-auto p-4">
               {followListLoading ? (
-                <div className="flex h-44 items-center justify-center text-sm font-bold text-zinc-400">
-                  <Loader2 size={18} className="mr-2 animate-spin" />
-                  사용자를 불러오는 중...
-                </div>
+                <UserRowsSkeleton />
               ) : followListError ? (
                 <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
                   {followListError}
