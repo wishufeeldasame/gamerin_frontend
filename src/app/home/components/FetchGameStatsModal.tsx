@@ -18,7 +18,7 @@ import {
 
 const PUBG_NICKNAME_REGEX = /^[A-Za-z0-9_-]{4,16}$/;
 const PUBG_NICKNAME_ERROR_MESSAGE =
-  '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 언더바(_)만 사용 가능합니다.';
+  '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 밑줄(_)만 사용 가능합니다.';
 
 type ConnectableGame = 'PUBG' | 'R6' | 'LOL';
 
@@ -29,13 +29,13 @@ const availableGames: Array<{
   invertInDark?: boolean;
   connectableGame?: ConnectableGame;
 }> = [
-  { name: 'League of Legends', description: '티어, 승률, 최근 5경기 KDA 연동', iconUrl: '/images/games/lol.png', connectableGame: 'LOL' },
-  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율 연동', iconUrl: '/images/games/valorant.png' },
-  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적 연동', iconUrl: '/images/games/overwatch2.png' },
-  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
-  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수 연동', iconUrl: '/images/games/rainbow6.png', invertInDark: true, connectableGame: 'R6' },
-  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률 연동', iconUrl: '/images/games/cs2.png', invertInDark: true },
-  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율 연동', iconUrl: '/images/games/apexlegend.png', invertInDark: true },
+  { name: 'League of Legends', description: '티어, 승률, 최근 5경기 KDA', iconUrl: '/images/games/lol.png', connectableGame: 'LOL' },
+  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율', iconUrl: '/images/games/valorant.png' },
+  { name: 'Overwatch 2', description: '실력 등급, 영웅 전적', iconUrl: '/images/games/overwatch2.png' },
+  { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
+  { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수', iconUrl: '/images/games/rainbow6.png', invertInDark: true, connectableGame: 'R6' },
+  { name: 'CS2', description: '프리미어 등급, 킬/데스 비율, 승률', iconUrl: '/images/games/cs2.png', invertInDark: true },
+  { name: 'Apex Legends', description: '등급, 피해량, 킬/데스 비율', iconUrl: '/images/games/apexlegend.png', invertInDark: true },
 ];
 
 interface FetchGameStatsModalProps {
@@ -56,7 +56,7 @@ function getGameLabel(game: ConnectableGame) {
 
 function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
   if (!(error instanceof GameStatsApiError)) {
-    return error instanceof Error ? error.message : `${getGameLabel(game)} 연동에 실패했습니다.`;
+    return error instanceof Error ? error.message : `${getGameLabel(game)} 연결에 실패했습니다.`;
   }
 
   if (game === 'R6') {
@@ -123,7 +123,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     setConnectingGame(gameName);
     setTimeout(() => {
       setConnectingGame(null);
-      toast.info(`${gameName} 연동은 아직 지원되지 않습니다.`);
+      toast.info(`${gameName} 연결은 아직 지원되지 않습니다.`);
     }, 1000);
   };
 
@@ -211,8 +211,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     promptGame === 'LOL'
       ? '한국 서버 Riot ID를 닉네임#태그 형식으로 입력하세요.'
       : promptGame === 'R6'
-      ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연동하세요.'
-      : 'PUBG 계정 연동을 시작하려면 닉네임을 입력하세요.';
+      ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연결하세요.'
+      : 'PUBG 계정 연결을 시작하려면 닉네임을 입력하세요.';
 
   return (
     <AnimatePresence>
@@ -243,7 +243,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                 <X size={24} />
               </button>
             </div>
-            <h2 className="text-2xl font-black uppercase italic tracking-tighter">게임 전적 연동</h2>
+            <h2 className="text-2xl font-black uppercase italic tracking-tighter">게임 전적 연결</h2>
             <p className="mt-1 text-sm font-bold text-zinc-500">
               공식 게임 계정을 연결하고 최신 전적을 불러오세요.
             </p>
@@ -280,19 +280,10 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                       : 'bg-black text-white hover:bg-zinc-800 active:scale-95'
                   }`}
                 >
-                  {connectingGame === (game.connectableGame ?? game.name) ? '연동 중...' : '연결'}
+                  {connectingGame === (game.connectableGame ?? game.name) ? '연결 중...' : '연결'}
                 </button>
               </div>
             ))}
-          </div>
-
-          <div className="border-t border-zinc-100 bg-zinc-50 p-8">
-            <div className="flex items-center justify-center gap-2">
-              <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-              <p className="text-center text-xs font-black uppercase tracking-widest text-zinc-400">
-                암호화 활성: 게임 API를 통한 보안 연결
-              </p>
-            </div>
           </div>
 
           {promptGame && (

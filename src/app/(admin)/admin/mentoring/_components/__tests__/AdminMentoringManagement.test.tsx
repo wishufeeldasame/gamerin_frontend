@@ -70,7 +70,7 @@ describe('AdminMentoringManagement', () => {
     expect(mentoringApi.fetchAdminMentors).toHaveBeenCalledWith({ status: undefined, page: 0, size: 20, sort: 'createdAt,desc' }, expect.any(AbortSignal));
     expect(screen.getByText('이번 달 신청 건수')).toBeInTheDocument();
     expect(screen.getByText('8건')).toBeInTheDocument();
-    expect(screen.getByText('9,000P')).toBeInTheDocument();
+    expect(screen.getByText('9,000M')).toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '주력 게임' })).not.toBeInTheDocument();
     expect(screen.queryByRole('columnheader', { name: '경력' })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '승인' })).toBeEnabled();
@@ -81,7 +81,7 @@ describe('AdminMentoringManagement', () => {
     fireEvent.click(await screen.findByRole('button', { name: '승인' }));
     expect(screen.getByRole('dialog')).toHaveTextContent('멘토 프로필이 활성 상태');
     mentoringApi.fetchAdminMentors.mockResolvedValue(pageResponse([{ ...mentor, status: 'ACTIVE' }]));
-    fireEvent.click(screen.getByRole('button', { name: '승인 확인' }));
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '승인' }));
     await waitFor(() => expect(mentoringApi.approveAdminMentor).toHaveBeenCalledWith(mentor.userId, expect.any(AbortSignal)));
     expect(await screen.findByText('활성', { selector: 'span' })).toBeInTheDocument();
     expect(mentoringApi.fetchAdminMentoringSummary).toHaveBeenCalledTimes(2);
@@ -112,12 +112,12 @@ describe('AdminMentoringManagement', () => {
     mentoringApi.approveAdminMentor.mockReturnValue(new Promise<AdminMentorApiItem>((done) => { resolve = done; }));
     render(<AdminMentoringManagement />);
     fireEvent.click(await screen.findByRole('button', { name: '승인' }));
-    const confirm = screen.getByRole('button', { name: '승인 확인' });
+    const confirm = within(screen.getByRole('dialog')).getByRole('button', { name: '승인' });
     fireEvent.click(confirm);
     fireEvent.click(confirm);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '처리 중…' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '처리 중...' })).toBeDisabled();
     expect(mentoringApi.approveAdminMentor).toHaveBeenCalledTimes(1);
     resolve({ ...mentor, status: 'ACTIVE' });
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
@@ -136,17 +136,17 @@ describe('AdminMentoringManagement', () => {
     await waitFor(() => expect(mentoringApi.fetchAdminMentoringPrograms).toHaveBeenLastCalledWith({ status: 'CLOSED', keyword: '코칭', page: 0, size: 20, sort: 'createdAt,desc' }, expect.any(AbortSignal)));
   });
 
-  it('changes ACTIVE to CLOSED and displays 종료 without marking it hidden', async () => {
+  it('changes ACTIVE to CLOSED and displays 마감 without marking it hidden', async () => {
     render(<AdminMentoringManagement />);
     await openPrograms();
-    fireEvent.click(screen.getByRole('button', { name: '종료' }));
+    fireEvent.click(screen.getByRole('button', { name: '마감' }));
     mentoringApi.fetchAdminMentoringPrograms.mockResolvedValue(pageResponse([{ ...program, status: 'CLOSED' }]));
     fireEvent.click(screen.getByRole('button', { name: '상태 변경 확인' }));
     await waitFor(() => expect(mentoringApi.updateAdminProgramStatus).toHaveBeenCalledWith(program.id, 'CLOSED', expect.any(AbortSignal)));
-    expect(await screen.findByRole('button', { name: '운영 재개' })).toBeInTheDocument();
-    expect(screen.getByText('종료', { selector: 'span' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: '모집 재개' })).toBeInTheDocument();
+    expect(screen.getByText('마감', { selector: 'span' })).toBeInTheDocument();
     expect(screen.queryByText('숨김 처리됨')).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '운영 재개' }));
+    fireEvent.click(screen.getByRole('button', { name: '모집 재개' }));
     fireEvent.click(screen.getByRole('button', { name: '상태 변경 확인' }));
     await waitFor(() => expect(mentoringApi.updateAdminProgramStatus).toHaveBeenLastCalledWith(program.id, 'ACTIVE', expect.any(AbortSignal)));
   });
@@ -164,7 +164,7 @@ describe('AdminMentoringManagement', () => {
     await waitFor(() => expect(mentoringApi.hideAdminMentoringProgram).toHaveBeenCalledWith(program.id, '운영 정책 위반', expect.any(AbortSignal)));
     expect(await screen.findByText('숨김 처리됨')).toBeInTheDocument();
     expect(screen.getByText('운영 중', { selector: 'span' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: '종료' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '마감' })).not.toBeInTheDocument();
   });
 
   it('ignores the old mentor response after status filter changes', async () => {

@@ -2,7 +2,7 @@
 
 import { Check, Copy, Loader2, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { PostRecord, getInitials, sharePost } from '@/lib/feed-api';
+import { PostRecord, getInitials, getPostHref, sharePost } from '@/lib/feed-api';
 import { searchMessageRecipients, sharePostMessage } from '@/lib/message-api';
 import { MessageRecipient } from '@/lib/message-store';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
@@ -13,12 +13,9 @@ interface SharePostModalProps {
   onShared?: (result: Pick<PostRecord, 'postId' | 'shares'>) => void;
 }
 
-function buildPostUrl(postId: string) {
-  if (typeof window === 'undefined') {
-    return `/posts/${postId}`;
-  }
-
-  return `${window.location.origin}/posts/${postId}`;
+function buildPostUrl(postNumber: number) {
+  const href = getPostHref(postNumber);
+  return typeof window === 'undefined' ? href : `${window.location.origin}${href}`;
 }
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
@@ -83,7 +80,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       const response = await sharePost(post.postId, 'COPY_LINK');
 
       if (navigator.clipboard) {
-        await navigator.clipboard.writeText(buildPostUrl(post.postId)).catch(() => undefined);
+        await navigator.clipboard.writeText(buildPostUrl(post.postNumber)).catch(() => undefined);
       }
 
       setCopied(true);
@@ -233,7 +230,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
           {selectedRecipients.length > 0 ? (
             <div className="rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500">
-              {selectedRecipients.map((recipient) => recipient.name).join(', ')} 에게 공유합니다.
+              {selectedRecipients.map((recipient) => recipient.name).join(', ')}에게 공유합니다.
             </div>
           ) : null}
 

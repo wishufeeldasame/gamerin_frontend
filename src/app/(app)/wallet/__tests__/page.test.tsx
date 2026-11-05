@@ -55,7 +55,7 @@ describe('WalletPage', () => {
     const radios = screen.getAllByRole('radio');
     expect(radios).toHaveLength(4);
     expect(radios.every((radio) => radio.getAttribute('aria-checked') === 'false')).toBe(true);
-    expect(screen.getByRole('button', { name: '충전 금액을 선택해주세요' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '충전 금액을 선택해 주세요' })).toBeDisabled();
   });
 
   it('화살표 키로 패키지를 고르고 카카오페이 결제 확인창을 연다', async () => {

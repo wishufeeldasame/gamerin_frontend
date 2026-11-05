@@ -18,7 +18,7 @@ export function validateHandle(value: string): string | null {
     return '아이디는 영문 소문자, 숫자, 밑줄(_)만 사용할 수 있습니다.';
   }
   if (handle.length < HANDLE_MIN_LENGTH || handle.length > HANDLE_MAX_LENGTH) {
-    return `아이디는 ${HANDLE_MIN_LENGTH}~${HANDLE_MAX_LENGTH}자로 입력해주세요.`;
+    return `아이디는 ${HANDLE_MIN_LENGTH}~${HANDLE_MAX_LENGTH}자로 입력해 주세요.`;
   }
   return null;
 }
@@ -26,18 +26,18 @@ export function validateHandle(value: string): string | null {
 export function validateNickname(value: string): string | null {
   const length = value.trim().length;
   if (length < NICKNAME_MIN_LENGTH || length > NICKNAME_MAX_LENGTH) {
-    return `닉네임은 ${NICKNAME_MIN_LENGTH}~${NICKNAME_MAX_LENGTH}자로 입력해주세요.`;
+    return `닉네임은 ${NICKNAME_MIN_LENGTH}~${NICKNAME_MAX_LENGTH}자로 입력해 주세요.`;
   }
   return null;
 }
 
 export function validateEmail(value: string): string | null {
-  return EMAIL_PATTERN.test(value.trim()) ? null : '올바른 이메일 형식으로 입력해주세요.';
+  return EMAIL_PATTERN.test(value.trim()) ? null : '올바른 이메일 형식으로 입력해 주세요.';
 }
 
 export function validatePassword(value: string): string | null {
   if (value.length < PASSWORD_MIN_LENGTH || value.length > PASSWORD_MAX_LENGTH) {
-    return `비밀번호는 ${PASSWORD_MIN_LENGTH}~${PASSWORD_MAX_LENGTH}자로 입력해주세요.`;
+    return `비밀번호는 ${PASSWORD_MIN_LENGTH}~${PASSWORD_MAX_LENGTH}자로 입력해 주세요.`;
   }
   if (!PASSWORD_COMPOSITION.test(value)) {
     return '비밀번호는 영문, 숫자, 특수문자를 모두 포함해야 합니다.';

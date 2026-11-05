@@ -151,7 +151,7 @@ vi.mock('@/app/home/components/Post', () => ({
 import BookmarksPage from '../page';
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -273,7 +273,7 @@ describe('BookmarksPage state synchronization', () => {
     expect(allButton).toHaveTextContent('25개 게시물');
 
     api.fetchMyBookmarks.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
-    fireEvent.change(screen.getByPlaceholderText('게시물, 작성자, 게임 검색'), {
+    fireEvent.change(screen.getByPlaceholderText('게시글, 작성자, 게임 검색'), {
       target: { value: '없는 검색어' },
     });
     await waitFor(() => expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument());
@@ -369,10 +369,10 @@ describe('BookmarksPage state synchronization', () => {
     expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
     expect(screen.getAllByText('동기화 중')).toHaveLength(2);
     expect(
-      within(getCollectionButton('모음집 A')).queryByText('5개 게시물'),
+      within(getCollectionButton('모음집 A')).queryByText('5개 게시글'),
     ).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 B')).queryByText('4개 게시물'),
+      within(getCollectionButton('모음집 B')).queryByText('4개 게시글'),
     ).not.toBeInTheDocument();
 
     bookmarkContext.collections = [
@@ -383,10 +383,10 @@ describe('BookmarksPage state synchronization', () => {
 
     await waitFor(() => {
       expect(
-        within(getCollectionButton('모음집 A')).getByText('4개 게시물'),
+        within(getCollectionButton('모음집 A')).getByText('4개 게시글'),
       ).toBeInTheDocument();
       expect(
-        within(getCollectionButton('모음집 B')).getByText('3개 게시물'),
+        within(getCollectionButton('모음집 B')).getByText('3개 게시글'),
       ).toBeInTheDocument();
     });
     expect(screen.queryByText('동기화 중')).not.toBeInTheDocument();
@@ -405,7 +405,7 @@ describe('BookmarksPage state synchronization', () => {
 
     expect(screen.queryByText('동기화 중')).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 A')).getByText('5개 게시물'),
+      within(getCollectionButton('모음집 A')).getByText('5개 게시글'),
     ).toBeInTheDocument();
   });
 
@@ -419,7 +419,7 @@ describe('BookmarksPage state synchronization', () => {
     await screen.findByTestId('post-post-1');
     await selectCollection('모음집 A');
 
-    fireEvent.change(screen.getByPlaceholderText('게시물, 작성자, 게임 검색'), {
+    fireEvent.change(screen.getByPlaceholderText('게시글, 작성자, 게임 검색'), {
       target: { value: '없는 검색어' },
     });
     api.fetchCollectionBookmarks.mockResolvedValue({ items: [], nextCursor: null, hasNext: false });
@@ -428,7 +428,7 @@ describe('BookmarksPage state synchronization', () => {
     });
 
     expect(
-      within(getCollectionButton('모음집 A')).getByText('5개 게시물'),
+      within(getCollectionButton('모음집 A')).getByText('5개 게시글'),
     ).toBeInTheDocument();
   });
 

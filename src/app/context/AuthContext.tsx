@@ -225,7 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsSessionUnavailable(false);
     await logoutAuthSession({ notify: false });
 
-    const redirectTo = options?.redirectTo ?? '/login';
+    const redirectTo = options?.redirectTo === undefined ? '/login' : options.redirectTo;
     if (redirectTo) {
       router.replace(redirectTo);
     }

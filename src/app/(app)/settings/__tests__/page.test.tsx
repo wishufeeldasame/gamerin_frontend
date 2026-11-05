@@ -61,7 +61,7 @@ describe('SettingsPage', () => {
   it('shows only real account data as read-only values', () => {
     renderSettings();
 
-    const handle = screen.getByLabelText('사용자 이름');
+    const handle = screen.getByLabelText('아이디');
 
     // 서버가 이메일을 내려주지 않아 빈 이메일 칸은 보여주지 않는다.
     expect(screen.queryByLabelText('이메일')).not.toBeInTheDocument();
@@ -124,7 +124,7 @@ describe('SettingsPage', () => {
     renderSettings();
     fireEvent.change(screen.getByLabelText('현재 비밀번호'), { target: { value: 'current-password' } });
     fireEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호 입력칸을 모두 채워주세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호 입력칸을 모두 채워 주세요.');
     expect(screen.getByRole('alert')).toHaveAttribute('aria-live', 'assertive');
     expect(screen.getByLabelText('현재 비밀번호')).toHaveValue('current-password');
     fireEvent.click(screen.getByRole('button', { name: '알림 닫기' }));
@@ -137,7 +137,7 @@ describe('SettingsPage', () => {
     fireEvent.change(screen.getByLabelText('새 비밀번호'), { target: { value: 'new-password' } });
     fireEvent.change(screen.getByLabelText('새 비밀번호 확인'), { target: { value: 'different-password' } });
     fireEvent.click(screen.getByRole('button', { name: '비밀번호 변경' }));
-    expect(screen.getByRole('alert')).toHaveTextContent('새 비밀번호 확인이 일치하지 않습니다.');
+    expect(screen.getByRole('alert')).toHaveTextContent('새 비밀번호가 일치하지 않습니다.');
     expect(screen.getByLabelText('현재 비밀번호')).toHaveValue('current-password');
     expect(screen.getByLabelText('새 비밀번호')).toHaveValue('new-password');
     expect(screen.getByLabelText('새 비밀번호 확인')).toHaveValue('different-password');
@@ -146,7 +146,7 @@ describe('SettingsPage', () => {
   it('rejects a new password that breaks the sign-up rule without calling the API', () => {
     renderSettings();
     fillPasswordForm('OldPassword1!', 'short');
-    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호는 8~20자로 입력해주세요.');
+    expect(screen.getByRole('alert')).toHaveTextContent('비밀번호는 8~20자로 입력해 주세요.');
     expect(auth.changePassword).not.toHaveBeenCalled();
   });
 

@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({
   fetchBookmarkCollections: vi.fn(),
   fetchMyBookmarks: vi.fn(),
   fetchPostComments: vi.fn(),
-  fetchPostDetail: vi.fn(),
+  fetchPostDetailByNumber: vi.fn(),
   unbookmarkPost: vi.fn(),
 }));
 
@@ -25,7 +25,7 @@ vi.mock('@/lib/feed-api', async (importOriginal) => ({
   fetchBookmarkCollections: api.fetchBookmarkCollections,
   fetchMyBookmarks: api.fetchMyBookmarks,
   fetchPostComments: api.fetchPostComments,
-  fetchPostDetail: api.fetchPostDetail,
+  fetchPostDetailByNumber: api.fetchPostDetailByNumber,
   unbookmarkPost: api.unbookmarkPost,
 }));
 // The list card is unrelated to the detail modal operation.
@@ -41,7 +41,7 @@ import BookmarksPage from '@/app/(app)/bookmarks/page';
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -102,7 +102,7 @@ function renderIntegratedScreens() {
   render(
     <BookmarkCollectionProvider>
       <ContextState />
-      <PostDetail postId={'post-1'} onBack={vi.fn()} />
+      <PostDetail postNumber={1} onBack={vi.fn()} />
       <BookmarksPage />
     </BookmarkCollectionProvider>,
   );
@@ -114,7 +114,7 @@ function collectionButton(name = 'A') {
 
 async function openCollectionModal() {
   await waitFor(() => {
-    expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
   });
   fireEvent.click(await screen.findByRole('button', { name: '북마크 해제' }));
   await screen.findByRole('dialog');
@@ -128,7 +128,7 @@ function globalCollectionReads() {
 describe('PostDetail and /bookmarks collection synchronization', () => {
   beforeEach(() => {
     for (const mock of Object.values(api)) mock.mockReset();
-    api.fetchPostDetail.mockResolvedValue(post);
+    api.fetchPostDetailByNumber.mockResolvedValue(post);
     api.fetchPostComments.mockResolvedValue([]);
     api.fetchMyBookmarks.mockResolvedValue({ items: [post], nextCursor: null, hasNext: false });
     api.unbookmarkPost.mockResolvedValue(undefined);
@@ -168,7 +168,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
       expect(collectionCheckbox).toBeEnabled();
     });
     expect(globalCollectionReads()).toHaveLength(2);
@@ -187,7 +187,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       ])
       .mockReturnValueOnce(refresh.promise);
     api.addPostToBookmarkCollection.mockResolvedValue({
-      postId: 'post-1',
+      postId: 'post-1', postNumber: 1,
       bookmarkedByMe: true,
       collectionIds: ['collection-a'],
       collection: collection(3),
@@ -213,17 +213,17 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     });
 
     await waitFor(() => {
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
-      expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
+      expect(within(collectionButton('B')).getByText('4개 게시글')).toBeInTheDocument();
       expect(collectionACheckbox).toBeEnabled();
     });
 
     fireEvent.click(collectionACheckbox);
     await waitFor(() => {
       expect(api.addPostToBookmarkCollection).toHaveBeenCalledWith('collection-a', 'post-1');
-      expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
     });
-    expect(within(collectionButton('B')).getByText('4개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton('B')).getByText('4개 게시글')).toBeInTheDocument();
     await waitFor(() => {
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
     });
@@ -245,7 +245,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       expect(screen.getByLabelText('컬렉션 조회 상태')).toHaveTextContent('대기');
       expect(screen.getByRole('checkbox', { name: '모음집 A' })).toBeEnabled();
     });
-    expect(within(collectionButton()).getByText('3개 게시물')).toBeInTheDocument();
+    expect(within(collectionButton()).getByText('3개 게시글')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
     expect(globalCollectionReads()).toHaveLength(2);
   });
@@ -268,7 +268,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
     fireEvent.click(screen.getByRole('button', { name: '전체 북마크 해제' }));
     await waitFor(() => {
       expect(api.unbookmarkPost).toHaveBeenCalledOnce();
-      expect(within(collectionButton()).getByText('2개 게시물')).toBeInTheDocument();
+      expect(within(collectionButton()).getByText('2개 게시글')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: '북마크 저장' })).toBeInTheDocument();
     });
     expect(globalCollectionReads()).toHaveLength(2);

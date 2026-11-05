@@ -497,7 +497,7 @@ describe('403과 차단 계정', () => {
 
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
       status, reason: 'blocked',
-      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.',
     });
     expect(api.count('/api/v1/items')).toBe(1);
     expect(api.count('/api/v1/auth/refresh')).toBe(1);
@@ -523,7 +523,7 @@ describe('403과 차단 계정', () => {
     await expect(client.apiRequest('/api/v1/items', config)).rejects.toMatchObject({
       reason: 'blocked',
       status: 403,
-      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해주세요.',
+      message: '정지되었거나 비활성화된 계정입니다. 계정 상태를 확인해 주세요.',
     });
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
     expect(api.count('/api/v1/auth/logout')).toBe(1);

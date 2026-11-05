@@ -5,7 +5,7 @@ import { render } from '@/test/renderWithPopup';
 import type { PostRecord, CommentRecord } from '@/lib/feed-api';
 
 const api = vi.hoisted(() => ({
-  createComment: vi.fn(), fetchPostDetail: vi.fn(), fetchPostComments: vi.fn(),
+  createComment: vi.fn(), fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn(),
   fetchNotifications: vi.fn(), fetchUnreadNotificationCount: vi.fn(),
   markNotificationRead: vi.fn(), markAllNotificationsRead: vi.fn(),
   push: vi.fn(), toggleRepost: vi.fn(), fetchCollectionsForPost: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@/app/context/BookmarkCollectionContext', () => ({
 }));
 vi.mock('@/lib/feed-api', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/feed-api')>(),
-  createComment: api.createComment, fetchPostDetail: api.fetchPostDetail, fetchPostComments: api.fetchPostComments,
+  createComment: api.createComment, fetchPostDetailByNumber: api.fetchPostDetailByNumber, fetchPostComments: api.fetchPostComments,
 }));
 vi.mock('@/lib/notification-api', async (importOriginal) => ({
   ...await importOriginal<typeof import('@/lib/notification-api')>(),
@@ -43,7 +43,7 @@ import { PostDetail } from '../PostDetail';
 import { Header } from '../Header';
 
 const post: PostRecord = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, game: null, content: '안녕 @alpha #게임', media: [],
   likes: 2, comments: 1, shares: 0, isReposted: false, repostCount: 3, likedByMe: false,
   bookmarkedByMe: false, mine: false, createdAt: '2026-10-09T00:00:00Z',
@@ -53,14 +53,14 @@ const comment: CommentRecord = {
   authorVerifiedBadge: false, content: '@bravo #댓글태그', mine: false, createdAt: post.createdAt,
 };
 async function detail() {
-  render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
+  render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} />);
   return await screen.findByRole('textbox', { name: '댓글 입력' });
 }
 
 describe('FE-7 shared menus and actions', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    api.fetchPostDetail.mockResolvedValue(post);
+    api.fetchPostDetailByNumber.mockResolvedValue(post);
     api.fetchPostComments.mockResolvedValue([comment]);
     api.createComment.mockResolvedValue({ ...comment, commentId: 'created', content: '새 댓글' });
     api.fetchCollectionsForPost.mockResolvedValue([]);
@@ -68,7 +68,7 @@ describe('FE-7 shared menus and actions', () => {
     api.markNotificationRead.mockResolvedValue(undefined);
     api.fetchNotifications.mockResolvedValue({ items: [{
       notificationId: 'n1', type: 'like', actor: { userId: 'other', handle: 'other', nickname: '알림 사용자' },
-      postId: 'post-1', read: false, createdAt: post.createdAt,
+      postId: 'post-1', postNumber: 1, read: false, createdAt: post.createdAt,
     }], nextCursor: null, hasNext: false });
   });
 
@@ -76,14 +76,14 @@ describe('FE-7 shared menus and actions', () => {
     render(<><Header /><Post post={post} /><Post post={{ ...post, postId: 'post-2' }} /></>);
     const bell = screen.getByRole('button', { name: '알림' });
     fireEvent.click(bell);
-    await screen.findByText('알림 사용자님이 게시글을 좋아합니다.');
+    await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.');
     expect(screen.getByRole('button', { name: '알림 닫기' })).toHaveFocus();
     fireEvent.pointerDown(screen.getByRole('button', { name: '알림 닫기' }));
     expect(bell).toHaveAttribute('aria-expanded', 'true');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(bell).toHaveAttribute('aria-expanded', 'false');
     expect(bell).toHaveFocus();
-    const menus = screen.getAllByRole('button', { name: '게시물 메뉴' });
+    const menus = screen.getAllByRole('button', { name: '게시글 메뉴' });
     fireEvent.click(menus[0]); fireEvent.click(menus[1]);
     expect(menus[0]).toHaveAttribute('aria-expanded', 'false');
     expect(menus[1]).toHaveAttribute('aria-expanded', 'true');
@@ -97,8 +97,8 @@ describe('FE-7 shared menus and actions', () => {
     render(<Header />);
     const bell = screen.getByRole('button', { name: '알림' });
     fireEvent.click(bell);
-    fireEvent.click(await screen.findByText('알림 사용자님이 게시글을 좋아합니다.'));
-    await waitFor(() => expect(api.push).toHaveBeenCalledWith('/posts/post-1'));
+    fireEvent.click(await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.'));
+    await waitFor(() => expect(api.push).toHaveBeenCalledWith('/posts/1'));
     expect(bell).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(bell);
     fireEvent.click(screen.getByRole('button', { name: '알림 닫기' }));
@@ -140,7 +140,7 @@ describe('FE-7 shared menus and actions', () => {
     expect(screen.queryByRole('link', { name: '#댓글태그' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '댓글 메뉴' }));
     expect(screen.getByRole('button', { name: '댓글 신고' })).toBeInTheDocument();
-    const menu = screen.getByRole('button', { name: '게시물 메뉴' });
+    const menu = screen.getByRole('button', { name: '게시글 메뉴' });
     fireEvent.click(menu); fireEvent.keyDown(document, { key: 'Escape' });
     expect(menu).toHaveFocus();
     expect(screen.getByRole('button', { name: '댓글 신고' })).toBeInTheDocument();
@@ -189,7 +189,7 @@ describe('FE-7 shared menus and actions', () => {
     const article = view.container.querySelector('article')!;
     expect(article).not.toHaveAttribute('role');
     expect(article).not.toHaveAttribute('tabindex');
-    const overlay = screen.getByRole('button', { name: '작성자님의 게시물 열기' });
+    const overlay = screen.getByRole('button', { name: '작성자님의 게시글 열기' });
     expect(overlay.querySelector('a, button, input, video')).toBeNull();
     const user = userEvent.setup();
     overlay.focus();
@@ -223,7 +223,7 @@ describe('FE-7 shared menus and actions', () => {
     fireEvent.click(mention);
     fireEvent.click(screen.getByRole('button', { name: '좋아요 2개' }));
     fireEvent.click(screen.getByRole('button', { name: '댓글 보기' }));
-    fireEvent.click(screen.getByRole('button', { name: '게시물 메뉴' }));
+    fireEvent.click(screen.getByRole('button', { name: '게시글 메뉴' }));
     expect(open).not.toHaveBeenCalled();
     expect(like).toHaveBeenCalledWith(post);
     expect(comments).toHaveBeenCalledWith(post);
@@ -239,7 +239,7 @@ describe('FE-7 shared menus and actions', () => {
   it('does not render an overlay without a detail callback and preserves comments fallback', () => {
     const comments = vi.fn();
     const view = render(<Post post={post} onOpenComments={comments} />);
-    expect(screen.queryByRole('button', { name: '작성자님의 게시물 열기' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '작성자님의 게시글 열기' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '댓글 보기' }));
     expect(comments).toHaveBeenCalledWith(post);
     const open = vi.fn();

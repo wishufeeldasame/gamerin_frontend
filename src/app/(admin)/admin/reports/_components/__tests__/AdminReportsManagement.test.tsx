@@ -41,7 +41,7 @@ const report: AdminReportApiItem = {
   targetSnippet: '신고된 게시글',
   reasonCode: 'SPAM',
   reasonLabel: '스팸',
-  details: '반복 게시물입니다.',
+  details: '반복 게시글입니다.',
   status: 'RECEIVED',
   assignedAdminId: null,
   assignedAdminNickname: null,
@@ -144,7 +144,7 @@ describe('AdminReportsManagement', () => {
     });
 
     expect(await screen.findByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).toBeInTheDocument();
     expect(statusSelect('RPT-001')).toHaveValue('검토 중');
     expect(firstSelect).toBeDisabled();
@@ -154,7 +154,7 @@ describe('AdminReportsManagement', () => {
     fireEvent.click(screen.getByRole('button', { name: '새로고침' }));
     await waitFor(() => expect(statusSelect('RPT-001')).toBeEnabled());
     expect(screen.queryByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).not.toBeInTheDocument();
     expect(adminReportApi.updateAdminReportStatus).toHaveBeenCalledTimes(1);
   });
@@ -176,7 +176,7 @@ describe('AdminReportsManagement', () => {
     await renderLoaded();
     fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
     expect(await screen.findByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).toBeInTheDocument();
     fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
     expect(adminReportApi.updateAdminReportStatus).toHaveBeenCalledTimes(1);
@@ -197,7 +197,7 @@ describe('AdminReportsManagement', () => {
     fireEvent.change(statusSelect('RPT-001'), { target: { value: '검토 중' } });
     patch.resolve(reviewedReport);
     expect(await screen.findByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).toBeInTheDocument();
     expect(oldSignal.aborted).toBe(true);
     oldGet.resolve(pageResponse([report]));
@@ -225,7 +225,7 @@ describe('AdminReportsManagement', () => {
       target: { value: '검토 중' },
     });
     expect(await screen.findByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).toBeInTheDocument();
 
     fireEvent.change(statusSelect('RPT-002'), {
@@ -531,7 +531,7 @@ describe('AdminReportsManagement', () => {
       target: { value: '검토 중' },
     });
     expect(await screen.findByText(
-      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.',
+      '상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.',
     )).toBeInTheDocument();
 
     const pollingCall = polling.useVisiblePolling.mock.calls.at(-1);

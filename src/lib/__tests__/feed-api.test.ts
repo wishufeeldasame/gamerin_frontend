@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchMyBookmarkCount, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
-import { clearStoredAuth, setAccessToken } from '@/lib/auth-store';
-import { installFetchRoutes, json } from '@/test/fetch-routes';
+import { fetchMyBookmarkCount, fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+
+const apiRequest = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/api-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api-client')>()),
+  apiRequest,
+}));
 
 vi.mock('@/lib/api-base', () => ({
   getApiBaseUrl: () => 'http://api.test',
@@ -25,20 +29,26 @@ describe('feed-api 이미지 주소', () => {
   });
 });
 
+describe('게시글 숫자 URL', () => {
+  it('getPostHref는 postNumber로 /posts/{n} 링크를 만든다', () => {
+    expect(getPostHref(7)).toBe('/posts/7');
+    expect(getPostHref(7, '?target=comments')).toBe('/posts/7?target=comments');
+  });
+
+  it('fetchPostDetailByNumber는 by-number 엔드포인트를 호출한다', async () => {
+    apiRequest.mockResolvedValue({ postId: 'uuid-1', postNumber: 7, media: [] });
+    const post = await fetchPostDetailByNumber(7);
+
+    expect(apiRequest.mock.calls[0][0]).toBe('/api/v1/posts/by-number/7');
+    expect(post).toMatchObject({ postId: 'uuid-1', postNumber: 7 });
+  });
+});
+
 describe('fetchMyBookmarkCount', () => {
   it('숫자 0은 개수로 반환하고 객체 형태의 응답은 거부한다', async () => {
-    const api = installFetchRoutes();
-    const path = '/api/v1/users/me/bookmarks/count';
-    api.route(path, () => json(200, { success: true, data: 0 }), () =>
-      json(200, { success: true, data: { count: 25 } }),
-    );
-    setAccessToken('test-token');
+    apiRequest.mockResolvedValueOnce(0).mockResolvedValueOnce({ count: 25 });
 
-    try {
-      await expect(fetchMyBookmarkCount()).resolves.toBe(0);
-      await expect(fetchMyBookmarkCount()).rejects.toThrow('전체 북마크 개수 응답이 올바르지 않습니다.');
-    } finally {
-      clearStoredAuth();
-    }
+    await expect(fetchMyBookmarkCount()).resolves.toBe(0);
+    await expect(fetchMyBookmarkCount()).rejects.toThrow('전체 북마크 개수 응답이 올바르지 않습니다.');
   });
 });

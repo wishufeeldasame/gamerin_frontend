@@ -22,6 +22,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { getPostHref } from '@/lib/feed-api';
 import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
@@ -302,14 +303,14 @@ function SharedPostCard({
   onOpenPost,
 }: {
   message: ChatMessage;
-  onOpenPost: (postId: string) => void;
+  onOpenPost: (postNumber: number) => void;
 }) {
   if (!message.sharedPost) return null;
 
   return (
     <button
       type="button"
-      onClick={() => onOpenPost(message.sharedPost!.postId)}
+      onClick={() => onOpenPost(message.sharedPost!.postNumber)}
       className="mt-3 block w-full overflow-hidden rounded-2xl border border-white/20 bg-white text-left text-black shadow-sm transition hover:border-black"
     >
       <div className="border-b border-zinc-100 px-4 py-3">
@@ -473,7 +474,7 @@ function MessageBubble({
   actionLoading: boolean;
   onToggleAction: () => void;
   onDelete: () => void;
-  onOpenPost: (postId: string) => void;
+  onOpenPost: (postNumber: number) => void;
   onOpenImage: (attachment: ChatAttachment) => void;
 }) {
   // 모바일에는 호버가 없으니 내 메시지를 길게 누르면 메뉴를 연다.
@@ -647,6 +648,17 @@ function PendingMessageBubble({
   );
 }
 
+function StreamReplacedNotice({ className = '' }: { className?: string }) {
+  return (
+    <div
+      role="status"
+      className={`rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 ${className}`}
+    >
+      다른 탭이나 기기에서 메시지 화면을 열어 실시간 연결이 종료되었습니다. 새로고침하면 다시 연결됩니다.
+    </div>
+  );
+}
+
 export default function MessagesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -697,6 +709,7 @@ export default function MessagesPage() {
   }, [mobileView]);
   const [expandedImage, setExpandedImage] = useState<ExpandedImage | null>(null);
   const [pageError, setPageError] = useState('');
+  const [streamReplaced, setStreamReplaced] = useState(false);
   const [composerError, setComposerError] = useState('');
   const [messageActionId, setMessageActionId] = useState<string | null>(null);
   const messageScrollRef = useRef<HTMLDivElement | null>(null);
@@ -1016,9 +1029,12 @@ export default function MessagesPage() {
     let reconnectTimer: number | null = null;
     let reconnectAttempt = 0;
     let cancelled = false;
+    // 서버가 더 새 연결에 밀어냈다면 재연결하지 않는다(탭끼리 서로 밀어내는 루프 방지).
+    let replaced = false;
+    setStreamReplaced(false);
 
     function scheduleReconnect() {
-      if (cancelled || reconnectTimer) return false;
+      if (cancelled || replaced || reconnectTimer) return false;
       if (reconnectAttempt >= MAX_MESSAGE_STREAM_RECONNECT_ATTEMPTS) {
         setPageError('실시간 메시지 연결에 반복해서 실패했습니다. 페이지를 새로고침하거나 다시 로그인해 주세요.');
         return false;
@@ -1071,13 +1087,24 @@ export default function MessagesPage() {
           void loadConversations({ silent: true });
         });
 
+        nextEventSource.addEventListener('connection-replaced', () => {
+          replaced = true;
+          nextEventSource.close();
+          if (eventSource === nextEventSource) {
+            eventSource = null;
+          }
+          if (!cancelled) {
+            setStreamReplaced(true);
+          }
+        });
+
         nextEventSource.onerror = () => {
           nextEventSource.close();
           if (eventSource === nextEventSource) {
             eventSource = null;
           }
 
-          if (!cancelled) {
+          if (!cancelled && !replaced) {
             scheduleReconnect();
           }
         };
@@ -1233,7 +1260,7 @@ export default function MessagesPage() {
     requestedRecipientRef.current = requestedRecipientHandle;
 
     const existingConversation = conversations.find(
-      (conversation) => conversation.recipient.handle === requestedRecipientHandle
+      (conversation) => conversation.recipient.handle.replace(/^@/, '') === requestedRecipientHandle.replace(/^@/, '')
     );
 
     if (existingConversation) {
@@ -1574,8 +1601,8 @@ export default function MessagesPage() {
     setAttachmentMenuOpen(false);
   };
 
-  const handleOpenPost = (postId: string) => {
-    router.push(`/posts/${encodeURIComponent(postId)}`);
+  const handleOpenPost = (postNumber: number) => {
+    router.push(getPostHref(postNumber));
   };
 
   const handleOpenImage = useCallback((attachment: { url: string; name: string }) => {
@@ -1658,6 +1685,8 @@ export default function MessagesPage() {
             />
           ) : null}
 
+          {streamReplaced ? <StreamReplacedNotice /> : null}
+
           {pageError ? (
             <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
               {pageError}
@@ -1697,6 +1726,8 @@ export default function MessagesPage() {
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
+        {/* 모바일 채팅 화면에서는 대화 목록 영역이 숨겨지므로 안내를 여기에도 둔다. */}
+        {streamReplaced ? <StreamReplacedNotice className="md:hidden" /> : null}
         {activeConversation ? (
           <>
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-surface/95">
@@ -1992,7 +2023,7 @@ export default function MessagesPage() {
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
               <Inbox className="mx-auto mb-4 text-zinc-300" size={48} />
-              <p className="text-lg font-black text-black">대화를 선택해주세요.</p>
+              <p className="text-lg font-black text-black">대화를 선택해 주세요.</p>
             </div>
           </div>
         )}

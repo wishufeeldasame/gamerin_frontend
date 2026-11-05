@@ -77,7 +77,7 @@ function ImagePreview({
       className="m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-6xl overflow-y-auto rounded-2xl border border-neutral-700 bg-neutral-950 p-4 text-white shadow-xl backdrop:bg-black/80"
     >
       <div className="mb-3 flex items-center justify-between gap-4">
-        <h2 id={titleId} className="text-sm font-bold">게시물 이미지 {imageNumber} 확대</h2>
+        <h2 id={titleId} className="text-sm font-bold">게시글 이미지 {imageNumber} 확대</h2>
         <button
           ref={closeButtonRef}
           type="button"
@@ -93,7 +93,7 @@ function ImagePreview({
       ) : (
         <Image
           src={src}
-          alt={`확대된 게시물 이미지 ${imageNumber}`}
+          alt={`확대된 게시글 이미지 ${imageNumber}`}
           width={1200}
           height={800}
           sizes="100vw"
@@ -116,7 +116,7 @@ export function PostImage({ src, imageNumber, width, height, sizes, className }:
   const close = useCallback(() => setOpen(false), []);
   const handleUnavailable = useCallback(() => {
     setOpen(false);
-    toast.error('이미지 확대를 열 수 없습니다.');
+    toast.error('이미지를 확대할 수 없습니다.');
   }, [toast]);
 
   return (
@@ -124,13 +124,13 @@ export function PostImage({ src, imageNumber, width, height, sizes, className }:
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`게시물 이미지 ${imageNumber} 확대 보기`}
+        aria-label={`게시글 이미지 ${imageNumber} 확대 보기`}
         aria-haspopup="dialog"
         data-card-open-ignore="true"
         onClick={() => { closeAll(); setOpen(true); }}
         className="group pointer-events-auto relative block w-full cursor-zoom-in overflow-hidden rounded-[inherit] focus:outline-none"
       >
-        <Image src={src} alt="게시물 미디어" width={width} height={height} sizes={sizes} unoptimized className={className} />
+        <Image src={src} alt="게시글 미디어" width={width} height={height} sizes={sizes} unoptimized className={className} />
         <span aria-hidden="true" className="pointer-events-none absolute inset-0 rounded-[inherit] border-2 border-transparent group-focus-visible:border-white group-focus-visible:shadow-[inset_0_0_0_2px_black]" />
       </button>
       {open ? (

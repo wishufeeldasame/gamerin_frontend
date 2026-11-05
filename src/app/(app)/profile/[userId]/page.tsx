@@ -48,12 +48,14 @@ import {
   fetchUserPosts,
   followUser,
   getInitials,
+  getPostHref,
   unfollowUser,
   updateMyProfile,
   uploadProfileImage,
 } from '@/lib/feed-api';
 import { updatePostsLikeState } from '@/lib/post-mutations';
 import { DEFAULT_PROFILE_COVER } from '@/lib/profile-constants';
+import { formatRelativeTimeLabel, parseDisplayTime } from '@/lib/time-format';
 import { updatePostsBookmarkState, updatePostsRepostState } from '@/lib/post-mutations';
 import {
   disconnectGameStats,
@@ -428,8 +430,8 @@ export default function ProfilePage() {
     getKey: (post: PostRecord) => post.postId,
     queryKey: profileHandle,
     enabled: Boolean(profileHandle),
-    initialErrorMessage: '게시물을 불러오지 못했습니다.',
-    loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
+    initialErrorMessage: '게시글을 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
   });
   const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
     setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
@@ -535,6 +537,8 @@ export default function ProfilePage() {
         ? riotId?.split('#')[0] ?? null
         : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
+      // 서버가 마지막 갱신 시각(updatedAt)을 준 게임만 "N분 전"을 표시한다.
+      syncedAt: readStringStat(toGameStatsRecord(stats) ?? {}, 'updatedAt'),
     }));
   }, [profile?.gameStats, profile?.handle, profile?.id, currentUser?.handle, currentUser?.id]);
 
@@ -563,7 +567,7 @@ export default function ProfilePage() {
     }
 
     if (refreshRequests.length === 0) {
-      toast.info('새로고칠 연결된 게임 전적이 없습니다.');
+      toast.info('새로고침할 게임 전적이 없습니다.');
       return;
     }
 
@@ -614,7 +618,7 @@ export default function ProfilePage() {
         failures.push(
           profileRefreshError instanceof Error
             ? `프로필 반영: ${profileRefreshError.message}`
-            : '프로필 반영: 프로필을 다시 불러오지 못했습니다.',
+            : '프로필을 다시 불러오지 못했습니다.',
         );
       }
 
@@ -712,9 +716,9 @@ export default function ProfilePage() {
     setMediaItems((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
+    router.push(getPostHref(postNumber, search));
   };
 
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
@@ -879,7 +883,7 @@ export default function ProfilePage() {
   const handleConnectPlatform = (platformId: ConnectedPlatformId) => {
     const handle = normalizeHandle(platformInputs[platformId]);
     if (!handle) {
-      toast.error('연동할 계정 ID를 입력해주세요.');
+      toast.error('연결할 계정 ID를 입력해 주세요.');
       return;
     }
 
@@ -1021,7 +1025,7 @@ export default function ProfilePage() {
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
-    { name: 'posts' as const, label: '게시물', icon: <Grid size={16} /> },
+    { name: 'posts' as const, label: '게시글', icon: <Grid size={16} /> },
     { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
     { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
   ];
@@ -1147,7 +1151,7 @@ export default function ProfilePage() {
           <div>
             <h1 className="page-title flex items-center gap-2">
               {profile.nickname}
-              <MembershipBadge active={profile.membershipBadge} />
+              <MembershipBadge active={profile.membershipBadge} size={24} />
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
@@ -1208,7 +1212,7 @@ export default function ProfilePage() {
             </button>
             <div className="flex items-center gap-2">
               <span className="text-lg font-black text-black md:text-2xl">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-bold text-zinc-500">게시물</span>
+              <span className="text-xs font-bold text-zinc-500">게시글</span>
             </div>
           </div>
         </div>
@@ -1299,14 +1303,16 @@ export default function ProfilePage() {
                       </div>
 
                       <div className="flex shrink-0 items-center gap-2 text-right">
-                        <p className="hidden text-sm font-black uppercase tracking-widest text-zinc-400 sm:block">실시간 연동</p>
+                        {entry.syncedAt && parseDisplayTime(entry.syncedAt) ? (
+                          <p className="hidden text-sm font-black tracking-widest text-zinc-400 sm:block">{formatRelativeTimeLabel(entry.syncedAt)}</p>
+                        ) : null}
                         {isOwnProfile && entry.disconnectGameName ? (
                           <button
                             type="button"
                             onClick={() => setDisconnectTarget(entry.disconnectGameName)}
                             disabled={isRefreshing || isDisconnectingGame}
                             className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
-                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연동 해제`}
+                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연결 해제`}
                           >
                             <Trash2 size={16} />
                           </button>
@@ -1323,7 +1329,7 @@ export default function ProfilePage() {
         {activeTab === 'posts' ? (
           <div className="md:space-y-4">
             {postsLoading ? (
-              <div className="py-16 text-center text-sm font-bold text-zinc-400">게시물을 불러오는 중...</div>
+              <div className="py-16 text-center text-sm font-bold text-zinc-400">게시글을 불러오는 중...</div>
             ) : postsError ? (
               <div className="py-16 text-center">
                 <p className="font-black text-red-500">{postsError}</p>
@@ -1337,8 +1343,8 @@ export default function ProfilePage() {
               </div>
             ) : posts.length === 0 ? (
               <div className="py-16 text-center">
-                <h3 className="section-title mb-1">아직 게시물이 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시물이 없습니다.</p>
+                <h3 className="section-title mb-1">아직 게시글이 없습니다</h3>
+                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시글이 없습니다.</p>
               </div>
             ) : (
               posts.map((post) => (
@@ -1347,8 +1353,8 @@ export default function ProfilePage() {
                   post={post}
                   likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                   onToggleLike={toggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                   onShare={handlePostUpdated}
                   onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
@@ -1364,7 +1370,7 @@ export default function ProfilePage() {
                 disabled={loadingMorePosts}
                 className="btn-secondary w-full"
               >
-                {loadingMorePosts ? '불러오는 중...' : '게시물 더 보기'}
+                {loadingMorePosts ? '불러오는 중...' : '게시글 더 보기'}
               </button>
             ) : null}
           </div>
@@ -1377,7 +1383,7 @@ export default function ProfilePage() {
             {mediaItems.length === 0 ? (
               <div className="py-16 text-center">
                 <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시물이 여기에 표시됩니다.</p>
+                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시글이 여기에 표시됩니다.</p>
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-1 md:gap-4">
@@ -1385,9 +1391,9 @@ export default function ProfilePage() {
                   <button
                     key={item.mediaId}
                     type="button"
-                    onClick={() => handleOpenPost(item.postId)}
+                    onClick={() => handleOpenPost(item.postNumber)}
                     className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                    aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시물 상세 보기`}
+                    aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시글 상세 보기`}
                   >
                     {item.mediaType === 'VIDEO' ? (
                       <>
@@ -1439,7 +1445,7 @@ export default function ProfilePage() {
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
           <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
             <h2 className="text-2xl font-black tracking-tight text-black">
-              {disconnectTargetConfig.displayName} 전적 연동을 해제할까요?
+              {disconnectTargetConfig.displayName} 전적 연결을 해제할까요?
             </h2>
             <p className="mt-3 text-base font-bold text-zinc-500">
               {disconnectTargetConfig.displayName} 전적만 프로필에서 제거됩니다. 다른 게임 전적은 유지됩니다.
@@ -1459,7 +1465,7 @@ export default function ProfilePage() {
                 disabled={isDisconnectingGame}
                 className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated"
               >
-                {isDisconnectingGame ? '연동 해제 중...' : '연동 해제'}
+                {isDisconnectingGame ? '연결 해제 중...' : '연결 해제'}
               </button>
             </div>
           </div>
@@ -1525,7 +1531,7 @@ export default function ProfilePage() {
                 </div>
               ) : followUsers.length === 0 ? (
                 <div className="py-16 text-center text-sm font-bold text-zinc-400">
-                  아직 사용자가 없습니다.
+                  {followListType === 'followers' ? '아직 팔로워가 없습니다.' : '아직 팔로우한 사용자가 없습니다.'}
                 </div>
               ) : (
                 <div className="space-y-2">

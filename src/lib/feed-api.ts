@@ -30,6 +30,8 @@ export interface ReposterInfo {
 
 export interface PostRecord {
   postId: string;
+  /** URL용 순번(/posts/{postNumber}). 좋아요·북마크 등 API 호출은 UUID `postId`를 쓴다 */
+  postNumber: number;
   author: string;
   authorHandle: string;
   authorProfileImageUrl: string | null;
@@ -124,6 +126,7 @@ export interface FollowUserRecord {
 export interface ProfileMediaItem {
   mediaId: string;
   postId: string;
+  postNumber: number;
   authorHandle: string;
   mediaType: 'IMAGE' | 'VIDEO';
   mediaUrl: string;
@@ -360,8 +363,13 @@ export async function fetchPostVideoJob(jobId: string, options: FeedRequestOptio
   return normalizePostVideoJob(job);
 }
 
-export async function fetchPostDetail(postId: string, options: FeedRequestOptions = {}) {
-  const post = await apiRequest<PostRecord>(`/api/v1/posts/${postId}`, {
+/** 게시글 상세 링크. 숫자 ID(postNumber)만 URL에 쓴다 */
+export function getPostHref(postNumber: number, search = '') {
+  return `/posts/${postNumber}${search}`;
+}
+
+export async function fetchPostDetailByNumber(postNumber: number, options: FeedRequestOptions = {}) {
+  const post = await apiRequest<PostRecord>(`/api/v1/posts/by-number/${postNumber}`, {
     signal: options.signal,
   });
   return normalizePostRecord(post);

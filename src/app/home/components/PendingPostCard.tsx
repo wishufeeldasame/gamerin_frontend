@@ -22,7 +22,7 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
   return (
     <article
       aria-busy={!failed}
-      aria-label={failed ? '업로드 실패한 게시물' : '업로드 중인 게시물'}
+      aria-label={failed ? '업로드 실패한 게시글' : '업로드 중인 게시글'}
       className={`overflow-hidden border-b bg-white md:rounded-2xl md:border md:shadow-sm ${
         failed ? 'border-red-200 dark:border-red-900' : 'border-zinc-100 dark:border-line'
       }`}

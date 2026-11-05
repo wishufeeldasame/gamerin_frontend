@@ -32,7 +32,7 @@ const summaryCards = [
   { label: '승인 대기 신청', field: 'pendingMentorCount', unit: '건', icon: UserRoundCheck, style: 'bg-[#fef6e7] text-[#d97706]' },
   { label: '운영 중 프로그램', field: 'activeProgramCount', unit: '개', icon: Gamepad2, style: 'bg-[#eef3ff] text-[#315ef5]' },
   { label: '이번 달 신청 건수', field: 'monthlySessionCount', unit: '건', icon: Star, style: 'bg-[#e7f6ee] text-[#168a4a]' },
-  { label: '보관 마일리지', field: 'escrowHeldAmount', unit: 'P', icon: WalletCards, style: 'bg-[#f4ebff] text-[#7f56d9]' },
+  { label: '보관 마일리지', field: 'escrowHeldAmount', unit: 'M', icon: WalletCards, style: 'bg-[#f4ebff] text-[#7f56d9]' },
 ] as const;
 
 type Selection =
@@ -148,7 +148,7 @@ export function AdminMentoringManagement() {
       setSummaryReload((current) => current + 1);
     } catch (error) {
       if (controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')) return;
-      setMutationError(error instanceof Error ? error.message : '처리에 실패했습니다. 다시 시도해주세요.');
+      setMutationError(error instanceof Error ? error.message : '처리에 실패했습니다. 다시 시도해 주세요.');
     } finally {
       mutationLock.current = false;
       if (!controller.signal.aborted) setIsSubmitting(false);
@@ -163,7 +163,7 @@ export function AdminMentoringManagement() {
         {summaryCards.map((card) => (
           <article key={card.field} className="flex h-[82px] items-center gap-3 rounded-[20px] border border-[#e4e7ec] bg-white p-4 shadow-sm">
             <span className={'grid size-10 shrink-0 place-items-center rounded-2xl ' + card.style}><card.icon className="size-5" aria-hidden="true" /></span>
-            <span><span className="block text-xs font-semibold text-[#667085]">{card.label}</span><span className="mt-0.5 block text-lg font-bold text-[#172033]">{summaryLoading ? '불러오는 중…' : summaryError || !summary ? '—' : summary[card.field].toLocaleString('ko-KR') + card.unit}</span></span>
+            <span><span className="block text-xs font-semibold text-[#667085]">{card.label}</span><span className="mt-0.5 block text-lg font-bold text-[#172033]">{summaryLoading ? '불러오는 중...' : summaryError || !summary ? '—' : summary[card.field].toLocaleString('ko-KR') + card.unit}</span></span>
           </article>
         ))}
       </section>
@@ -214,7 +214,7 @@ export function AdminMentoringManagement() {
               </table>
             ) : (
               <table className="w-full min-w-[900px] border-collapse text-left text-[13px] text-[#344054]">
-                <thead className="h-11 bg-[#fcfcfd] text-xs text-[#667085]"><tr><th className="px-5">프로그램</th><th>멘토</th><th>가격 (P)</th><th>신청 건수</th><th>멘토 평점</th><th>상태</th><th className="px-5 text-right">처리</th></tr></thead>
+                <thead className="h-11 bg-[#fcfcfd] text-xs text-[#667085]"><tr><th className="px-5">프로그램</th><th>멘토</th><th>가격 (M)</th><th>신청 건수</th><th>멘토 평점</th><th>상태</th><th className="px-5 text-right">처리</th></tr></thead>
                 <tbody>{programPage?.content.map((program) => (
                   <tr key={program.id} className="h-20 border-t border-[#f2f4f7]">
                     <td className="max-w-xs px-5 py-3"><span className="block truncate font-semibold text-[#172033]">{program.title}</span><span className="block text-xs text-[#667085]">{program.game}</span></td>
@@ -223,7 +223,7 @@ export function AdminMentoringManagement() {
                     <td className="pr-3">{program.sessions.toLocaleString('ko-KR')}건</td>
                     <td className="pr-3">{program.rating === null ? '—' : program.rating.toFixed(1)}</td>
                     <td className="pr-3"><StatusBadge label={programStatusLabels[program.status]} active={program.status === 'ACTIVE'} />{program.isHidden ? <span className="mt-1 block text-xs text-[#b42318]">숨김</span> : null}</td>
-                    <td className="px-5 text-right">{program.isHidden ? <span className="text-xs text-[#98a2b3]">숨김 처리됨</span> : <span className="inline-flex gap-2"><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'status', item: program, status: program.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE' })} className={actionClassName}>{program.status === 'ACTIVE' ? '종료' : '운영 재개'}</button><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'hide', item: program })} className={actionClassName}><EyeOff className="size-3.5" aria-hidden="true" />숨김</button></span>}</td>
+                    <td className="px-5 text-right">{program.isHidden ? <span className="text-xs text-[#98a2b3]">숨김 처리됨</span> : <span className="inline-flex gap-2"><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'status', item: program, status: program.status === 'ACTIVE' ? 'CLOSED' : 'ACTIVE' })} className={actionClassName}>{program.status === 'ACTIVE' ? '마감' : '모집 재개'}</button><button type="button" disabled={isSubmitting} onClick={() => select({ action: 'hide', item: program })} className={actionClassName}><EyeOff className="size-3.5" aria-hidden="true" />숨김</button></span>}</td>
                   </tr>
                 ))}</tbody>
               </table>
@@ -238,10 +238,10 @@ export function AdminMentoringManagement() {
       {selection?.action === 'hide' ? <ProgramHideDialog key={selection.item.id} programTitle={selection.item.title} isSubmitting={isSubmitting} error={mutationError} onCancel={closeDialog} onConfirm={(reason) => void confirm(reason)} /> : null}
       {selection?.action === 'status' ? (
         <AdminDialog isOpen titleId="program-status-title" onClose={closeDialog} maxWidthClassName="max-w-[448px]">
-          <h2 id="program-status-title" className="text-xl font-bold text-[#172033]">프로그램을 {selection.status === 'CLOSED' ? '종료' : '운영 재개'}하시겠습니까?</h2>
+          <h2 id="program-status-title" className="text-xl font-bold text-[#172033]">프로그램을 {selection.status === 'CLOSED' ? '마감' : '모집 재개'}하시겠습니까?</h2>
           <p className="mt-3 text-sm text-[#667085]">{selection.item.title}</p>
           {mutationError ? <p role="alert" className="mt-3 text-sm text-[#b42318]">{mutationError}</p> : null}
-          <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isSubmitting} onClick={closeDialog} className={actionClassName}>취소</button><button type="button" autoFocus disabled={isSubmitting} onClick={() => void confirm()} className={actionClassName}>{isSubmitting ? '처리 중…' : '상태 변경 확인'}</button></div>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" disabled={isSubmitting} onClick={closeDialog} className={actionClassName}>취소</button><button type="button" autoFocus disabled={isSubmitting} onClick={() => void confirm()} className={actionClassName}>{isSubmitting ? '처리 중...' : '상태 변경 확인'}</button></div>
         </AdminDialog>
       ) : null}
       {toast ? <AdminToast key={toast} variant="success" title={toast} onDismiss={dismissToast} /> : null}

@@ -40,7 +40,7 @@ export default function SocialCompletePage() {
     const trimmedNickname = nickname.trim();
 
     if (!signupToken) {
-      setError('소셜 회원가입 토큰이 없습니다. 다시 로그인해주세요.');
+      setError('소셜 회원가입 토큰이 없습니다. 다시 로그인해 주세요.');
       return;
     }
 
@@ -76,7 +76,7 @@ export default function SocialCompletePage() {
   return (
     <AuthPageShell
       title="추가 정보 입력"
-      description="소셜 회원가입을 완료하기 위해 사용할 아이디와 닉네임을 입력해주세요."
+      description="소셜 회원가입을 완료하기 위해 사용할 아이디와 닉네임을 입력해 주세요."
       icon={<CheckCircle2 size={28} />}
     >
       <div className="space-y-4">

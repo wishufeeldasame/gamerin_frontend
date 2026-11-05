@@ -21,6 +21,8 @@ export type ReportReviewSubmission = {
 
 type ReportReviewFormProps = {
   targetType: AdminReportTargetType;
+  // 멘토링 프로그램 신고(GENERAL)만 숨김 대상이고, 신청 건 신고(ONGOING/FINISHED)는 환불·정산으로 처리된다.
+  stage?: 'GENERAL' | 'ONGOING' | 'FINISHED';
   canSanction: boolean;
   sanctionUnavailableReason?: string;
   isSubmitting: boolean;
@@ -36,14 +38,15 @@ const decisionOptions: Array<{ value: ReviewDecision; label: string }> = [
 const sanctionOptions = [
   { value: '', label: '제재 없음', summary: '제재 없음' },
   { value: 'WARNING', label: '경고', summary: '경고' },
-  { value: 'SUSPENSION_3D', label: '3일 이용 제한', summary: '3일 정지' },
-  { value: 'SUSPENSION_7D', label: '7일 이용 제한', summary: '7일 정지' },
-  { value: 'SUSPENSION_30D', label: '30일 이용 제한', summary: '30일 정지' },
-  { value: 'PERMANENT_BAN', label: '영구 이용 제한', summary: '영구 정지' },
+  { value: 'SUSPENSION_3D', label: '3일 정지', summary: '3일 정지' },
+  { value: 'SUSPENSION_7D', label: '7일 정지', summary: '7일 정지' },
+  { value: 'SUSPENSION_30D', label: '30일 정지', summary: '30일 정지' },
+  { value: 'PERMANENT_BAN', label: '영구 정지', summary: '영구 정지' },
 ] as const;
 
 export function ReportReviewForm({
   targetType,
+  stage,
   isSubmitting,
   submitError,
   canSanction,
@@ -58,7 +61,8 @@ export function ReportReviewForm({
   const [memo, setMemo] = useState('');
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
-  const canHideContent = targetType === '게시글' || targetType === '댓글';
+  const isMentoringApplication = targetType === '멘토링' && stage !== undefined && stage !== 'GENERAL';
+  const canHideContent = targetType === '게시글' || targetType === '댓글' || (targetType === '멘토링' && stage === 'GENERAL');
   const selectedSanction = sanctionOptions.find((option) => option.value === sanction);
   const decisionLabel = decision === 'complete' ? '처리 완료' : '신고 반려';
   const contentActionLabel = decision === 'complete' && hideContent ? `${targetType} 숨기기` : '조치 없음';
@@ -128,6 +132,11 @@ export function ReportReviewForm({
           ) : (
             <p className="text-sm text-[#98a2b3]">이 신고 유형에는 콘텐츠 숨김 조치가 없습니다.</p>
           )}
+          {isMentoringApplication ? (
+            <p className="text-xs leading-[18px] text-[#667085]">
+              처리 완료 시 멘티 신고는 전액 환불되며, 결제 보류 상태가 아니면 처리할 수 없습니다. 반려 시 종료 보고된 건은 멘토에게 즉시 정산됩니다.
+            </p>
+          ) : null}
         </div>
         <p className="mt-1.5 text-xs leading-[18px] text-[#98a2b3]">숨긴 게시글은 서버 정리 정책에 따라 삭제되어 복구할 수 없을 수 있습니다.</p>
       </fieldset>
@@ -164,7 +173,7 @@ export function ReportReviewForm({
           aria-describedby={reasonError ? 'report-review-reason-error' : undefined}
           rows={3}
           maxLength={ADMIN_REVIEW_REASON_MAX_LENGTH}
-          placeholder="처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다."
+          placeholder="처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다."
           className={`h-24 w-full resize-none rounded-2xl border bg-white p-[13px] text-sm leading-[21px] text-[#172033] outline-none transition placeholder:text-[rgba(23,32,51,0.5)] dark:!bg-white dark:!text-[#172033] ${
             reasonError
               ? 'border-[#f04438] focus:border-[#f04438] focus:ring-2 focus:ring-[#f04438]/10'

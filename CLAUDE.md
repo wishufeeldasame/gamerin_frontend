@@ -42,7 +42,10 @@
 
 ## 문서 작업과 지침 유지
 
-- `docs/` 문서는 사용자가 요청한 경우에만 참고하거나 갱신한다.
+- `docs/` 문서는 사용자가 요청한 경우에만 참고하거나 갱신한다. 단, 아래 PR 전 현행화는 요청 없이도 수행한다.
+- 작업을 마치고 PR을 만들기 전에 capstone 작업 공간의 `docs/`(형제 배치에서는 `../docs/`) 01~07번 문서(`01_`~`07_`로 시작하는 파일, `03_상세명세_*` 전체 포함)를 이번 변경에 맞춰 현행화한다. 변경과 무관한 문서는 건드리지 않는다.
+- 변경이 클래스·컴포넌트 구조, 호출 흐름, 상태, DB 스키마 등 UML에 영향을 주면 `docs/frontend_uml/`(프론트 변경), `docs/backend_uml/`(백엔드 변경)의 해당 문서도 함께 수정한다.
+- capstone `docs/`는 Git 저장소가 아니므로 PR에 포함되지 않는다. 갱신한 문서 목록(또는 갱신할 내용이 없었다는 사실)을 PR 설명과 완료 보고에 적는다.
 - 문서의 경로·명령·구현 설명은 현재 코드를 근거로 작성한다.
 - 기능 변경 후 README, API 명세, DB 문서, Docker 운영 문서의 갱신 필요 여부를 확인하고 보고한다.
 - 이 저장소의 `AGENTS.md`와 `CLAUDE.md`는 각각 Codex와 Claude Code용이다. 팀 규칙을 변경할 때는 두 파일을 함께 갱신하고 내용이 어긋나지 않도록 확인한다.
@@ -65,11 +68,11 @@
 > 아래 경로는 현재 구현 탐색을 위한 참고다. 작업 전 실제 route와 component 위치를 다시 확인한다.
 
 - `src/app/(app)/layout.tsx`: 인증 준비 상태와 사용자를 확인하고 미로그인 시 `/login`으로 이동한다. Header와 Sidebar를 포함한 공통 셸이다.
-- `src/app/(app)/`: `home`, `messages`, `mentoring`, `bookmarks`, `posts/[postId]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
+- `src/app/(app)/`: `home`, `messages`, `mentoring`, `bookmarks`, `posts/[postNumber]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
 - route group 이름은 URL에 포함되지 않는다.
 - `src/app/home/components/`: 피드, 게시물, 프로필, 멘토링 및 공통 모달 등 기존 컴포넌트가 모여 있다. 디렉토리 이름만 보고 `/home/...` 라우트라고 가정하지 않는다.
 - `src/app/(admin)/admin/`: 관리자 화면과 `_components`, `_data`가 있다.
-- 관리자 로그인은 `/api/v1/auth/login`과 `/api/v1/auth/me`를 호출하고 role을 확인한다. `AdminRouteGuard`와 `src/lib/admin-auth.ts`를 함께 확인한다. 대시보드에는 실제 신고 조회와 `_data` 기반 데모 통계가 혼재하므로 화면별 API 연동과 서버 인가를 따로 확인한다.
+- 관리자 로그인은 `/api/v1/auth/login`과 `/api/v1/auth/me`를 호출하고 role을 확인한다. `AdminRouteGuard`와 `src/lib/admin-auth.ts`를 함께 확인한다. 화면별 API 연동과 서버 인가를 따로 확인한다.
 - `src/app/auth/`, `src/app/login/` 및 계정 복구 화면을 함께 확인한다.
 - `find-Password`처럼 대소문자가 포함된 실제 경로를 보존한다.
 - `/`는 클라이언트 페이지 `src/app/page.tsx`가 인증 준비 후 로그인 여부에 따라 `/home` 또는 `/login`으로 `router.replace`한다. `next.config.ts`에는 redirect가 없고 `/uploads/:path*`의 조건부 rewrite만 있다.

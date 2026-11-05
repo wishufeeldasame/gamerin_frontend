@@ -5,6 +5,7 @@ import {
   AlertCircle,
   Check,
   Clock3,
+  Flag,
   CreditCard,
   Loader2,
   MessageCircle,
@@ -19,6 +20,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { ReportContentModal } from '@/app/home/components/Report';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
 import { createConversation } from '@/lib/message-api';
 import {
@@ -68,7 +70,7 @@ type ProgramForm = {
   tags: string;
 };
 
-const GAMES_ERROR_MESSAGE = '게임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+const GAMES_ERROR_MESSAGE = '게임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
 const DEEP_LINK_HIGHLIGHT_DURATION = 2200;
 
@@ -86,15 +88,15 @@ const statusLabel: Record<ApplicationStatus, string> = {
   APPLIED: '신청',
   ACCEPTED: '수락',
   REJECTED: '거절',
-  ONGOING: '진행중',
-  FINISHED: '종료 보고',
+  ONGOING: '진행 중',
+  FINISHED: '종료 확인 대기',
   COMPLETED: '완료',
   CANCELLED: '취소',
 };
 
 const paymentLabel: Record<PaymentStatus, string> = {
   PENDING: '결제 대기',
-  ESCROW_HELD: '에스크로 보관',
+  ESCROW_HELD: '결제 보류',
   SETTLED: '정산 완료',
   REFUNDED: '환불 완료',
 };
@@ -178,19 +180,19 @@ function applicationGuide(role: 'mentor' | 'mentee', status: ApplicationStatus, 
 
   if (status === 'ACCEPTED') {
     return role === 'mentor'
-      ? '시작 버튼을 눌러 진행 상태로 변경해주세요.'
+      ? '시작 버튼을 눌러 진행 상태로 변경해 주세요.'
       : '멘토가 요청을 수락했습니다.';
   }
 
   if (status === 'ONGOING') {
     return role === 'mentor'
-      ? '멘토링이 끝나면 종료 보고를 눌러주세요.'
+      ? '멘토링이 끝나면 종료 보고를 눌러 주세요.'
       : '멘토링이 진행 중입니다.';
   }
 
   if (status === 'FINISHED') {
     return role === 'mentee'
-      ? '문제가 없으면 완료 확정을 눌러주세요.'
+      ? '문제가 없으면 완료 확정을 눌러 주세요.'
       : '멘티의 완료 확정을 기다리는 중입니다.';
   }
 
@@ -270,6 +272,7 @@ export default function MentoringPage() {
 
   const [programForm, setProgramForm] = useState<ProgramForm>(defaultProgramForm);
   const [selectedProgram, setSelectedProgram] = useState<MentoringProgramDetailResponse | null>(null);
+  const [programReportOpen, setProgramReportOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [applicationMessage, setApplicationMessage] = useState('');
   const [selectedProgramReviews, setSelectedProgramReviews] = useState<MentoringReviewResponse[]>([]);
@@ -378,7 +381,7 @@ export default function MentoringPage() {
   const showError = useCallback((error: unknown) => {
     if (isMileageShortageError(error)) {
       setBannerType('mileage');
-      setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해주세요.');
+      setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해 주세요.');
       setErrorMessage('');
       setShowMileageShortageModal(true);
       return;
@@ -745,6 +748,7 @@ export default function MentoringPage() {
 
   const closeProgramDetail = useCallback(() => {
     setSelectedProgram(null);
+    setProgramReportOpen(false);
     setSelectedProgramReviews([]);
     setSelectedProgramReviewsLoading(false);
     setApplicationMessage('');
@@ -798,7 +802,7 @@ export default function MentoringPage() {
       const profile = await registerMentor({ about: mentorAbout.trim() });
       setMentorProfile(profile);
       setShowMentorForm(false);
-      showNotice('멘토 등록이 완료되었습니다. 이제 프로그램을 만들 수 있습니다.');
+      showNotice('멘토 등록을 요청했습니다. 관리자 승인 후 프로그램을 만들 수 있습니다.');
       await loadOwnedPrograms();
     } catch (error) {
       showError(error);
@@ -826,12 +830,12 @@ export default function MentoringPage() {
 
     try {
       if (!gamesReady) {
-        throw new Error(gamesLoading ? '게임 목록을 불러오는 중입니다. 잠시 후 다시 시도해주세요.' : GAMES_ERROR_MESSAGE);
+        throw new Error(gamesLoading ? '게임 목록을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.' : GAMES_ERROR_MESSAGE);
       }
 
       const price = Number(programForm.price);
       if (price < 0 || Number.isNaN(price)) {
-        throw new Error('가격을 올바르게 입력해주세요.');
+        throw new Error('가격을 올바르게 입력해 주세요.');
       }
 
       await createMentoringProgram({
@@ -908,7 +912,7 @@ export default function MentoringPage() {
 
       if (currentBalance < selectedProgram.price) {
         setBannerType('mileage');
-        setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해주세요.');
+        setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해 주세요.');
         setErrorMessage('');
         setShowMileageShortageModal(true);
         return;
@@ -1029,7 +1033,7 @@ export default function MentoringPage() {
 
     const content = reviewContent.trim();
     if (!content) {
-      setErrorMessage('후기를 입력해주세요.');
+      setErrorMessage('리뷰를 입력해 주세요.');
       return;
     }
 
@@ -1124,7 +1128,7 @@ export default function MentoringPage() {
                 <AlertCircle className="mt-0.5 shrink-0 text-yellow-700 dark:text-yellow-300" size={20} />
                 <div>
                   <p className="font-black text-yellow-900 dark:text-yellow-200">
-                    {bannerType === 'mileage' ? '마일리지가 부족합니다' : '인증 확인이 필요합니다'}
+                    {bannerType === 'mileage' ? '마일리지가 부족합니다' : '다시 로그인해 주세요'}
                   </p>
                   <p className="mt-1 text-sm font-bold leading-6 text-yellow-800 dark:text-yellow-300">{authMessage}</p>
                 </div>
@@ -1215,7 +1219,7 @@ export default function MentoringPage() {
                                   : 'bg-zinc-100 text-zinc-500'
                               }`}
                             >
-                              {program.status === 'ACTIVE' ? '모집중' : '마감'}
+                              {program.status === 'ACTIVE' ? '모집 중' : '마감'}
                             </span>
                           </div>
                           <h3 className="text-xl font-black text-black">{program.title}</h3>
@@ -1380,7 +1384,7 @@ export default function MentoringPage() {
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램</p>
                       <h2 className="mt-1 text-2xl font-black text-black">내 프로그램</h2>
                       <p className="mt-2 text-sm font-bold text-zinc-500">
-                        프로그램 이름을 선택하면 리뷰와 별점, 마감 항목을 자세히 볼 수 있습니다.
+                        프로그램 이름을 선택하면 리뷰, 평점, 마감 설정을 볼 수 있습니다.
                       </p>
                     </div>
 
@@ -1420,7 +1424,7 @@ export default function MentoringPage() {
                                         : 'bg-zinc-100 text-zinc-500'
                                   }`}
                                 >
-                                  {program.status === 'ACTIVE' ? '운영중' : '마감'}
+                                  {program.status === 'ACTIVE' ? '운영 중' : '마감'}
                                 </span>
                               </div>
                             </button>
@@ -1457,6 +1461,17 @@ export default function MentoringPage() {
               <div className="flex h-64 items-center justify-center rounded-2xl bg-zinc-50">
                 <Loader2 className="animate-spin text-zinc-400" />
               </div>
+            ) : mentorProfile && mentorProfile.status !== 'ACTIVE' ? (
+              <section role="status" className="rounded-2xl border border-zinc-100 p-8 text-center">
+                <h2 className="text-2xl font-black text-black">
+                  {mentorProfile.status === 'PENDING_APPROVAL' ? '멘토 승인 대기 중' : '멘토 등록이 반려되었습니다'}
+                </h2>
+                <p className="mt-4 text-sm font-bold leading-6 text-zinc-500">
+                  {mentorProfile.status === 'PENDING_APPROVAL'
+                    ? '관리자 승인이 완료되면 프로그램을 등록할 수 있습니다.'
+                    : '멘토 승인이 완료되지 않아 프로그램을 등록할 수 없습니다.'}
+                </p>
+              </section>
             ) : mentorProfile ? (
               <section className="rounded-2xl border border-zinc-100 p-6">
                 <form onSubmit={handleSubmitProgram}>
@@ -1569,7 +1584,7 @@ export default function MentoringPage() {
                     onChange={(event) => setMentorAbout(event.target.value)}
                     required
                     rows={7}
-                    placeholder="멘토링 경험, 전문 분야, 멘티에게 전하고 싶은 메시지를 적어주세요."
+                    placeholder="멘토링 경험, 전문 분야, 멘티에게 전하고 싶은 메시지를 적어 주세요."
                     className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                   <button
@@ -1674,7 +1689,7 @@ export default function MentoringPage() {
                   <div className="mt-6">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
+                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
                         <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                       </div>
                       <span className="text-sm font-black text-zinc-400">총 {selectedProgramReviews.length}개</span>
@@ -1710,6 +1725,29 @@ export default function MentoringPage() {
                     )}
                   </div>
 
+                  {!currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                    <button
+                      type="button"
+                      onClick={() => setProgramReportOpen(true)}
+                      className="mt-5 inline-flex items-center gap-1.5 text-xs font-black text-zinc-400 hover:text-red-500"
+                    >
+                      <Flag size={13} />
+                      프로그램 신고
+                    </button>
+                  ) : null}
+                  {programReportOpen ? (
+                    <ReportContentModal
+                      targetType="MENTORING"
+                      targetId={selectedProgram.id}
+                      title="멘토링 프로그램 신고"
+                      author={selectedProgram.mentorNickname}
+                      authorHandle=""
+                      content={selectedProgram.title}
+                      emptyContentLabel="제목 없음"
+                      onClose={() => setProgramReportOpen(false)}
+                    />
+                  ) : null}
+
                   {currentUserOwnsProgram(selectedProgram.mentorId) ? (
                     <p className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-black text-zinc-500">
                       내가 등록한 프로그램입니다.
@@ -1718,7 +1756,7 @@ export default function MentoringPage() {
                     <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">
                       <p className="text-sm font-black text-green-800 dark:text-green-200">이미 신청한 프로그램</p>
                       <p className="mt-2 text-xs font-bold leading-5 text-green-700 dark:text-green-300">
-                        이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해주세요.
+                        이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
                       </p>
                       <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-green-700 dark:text-green-300">
                         <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
@@ -1729,13 +1767,13 @@ export default function MentoringPage() {
                     <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                       <p className="text-sm font-black text-zinc-700">마감된 프로그램</p>
                       <p className="mt-2 text-xs font-bold leading-5 text-zinc-500">
-                        이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집중 프로그램을 선택해주세요.
+                        이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
                       </p>
                     </div>
                   ) : (
                     <form onSubmit={handleApplyProgram} className="mt-5">
                       <div className="mb-4 rounded-xl bg-yellow-50 p-4 text-xs font-bold leading-5 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
-                        신청 시 프로그램 가격만큼의 마일리지가 에스크로 보관 상태로 유지됩니다.
+                        신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.
                       </div>
 
                       <label className="block space-y-2">
@@ -1745,7 +1783,7 @@ export default function MentoringPage() {
                           onChange={(event) => setApplicationMessage(event.target.value)}
                           required
                           rows={4}
-                          placeholder="원하는 멘토링 방향이나 현재 고민을 적어주세요."
+                          placeholder="원하는 멘토링 방향이나 현재 고민을 적어 주세요."
                           className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                         />
                       </label>
@@ -1788,7 +1826,7 @@ export default function MentoringPage() {
                       마일리지가 부족합니다
                     </p>
                     <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">
-                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 카카오페이로 충전 후 다시 신청해주세요.
+                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 카카오페이로 충전 후 다시 신청해 주세요.
                     </p>
                   </div>
                 </div>
@@ -1815,7 +1853,7 @@ export default function MentoringPage() {
                   onClick={() => setShowMileageShortageModal(false)}
                   className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-700"
                 >
-                  계속 보기
+                  나중에 충전
                 </button>
                 <button
                   type="button"
@@ -1860,7 +1898,7 @@ export default function MentoringPage() {
                 <div className="rounded-xl bg-zinc-50 p-4">
                   <p className="flex items-center gap-2 text-sm font-black text-black">
                     <Star size={16} className="text-yellow-500" />
-                    평균 별점
+                    평균 평점
                   </p>
                   <p className="mt-2 text-2xl font-black text-black">{formatRatingValue(mentorProfile)}</p>
                 </div>
@@ -1901,7 +1939,7 @@ export default function MentoringPage() {
               <div className="mt-6">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기</p>
+                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
                     <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
                   </div>
                   <span className="text-sm font-black text-zinc-400">총 {mentorReviews.length.toLocaleString()}개</span>
@@ -1941,7 +1979,7 @@ export default function MentoringPage() {
                   </div>
                 ) : (
                   <p className="mt-5 rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
-                    아직 등록된 누적 리뷰가 없습니다.
+                    아직 등록된 리뷰가 없습니다.
                   </p>
                 )}
               </div>
@@ -1954,10 +1992,10 @@ export default function MentoringPage() {
             <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">후기 작성</p>
+                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
                   <h2 className="mt-1 text-2xl font-black text-black">리뷰 작성</h2>
                   <p className="mt-2 text-sm font-bold text-zinc-500">
-                    {reviewTarget.programTitle}에 대한 평점과 후기를 남겨주세요.
+                    {reviewTarget.programTitle}에 대한 평점과 리뷰를 남겨 주세요.
                   </p>
                 </div>
                 <button
@@ -1995,13 +2033,13 @@ export default function MentoringPage() {
                 </div>
 
                 <label className="mt-6 block">
-                  <span className="text-sm font-black text-zinc-700">후기</span>
+                  <span className="text-sm font-black text-zinc-700">리뷰</span>
                   <textarea
                     value={reviewContent}
                     onChange={(event) => setReviewContent(event.target.value)}
                     rows={5}
                     maxLength={500}
-                    placeholder="멘토링이 어땠는지 자세히 적어주세요."
+                    placeholder="멘토링이 어땠는지 자세히 적어 주세요."
                     className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
                   />
                 </label>
@@ -2129,6 +2167,7 @@ function ApplicationCard({
   onReview?: () => void;
   onReviewedClick?: () => void;
 }) {
+  const [reportOpen, setReportOpen] = useState(false);
   const actionPending = pendingAction.endsWith(`:${application.id}`);
   const guide = applicationGuide(role, application.status, application.paymentStatus);
   const chatEnabled = canOpenMentoringChat(application.status);
@@ -2264,6 +2303,17 @@ function ApplicationCard({
           </button>
         ) : null}
 
+        {role === 'mentee' && (application.status === 'ONGOING' || application.status === 'FINISHED') ? (
+          <button
+            type="button"
+            onClick={() => setReportOpen(true)}
+            className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-red-500 dark:bg-zinc-800"
+          >
+            <Flag size={14} />
+            이의제기
+          </button>
+        ) : null}
+
         {role === 'mentee' && application.status === 'COMPLETED' && !application.reviewed ? (
           <button
             type="button"
@@ -2288,6 +2338,18 @@ function ApplicationCard({
           </button>
         ) : null}
       </div>
+      {reportOpen ? (
+        <ReportContentModal
+          targetType="MENTORING"
+          targetId={application.id}
+          title="멘토링 이의제기"
+          author={application.mentorNickname}
+          authorHandle=""
+          content={application.programTitle}
+          emptyContentLabel="제목 없음"
+          onClose={() => setReportOpen(false)}
+        />
+      ) : null}
     </article>
   );
 }

@@ -10,13 +10,16 @@ const mocks = vi.hoisted(() => ({
   recipients: vi.fn(),
   stream: vi.fn(),
   user: { id: 'viewer', handle: 'viewer' },
+  search: new URLSearchParams(),
+  replace: vi.fn(),
+  create: vi.fn(),
 }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: mocks.user, isAuthReady: true }),
 }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(),
+  useRouter: () => ({ push: vi.fn(), replace: mocks.replace }),
+  useSearchParams: () => mocks.search,
 }));
 vi.mock('@/lib/message-api', () => ({
   fetchConversationList: mocks.list,
@@ -24,7 +27,7 @@ vi.mock('@/lib/message-api', () => ({
   searchMessageRecipients: mocks.recipients,
   openMessageEventSource: mocks.stream,
   markConversationRead: vi.fn(),
-  createConversation: vi.fn(),
+  createConversation: mocks.create,
   deleteConversationMessage: vi.fn(),
   fetchMessageAttachmentBlob: vi.fn(),
   leaveConversation: vi.fn(),
@@ -76,6 +79,16 @@ describe('메시지 화면 표시와 기존 검색', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    mocks.search = new URLSearchParams();
+    mocks.replace.mockReset();
+    mocks.create.mockReset();
+  });
+
+  it('@ 없는 recipient 쿼리로 기존 대화를 찾으면 새 대화를 만들지 않는다', async () => {
+    mocks.search = new URLSearchParams({ recipient: 'MixedCase' });
+    render(<MessagesPage />);
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/messages?conversationId=conversation-1'));
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 
   it('목록과 오프라인 헤더에 USER 대신 기존 핸들을 그대로 표시한다', async () => {
@@ -275,6 +288,29 @@ describe('메시지 화면 실시간 연결과 폴링 복구', () => {
       await vi.advanceTimersByTimeAsync(2_000);
     });
     expect(mocks.stream).toHaveBeenCalledTimes(2);
+  });
+
+  it('connection-replaced 수신 뒤에는 오류가 나도 재연결하지 않고 안내를 보여 준다', async () => {
+    vi.useFakeTimers();
+    const source = createEventSource() as ReturnType<typeof createEventSource> & { onerror?: () => void };
+    mocks.stream.mockResolvedValue(source);
+
+    render(<MessagesPage />);
+
+    await flushAsyncWork();
+    const replaced = source.addEventListener.mock.calls.find(([name]) => name === 'connection-replaced')?.[1];
+    expect(replaced).toBeTypeOf('function');
+    act(() => {
+      replaced();
+      source.onerror?.();
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+
+    expect(source.close).toHaveBeenCalled();
+    expect(mocks.stream).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText(/실시간 연결이 종료되었습니다/).length).toBeGreaterThan(0);
   });
 
   it('5초 폴링 실패 뒤에도 같은 대화를 재조회하고 성공 시 오류를 지운다', async () => {

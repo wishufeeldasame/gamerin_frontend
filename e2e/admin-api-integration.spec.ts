@@ -8,7 +8,7 @@ const reportId = '33333333-3333-4333-8333-333333333333';
 const penaltyId = '44444444-4444-4444-8444-444444444444';
 const userId = '55555555-5555-4555-8555-555555555555';
 const timestamp = '2026-10-01T00:00:00Z';
-const reportBase = { id: reportId, reportCode: 'RPT-INTEGRATION', reporterId: userId, reporterNickname: '신고자', targetType: 'POST', targetId: '66666666-6666-4666-8666-666666666666', targetSnippet: '신고 당시 게시물 요약', reasonCode: 'SPAM', reasonLabel: '스팸', details: '반복적인 광고', assignedAdminId: null, assignedAdminNickname: null, createdAt: timestamp, updatedAt: timestamp };
+const reportBase = { id: reportId, reportCode: 'RPT-INTEGRATION', reporterId: userId, reporterNickname: '신고자', targetType: 'POST', targetId: '66666666-6666-4666-8666-666666666666', targetSnippet: '신고 당시 게시글 요약', reasonCode: 'SPAM', reasonLabel: '스팸', details: '반복적인 광고', assignedAdminId: null, assignedAdminNickname: null, createdAt: timestamp, updatedAt: timestamp };
 function paged<T>(items: T[], size = 20) { return { content: items, totalPages: items.length ? 1 : 0, totalElements: items.length, number: 0, size, first: true, last: true, empty: items.length === 0 }; }
 
 async function session(page: Page, role: 'ADMIN' | 'USER' = 'ADMIN') {
@@ -35,7 +35,7 @@ for (const screenMode of [
     for (const [path, heading, marker] of [
       ['/admin', '대시보드', '처리 완료 상태 신고'],
       ['/admin/users', '사용자 관리', '@target'],
-      ['/admin/reports', '신고 관리', '신고 당시 게시물 요약'],
+      ['/admin/reports', '신고 관리', '신고 당시 게시글 요약'],
       ['/admin/reports/RPT-INTEGRATION', '신고 상세', '신고 당시 내용 요약'],
       ['/admin/users/target', '사용자 상세', '제재 관리'],
       ['/admin/content', '숨김 콘텐츠 관리', '숨김'],
@@ -106,7 +106,7 @@ test('report detail integrates review, 3-day sanction and hiding then reflects r
   await expect(penalty).toBeEnabled();
   await penalty.selectOption('SUSPENSION_3D');
   await page.getByLabel('게시글 숨기기', { exact: true }).check();
-  await page.getByPlaceholder('처리 근거를 구체적으로 작성해주세요. 이 내용은 작업 이력에 기록됩니다.').fill('반복적인 광고');
+  await page.getByPlaceholder('처리 근거를 구체적으로 작성해 주세요. 이 내용은 작업 이력에 기록됩니다.').fill('반복적인 광고');
   await page.getByRole('button', { name: '처리 내용 확인' }).click();
   await page.getByRole('dialog').getByRole('button', { name: '숨김 처리 후 완료' }).click();
   await expect(page.getByText('처리 완료된 신고입니다.')).toBeVisible();
@@ -151,7 +151,7 @@ for (const screenMode of [
     await expect(page.getByRole('cell', { name: 'RPT-INTEGRATION', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'RPT-INTEGRATION 내용 보기' }).click();
     await expect(page.getByText('반복적인 광고')).toBeVisible();
-    await expect(page.getByText('신고 당시 게시물 요약')).toBeVisible();
+    await expect(page.getByText('신고 당시 게시글 요약')).toBeVisible();
     await expect(page.locator('a[href^="/admin/"]')).toHaveCount(0);
     await expect(page.locator('time').first()).toHaveAttribute('datetime', '2026-10-01T00:00:00.000Z');
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

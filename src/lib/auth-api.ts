@@ -41,7 +41,7 @@ export interface AuthUser {
   status?: string;
   /** false면 소셜 전용 계정이라 비밀번호가 없다. 서버가 주지 않으면 undefined. */
   hasPassword?: boolean;
-  /** 현재 유효한 멤버십 여부(왕관 배지). */
+  /** 현재 유효한 멤버십 여부(노란 체크 배지). */
   membershipBadge?: boolean;
 }
 
@@ -50,7 +50,7 @@ export const DEFAULT_GAME_TIER = 'Unranked';
 // 서버에서는 가입이 끝났지만(가입 토큰은 소진됨) 로그인 확인에 실패했다. 가입을 다시 시도할 수 없다.
 export class SignupCompletedError extends Error {
   constructor() {
-    super('가입은 완료되었지만 로그인 확인에 실패했습니다. 로그인 화면에서 다시 로그인해주세요.');
+    super('가입은 완료되었지만 로그인 확인에 실패했습니다. 로그인 화면에서 다시 로그인해 주세요.');
     this.name = 'SignupCompletedError';
   }
 }
@@ -222,7 +222,7 @@ export async function loginWithPassword(handle: string, password: string): Promi
   const accessToken = body?.data?.accessToken;
   const userId = body?.data?.userId;
   if (typeof accessToken !== 'string' || !accessToken || typeof userId !== 'string' || !userId) {
-    throw new Error('로그인 응답에 인증 토큰이 없습니다.');
+    throw new Error('로그인 처리 중 오류가 발생했습니다. 다시 시도해 주세요.');
   }
 
   return confirmAuthSession(accessToken, generation, userId);
@@ -287,7 +287,7 @@ export async function confirmSignupEmailVerification(email: string, code: string
   )) as { verificationToken?: unknown } | null | undefined;
   const token = data?.verificationToken;
   if (typeof token !== 'string' || !token) {
-    throw new Error('인증 응답이 올바르지 않습니다. 다시 시도해주세요.');
+    throw new Error('인증 응답이 올바르지 않습니다. 다시 시도해 주세요.');
   }
   return token;
 }

@@ -156,7 +156,7 @@ describe('MentoringPage error handling', () => {
     mentoringApi.fetchMentoringPrograms.mockRejectedValue(new ApiError('서버 안내입니다.', status, reason));
     render(<MentoringPage />);
 
-    expect(await screen.findByText('인증 확인이 필요합니다')).toBeInTheDocument();
+    expect(await screen.findByText('다시 로그인해 주세요')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '다시 로그인' })).toBeInTheDocument();
     expect(screen.getByText('서버 안내입니다.')).toBeInTheDocument();
   });
@@ -187,7 +187,7 @@ describe('MentoringPage error handling', () => {
     render(<MentoringPage />);
 
     await user.click(await screen.findByRole('button', { name: '리뷰 작성' }));
-    await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어주세요.'), '좋은 피드백이었습니다.');
+    await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어 주세요.'), '좋은 피드백이었습니다.');
     await user.click(screen.getByRole('button', { name: '리뷰 등록' }));
 
     expect(await screen.findByText('이미 리뷰 작성이 완료된 멘토링입니다.')).toBeInTheDocument();
@@ -232,6 +232,37 @@ describe('MentoringPage deep links', () => {
     const target = document.getElementById('mentoring-application-application-1');
     await waitFor(() => expect(target).toHaveClass('ring-2', 'ring-yellow-300'));
     await waitFor(() => expect(target?.scrollIntoView).toHaveBeenCalled());
+  });
+
+  it.each([
+    ['ONGOING', true],
+    ['FINISHED', true],
+    ['COMPLETED', false],
+    ['APPLIED', false],
+  ] as const)('멘티 신청 카드의 이의제기 버튼은 %s 상태에서 노출=%s', async (status, visible) => {
+    navigation.searchParams = new URLSearchParams('tab=mine');
+    mentoringApi.fetchMenteeApplications.mockResolvedValue(pageResponse([{ ...application, status }]));
+
+    render(<MentoringPage />);
+
+    expect(await screen.findByText('랭크 게임 코칭')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '이의제기' }) !== null).toBe(visible);
+  });
+
+  it('다른 멘토의 프로그램 상세에는 신고 버튼이 있고 본인 프로그램에는 없다', async () => {
+    navigation.searchParams = new URLSearchParams('programId=program-1');
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
+    mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorId: 'mentor-2', mentorAbout: '', membershipBadge: false });
+    mentoringApi.fetchMentorReviews.mockResolvedValue(pageResponse([]));
+
+    const { unmount } = render(<MentoringPage />);
+    expect(await screen.findByRole('button', { name: '프로그램 신고' })).toBeInTheDocument();
+    unmount();
+
+    mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorAbout: '', membershipBadge: false });
+    render(<MentoringPage />);
+    expect(await screen.findByText('내가 등록한 프로그램입니다.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '프로그램 신고' })).not.toBeInTheDocument();
   });
 
   it('opens the owned program and highlights a review identified by reviewId', async () => {
@@ -395,6 +426,27 @@ describe('MentoringPage game filter', () => {
     expect(await screen.findByText('프로그램 만들기')).toBeInTheDocument();
     expect(screen.getByText('게임 목록을 불러오는 중입니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeDisabled();
+  });
+
+  it.each([
+    ['PENDING_APPROVAL', '멘토 승인 대기 중'],
+    ['INACTIVE', '멘토 등록이 반려되었습니다'],
+  ])('멘토 상태가 %s이면 등록 폼 대신 안내를 보인다', async (status, heading) => {
+    const user = userEvent.setup();
+    mentoringApi.fetchMyMentorProfile.mockResolvedValue({
+      userId: 'user-1',
+      nickname: '멘토',
+      status,
+      about: '소개',
+      ratingAvg: 0,
+      reviewCount: 0,
+      menteeCount: 0,
+    });
+    render(<MentoringPage />);
+
+    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    expect(await screen.findByText(heading)).toBeInTheDocument();
+    expect(screen.queryByText('프로그램 만들기')).not.toBeInTheDocument();
   });
 
   it('오래된 /games 실패는 최신 성공 결과를 덮지 않는다', async () => {

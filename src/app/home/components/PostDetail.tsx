@@ -18,7 +18,7 @@ import {
   createComment,
   deleteComment,
   deletePost,
-  fetchPostDetail,
+  fetchPostDetailByNumber,
   fetchPostComments,
   getInitials,
   repostPost,
@@ -41,7 +41,7 @@ import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 const MAX_COMMENT_LENGTH = 300;
 
 interface PostDetailProps {
-  postId: string;
+  postNumber: number;
   onBack: () => void;
   initialScrollTarget?: 'comments';
   initialCommentId?: string;
@@ -50,7 +50,7 @@ interface PostDetailProps {
 }
 
 export function PostDetail({
-  postId,
+  postNumber,
   onBack,
   initialScrollTarget,
   initialCommentId,
@@ -58,7 +58,7 @@ export function PostDetail({
   onPostDeleted,
 }: PostDetailProps) {
   const toast = useToast();
-  const confirm = useConfirm(postId);
+  const confirm = useConfirm(String(postNumber));
   const deleteCommentLockRef = useRef(false);
   const deletePostLockRef = useRef(false);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -93,7 +93,7 @@ export function PostDetail({
   useEffect(() => () => {
     if (commentCompositionTimerRef.current !== null) clearTimeout(commentCompositionTimerRef.current);
   }, []);
-  const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
+  const actionLifetime = useMemo(() => ({ active: false, postNumber }), [postNumber]);
   useLayoutEffect(() => {
     actionLifetime.active = true;
     deletePostLockRef.current = false;
@@ -116,7 +116,7 @@ export function PostDetail({
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
-  const loadedPostId = post?.postId;
+  const loadedPostNumber = post?.postNumber;
   const applyLikeState = useCallback((targetPostId: string, likedByMe: boolean) => {
     const currentPost = latestPostRef.current;
     if (!currentPost || currentPost.postId !== targetPostId) return;
@@ -138,11 +138,11 @@ export function PostDetail({
       commentRequestGenerationRef.current += 1;
       submittingCommentRef.current = false;
     };
-  }, [postId]);
+  }, [postNumber]);
 
   useEffect(() => {
-    const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
-    if (loading || loadedPostId !== postId) {
+    const scrollKey = JSON.stringify([postNumber, initialCommentId ?? null, initialScrollTarget ?? null]);
+    if (loading || loadedPostNumber !== postNumber) {
       return;
     }
 
@@ -173,7 +173,7 @@ export function PostDetail({
         window.clearTimeout(highlightTimeout);
       }
     };
-  }, [initialCommentId, initialScrollTarget, loadedPostId, loading, postId]);
+  }, [initialCommentId, initialScrollTarget, loadedPostNumber, loading, postNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,10 +184,9 @@ export function PostDetail({
         setLoading(true);
         setError(null);
         setComments([]);
-        const [detail, commentList] = await Promise.all([
-          fetchPostDetail(postId, { signal: controller.signal }),
-          fetchPostComments(postId, { signal: controller.signal }),
-        ]);
+        // 댓글 API는 UUID를 쓰므로 상세를 먼저 받아 `detail.postId`로 조회한다
+        const detail = await fetchPostDetailByNumber(postNumber, { signal: controller.signal });
+        const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
         if (!cancelled) {
           setPost(detail);
           setComments(commentList);
@@ -200,7 +199,7 @@ export function PostDetail({
         }
 
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : '게시물을 불러오지 못했습니다.');
+          setError(loadError instanceof Error ? loadError.message : '게시글을 불러오지 못했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -214,7 +213,7 @@ export function PostDetail({
       cancelled = true;
       controller.abort();
     };
-  }, [postId]);
+  }, [postNumber]);
 
   const handleToggleLike = () => {
     const currentPost = latestPostRef.current;
@@ -280,7 +279,7 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
-    if (!post || post.postId !== postId || !commentText.trim() || submittingCommentRef.current) {
+    if (!post || post.postNumber !== postNumber || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
     if (commentText.length > MAX_COMMENT_LENGTH) {
@@ -412,7 +411,7 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || post.postId !== postId || deletingPost || deletePostLockRef.current) {
+    if (!post || post.postNumber !== postNumber || deletingPost || deletePostLockRef.current) {
       return;
     }
 
@@ -422,7 +421,7 @@ export function PostDetail({
     closeMenu();
     try {
       const confirmed = await confirm({
-        message: '게시물을 삭제할까요?', confirmLabel: '삭제', danger: true,
+        message: '게시글을 삭제할까요?', confirmLabel: '삭제', danger: true,
         returnFocusTo: menuTriggerRef.current,
       });
       if (!confirmed || !isCurrent()) return;
@@ -433,7 +432,7 @@ export function PostDetail({
       if (onPostDeleted) onPostDeleted(submittedPostId);
       else onBack();
     } catch (deleteError) {
-      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시물을 삭제하지 못했습니다.');
+      if (isCurrent()) toast.error(deleteError instanceof Error ? deleteError.message : '게시글을 삭제하지 못했습니다.');
     } finally {
       if (isCurrent()) {
         deletePostLockRef.current = false;
@@ -443,7 +442,7 @@ export function PostDetail({
   };
 
   if (loading) {
-    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시물을 불러오는 중...</div>;
+    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시글을 불러오는 중...</div>;
   }
 
   if (!post) {
@@ -452,7 +451,7 @@ export function PostDetail({
         <button onClick={onBack} className="font-black text-zinc-500 hover:text-black">
           돌아가기
         </button>
-        <p className="font-black text-red-500">{error ?? '게시물을 찾을 수 없습니다.'}</p>
+        <p className="font-black text-red-500">{error ?? '게시글을 찾을 수 없습니다.'}</p>
         <Link
           href="/home"
           className="btn-primary"
@@ -510,7 +509,7 @@ export function PostDetail({
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
                 className="btn-icon -mr-2"
-                aria-label="게시물 메뉴"
+                aria-label="게시글 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
               >
@@ -529,7 +528,7 @@ export function PostDetail({
                       className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
                     >
                       <Flag size={15} />
-                      게시물 신고
+                      게시글 신고
                     </button>
                   ) : null}
 
@@ -661,7 +660,7 @@ export function PostDetail({
               type="button"
               onClick={() => { closeAll(); setShareOpen(true); }}
               className="flex items-center text-zinc-400 transition-all hover:text-black"
-              aria-label="게시물 공유"
+              aria-label="게시글 공유"
             >
               <Send size={20} />
             </button>
@@ -849,7 +848,7 @@ export function PostDetail({
           onShared={(sharedPost) => {
             const currentPost = latestPostRef.current;
             if (!actionLifetime.active || !currentPost ||
-                currentPost.postId !== sharedPost.postId || currentPost.postId !== postId) return;
+                currentPost.postId !== sharedPost.postId || currentPost.postNumber !== postNumber) return;
             const updatedPost = { ...currentPost, shares: sharedPost.shares };
             latestPostRef.current = updatedPost;
             setPost(updatedPost);
@@ -882,7 +881,7 @@ export function PostDetail({
             setPost(nextPost);
             onPostUpdated?.(nextPost);
             setEditOpen(false);
-            toast.success('게시물을 수정했어요.');
+            toast.success('게시글을 수정했습니다.');
           }}
         />
       ) : null}
@@ -890,7 +889,7 @@ export function PostDetail({
         <ReportContentModal
           targetType="POST"
           targetId={post.postId}
-          title="게시물 신고"
+          title="게시글 신고"
           author={post.author}
           authorHandle={post.authorHandle}
           content={post.content}

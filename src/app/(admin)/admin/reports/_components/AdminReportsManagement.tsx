@@ -304,7 +304,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
   ) => {
     const reportUuid = report.reportUuid;
     if (!reportUuid) {
-      setActionError('실제 API에서 조회한 신고만 상태를 변경할 수 있습니다.');
+      setActionError('상태를 변경할 수 없는 신고입니다. 목록을 새로고침해 주세요.');
       return;
     }
     if (
@@ -455,7 +455,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
           className={'mt-3 rounded-2xl border border-[#fedf89] bg-[#fffaeb] px-4 py-3 text-sm text-[#b54708]'}
           role={'status'}
         >
-          <p>상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해주세요.</p>
+          <p>상태 변경은 완료됐지만 목록을 갱신하지 못했습니다. 새로고침해 주세요.</p>
           <p className="mt-1">건수와 페이지 정보는 마지막 조회 기준이며, 새로고침 후 확정됩니다.</p>
         </div>
       ) : null}
@@ -541,7 +541,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
           <AdminStatePanel
             state="empty"
             title="조건에 맞는 신고가 없습니다."
-            description="검색어나 필터를 변경한 뒤 다시 확인해주세요."
+            description="검색어나 필터를 변경한 뒤 다시 확인해 주세요."
           />
         )}
 

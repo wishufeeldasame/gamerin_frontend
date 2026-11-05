@@ -30,7 +30,7 @@ export function AdminLoginForm() {
     if (submitLockRef.current || isLoggingOut) return;
 
     if (!adminId.trim() || !password) {
-      setToast({ id: Date.now(), variant: 'error', title: '로그인 정보를 확인해주세요.', description: '아이디와 비밀번호를 모두 입력해야 합니다.' });
+      setToast({ id: Date.now(), variant: 'error', title: '로그인 정보를 확인해 주세요.', description: '아이디와 비밀번호를 모두 입력해야 합니다.' });
       return;
     }
 
@@ -81,16 +81,16 @@ export function AdminLoginForm() {
           <label htmlFor="admin-password" className="mb-1.5 block text-[13px] font-semibold text-[#344054]">비밀번호</label>
           <div className="relative">
             <input id="admin-password" name="password" type={showPassword ? 'text' : 'password'} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" placeholder="비밀번호" className={`${inputClassName} pr-[45px]`} />
-            <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#98a2b3] hover:bg-[#f2f4f7]" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 표시하기'} aria-pressed={showPassword}>
+            <button type="button" onClick={() => setShowPassword((current) => !current)} className="absolute top-1/2 right-3 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-[#98a2b3] hover:bg-[#f2f4f7]" aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'} aria-pressed={showPassword}>
               {showPassword ? <EyeOff className="size-5" strokeWidth={1.7} aria-hidden="true" /> : <Eye className="size-5" strokeWidth={1.7} aria-hidden="true" />}
             </button>
           </div>
         </div>
         <div className="mt-4 flex flex-col gap-4">
           <button type="submit" disabled={isSubmitting || isLoggingOut} className="flex h-11 w-full items-center justify-center rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white transition hover:bg-[#294fd5] disabled:cursor-wait disabled:bg-[#98a2b3]">
-            {isLoggingOut ? '이전 세션 정리 중...' : isSubmitting ? '이동 중...' : '로그인'}
+            {isLoggingOut ? '이전 세션 정리 중...' : isSubmitting ? '로그인 중...' : '로그인'}
           </button>
-          <Link href="/login" className="flex h-11 w-full items-center justify-center rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb]">일반 GamerIN으로 이동</Link>
+          <Link href="/login" className="flex h-11 w-full items-center justify-center rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb]">GamerIN 서비스로 이동</Link>
         </div>
       </form>
       {toast ? <AdminToast key={toast.id} variant={toast.variant} title={toast.title} description={toast.description} onDismiss={() => setToast(null)} /> : null}

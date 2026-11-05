@@ -117,7 +117,7 @@ for (const viewport of [
     await expect(page.getByRole('heading', { name: '내 지갑' })).toBeVisible();
     const radios = page.getByRole('radio');
     await expect(radios).toHaveCount(4);
-    await expect(page.getByRole('button', { name: '충전 금액을 선택해주세요' })).toBeDisabled();
+    await expect(page.getByRole('button', { name: '충전 금액을 선택해 주세요' })).toBeDisabled();
 
     const first = await radios.nth(0).boundingBox();
     const second = await radios.nth(1).boundingBox();
@@ -135,7 +135,7 @@ test('PC 팝업: 결과를 부모 창이 받아 승인하고, 팝업은 refresh 
   await popup.waitForEvent('close');
 
   await expect(page).toHaveURL(/\/payments\/result\?orderId=o1$/);
-  await expect(page.getByRole('heading', { name: '10,000 M이 충전되었어요' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '10,000 M이 충전되었습니다' })).toBeVisible();
   expect(state.approve).toBe(1);
   expect(state.refreshPages.filter((owner) => owner === popup)).toHaveLength(0);
 });
@@ -180,7 +180,7 @@ test('결제 중 부모 창을 새로고침하면 팝업이 직접 승인한다'
   await page.reload();
   await popup.goto(resultUrl('orderId=o1&result=approval&pg_token=tok'));
 
-  await expect(popup.getByRole('heading', { name: '10,000 M이 충전되었어요' })).toBeVisible();
+  await expect(popup.getByRole('heading', { name: '10,000 M이 충전되었습니다' })).toBeVisible();
   await expect(popup).not.toHaveURL(/pg_token/);
   expect(state.approve).toBe(1);
 });
@@ -193,7 +193,7 @@ test.describe('모바일 웹', () => {
     await choosePackage(page);
     await page.getByRole('button', { name: '카카오페이로 결제' }).click();
 
-    await expect(page.getByRole('heading', { name: '10,000 M이 충전되었어요' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '10,000 M이 충전되었습니다' })).toBeVisible();
     await expect(page).not.toHaveURL(/pg_token/);
     expect(state.approve).toBe(1);
   });
@@ -203,8 +203,8 @@ test('결과 불명은 재조회로 확정한다', async ({ context, page }) => 
   await mockWallet(context, { paymentStatuses: ['APPROVING', 'APPROVED'] });
   await page.goto('/payments/result?orderId=o1');
 
-  await expect(page.getByRole('heading', { name: '결제 결과를 확인하고 있어요' })).toBeVisible();
-  await expect(page.getByRole('heading', { name: '10,000 M이 충전되었어요' })).toBeVisible({ timeout: 8_000 });
+  await expect(page.getByRole('heading', { name: '결제 결과를 확인하고 있습니다' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '10,000 M이 충전되었습니다' })).toBeVisible({ timeout: 8_000 });
 });
 
 test('지갑에서 멤버십 화면으로 이동한다', async ({ context, page }) => {
