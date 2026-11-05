@@ -213,7 +213,7 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 - 미반영 2(로그인 화면)는 새 파일에도 아직 없다.
 - 초기 파일의 컴포넌트 세트 8개와 화면 3개는 새 파일로 옮기지 않았다. Plugin API로는 파일 간 노드 복사가 되지 않는다. 원본이 필요하면 Figma에서 초기 파일을 복제한다.
 
-## 7. 코드 반영 계획 (제안, 미착수)
+## 7. 코드 반영 계획 (1~3단계 완료, 4단계부터 남음)
 
 아래는 확정안(다크 기본 + Amber, L2) 기준이다.
 
@@ -259,16 +259,17 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | 미제작 화면 | 관리자 화면 전체, 프로그램 만들기 폼, 리뷰 작성, 알림 빈 상태, 모바일 탭·상태 화면, 멤버십 로딩·오류, 1024~1280·768~1024 중간 폭(10-4절) |
 | 나머지 화면의 예시·추정 | 신고 사유는 서버 목록이라 예시다. 모음집 모달 제목 "모음집에 저장"과 버튼 "완료", 신고 모달 제목 "신고하기", 공유 링크 주소, OAuth 처리 중 설명 한 줄은 코드에서 확인하지 못한 문구다. 개인정보 처리방침은 조항 제목만 넣었다 — **확인 필요** |
 | 로그인 화면 | **확정**: 제목 `다시 오신 걸 환영해요`(F18), 토글 제거·폼 항상 펼침(F19). Figma 시안은 코드 그대로(제목·토글)다 |
-| 웹앱 | iOS 홈 화면 앱의 Safari 조작창 문제와 manifest 추가 — 10절. 실기기 재현으로 원인 확인 필요 |
+| 웹앱 | 매니페스트·iOS 메타·안전 영역·앱 안 이동 통일을 3단계에서 넣었다(10-1절 아래 표). iOS 하단 Safari 조작창이 사라지는지, 라이트 모드 상태 표시줄(`black-translucent`) 글자가 보이는지는 실기기 확인 필요 |
 | 관리자 화면 | **확정**: 이번 개편에서 제외(F20) |
-| 코드 반영 | 진행 중(브랜치 `feat/design-v2-tokens`). 1단계 토큰·기본 다크, 2단계 공통 유틸리티 완료. 7절 순서로 진행 |
+| 코드 반영 | 진행 중(통합 브랜치 `feature/design-v2`, 작업 브랜치 `feat/design-v2-tokens`). 1단계 토큰·기본 다크, 2단계 공통 유틸리티, 3단계 앱 셸 L2·웹앱 설정 완료. 다음은 4단계 화면별 반영 |
+| 티어 표시 | 3단계 계정 카드는 시안대로 `@핸들`을 보여 준다. 이전 헤더·사이드바에 있던 `user.gameTier`(티어·`미배치`) 표시는 앱 셸에서 사라졌다 — **결정 필요**(다른 곳에 둘지) |
 | 임시 목 API | 로그인 이후 화면을 백엔드 없이 확인하려고 `scripts/dev-mock-api.mjs`와 `npm run dev:mock`을 추가했다. **v2 적용 완료 후 두 가지 모두 삭제한다** |
 
 ## 10. 웹앱(데스크톱·iOS 홈 화면 앱) 고려사항
 
 이 디자인으로 프론트를 다시 작업할 때, 브라우저 탭뿐 아니라 설치형 웹앱(데스크톱 Chrome·Edge 설치, iOS "홈 화면에 추가")으로 쓰는 경우도 함께 고려한다.
 
-### 10-1. 현재 코드 상태 (확인한 사실, 2026-11-05)
+### 10-1. 3단계 전 코드 상태 (확인한 사실, 2026-11-05)
 
 | 항목 | 상태 | 근거 |
 |---|---|---|
@@ -277,6 +278,16 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | viewport | `viewport-fit=cover`만 지정. `themeColor` 없음. | `src/app/layout.tsx:15-19` |
 | 하단 안전 영역 | 모바일 하단 탭 바가 `pb-[env(safe-area-inset-bottom)]`로 홈 인디케이터를 피한다. 상단 안전 영역 처리는 없다. | `Sidebar.tsx:42` |
 | 앱 안 이동 | 대부분 Next `<Link>`·`router`의 클라이언트 이동이다. 전체 페이지를 새로 여는 이동은 다음뿐이다: 멤버십 이동 `window.location.assign('/membership')`, 결제 결과 `location.replace`, 카카오페이 `location.assign(paymentUrl)`·`window.open` 팝업, Google 로그인 `location.href = {API}/oauth2/authorization/google`, 외부 링크 `target="_blank"`(프로필 연결 계정·웹사이트, 약관 동의 링크). | `Post.tsx:370`, `PostDetail.tsx:544`, `payments/result/page.tsx:94`, `KakaoPaymentDialog.tsx:123·161`, `login/page.tsx:229`, `profile/[userId]/page.tsx:937·953·1177`, `SignupConsent.tsx:78·93` |
+
+3단계 반영 결과(브랜치 `feat/design-v2-tokens`):
+
+| 항목 | 반영 |
+|---|---|
+| 매니페스트 | `src/app/manifest.ts`(`start_url /home`, `scope /`, `display standalone`, 바탕·테마 `#0C0C0E`). 아이콘은 `public/icons/`에 192·512·maskable 512(`logo.png` 가운데를 노란 바탕에 얹음) |
+| iOS 메타 | `appleWebApp`(`capable`, `title GamerIN`, `statusBarStyle black-translucent`), `icons.apple` 180. Next 15는 `capable`을 `mobile-web-app-capable`로만 내보내서 `apple-mobile-web-app-capable`을 `other`로 따로 넣었다 |
+| theme-color | `viewport.themeColor #0C0C0E`. 라이트 테마면 첫 화면 스크립트와 `applyThemeMode`가 `#FAFAFA`로 바꾼다. `media`별 지정(10-2 제안 3)은 앱 테마가 OS 설정과 따로 움직여서 쓰지 않았다 |
+| 안전 영역 | 모바일 상단 바·알림 페이지 헤더·전체 화면 검색에 `env(safe-area-inset-top)`, `--app-header-height`가 상단 바 높이를 포함한다 |
+| 앱 안 이동 | 멤버십 이동을 `router.push('/membership')`로 바꿨다(`Post.tsx`, `PostDetail.tsx`) |
 
 ### 10-2. iOS 홈 화면 앱의 하단 Safari 조작창 문제
 
