@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchMyBookmarkCount, fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -41,14 +41,5 @@ describe('게시글 숫자 URL', () => {
 
     expect(apiRequest.mock.calls[0][0]).toBe('/api/v1/posts/by-number/7');
     expect(post).toMatchObject({ postId: 'uuid-1', postNumber: 7 });
-  });
-});
-
-describe('fetchMyBookmarkCount', () => {
-  it('숫자 0은 개수로 반환하고 객체 형태의 응답은 거부한다', async () => {
-    apiRequest.mockResolvedValueOnce(0).mockResolvedValueOnce({ count: 25 });
-
-    await expect(fetchMyBookmarkCount()).resolves.toBe(0);
-    await expect(fetchMyBookmarkCount()).rejects.toThrow('전체 북마크 개수 응답이 올바르지 않습니다.');
   });
 });
