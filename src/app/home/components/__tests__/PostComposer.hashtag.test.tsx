@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { render } from '@/test/feedback';
 
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { nickname: '테스터', handle: 'tester' } }) }));
-vi.mock('@/lib/community-search-api', () => ({ fetchHashtagSuggestions: vi.fn().mockResolvedValue([]) }));
+vi.mock('@/lib/community-search-api', () => ({
+  fetchHashtagSuggestions: vi.fn().mockResolvedValue([{ hashtagId: 'h1', name: '게임스', postCount: 3 }]),
+}));
 
 import { PostComposer } from '../PostComposer';
 
@@ -20,5 +22,17 @@ describe('PostComposer 해시태그 버튼', () => {
     textarea.setSelectionRange(2, 2);
     fireEvent.click(hashtagButton);
     expect(textarea.value).toBe('오늘 # 랭크');
+  });
+
+  it('자동완성이 열린 채 #을 넣으면 이전 추천을 닫는다', async () => {
+    render(<PostComposer />);
+    const textarea = screen.getByLabelText<HTMLTextAreaElement>('게시글 내용');
+
+    fireEvent.change(textarea, { target: { value: '#게임' } });
+    expect(await screen.findByRole('button', { name: /#게임스/ })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '해시태그 추가' }));
+    expect(textarea.value).toBe('#게임 #');
+    expect(screen.queryByRole('button', { name: /#게임스/ })).not.toBeInTheDocument();
   });
 });

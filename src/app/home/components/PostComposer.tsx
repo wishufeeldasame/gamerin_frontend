@@ -366,7 +366,9 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     if (content.length - (end - start) + insert.length > MAX_POST_CONTENT_LENGTH) return;
 
     const nextCaretPosition = start + insert.length;
-    setContent(`${before}${insert}${content.slice(end)}`);
+    const nextContent = `${before}${insert}${content.slice(end)}`;
+    setContent(nextContent);
+    updateActiveHashtagQuery(nextContent, nextCaretPosition);
     setExpanded(true);
     window.requestAnimationFrame(() => {
       contentTextareaRef.current?.focus();
@@ -704,7 +706,7 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
         ) : null}
         </div>
 
-        <div className={`flex items-center gap-1 ${open ? 'w-full border-t border-line pt-3' : 'w-full pl-[52px] md:w-auto md:pl-0'}`}>
+        <div className={`flex flex-wrap items-center gap-x-1 gap-y-2 ${open ? 'w-full border-t border-line pt-3' : 'w-full pl-[52px] md:w-auto md:pl-0'}`}>
           <input
             ref={imageInputRef}
             type="file"
