@@ -8,7 +8,7 @@ import {
 
 function createPost(overrides: Partial<PostRecord> = {}): PostRecord {
   return {
-    postId: 'post-1',
+    postId: 'post-1', postNumber: 1,
     author: '게이머',
     authorHandle: 'gamer',
     authorProfileImageUrl: null,
@@ -112,7 +112,7 @@ describe('updatePostsLikeState', () => {
 });
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: 'Author',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -151,7 +151,7 @@ describe('updatePostsBookmarkState', () => {
   it('does not change unrelated posts', () => {
     const unrelated = {
       ...post,
-      postId: 'post-2',
+      postId: 'post-2', postNumber: 2,
       bookmarkedByMe: true,
     };
 

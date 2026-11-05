@@ -41,7 +41,7 @@ export interface AuthUser {
   status?: string;
   /** false면 소셜 전용 계정이라 비밀번호가 없다. 서버가 주지 않으면 undefined. */
   hasPassword?: boolean;
-  /** 현재 유효한 멤버십 여부(왕관 배지). */
+  /** 현재 유효한 멤버십 여부(노란 체크 배지). */
   membershipBadge?: boolean;
 }
 

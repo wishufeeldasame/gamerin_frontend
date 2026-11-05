@@ -51,6 +51,7 @@ function notification(id: string, nickname: string, read = false): NotificationR
       verifiedBadge: false,
     },
     postId: `post-${id}`,
+    postNumber: 1,
     commentId: null,
     conversationId: null,
     messageId: null,
@@ -185,7 +186,7 @@ describe('NotificationPanel server synchronization', () => {
     const panel = await screen.findByRole('button', { name: /첫 번째님이 내 게시글을 좋아합니다/ });
     fireEvent.click(panel);
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/post-1'));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/posts/1'));
     expect(within(document.body).getByText('읽지 않은 알림 0개')).toBeInTheDocument();
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });

@@ -39,7 +39,7 @@ function collection(name: string, containsPost: boolean): BookmarkCollection {
 }
 
 const baseProps = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   isBookmarked: true,
   onClose: vi.fn(),
 };

@@ -75,7 +75,7 @@ vi.mock('../SaveToCollectionModal', () => ({
 import { Post } from '../Post';
 
 const bookmarkedPost: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,

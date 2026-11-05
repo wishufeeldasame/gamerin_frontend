@@ -151,7 +151,7 @@ function HomeUnderTest() {
 }
 
 const initialPost: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -266,16 +266,6 @@ describe('HomePage like rollback', () => {
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' });
   });
 
-  it('기존 게시글 딥링크는 피드를 요청하지 않고 상세 화면으로 이동한다', async () => {
-    navigation.query = 'postId=post%2F1&target=comments';
-    render(<HomeUnderTest />);
-
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith(
-      '/posts/post%2F1?target=comments',
-    ));
-    expect(api.fetchFeed).not.toHaveBeenCalled();
-  });
-
   it.each([
     ['unknown failure', '피드를 불러오지 못했습니다.'],
     [new Error('Request failed.'), 'Request failed.'],
@@ -349,7 +339,7 @@ describe('HomePage like rollback', () => {
   it('loads the next page when the feed sentinel enters the viewport', async () => {
     const nextPost = {
       ...initialPost,
-      postId: 'post-2',
+      postId: 'post-2', postNumber: 2,
       content: '무한 스크롤로 불러온 게시글',
     };
     api.fetchFeed
@@ -402,7 +392,7 @@ describe('HomePage like rollback', () => {
   it('stops observing after a next-page failure until the user retries', async () => {
     const nextPost = {
       ...initialPost,
-      postId: 'post-2',
+      postId: 'post-2', postNumber: 2,
       content: '재시도로 불러온 게시글',
     };
     api.fetchFeed

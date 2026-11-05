@@ -3,7 +3,7 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 const createdAt = '2026-10-06T06:04:00Z';
 const actor = { userId: 'viewer', handle: 'viewer', nickname: '테스터', role: 'USER', status: 'ACTIVE' };
 const post = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, content: '한국어 화면 확인용 게시글', game: null, media: [],
   likes: 0, comments: 1, shares: 0, repostCount: 0, isReposted: false,
   reposterInfo: { userId: 'reposter', nickname: '리포스터', repostedAt: '2026-09-29T06:05:00Z' },
@@ -46,7 +46,7 @@ async function mockApp(page: Page, theme: 'light' | 'dark', admin = false) {
     if (path === '/api/v1/auth/refresh') data = { userId: user.userId, accessToken: 'fe6-test-token' };
     else if (path === '/api/v1/auth/me') data = user;
     else if (path === '/api/v1/feed') data = { ...cursorPage, items: [post] };
-    else if (path === '/api/v1/posts/post-1') data = post;
+    else if (['/api/v1/posts/post-1', '/api/v1/posts/by-number/1'].includes(path)) data = post;
     else if (path === '/api/v1/posts/post-1/comments') data = [{
       commentId: 'comment-1', author: '댓글 작성자', authorHandle: 'commenter',
       authorProfileImageUrl: null, authorVerifiedBadge: false, content: '한국어 댓글', createdAt, mine: false,
@@ -57,7 +57,7 @@ async function mockApp(page: Page, theme: 'light' | 'dark', admin = false) {
     else if (path === '/api/v1/notifications/unread-count') data = { unreadCount: 1 };
     else if (path === '/api/v1/notifications') data = { ...cursorPage, items: [{
       notificationId: 'notification-1', type: 'like', actor: { ...actor, verifiedBadge: false, profileImageUrl: null },
-      postId: 'post-1', read: false, createdAt,
+      postId: 'post-1', postNumber: 1, read: false, createdAt,
     }] };
     else if (path === '/api/v1/messages/conversations') data = [conversation];
     else if (path.endsWith('/conversation-1/messages')) data = cursorPage;
@@ -133,7 +133,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await expect(page.locator('time').last()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await checkLayout(page, info, 'notifications');
 
-        await page.goto('/posts/post-1');
+        await page.goto('/posts/1');
         await expect(page.getByText('한국어 댓글', { exact: true })).toBeVisible();
         await expect(page.getByPlaceholder('댓글을 남겨보세요...')).toBeVisible();
         await expect(page.locator('time')).toHaveCount(2);

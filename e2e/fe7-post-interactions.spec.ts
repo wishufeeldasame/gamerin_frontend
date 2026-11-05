@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-for (const path of ['/home', '/posts/post-1']) {
+for (const path of ['/home', '/posts/1']) {
   test(`late share preserves newer likes on ${path}`, async ({ page }) => {
     await mockApp(page, 'light');
     let release!: () => void;
@@ -9,7 +9,7 @@ for (const path of ['/home', '/posts/post-1']) {
     await page.route('**/api/v1/posts/post-1/shares', async (route) => {
       started = true;
       await pending;
-      await route.fulfill({ json: { success: true, data: { postId: 'post-1', shares: 1 } } });
+      await route.fulfill({ json: { success: true, data: { postId: 'post-1', postNumber: 1, shares: 1 } } });
     });
     await page.goto(path);
     await page.getByRole('button', { name: '게시글 공유' }).first().click();
@@ -33,7 +33,7 @@ for (const leave of [false, true]) {
     let release!: () => void;
     const pending = new Promise<void>((resolve) => { release = resolve; });
     let started = false;
-    await page.route('**/api/v1/posts/post-1', async (route) => {
+    await page.route('**/api/v1/posts/{post-1,by-number/1}', async (route) => {
       if (route.request().method() === 'DELETE') {
         started = true;
         await pending;
@@ -41,7 +41,7 @@ for (const leave of [false, true]) {
       } else await route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } });
     });
     await page.goto('/home');
-    await page.goto('/posts/post-1');
+    await page.goto('/posts/1');
     await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
     await page.getByRole('button', { name: '삭제', exact: true }).click();
     await page.getByRole('alertdialog').getByRole('button', { name: '삭제', exact: true }).click();
@@ -62,7 +62,7 @@ const user = { userId: 'viewer', handle: 'viewer', nickname: '테스터', role: 
 const createdAt = '2026-10-09T00:00:00Z';
 const text = '선택 가능한 게시글 본문 @alpha #게임 a@abc.com @ABC @ab @abcdefghijklmnopqrstu';
 const post = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, content: text, game: null, media: [],
   likes: 2, comments: 1, shares: 0, repostCount: 0, isReposted: false,
   likedByMe: false, bookmarkedByMe: false, mine: false, createdAt,
@@ -82,7 +82,7 @@ async function mockPostImages(page: Page, theme: 'light' | 'dark') {
   await page.route('**/api/v1/feed?**', (route) => route.fulfill({
     json: { success: true, data: { ...cursor, items: [imagePost] } },
   }));
-  await page.route('**/api/v1/posts/post-1', (route) => route.fulfill({ json: { success: true, data: imagePost } }));
+  await page.route('**/api/v1/posts/{post-1,by-number/1}', (route) => route.fulfill({ json: { success: true, data: imagePost } }));
   await page.route('**/fe7-image-*.svg', (route) => route.fulfill({
     contentType: 'image/svg+xml',
     body: '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"><rect width="1200" height="800" fill="#ffd500"/><circle cx="600" cy="400" r="160" fill="#2165bd"/></svg>',
@@ -107,10 +107,10 @@ async function mockApp(page: Page, theme: 'light' | 'dark') {
     let data: unknown = null;
     if (path === '/api/v1/auth/refresh') data = { userId: user.userId, accessToken: 'fe7-test-token' };
     else if (path === '/api/v1/auth/me') data = user;
-    else if (path === '/api/v1/feed') data = { ...cursor, items: [post, { ...post, postId: 'post-2', author: '다른 작성자', content: '두 번째 카드' }] };
-    else if (/\/posts\/post-[12]$/.test(path)) data = post;
+    else if (path === '/api/v1/feed') data = { ...cursor, items: [post, { ...post, postId: 'post-2', postNumber: 2, author: '다른 작성자', content: '두 번째 카드' }] };
+    else if (/\/posts\/(post-[12]|by-number\/[12])$/.test(path)) data = post;
     else if (path.endsWith('/reposts')) data = {
-      postId: 'post-1', isReposted: request.method() === 'POST',
+      postId: 'post-1', postNumber: 1, isReposted: request.method() === 'POST',
       repostCount: request.method() === 'POST' ? 1 : 0, repostedAt: createdAt,
     };
     else if (path === '/api/v1/posts/post-1/comments') data = request.method() === 'POST' ? {
@@ -132,7 +132,7 @@ async function mockApp(page: Page, theme: 'light' | 'dark') {
     else if (path === '/api/v1/notifications/unread-count') data = { unreadCount: 1 };
     else if (path === '/api/v1/notifications') data = { ...cursor, items: [{
       notificationId: 'n1', type: 'like', actor: { ...user, nickname: '알림 사용자', profileImageUrl: null },
-      postId: 'post-1', read: true, createdAt,
+      postId: 'post-1', postNumber: 1, read: true, createdAt,
     }] };
     else if (path === '/api/v1/games') data = [];
     // Recipient lookup can finish while the deliberately delayed share is pending.
@@ -224,7 +224,7 @@ for (const width of [375, 1440]) {
 
       test('Windows IME의 조합 종료 직후 Enter를 차단하고 다음 Enter는 전송한다', async ({ page }) => {
         const writes = await mockApp(page, theme);
-        await page.goto('/posts/post-1');
+        await page.goto('/posts/1');
         const textarea = page.getByRole('textbox', { name: '댓글 입력' });
         await textarea.fill('가');
         await textarea.evaluate((element) => {
@@ -244,7 +244,7 @@ for (const width of [375, 1440]) {
 
       test('등록된 댓글의 줄바꿈을 화면에서도 유지한다', async ({ page }) => {
         const writes = await mockApp(page, theme);
-        await page.goto('/posts/post-1');
+        await page.goto('/posts/1');
         const textarea = page.getByRole('textbox', { name: '댓글 입력' });
         await textarea.fill('댓글 첫 번째 줄');
         await textarea.press('Shift+Enter');
@@ -273,7 +273,7 @@ for (const width of [375, 1440]) {
 
       test('댓글 form은 Enter·Shift+Enter·조합을 구분한다', async ({ page }, info) => {
         const writes = await mockApp(page, theme);
-        await page.goto('/posts/post-1');
+        await page.goto('/posts/1');
         const textarea = page.getByRole('textbox', { name: '댓글 입력' });
         await expect(textarea).toBeVisible();
         await expect(page.getByRole('link', { name: '@bravo' })).toHaveAttribute('href', '/profile/bravo');
@@ -307,7 +307,7 @@ for (const width of [375, 1440]) {
 
       test('카드·상세 사진은 독립 확대되고 닫으면 해당 사진으로 포커스가 돌아온다', async ({ page }, info) => {
         await mockPostImages(page, theme);
-        for (const path of ['/home', '/posts/post-1']) {
+        for (const path of ['/home', '/posts/1']) {
           await page.goto(path);
           const image = page.getByRole('button', { name: '게시글 이미지 2 확대 보기' });
           await expect(image).toBeVisible();
@@ -360,7 +360,7 @@ test('카드·상세의 리포스트 실패 복원과 본인 게시글 설명을
       status: 500, json: { success: false, message: '리포스트 실패 테스트' },
     });
   });
-  for (const path of ['/home', '/posts/post-1']) {
+  for (const path of ['/home', '/posts/1']) {
     await page.goto(path);
     const button = page.getByRole('button', { name: '리포스트', pressed: false }).first();
     await button.click();
@@ -373,10 +373,10 @@ test('카드·상세의 리포스트 실패 복원과 본인 게시글 설명을
   await page.route('**/api/v1/feed?**', (route) => route.fulfill({
     json: { success: true, data: { ...cursor, items: [{ ...post, mine: true }] } },
   }));
-  await page.route('**/api/v1/posts/post-1', (route) => route.fulfill({
+  await page.route('**/api/v1/posts/{post-1,by-number/1}', (route) => route.fulfill({
     json: { success: true, data: { ...post, mine: true } },
   }));
-  for (const path of ['/home', '/posts/post-1']) {
+  for (const path of ['/home', '/posts/1']) {
     await page.goto(path);
     const button = page.getByRole('button', { name: '리포스트', pressed: false });
     await expect(button).toBeDisabled();
@@ -427,7 +427,7 @@ test('점은 카드·상세·댓글에서 핸들 구분자로 처리되고 원�
   await page.route('**/api/v1/users/user', (route) => route.fulfill({
     status: 404, json: { success: false, message: '프로필을 찾을 수 없습니다.' },
   }));
-  for (const path of ['/home', '/posts/post-1']) {
+  for (const path of ['/home', '/posts/1']) {
     await page.goto(path);
     const mentions = page.getByRole('link', { name: '@user', exact: true });
     await expect(mentions).toHaveCount(2);
@@ -609,7 +609,7 @@ test('댓글 성공 응답이 전송 중 변경한 좋아요·리포스트·북�
     if (path.endsWith('/bookmarks/post-1')) {
       saved = true;
       return route.fulfill({ json: { success: true, data: {
-        postId: 'post-1', bookmarkedByMe: true, collectionIds: ['collection-a'],
+        postId: 'post-1', postNumber: 1, bookmarkedByMe: true, collectionIds: ['collection-a'],
         collection: {
           collectionId: 'collection-a', name: '동시 요청 검증 모음집', coverImageUrl: null,
           bookmarkCount: 1, containsPost: true, createdAt, updatedAt: createdAt,
@@ -632,7 +632,7 @@ test('댓글 성공 응답이 전송 중 변경한 좋아요·리포스트·북�
     } } });
   });
   try {
-    await page.goto('/posts/post-1');
+    await page.goto('/posts/1');
     const input = page.getByRole('textbox', { name: '댓글 입력' });
     await input.fill('동시 요청 댓글');
     await input.press('Enter');
@@ -662,7 +662,7 @@ test('문장 끝 점은 계정 조회 없이 평문으로 남고 카드·상세�
   await mockApp(page, 'light');
   const mentionPost = { ...post, content: '안녕 @player. #게임' };
   await page.route('**/api/v1/feed?**', (route) => route.fulfill({ json: { success: true, data: { ...cursor, items: [mentionPost] } } }));
-  await page.route('**/api/v1/posts/post-1', (route) => route.fulfill({ json: { success: true, data: mentionPost } }));
+  await page.route('**/api/v1/posts/{post-1,by-number/1}', (route) => route.fulfill({ json: { success: true, data: mentionPost } }));
   await page.route('**/api/v1/posts/post-1/comments', (route) => route.fulfill({ json: { success: true, data: [{
     commentId: 'comment-1', author: '댓글 작성자', authorHandle: 'commenter', authorProfileImageUrl: null,
     authorVerifiedBadge: false, content: '@player. #댓글태그', createdAt, mine: false,
@@ -671,7 +671,7 @@ test('문장 끝 점은 계정 조회 없이 평문으로 남고 카드·상세�
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/v1/users/player')) lookups.push(request.url());
   });
-  for (const path of ['/home', '/posts/post-1']) {
+  for (const path of ['/home', '/posts/1']) {
     await page.goto(path);
     const mentions = page.getByRole('link', { name: '@player', exact: true });
     await expect(mentions).toHaveCount(path === '/home' ? 1 : 2);
@@ -722,7 +722,7 @@ for (const width of [375, 1440]) {
       test.use({ viewport: { width, height: 1000 }, colorScheme: theme });
       test('카드·상세·댓글 멘션과 해시태그의 기본·호버 글자 대비가 4.5 이상이다', async ({ page }, info) => {
         await mockApp(page, theme);
-        for (const path of ['/home', '/posts/post-1']) {
+        for (const path of ['/home', '/posts/1']) {
           await page.goto(path);
           const names = path === '/home' ? ['@alpha', '#게임'] : ['@alpha', '#게임', '@bravo'];
           for (const name of names) {

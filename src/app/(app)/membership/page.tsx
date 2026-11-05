@@ -11,7 +11,7 @@ const CANCEL_IN_PROGRESS_MESSAGE = '이전 결제 취소를 처리하고 있습�
 
 // 혜택 문구는 정책(README 확정 표)과 같게 둔다. 서버 benefits는 요약 문자열이라 화면 설명은 여기서 붙인다.
 const benefits = [
-  { icon: Crown, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 왕관 배지가 표시됩니다.' },
+  { icon: Crown, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 노란 체크 배지가 표시됩니다.' },
   { icon: PencilLine, title: '게시글 1회 수정', description: '게시 후 1시간 이내, 게시글당 1번 본문을 수정할 수 있습니다.' },
   { icon: BadgePercent, title: '멘토 정산 수수료 10% → 5%', description: '멘토로 진행한 멘토링의 GamerIN 정산 수수료가 낮아집니다.' },
 ];

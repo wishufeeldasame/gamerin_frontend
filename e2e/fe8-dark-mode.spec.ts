@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page, type TestInfo } from '@playwrigh
 const account = { userId: 'viewer', handle: 'viewer', nickname: '테스터', role: 'USER', status: 'ACTIVE' };
 const createdAt = '2026-10-09T06:00:00Z';
 const post = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, content: '다크 모드 확인용 게시글', game: null, media: [],
   likes: 0, comments: 1, shares: 0, repostCount: 0, isReposted: false,
   likedByMe: false, bookmarkedByMe: false, mine: false, createdAt,
@@ -37,13 +37,13 @@ async function mockApp(page: Page, theme: 'light' | 'dark', anonymous = false) {
     if (path.endsWith('/auth/refresh')) data = { userId: account.userId, accessToken: 'fe8-test-token' };
     else if (path.endsWith('/auth/me')) data = account;
     else if (path === '/api/v1/feed') data = { ...cursor, items: [post] };
-    else if (path === '/api/v1/posts/post-1') data = post;
+    else if (['/api/v1/posts/post-1', '/api/v1/posts/by-number/1'].includes(path)) data = post;
     else if (path.endsWith('/post-1/comments')) data = [{ commentId: 'comment-1', author: '댓글 작성자', authorHandle: 'commenter', content: '댓글 내용', createdAt, mine: false }];
     else if (path === '/api/v1/users/me' || path === '/api/v1/users/viewer') data = profile;
     else if (/\/users\/viewer\/(posts|media)$/.test(path)) data = cursor;
     else if (path.includes('/bookmark-collections')) data = [];
     else if (path.endsWith('/notifications/unread-count')) data = { unreadCount: 1 };
-    else if (path.endsWith('/notifications')) data = { ...cursor, items: [{ notificationId: 'notification-1', type: 'like', actor: { ...account, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', read: false, createdAt }] };
+    else if (path.endsWith('/notifications')) data = { ...cursor, items: [{ notificationId: 'notification-1', type: 'like', actor: { ...account, verifiedBadge: false, profileImageUrl: null }, postId: 'post-1', postNumber: 1, read: false, createdAt }] };
     else if (path.endsWith('/messages/conversations')) data = [{ id: 'conversation-1', recipient, messages, unreadCount: 0, updatedAt: createdAt }];
     else if (path.endsWith('/conversation-1/messages')) data = { ...cursor, items: messages };
     else if (path.endsWith('/recipients')) data = [recipient];
@@ -157,7 +157,7 @@ for (const width of [390, 1440]) {
       await capture(page, info, 'game-stats');
     });
     test('share inputs, report selection, confirmation and failure', async ({ page }, info) => {
-      await mockApp(page, 'dark'); await page.goto('/posts/post-1');
+      await mockApp(page, 'dark'); await page.goto('/posts/1');
       expect(await contrast(page.getByRole('textbox', { name: '댓글 입력' }), true)).toBeGreaterThanOrEqual(4.5);
       await page.getByRole('button', { name: '게시글 공유', exact: true }).click();
       expect(await contrast(page.getByPlaceholder('이름 또는 핸들 검색'), true)).toBeGreaterThanOrEqual(4.5);
@@ -221,8 +221,8 @@ for (const width of [390, 1440]) {
       await expect(error).toBeVisible(); expect(await contrast(error.locator('p'))).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'toast');
       await page.getByRole('button', { name: '알림 닫기' }).click();
-      await page.route('**/api/v1/posts/post-1', route => route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } }));
-      await page.goto('/posts/post-1'); await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
+      await page.route('**/api/v1/posts/{post-1,by-number/1}', route => route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } }));
+      await page.goto('/posts/1'); await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
       await page.getByRole('button', { name: '삭제', exact: true }).click();
       const dialog = page.getByRole('alertdialog'); await expect(dialog).toBeVisible();
       expect(await contrast(dialog.locator('p'))).toBeGreaterThanOrEqual(4.5);

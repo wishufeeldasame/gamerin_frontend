@@ -74,6 +74,7 @@ type AttachmentPayload = {
 
 type SharedPostPayload = {
   postId: string;
+  postNumber: number;
   author: string;
   authorHandle: string;
   content: string;
@@ -107,6 +108,7 @@ function toSharedPost(payload: SharedPostPayload | null): SharedPostPreview | nu
 
   return {
     postId: payload.postId,
+    postNumber: payload.postNumber,
     author: payload.author,
     authorHandle: payload.authorHandle,
     content: payload.content,

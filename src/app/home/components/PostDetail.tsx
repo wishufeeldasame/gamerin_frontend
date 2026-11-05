@@ -18,7 +18,7 @@ import {
   createComment,
   deleteComment,
   deletePost,
-  fetchPostDetail,
+  fetchPostDetailByNumber,
   fetchPostComments,
   getInitials,
   repostPost,
@@ -41,7 +41,7 @@ import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 const MAX_COMMENT_LENGTH = 300;
 
 interface PostDetailProps {
-  postId: string;
+  postNumber: number;
   onBack: () => void;
   initialScrollTarget?: 'comments';
   initialCommentId?: string;
@@ -50,7 +50,7 @@ interface PostDetailProps {
 }
 
 export function PostDetail({
-  postId,
+  postNumber,
   onBack,
   initialScrollTarget,
   initialCommentId,
@@ -58,7 +58,7 @@ export function PostDetail({
   onPostDeleted,
 }: PostDetailProps) {
   const toast = useToast();
-  const confirm = useConfirm(postId);
+  const confirm = useConfirm(String(postNumber));
   const deleteCommentLockRef = useRef(false);
   const deletePostLockRef = useRef(false);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
@@ -93,7 +93,7 @@ export function PostDetail({
   useEffect(() => () => {
     if (commentCompositionTimerRef.current !== null) clearTimeout(commentCompositionTimerRef.current);
   }, []);
-  const actionLifetime = useMemo(() => ({ active: false, postId }), [postId]);
+  const actionLifetime = useMemo(() => ({ active: false, postNumber }), [postNumber]);
   useLayoutEffect(() => {
     actionLifetime.active = true;
     deletePostLockRef.current = false;
@@ -116,7 +116,7 @@ export function PostDetail({
   const [bookmarking, setBookmarking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
-  const loadedPostId = post?.postId;
+  const loadedPostNumber = post?.postNumber;
   const applyLikeState = useCallback((targetPostId: string, likedByMe: boolean) => {
     const currentPost = latestPostRef.current;
     if (!currentPost || currentPost.postId !== targetPostId) return;
@@ -138,11 +138,11 @@ export function PostDetail({
       commentRequestGenerationRef.current += 1;
       submittingCommentRef.current = false;
     };
-  }, [postId]);
+  }, [postNumber]);
 
   useEffect(() => {
-    const scrollKey = JSON.stringify([postId, initialCommentId ?? null, initialScrollTarget ?? null]);
-    if (loading || loadedPostId !== postId) {
+    const scrollKey = JSON.stringify([postNumber, initialCommentId ?? null, initialScrollTarget ?? null]);
+    if (loading || loadedPostNumber !== postNumber) {
       return;
     }
 
@@ -173,7 +173,7 @@ export function PostDetail({
         window.clearTimeout(highlightTimeout);
       }
     };
-  }, [initialCommentId, initialScrollTarget, loadedPostId, loading, postId]);
+  }, [initialCommentId, initialScrollTarget, loadedPostNumber, loading, postNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -184,10 +184,9 @@ export function PostDetail({
         setLoading(true);
         setError(null);
         setComments([]);
-        const [detail, commentList] = await Promise.all([
-          fetchPostDetail(postId, { signal: controller.signal }),
-          fetchPostComments(postId, { signal: controller.signal }),
-        ]);
+        // 댓글 API는 UUID를 쓰므로 상세를 먼저 받아 `detail.postId`로 조회한다
+        const detail = await fetchPostDetailByNumber(postNumber, { signal: controller.signal });
+        const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
         if (!cancelled) {
           setPost(detail);
           setComments(commentList);
@@ -214,7 +213,7 @@ export function PostDetail({
       cancelled = true;
       controller.abort();
     };
-  }, [postId]);
+  }, [postNumber]);
 
   const handleToggleLike = () => {
     const currentPost = latestPostRef.current;
@@ -280,7 +279,7 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
-    if (!post || post.postId !== postId || !commentText.trim() || submittingCommentRef.current) {
+    if (!post || post.postNumber !== postNumber || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
     if (commentText.length > MAX_COMMENT_LENGTH) {
@@ -412,7 +411,7 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
-    if (!post || post.postId !== postId || deletingPost || deletePostLockRef.current) {
+    if (!post || post.postNumber !== postNumber || deletingPost || deletePostLockRef.current) {
       return;
     }
 
@@ -849,7 +848,7 @@ export function PostDetail({
           onShared={(sharedPost) => {
             const currentPost = latestPostRef.current;
             if (!actionLifetime.active || !currentPost ||
-                currentPost.postId !== sharedPost.postId || currentPost.postId !== postId) return;
+                currentPost.postId !== sharedPost.postId || currentPost.postNumber !== postNumber) return;
             const updatedPost = { ...currentPost, shares: sharedPost.shares };
             latestPostRef.current = updatedPost;
             setPost(updatedPost);

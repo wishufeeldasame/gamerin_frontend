@@ -31,7 +31,7 @@ function draft(overrides: Partial<PostDraft> = {}): PostDraft {
   return { content: '첫 게시글', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
 }
 
-const createdPost = { postId: 'post-1', content: '첫 게시글' } as PostRecord;
+const createdPost = { postId: 'post-1', postNumber: 1, content: '첫 게시글' } as PostRecord;
 const createdResult: MultipartPostResult = { kind: 'post', post: createdPost };
 const videoFile = () => new File(['v'], 'v.mp4', { type: 'video/mp4' });
 

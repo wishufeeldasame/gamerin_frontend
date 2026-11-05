@@ -13,7 +13,7 @@ const mocks = vi.hoisted(() => ({
   deletePost: vi.fn(),
   fetchCollectionsForPost: vi.fn(),
   fetchPostComments: vi.fn(),
-  fetchPostDetail: vi.fn(),
+  fetchPostDetailByNumber: vi.fn(),
   likePost: vi.fn(),
   refreshCollections: vi.fn(),
   removeBookmarkFromCollection: vi.fn(),
@@ -43,7 +43,7 @@ vi.mock('@/lib/feed-api', () => ({
   deleteComment: mocks.deleteComment,
   deletePost: mocks.deletePost,
   fetchPostComments: mocks.fetchPostComments,
-  fetchPostDetail: mocks.fetchPostDetail,
+  fetchPostDetailByNumber: mocks.fetchPostDetailByNumber,
   formatRelativeTime: () => 'now',
   getInitials: () => 'A',
   likePost: mocks.likePost,
@@ -70,7 +70,7 @@ const REMOVE_ALL_LABEL = '전체 북마크 해제';
 const COLLECTION_NAME = 'Collection A';
 
 const bookmarkedPost: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: 'Author',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -106,10 +106,10 @@ async function renderDetail({
   post?: PostRecord;
   collections?: BookmarkCollection[];
 } = {}) {
-  mocks.fetchPostDetail.mockResolvedValue(post);
+  mocks.fetchPostDetailByNumber.mockResolvedValue(post);
   mocks.fetchCollectionsForPost.mockResolvedValue(collections);
 
-  render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
+  render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} />);
 
   const bookmarkButton = await screen.findByRole('button', {
     name: post.bookmarkedByMe ? BOOKMARK_REMOVE_LABEL : BOOKMARK_SAVE_LABEL,
@@ -138,14 +138,14 @@ describe('PostDetail bookmark collection synchronization', () => {
 
   it('disables remove all while collections load, then sends one delete', async () => {
     let resolveCollections!: (collections: BookmarkCollection[]) => void;
-    mocks.fetchPostDetail.mockResolvedValue(bookmarkedPost);
+    mocks.fetchPostDetailByNumber.mockResolvedValue(bookmarkedPost);
     mocks.fetchCollectionsForPost.mockReturnValue(
       new Promise<BookmarkCollection[]>((resolve) => {
         resolveCollections = resolve;
       }),
     );
 
-    render(<PostDetail postId="post-1" onBack={vi.fn()} />);
+    render(<PostDetail postNumber={1} onBack={vi.fn()} />);
 
     const bookmarkButton = await screen.findByRole('button', {
       name: BOOKMARK_REMOVE_LABEL,
@@ -224,7 +224,7 @@ describe('PostDetail bookmark collection synchronization', () => {
       savedCollectionIds: ['collection-a'],
     };
 
-    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchPostDetailByNumber.mockResolvedValue(postWithConcurrentState);
     mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
     mocks.unbookmarkPost.mockReturnValue(
       new Promise<void>((_resolve, reject) => {
@@ -234,7 +234,7 @@ describe('PostDetail bookmark collection synchronization', () => {
 
     render(
       <PostDetail
-        postId="post-1"
+        postNumber={1}
         onBack={vi.fn()}
         onPostUpdated={onPostUpdated}
       />,
@@ -292,7 +292,7 @@ describe('PostDetail bookmark collection synchronization', () => {
       savedCollectionIds: ['collection-a'],
     };
 
-    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchPostDetailByNumber.mockResolvedValue(postWithConcurrentState);
     mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
     mocks.likePost.mockReturnValue(
       new Promise<void>((_resolve, reject) => {
@@ -300,14 +300,14 @@ describe('PostDetail bookmark collection synchronization', () => {
       }),
     );
     mocks.repostPost.mockResolvedValue({
-      postId: 'post-1',
+      postId: 'post-1', postNumber: 1,
       isReposted: true,
       repostCount: 6,
     });
 
     render(
       <PostDetail
-        postId={'post-1'}
+        postNumber={1}
         onBack={vi.fn()}
         onPostUpdated={onPostUpdated}
       />,
@@ -384,7 +384,7 @@ describe('PostDetail bookmark collection synchronization', () => {
       savedCollectionIds: ['collection-a'],
     };
 
-    mocks.fetchPostDetail.mockResolvedValue(postWithConcurrentState);
+    mocks.fetchPostDetailByNumber.mockResolvedValue(postWithConcurrentState);
     mocks.fetchCollectionsForPost.mockResolvedValue([selectedCollection]);
     mocks.unbookmarkPost.mockReturnValue(
       new Promise<void>((_resolve, reject) => {
@@ -399,7 +399,7 @@ describe('PostDetail bookmark collection synchronization', () => {
 
     render(
       <PostDetail
-        postId="post-1"
+        postNumber={1}
         onBack={vi.fn()}
         onPostUpdated={onPostUpdated}
       />,

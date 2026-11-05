@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+
+const apiRequest = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/api-client', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api-client')>()),
+  apiRequest,
+}));
 
 vi.mock('@/lib/api-base', () => ({
   getApiBaseUrl: () => 'http://api.test',
@@ -20,5 +26,20 @@ describe('feed-api 이미지 주소', () => {
       { mediaUrl: 'http://api.test/uploads/a.png', thumbnailUrl: null },
       { mediaUrl: '', thumbnailUrl: 'https://cdn.test/t.png' },
     ]);
+  });
+});
+
+describe('게시글 숫자 URL', () => {
+  it('getPostHref는 postNumber로 /posts/{n} 링크를 만든다', () => {
+    expect(getPostHref(7)).toBe('/posts/7');
+    expect(getPostHref(7, '?target=comments')).toBe('/posts/7?target=comments');
+  });
+
+  it('fetchPostDetailByNumber는 by-number 엔드포인트를 호출한다', async () => {
+    apiRequest.mockResolvedValue({ postId: 'uuid-1', postNumber: 7, media: [] });
+    const post = await fetchPostDetailByNumber(7);
+
+    expect(apiRequest.mock.calls[0][0]).toBe('/api/v1/posts/by-number/7');
+    expect(post).toMatchObject({ postId: 'uuid-1', postNumber: 7 });
   });
 });

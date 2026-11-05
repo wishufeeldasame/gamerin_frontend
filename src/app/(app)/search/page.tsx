@@ -18,6 +18,7 @@ import {
 import {
   type PostRecord,
   getInitials,
+  getPostHref,
 } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
@@ -402,8 +403,8 @@ function SearchPageContent() {
           post={post}
           likeLoading={Boolean(likeLoadingByPostId[post.postId])}
           onToggleLike={toggleLike}
-          onOpenDetail={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}`)}
-          onOpenComments={(selected) => router.push(`/posts/${encodeURIComponent(selected.postId)}?target=comments`)}
+          onOpenDetail={(selected) => router.push(getPostHref(selected.postNumber))}
+          onOpenComments={(selected) => router.push(getPostHref(selected.postNumber, '?target=comments'))}
           onShare={handlePostUpdated}
           onRepostChange={handleRepostChanged}
           onBookmarkChange={handleBookmarkChanged}
