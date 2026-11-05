@@ -9,6 +9,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { Bell, Bookmark, BookOpen, Home, LogOut, MessageSquare, MoreHorizontal, Search, User, WalletCards } from 'lucide-react';
 import { getInitials } from '@/lib/feed-api';
 import { fetchMyMileageBalance } from '@/lib/mileage-api';
+import { subscribeToMileageInvalidation } from '@/lib/mileage-sync';
 import { useAuth } from '@/app/context/AuthContext';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
@@ -117,26 +118,44 @@ function useShellPopup() {
 }
 
 function useMileageBalance() {
-  const { user } = useAuth();
-  const pathname = usePathname();
+  const userId = useAuth().user?.id;
   const [balance, setBalance] = useState<number | null>(null);
 
   useEffect(() => {
-    // 사이드바는 lg 이상에서만 보인다. 모바일은 지갑 진입이 프로필 쪽이라 부르지 않는다(F9).
-    if (!user || window.matchMedia?.('(min-width: 64rem)').matches === false) return;
-    let ignore = false;
-    // shortcut: 잔액 변경 알림이 없어 페이지를 옮길 때마다 다시 읽는다. 충전·결제 이벤트가 생기면 그걸 구독한다.
-    fetchMyMileageBalance()
-      .then((response) => {
-        if (!ignore) setBalance(response.currentBalance);
-      })
-      .catch(() => {
-        if (!ignore) setBalance(null);
-      });
-    return () => {
-      ignore = true;
+    // 사용자 객체는 프로필 수정 때마다 바뀌므로 계정이 바뀔 때만 다시 구독한다.
+    if (!userId) return;
+    const desktop = window.matchMedia?.('(min-width: 64rem)');
+    let latestRequest = 0;
+    let disposed = false;
+
+    const load = () => {
+      // 사이드바는 lg 이상에서만 보인다. 모바일은 지갑 진입이 프로필 쪽이라 부르지 않는다(F9).
+      if (desktop && !desktop.matches) return;
+      const request = ++latestRequest;
+      const settle = (next: number | null) => {
+        if (!disposed && request === latestRequest) setBalance(next);
+      };
+      fetchMyMileageBalance()
+        .then((response) => settle(response.currentBalance))
+        .catch(() => settle(null));
     };
-  }, [user, pathname]);
+    // 내 동작(멘토링 신청·취소, 결제)은 mileage-sync 신호로 바로 반영한다.
+    // 다른 사람·서버가 바꾼 잔액(멘토 거절 환불, 정산, 관리자 처리)은 탭으로 돌아올 때 따라잡는다.
+    const loadWhenVisible = () => {
+      if (document.visibilityState === 'visible') load();
+    };
+
+    load();
+    const unsubscribe = subscribeToMileageInvalidation(load);
+    document.addEventListener('visibilitychange', loadWhenVisible);
+    desktop?.addEventListener?.('change', load);
+    return () => {
+      disposed = true;
+      unsubscribe();
+      document.removeEventListener('visibilitychange', loadWhenVisible);
+      desktop?.removeEventListener?.('change', load);
+    };
+  }, [userId]);
 
   return balance;
 }

@@ -1,4 +1,4 @@
-import { fireEvent, screen, within } from '@testing-library/react';
+import { act, fireEvent, screen, within } from '@testing-library/react';
 import { render } from '@/test/renderWithPopup';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -22,6 +22,7 @@ vi.mock('next/navigation', () => ({
 vi.mock('@/lib/mileage-api', () => ({ fetchMyMileageBalance: mocks.fetchMyMileageBalance }));
 vi.mock('../NotificationPanel', () => ({ NotificationPanel: () => <div>알림 패널</div> }));
 
+import { invalidateMileage } from '@/lib/mileage-sync';
 import { Sidebar } from '../Sidebar';
 
 describe('Sidebar (L2)', () => {
@@ -75,5 +76,27 @@ describe('Sidebar (L2)', () => {
     mocks.fetchMyMileageBalance.mockRejectedValue(new Error('fail'));
     render(<Sidebar unreadCount={0} onUnreadCountChange={vi.fn()} />);
     expect(await screen.findByText('—')).toBeInTheDocument();
+  });
+
+  it('reloads the balance on a mileage signal and when the tab becomes visible, not on navigation', async () => {
+    mocks.fetchMyMileageBalance
+      .mockResolvedValueOnce({ currentBalance: 12400 })
+      .mockResolvedValueOnce({ currentBalance: 9400 })
+      .mockResolvedValueOnce({ currentBalance: 10400 });
+    const view = render(<Sidebar unreadCount={0} onUnreadCountChange={vi.fn()} />);
+    expect(await screen.findByText('12,400')).toBeInTheDocument();
+
+    mocks.pathname = '/bookmarks';
+    view.rerender(<Sidebar unreadCount={0} onUnreadCountChange={vi.fn()} />);
+    expect(mocks.fetchMyMileageBalance).toHaveBeenCalledTimes(1);
+
+    act(() => invalidateMileage());
+    expect(await screen.findByText('9,400')).toBeInTheDocument();
+
+    act(() => {
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    expect(await screen.findByText('10,400')).toBeInTheDocument();
+    expect(mocks.fetchMyMileageBalance).toHaveBeenCalledTimes(3);
   });
 });
