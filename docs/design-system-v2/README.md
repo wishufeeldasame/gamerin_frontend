@@ -53,6 +53,8 @@ D7·D8은 확정안에서 바뀌었다(2-1절 F6).
 | F9 | 모바일은 하단 탭 5칸(홈·북마크·메시지·멘토링·프로필)을 유지하고, 상단 바에 로고·검색·알림을 둔다. 검색은 전체 화면 패널, 알림은 뒤로 가기가 있는 별도 페이지로 연다. 지갑은 내 프로필의 마일리지 카드로 들어간다. | 사용자 요청: 모바일 알림은 페이지. 현재 모바일에는 지갑 진입 메뉴가 없다(`Sidebar.tsx:19-20`). |
 | F10 | 게시물 영상은 16:9 비율을 고정해 폭에 맞춰 높이를 정한다(데스크톱 560×315, 모바일 326×183). | 6절 미반영 3(모바일 미디어 높이)을 해결한다. |
 | F11 | 멤버십 혜택 문구의 "노란 체크 배지"는 코드 문구 그대로 둔다. | 사용자 결정. 브랜드가 노랑으로 확정되어 색과 문구가 맞는다. |
+| F12 | 프로필 맨 위에 커버 사진을 둔다. 높이는 데스크톱 224·모바일 128(코드 `h-32 md:h-56`과 같음), 반경 `lg 14`(모바일 12)다. 아바타(데스크톱 88·모바일 72)는 커버 아래쪽에 반쯤 걸치고 `bg/canvas` 4px 테두리로 분리한다. `프로필 수정` 버튼은 커버 오른쪽 아래에 둔다. 사진이 없으면 기본 이미지 `public/images/default-profile-cover.svg`를 쓴다. | 커버는 현재 코드에 있는 기능(`profile/[userId]/page.tsx:1021-1041`, `EditProfileModal` 업로드)인데 시안에서 빠져 있었다. 레이아웃은 바꾸지 않고 커버만 더했다. |
+| F13 | 다크가 기본이지만 라이트 모드도 제공한다. 라이트 색은 2-2절 Light 토큰을 그대로 쓰고, 카드 테두리용 `border/card`(Light `neutral/200`, Dark 투명)를 추가해 라이트에서만 흰 카드에 1px 테두리를 그린다. | 사용자 요청. 테두리 없이는 흰 카드(`#FFFFFF`)가 바탕(`#FAFAFA`)에 묻힌다. Dark에서는 투명이라 F2(테두리 없음)가 유지된다. |
 
 ### 2-2. 토큰
 
@@ -88,6 +90,7 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 | `icon/primary` / `icon/secondary` / `icon/brand` | neutral/900 / neutral/500 / yellow/600 | neutral/100 / neutral/400 / yellow/500 | 아이콘 |
 | `border/default` / `border/strong` | neutral/200 / neutral/300 | neutral/800 / neutral/700 | 구분선·카드 테두리 / Secondary 버튼 |
 | `border/focus` / `border/danger` | yellow/500 / red/500 | yellow/500 / red/300 | 포커스 / 오류 입력 |
+| `border/card` | neutral/200 | 투명(`#00000000`) | 카드 테두리. 라이트에서만 보인다(F13) |
 
 새 Figma 파일에서는 Light/Dark를 `Color` 컬렉션 하나의 두 모드로 합쳤다. Dark 모드의 `bg/brand`·`bg/brand-hover`·`bg/brand-subtle`·`text/on-brand`·`text/brand`·`icon/brand`·`border/focus`는 `Brand` 컬렉션(`brand/solid`·`hover`·`subtle`·`on`)을 참조한다. 확정 모드 `Amber` 값은 solid `#F5B93D` · hover `#FBCD5A` · subtle `#2A2112` · on `#1A1406`으로 위 표의 yellow 값과 같다. 나머지 모드(Volt·Teal·Coral·Violet·Ice)는 비교용이다.
 
@@ -138,11 +141,13 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 
 | 페이지 | 내용 |
 |---|---|
-| Foundations | 비어 있음. 변수(Primitives 34, Brand 4×6모드, Color 24×Light/Dark, Dimension 12), 텍스트 스타일 7, 이펙트 스타일 2만 있다. 초기 파일의 Foundations 문서 페이지는 옮기지 않았다. |
-| Components | 아이콘 30종(lucide 원본 SVG), Avatar, Nav Item, Post Action, Post Card(Media 16:9 고정), Notification Item, Tab, Chip, User Row, Program Card, Charge Option, History Row, Application Card, Benefit Row, Tab Bar Item, Mobile Tab Bar, Mobile Top Bar |
+| Foundations | 비어 있음. 변수(Primitives 34, Brand 4×6모드, Color 25×Light/Dark, Dimension 12), 텍스트 스타일 7, 이펙트 스타일 2만 있다. 초기 파일의 Foundations 문서 페이지는 옮기지 않았다. |
+| Components | 아이콘 36종(lucide 원본 SVG), Avatar, Nav Item, Post Action, Post Card(Media 16:9 고정), Notification Item, Tab, Chip, User Row, Program Card, Charge Option, History Row, Application Card, Benefit Row, Profile Cover(기본 커버 SVG), Tab Bar Item, Mobile Tab Bar, Mobile Top Bar |
 | Mockups · Dark | 시안 E~J(색 6종), L1/L2 레이아웃, L2 알림·검색 패널 열림 상태 |
 | Screens | 확정 레이아웃의 데스크톱 화면: 홈, 검색 결과, 북마크, 프로필(게시물·전적·미디어), 내 지갑, 멘토링(멘토 찾기·내 멘토링·내 프로그램·멘토 되기·프로그램 상세), 멤버십(미가입·이용 중), 상태(홈 로딩·오류, 북마크 빈 상태, 검색 결과 없음, 세션 확인 실패). 각 화면에 Amber·Violet 두 벌이 있다. |
 | Mobile | 390×844: 홈, 검색 패널, 알림 페이지, 북마크, 프로필, 내 지갑, 멘토링, 멤버십. Amber·Violet 두 벌 |
+| Screens · FHD | 확정 데스크톱 21개 화면을 1920×1080 프레임으로 복제한 것(Dark·Amber). 세 칸 묶음은 가운데 정렬 그대로이고 양옆 여백만 넓다. 패널·스크림·모달은 1920 기준으로 다시 배치했다. |
+| Light | 확정 화면 29개(데스크톱 21, 모바일 8)의 Light 모드 복제본(F13) |
 
 - 화면 문구와 항목은 현재 코드 기준이다. 근거는 [mockups.md](mockups.md) 확정안 절에 화면별로 적었다.
 - 화면 속 사람·숫자·날짜·가격은 예시 데이터다.
@@ -218,6 +223,8 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | 2026-11-05 | 레이아웃 L1(헤더 정렬형)·L2(사이드바 통합형) 비교 후 L2 채택. 검색 메뉴화, 알림·검색 슬라이드 패널 |
 | 2026-11-05 | L2 비평과 수정(F2·F3·F6, D10 Dark `neutral/450`, 가운데 정렬). 데스크톱 6개 화면, 탭·상태 화면 11종, 모바일 8개 화면, 멤버십 화면 제작 |
 | 2026-11-05 | 브랜드 색 Amber 확정. 확정 화면 이미지를 `mockups/final-amber/`에 저장 |
+| 2026-11-05 | 데스크톱 21개 화면 FHD(1920×1080) 버전 제작(`Screens · FHD`) |
+| 2026-11-05 | 프로필 커버 추가(F12, 11개 화면). 라이트 모드 29개 화면 제작과 `border/card` 추가(F13). 이미지를 `mockups/final-amber/light/`에 저장하고 프로필 이미지 교체 |
 
 ## 9. 확정 상태와 다음 단계
 
@@ -227,7 +234,7 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | 레이아웃 | **확정**: L2 사이드바 통합형(F4~F9) |
 | 좋아요 색 | 시안은 브랜드 노랑으로 그렸다. 빨간 하트로 되돌릴지는 따로 정하지 않았다 — **확인 필요** |
 | 다크 기본 방식 | 다크 고정인지, 시스템 설정을 따르되 기본값만 다크인지 — **사용자 결정 필요** |
-| 라이트 모드 | 토큰은 있으나 확정 레이아웃의 라이트 화면은 그리지 않았다 |
+| 라이트 모드 | 확정 화면 29개를 그렸다(F13). FHD 라이트 버전은 없다. 라이트 사이드바의 활성 바탕(`bg/subtle` `#F4F4F5`)은 페이지 바탕(`#FAFAFA`)과 차이가 작아 아이콘·굵기로 구분된다 — 바탕을 더 진하게 할지 **확인 필요** |
 | 시안에만 있는 문구 | 홈 오류의 둘째 줄 "네트워크 상태를 확인한 뒤 다시 시도해 주세요.", 멘토 되기 안내의 "관리자 검토를 거쳐"는 코드에 없는 제안 문구다 — **확인 필요** |
 | 미제작 화면 | 로그인(5-2절), 메시지, 프로그램 만들기 폼, 리뷰 작성, 알림 빈 상태, 모바일 탭·상태 화면, 멤버십 로딩·오류 |
 | 관리자 화면 | 별도 팔레트 통일 여부 — **사용자 결정 필요**(7절 6번) |
