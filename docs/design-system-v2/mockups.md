@@ -13,7 +13,10 @@
 | T | Twitter형 레이아웃 | **반려**: 레퍼런스를 그대로 옮김 |
 | B | 현재 골격에서 조금 변형 + 영상·게임 요소 추가 | **반려**: 불필요한 요소가 많고 깔끔하지 않음 |
 | C | Figma v2 구성으로 정리 | 정돈된 기준안 |
-| D | C 레이아웃 + 다크·라임(Volt) 브랜드, 날 선 형태 | **최신안**, 채택 여부 결정 필요 |
+| D | C 레이아웃 + 다크·라임(Volt) 브랜드, 날 선 형태 | **반려**: "딸깍"·양산형 플랫폼 느낌 |
+| E~J | 다크 공통 레이아웃(테두리 없는 카드) + 브랜드 색 6종 | J(Amber)·H(Violet)로 좁힌 뒤 **J 확정** |
+| L1 / L2 | 알림·지갑 위치를 바꾼 레이아웃 2종 | **L2(사이드바 통합형) 확정** |
+| 확정안 | L2 + Amber, 데스크톱·모바일·탭·상태 화면 | Figma 현행 파일, `mockups/final-amber/` |
 
 ## 시안 A — 현재 레이아웃 + v2 색 배치
 
@@ -88,7 +91,9 @@
 | ![](mockups/c-figma-v2-layout/feed-desktop.png) | ![](mockups/c-figma-v2-layout/profile-desktop.png) |
 | ![](mockups/c-figma-v2-layout/feed-mobile.png) | ![](mockups/c-figma-v2-layout/profile-mobile.png) |
 
-## 시안 D — 다크 + Volt (최신안)
+## 시안 D — 다크 + Volt (반려)
+
+반려 이유(사용자 피드백): 나쁘지 않지만 "딸깍" 느낌이 강해 양산형 플랫폼처럼 보인다. 다크 기본과 색 방향은 괜찮으니 여러 색으로 시안을 더 만들어 보라는 요청으로 이어졌다(시안 E~J).
 
 요청: op.gg·dak.gg 같은 전적 사이트를 참고해 노랑이 아닌 브랜드 색을 잡는다. 둥글고 귀여운 느낌 대신 게이머가 좋아하는 세련되고 멋있는 감성으로 하되, 과한 RGB 느낌은 피하고 깔끔함을 20% 이상 유지한다.
 
@@ -120,7 +125,133 @@
 | ![](mockups/d-dark-volt/feed-desktop.png) | ![](mockups/d-dark-volt/profile-desktop.png) |
 | ![](mockups/d-dark-volt/feed-mobile.png) | ![](mockups/d-dark-volt/profile-mobile.png) |
 
+## 시안 E~J — 다크 공통 레이아웃 + 브랜드 색 6종
+
+요청: 시안 D는 "딸깍"·양산형 느낌이 강하다. 기본 다크 모드와 색 방향은 괜찮으니 여러 색으로 시안을 만든다.
+
+D가 양산형으로 보인 원인을 이렇게 판단했다(**추정**). 모든 요소를 1px 테두리 박스로 감쌌고, 대문자 영문 라벨·티어 알약 배지를 반복했고, 강조색을 여러 곳에 썼다. 그래서 E~J는 레이아웃 하나를 공통으로 쓰고 색만 바꿨다.
+
+- 카드 테두리를 없애고 바탕 명도 차이로만 영역을 나눴다.
+- 티어·게임은 흐린 글자로, 아바타는 원형으로 했다.
+- 브랜드 색은 활성 메뉴, Primary 버튼, 탭 밑줄, 좋아요, 알림 점, 로고 `IN`에만 쓴다.
+- 색은 Figma `Brand` 변수 컬렉션의 모드로만 바꾼다.
+
+| 시안 | 브랜드 색 | 결과 |
+|---|---|---|
+| E Volt | `#C3F53C` (시안 D와 같은 색) | — |
+| F Teal | `#2FD6C3` | — |
+| G Coral | `#FF6B57` | — |
+| H Violet | `#9B8CFF` | 후보로 남김 |
+| I Ice | `#5CB8FF` | — |
+| J Amber | `#F5B93D` (기존 노랑을 다크에 적용) | **확정** |
+
+| E Volt | F Teal | G Coral |
+|---|---|---|
+| ![](mockups/e-j-dark-colors/e-volt.png) | ![](mockups/e-j-dark-colors/f-teal.png) | ![](mockups/e-j-dark-colors/g-coral.png) |
+| **H Violet** | **I Ice** | **J Amber** |
+| ![](mockups/e-j-dark-colors/h-violet.png) | ![](mockups/e-j-dark-colors/i-ice.png) | ![](mockups/e-j-dark-colors/j-amber.png) |
+
+## 레이아웃 L1 · L2 — 알림·지갑 위치
+
+요청: 알림 버튼과 내 지갑의 위치가 애매하다.
+
+판단:
+
+- 알림은 1440px 화면 맨 오른쪽(x≈1400)에 있었는데, 콘텐츠는 x 374~1314 안에 있어서 떨어져 보였다.
+- 지갑은 마일리지 충전 기능이라 매일 가는 목적지가 아니다. 그런데 홈·메시지와 같은 메뉴 줄에 있었다(현재 코드는 데스크톱 사이드바 전용, `Sidebar.tsx:19-20`).
+
+| 안 | 구성 | 결과 |
+|---|---|---|
+| L1 헤더 정렬형 | 헤더를 아래 열에 맞춰 정렬(검색 = 피드 폭, 알림 = 오른쪽 열 끝). 지갑은 사이드바 하단 계정 카드로 이동 | — |
+| L2 사이드바 통합형 | 헤더를 없애고 알림을 사이드바 메뉴(숫자 배지)로. 지갑은 L1과 같음 | **채택** |
+
+후속 결정(사용자 요청):
+
+- 알림은 별도 페이지가 아니라 모달처럼, 왼쪽에서 오른쪽으로 슬라이드되는 패널로 연다.
+- 검색창도 사이드바 메뉴로 옮기고, 같은 슬라이드 패널을 쓴다. Enter를 누르면 지금처럼 `/search?q=` 결과 페이지로 간다.
+
+| L1 | L2(첫 안) |
+|---|---|
+| ![](mockups/l1-l2-layouts/l1-header-aligned.png) | ![](mockups/l1-l2-layouts/l2-sidebar-integrated.png) |
+
+### L2 다듬기 (비평 후 수정)
+
+`design-critique` 틀(첫인상·사용성·위계·일관성·접근성)로 점검한 뒤 고쳤다.
+
+1. **대비:** Dark `text/tertiary` `#71717A`가 카드 바탕 `#151518` 위 3.77:1이라 작은 글자 기준(4.5:1)에 못 미쳤다. `neutral/450` `#8B8B94`(5.40:1)를 추가했다. WCAG 공식으로 계산했다.
+2. **가로 균형:** 사이드바·피드·오른쪽 열(1212px)을 가운데 정렬했다. 왼쪽 쏠림과 142px 빈 간격이 없어졌다.
+3. **강조:** 활성 메뉴를 브랜드색 바탕 → 회색 바탕 + 브랜드 아이콘으로 바꿨다. 빈 작성창의 `게시` 버튼은 비활성 모양으로 했다.
+4. **게임 이름:** 게시물 헤더 오른쪽 끝에서 `@핸들 · 시간 · 게임` 줄로 옮겼다.
+5. **일관성:** 팔로우 버튼을 반경 10 · 회색 바탕으로 맞추고, 오른쪽 열 제목을 탭과 같은 높이로 맞췄다.
+
+| 다듬기 전 | 다듬은 뒤(확정 홈) |
+|---|---|
+| ![](mockups/l1-l2-layouts/l2-before-polish.png) | ![](mockups/final-amber/desktop/home.png) |
+
+## 확정안 — L2 + Amber
+
+사용자 확정: 다크 기본, 브랜드 Amber `#F5B93D`, L2 레이아웃. 결정 목록은 [README.md](README.md) 2-1절(F1~F11)에 있다. 화면은 현행 Figma 파일의 `Screens`·`Mobile` 페이지에 있다. Violet 버전도 같은 위치에 비교용으로 남겼다.
+
+화면 문구와 항목은 현재 코드를 근거로 했다.
+
+| 화면 | 근거 |
+|---|---|
+| 검색 결과 탭 | `search/page.tsx` 전체/사용자/게시글/해시태그 |
+| 북마크 | `bookmarks/page.tsx` 모음집·전체 북마크·미분류, `SaveToCollectionModal.tsx` `새 모음집` |
+| 프로필 | `profile/[userId]/page.tsx` 게시물/전적/미디어 탭, 팔로워·팔로잉·게시물, 인증된 전적·실시간 연동·연결된 계정, 미디어 3열 정사각형 격자 |
+| 전적 | `game-stats-api.ts`의 LoL·PUBG·R6, 티어·K/D(KDA)·승률·판수 |
+| 내 지갑 | `wallet/page.tsx` 현재 마일리지, 충전 금액 선택, `카카오페이로 N원 결제`, 1원당 1마일리지, 마일리지/결제 내역, `멤버십 혜택` |
+| 멘토링 | `mentoring/page.tsx` 탭 4개, 신청 상태 7종(`statusLabel`)과 상태별 안내 문구·버튼, 내 프로그램·멘토 등록 요청·프로그램 상세 항목 |
+| 멤버십 | `membership/page.tsx` 이용권·이용 중·만료일·연장, 혜택 3개와 안내 문구 |
+| 상태 | 홈 `피드를 불러오지 못했습니다.`, 북마크 `아직 저장한 게시물이 없어요`, 검색 `{종류} 결과가 없습니다.`, `SessionUnavailableNotice` |
+
+예시 데이터와 제안 문구:
+
+- 사람·숫자·날짜는 예시다. 충전 금액 4종과 멤버십 가격 4,900원도 예시이며, 실제 값은 서버 상품 정보에서 온다.
+- 홈 오류의 둘째 줄과 멘토 되기 안내의 "관리자 검토를 거쳐"는 코드에 없는 제안 문구다.
+
+### 데스크톱
+
+| 홈 | 알림 패널 | 검색 패널 |
+|---|---|---|
+| ![](mockups/final-amber/desktop/home.png) | ![](mockups/final-amber/desktop/notification-panel.png) | ![](mockups/final-amber/desktop/search-panel.png) |
+| **검색 결과** | **북마크** | **프로필 · 게시물** |
+| ![](mockups/final-amber/desktop/search-results.png) | ![](mockups/final-amber/desktop/bookmarks.png) | ![](mockups/final-amber/desktop/profile.png) |
+| **프로필 · 전적** | **프로필 · 미디어** | **내 지갑** |
+| ![](mockups/final-amber/desktop/profile-stats-tab.png) | ![](mockups/final-amber/desktop/profile-media-tab.png) | ![](mockups/final-amber/desktop/wallet.png) |
+| **멘토링 · 멘토 찾기** | **멘토링 · 내 멘토링** | **멘토링 · 내 프로그램** |
+| ![](mockups/final-amber/desktop/mentoring.png) | ![](mockups/final-amber/desktop/mentoring-mine-tab.png) | ![](mockups/final-amber/desktop/mentoring-programs-tab.png) |
+| **멘토링 · 멘토 되기** | **프로그램 상세 모달** | **멤버십 · 미가입** |
+| ![](mockups/final-amber/desktop/mentoring-become-tab.png) | ![](mockups/final-amber/desktop/mentoring-program-detail.png) | ![](mockups/final-amber/desktop/membership-join.png) |
+| **멤버십 · 이용 중** | | |
+| ![](mockups/final-amber/desktop/membership-active.png) | | |
+
+### 상태
+
+| 홈 로딩 | 홈 오류 | 북마크 빈 상태 |
+|---|---|---|
+| ![](mockups/final-amber/states/home-loading.png) | ![](mockups/final-amber/states/home-error.png) | ![](mockups/final-amber/states/bookmarks-empty.png) |
+| **검색 결과 없음** | **세션 확인 실패** | |
+| ![](mockups/final-amber/states/search-no-results.png) | ![](mockups/final-amber/states/session-unavailable.png) | |
+
+### 모바일 (390×844)
+
+- 하단 탭 5칸은 현재 코드와 같다.
+- 상단 바는 로고·검색·알림이다.
+- 검색은 전체 화면 패널이고 키보드 자리는 회색 상자로만 표시했다.
+- 알림은 뒤로 가기가 있는 페이지다.
+- 지갑은 내 프로필의 마일리지 카드로 들어간다. 지갑·멤버십 화면에서는 하단 탭의 `프로필`을 활성으로 두었다.
+- 작성 칸은 두 줄로, 아랫줄에 동영상·사진·해시태그 버튼과 `게시`를 둔다.
+
+| 홈 | 검색 패널 | 알림 | 북마크 |
+|---|---|---|---|
+| ![](mockups/final-amber/mobile/home.png) | ![](mockups/final-amber/mobile/search-panel.png) | ![](mockups/final-amber/mobile/notifications.png) | ![](mockups/final-amber/mobile/bookmarks.png) |
+| **프로필** | **내 지갑** | **멘토링** | **멤버십** |
+| ![](mockups/final-amber/mobile/profile.png) | ![](mockups/final-amber/mobile/wallet.png) | ![](mockups/final-amber/mobile/mentoring.png) | ![](mockups/final-amber/mobile/membership.png) |
+
 ## 재현 방법
+
+시안 E~J, L1/L2, 확정안은 현행 Figma 파일([README.md](README.md) 4-1절)에 컴포넌트와 변수로 만든 편집 가능한 화면이다. 이미지는 Figma 스크린샷이며 별도 재현 스크립트는 없다. 색은 프레임의 `Brand` 변수 모드를 바꿔 전환한다.
 
 소스는 [mockups/source/](mockups/source/)에 있다. 경로는 저장소 기준 상대경로다.
 
