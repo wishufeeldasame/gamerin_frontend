@@ -31,7 +31,7 @@ export default function RootLayout({
             __html: `
               try {
                 const settings = JSON.parse(localStorage.getItem('gamerin_user_settings') || '{}');
-                if (settings.theme === 'dark') {
+                if (settings.theme !== 'light' && !location.pathname.startsWith('/admin')) {
                   document.documentElement.classList.add('dark');
                 }
               } catch {}

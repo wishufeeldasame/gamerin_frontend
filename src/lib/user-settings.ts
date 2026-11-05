@@ -7,7 +7,7 @@ export type UserSettings = {
 const USER_SETTINGS_KEY = 'gamerin_user_settings';
 
 export const defaultUserSettings: UserSettings = {
-  theme: 'light',
+  theme: 'dark',
 };
 
 export function loadUserSettings(): UserSettings {

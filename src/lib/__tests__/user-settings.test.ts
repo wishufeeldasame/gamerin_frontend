@@ -13,13 +13,13 @@ describe('user settings', () => {
   it('returns the default theme when the stored JSON is malformed', () => {
     window.localStorage.setItem('gamerin_user_settings', '{invalid-json');
 
-    expect(loadUserSettings()).toEqual({ theme: 'light' });
+    expect(loadUserSettings()).toEqual({ theme: 'dark' });
   });
 
   it('ignores an unsupported stored theme', () => {
     window.localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'system' }));
 
-    expect(loadUserSettings()).toEqual({ theme: 'light' });
+    expect(loadUserSettings()).toEqual({ theme: 'dark' });
   });
 
   it('stores and applies the selected theme', () => {

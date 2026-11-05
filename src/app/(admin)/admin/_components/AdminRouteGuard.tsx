@@ -13,6 +13,7 @@ import {
 } from '@/lib/admin-auth';
 import { logoutAuthSession } from '@/lib/auth-store';
 import { isBlockedAccountStatus } from '@/lib/auth-session-policy';
+import { applyThemeMode, loadUserSettings } from '@/lib/user-settings';
 
 export function getAdminAuthorizationRedirect(status: AdminAuthorizationStatus) {
   return status === 401 ? ADMIN_LOGIN_PATH : ADMIN_FORBIDDEN_PATH;
@@ -51,6 +52,12 @@ export function AdminRouteGuard({ children }: { children: ReactNode }) {
     window.addEventListener(ADMIN_AUTHORIZATION_EVENT, handleAuthorizationFailure);
     return () => window.removeEventListener(ADMIN_AUTHORIZATION_EVENT, handleAuthorizationFailure);
   }, [router]);
+
+  // 관리자 화면은 이번 릴리스에서 자체 라이트 팔레트를 쓰므로 다크 클래스를 빼고, 나갈 때 저장된 테마로 되돌린다.
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    return () => applyThemeMode(loadUserSettings().theme);
+  }, []);
 
   useEffect(() => {
     if (!isAuthReady || isPublicAdminRoute) return;
