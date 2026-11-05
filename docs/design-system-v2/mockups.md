@@ -17,6 +17,7 @@
 | E~J | 다크 공통 레이아웃(테두리 없는 카드) + 브랜드 색 6종 | J(Amber)·H(Violet)로 좁힌 뒤 **J 확정** |
 | L1 / L2 | 알림·지갑 위치를 바꾼 레이아웃 2종 | **L2(사이드바 통합형) 확정** |
 | 확정안 | L2 + Amber, 데스크톱·모바일·탭·상태 화면 | Figma 현행 파일, `mockups/final-amber/` |
+| 나머지 화면 | 관리자 제외 31종 × 데스크톱·모바일 × 다크·라이트 | `mockups/final-amber/more/`(126장) |
 
 ## 시안 A — 현재 레이아웃 + v2 색 배치
 
@@ -276,6 +277,122 @@ D가 양산형으로 보인 원인을 이렇게 판단했다(**추정**). 모든
 | ![](mockups/final-amber/light/mobile/home.png) | ![](mockups/final-amber/light/mobile/search-panel.png) | ![](mockups/final-amber/light/mobile/notifications.png) | ![](mockups/final-amber/light/mobile/bookmarks.png) |
 | **프로필** | **내 지갑** | **멘토링** | **멤버십** |
 | ![](mockups/final-amber/light/mobile/profile.png) | ![](mockups/final-amber/light/mobile/wallet.png) | ![](mockups/final-amber/light/mobile/mentoring.png) | ![](mockups/final-amber/light/mobile/membership.png) |
+
+## 확정안 — 나머지 화면 (관리자 제외)
+
+관리자 화면을 뺀 나머지 라우트와 주요 모달을 확정안 규칙으로 그렸다. 31종을 데스크톱·모바일 × 다크·라이트로 만들어 모두 126장이다. 공통 규칙은 [README.md](README.md) 2-1절 F15에 있다. 내 프로필에는 코드와 같은 설정 아이콘 버튼을 추가했다(F14). 위 확정안의 프로필 이미지는 이 버튼을 넣은 버전으로 교체했다.
+
+| 묶음 | 화면 | 근거(코드) |
+|---|---|---|
+| 앱 핵심 | 메시지, 게시물 상세, 해시태그, 설정 계정·테마, 내 신고 | `messages/page.tsx`, `PostDetail.tsx`, `hashtags/[name]/page.tsx`, `settings/page.tsx`, `MyReports.tsx` |
+| 로그인·계정 | 로그인, 회원가입 1·2단계, 소셜 가입, 아이디 찾기·결과, 비밀번호 찾기·발송, 비밀번호 재설정·링크 오류, OAuth 처리 중·오류 | `login/page.tsx`, `SignupConsent.tsx`, `auth/**`, `find-id*/page.tsx` |
+| 모달 | 작성 펼침, 게시물 수정, 프로필 수정, 모음집 저장, 공유, 신고, 게임 전적 연동, 카카오페이 결제 | `PostComposer.tsx`, `EditPostModal.tsx`, `EditProfileModal.tsx`, `SaveToCollectionModal.tsx`, `SharePostModal.tsx`, `Report.tsx`, `FetchGameStatsModal.tsx`, `KakaoPaymentDialog.tsx` |
+| 기타 | 결제 결과(충전 완료·확인 중·미완료), 이용약관, 개인정보 처리방침 | `payments/result/page.tsx`, `(legal)/**` |
+
+예시·추정:
+- 신고 사유는 서버 목록이라 예시다.
+- 모음집 모달 제목 "모음집에 저장"과 버튼 "완료", 신고 모달 제목 "신고하기", 공유 링크 주소, OAuth 처리 중 설명 한 줄은 코드에서 확인하지 못한 문구다.
+- 전적 연동 목록은 코드의 7개 게임 중 5개를 보여 준다. 연동 가능한 LoL·PUBG·R6 외에는 "지원 예정"으로 표시했다.
+- 개인정보 처리방침은 조항 제목만 넣었다.
+- Google·게임 아이콘은 회색 자리 표시다.
+- 로그인 왼쪽 브랜드 패널은 이미지 영역이라 라이트에서도 어둡게 둔다.
+
+### 데스크톱 · 다크
+
+|   |   |   |
+|---|---|---|
+| **메시지** | **게시물 상세** | **해시태그** |
+| ![](mockups/final-amber/more/dark/desktop/messages.png) | ![](mockups/final-amber/more/dark/desktop/post-detail.png) | ![](mockups/final-amber/more/dark/desktop/hashtag.png) |
+| **설정 · 계정** | **설정 · 테마** | **내 신고** |
+| ![](mockups/final-amber/more/dark/desktop/settings-account.png) | ![](mockups/final-amber/more/dark/desktop/settings-theme.png) | ![](mockups/final-amber/more/dark/desktop/my-reports.png) |
+| **로그인** | **회원가입 1단계** | **회원가입 2단계** |
+| ![](mockups/final-amber/more/dark/desktop/login.png) | ![](mockups/final-amber/more/dark/desktop/signup-step1.png) | ![](mockups/final-amber/more/dark/desktop/signup-step2.png) |
+| **소셜 가입** | **아이디 찾기** | **아이디 찾기 결과** |
+| ![](mockups/final-amber/more/dark/desktop/social-signup.png) | ![](mockups/final-amber/more/dark/desktop/find-id.png) | ![](mockups/final-amber/more/dark/desktop/find-id-result.png) |
+| **비밀번호 찾기** | **비밀번호 찾기 · 발송** | **비밀번호 재설정** |
+| ![](mockups/final-amber/more/dark/desktop/forgot-password.png) | ![](mockups/final-amber/more/dark/desktop/forgot-password-sent.png) | ![](mockups/final-amber/more/dark/desktop/reset-password.png) |
+| **재설정 링크 오류** | **OAuth 처리 중** | **OAuth 오류** |
+| ![](mockups/final-amber/more/dark/desktop/reset-password-invalid.png) | ![](mockups/final-amber/more/dark/desktop/oauth-processing.png) | ![](mockups/final-amber/more/dark/desktop/oauth-error.png) |
+| **게시물 작성 펼침** | **게시물 수정** | **프로필 수정** |
+| ![](mockups/final-amber/more/dark/desktop/composer-expanded.png) | ![](mockups/final-amber/more/dark/desktop/modal-edit-post.png) | ![](mockups/final-amber/more/dark/desktop/modal-edit-profile.png) |
+| **모음집 저장** | **게시글 공유** | **신고** |
+| ![](mockups/final-amber/more/dark/desktop/modal-save-collection.png) | ![](mockups/final-amber/more/dark/desktop/modal-share.png) | ![](mockups/final-amber/more/dark/desktop/modal-report.png) |
+| **게임 전적 연동** | **카카오페이 결제** | **결제 결과 · 충전 완료** |
+| ![](mockups/final-amber/more/dark/desktop/modal-game-stats.png) | ![](mockups/final-amber/more/dark/desktop/modal-kakaopay.png) | ![](mockups/final-amber/more/dark/desktop/payment-success.png) |
+| **결제 결과 · 확인 중** | **결제 결과 · 미완료** | **이용약관** |
+| ![](mockups/final-amber/more/dark/desktop/payment-checking.png) | ![](mockups/final-amber/more/dark/desktop/payment-failed.png) | ![](mockups/final-amber/more/dark/desktop/terms.png) |
+| **개인정보 처리방침** |  |  |
+| ![](mockups/final-amber/more/dark/desktop/privacy.png) |  |  |
+
+### 모바일 · 다크
+
+|   |   |   |   |
+|---|---|---|---|
+| **메시지 목록** | **메시지 대화** | **게시물 상세** | **해시태그** |
+| ![](mockups/final-amber/more/dark/mobile/messages-list.png) | ![](mockups/final-amber/more/dark/mobile/messages-chat.png) | ![](mockups/final-amber/more/dark/mobile/post-detail.png) | ![](mockups/final-amber/more/dark/mobile/hashtag.png) |
+| **설정 · 계정** | **설정 · 테마** | **내 신고** | **로그인** |
+| ![](mockups/final-amber/more/dark/mobile/settings-account.png) | ![](mockups/final-amber/more/dark/mobile/settings-theme.png) | ![](mockups/final-amber/more/dark/mobile/my-reports.png) | ![](mockups/final-amber/more/dark/mobile/login.png) |
+| **소셜 가입** | **아이디 찾기** | **아이디 찾기 결과** | **비밀번호 찾기** |
+| ![](mockups/final-amber/more/dark/mobile/social-signup.png) | ![](mockups/final-amber/more/dark/mobile/find-id.png) | ![](mockups/final-amber/more/dark/mobile/find-id-result.png) | ![](mockups/final-amber/more/dark/mobile/forgot-password.png) |
+| **비밀번호 찾기 · 발송** | **비밀번호 재설정** | **재설정 링크 오류** | **회원가입 1단계** |
+| ![](mockups/final-amber/more/dark/mobile/forgot-password-sent.png) | ![](mockups/final-amber/more/dark/mobile/reset-password.png) | ![](mockups/final-amber/more/dark/mobile/reset-password-invalid.png) | ![](mockups/final-amber/more/dark/mobile/signup-step1.png) |
+| **회원가입 2단계** | **OAuth 처리 중** | **OAuth 오류** | **게시물 수정** |
+| ![](mockups/final-amber/more/dark/mobile/signup-step2.png) | ![](mockups/final-amber/more/dark/mobile/oauth-processing.png) | ![](mockups/final-amber/more/dark/mobile/oauth-error.png) | ![](mockups/final-amber/more/dark/mobile/sheet-edit-post.png) |
+| **프로필 수정** | **모음집 저장** | **게시글 공유** | **신고** |
+| ![](mockups/final-amber/more/dark/mobile/sheet-edit-profile.png) | ![](mockups/final-amber/more/dark/mobile/sheet-save-collection.png) | ![](mockups/final-amber/more/dark/mobile/sheet-share.png) | ![](mockups/final-amber/more/dark/mobile/sheet-report.png) |
+| **게임 전적 연동** | **카카오페이 결제** | **게시물 작성 펼침** | **결제 결과 · 충전 완료** |
+| ![](mockups/final-amber/more/dark/mobile/sheet-game-stats.png) | ![](mockups/final-amber/more/dark/mobile/sheet-kakaopay.png) | ![](mockups/final-amber/more/dark/mobile/composer-expanded.png) | ![](mockups/final-amber/more/dark/mobile/payment-success.png) |
+| **결제 결과 · 확인 중** | **결제 결과 · 미완료** | **이용약관** | **개인정보 처리방침** |
+| ![](mockups/final-amber/more/dark/mobile/payment-checking.png) | ![](mockups/final-amber/more/dark/mobile/payment-failed.png) | ![](mockups/final-amber/more/dark/mobile/terms.png) | ![](mockups/final-amber/more/dark/mobile/privacy.png) |
+
+### 데스크톱 · 라이트
+
+|   |   |   |
+|---|---|---|
+| **메시지** | **게시물 상세** | **해시태그** |
+| ![](mockups/final-amber/more/light/desktop/messages.png) | ![](mockups/final-amber/more/light/desktop/post-detail.png) | ![](mockups/final-amber/more/light/desktop/hashtag.png) |
+| **설정 · 계정** | **설정 · 테마** | **내 신고** |
+| ![](mockups/final-amber/more/light/desktop/settings-account.png) | ![](mockups/final-amber/more/light/desktop/settings-theme.png) | ![](mockups/final-amber/more/light/desktop/my-reports.png) |
+| **로그인** | **회원가입 1단계** | **회원가입 2단계** |
+| ![](mockups/final-amber/more/light/desktop/login.png) | ![](mockups/final-amber/more/light/desktop/signup-step1.png) | ![](mockups/final-amber/more/light/desktop/signup-step2.png) |
+| **소셜 가입** | **아이디 찾기** | **아이디 찾기 결과** |
+| ![](mockups/final-amber/more/light/desktop/social-signup.png) | ![](mockups/final-amber/more/light/desktop/find-id.png) | ![](mockups/final-amber/more/light/desktop/find-id-result.png) |
+| **비밀번호 찾기** | **비밀번호 찾기 · 발송** | **비밀번호 재설정** |
+| ![](mockups/final-amber/more/light/desktop/forgot-password.png) | ![](mockups/final-amber/more/light/desktop/forgot-password-sent.png) | ![](mockups/final-amber/more/light/desktop/reset-password.png) |
+| **재설정 링크 오류** | **OAuth 처리 중** | **OAuth 오류** |
+| ![](mockups/final-amber/more/light/desktop/reset-password-invalid.png) | ![](mockups/final-amber/more/light/desktop/oauth-processing.png) | ![](mockups/final-amber/more/light/desktop/oauth-error.png) |
+| **게시물 작성 펼침** | **게시물 수정** | **프로필 수정** |
+| ![](mockups/final-amber/more/light/desktop/composer-expanded.png) | ![](mockups/final-amber/more/light/desktop/modal-edit-post.png) | ![](mockups/final-amber/more/light/desktop/modal-edit-profile.png) |
+| **모음집 저장** | **게시글 공유** | **신고** |
+| ![](mockups/final-amber/more/light/desktop/modal-save-collection.png) | ![](mockups/final-amber/more/light/desktop/modal-share.png) | ![](mockups/final-amber/more/light/desktop/modal-report.png) |
+| **게임 전적 연동** | **카카오페이 결제** | **결제 결과 · 충전 완료** |
+| ![](mockups/final-amber/more/light/desktop/modal-game-stats.png) | ![](mockups/final-amber/more/light/desktop/modal-kakaopay.png) | ![](mockups/final-amber/more/light/desktop/payment-success.png) |
+| **결제 결과 · 확인 중** | **결제 결과 · 미완료** | **이용약관** |
+| ![](mockups/final-amber/more/light/desktop/payment-checking.png) | ![](mockups/final-amber/more/light/desktop/payment-failed.png) | ![](mockups/final-amber/more/light/desktop/terms.png) |
+| **개인정보 처리방침** |  |  |
+| ![](mockups/final-amber/more/light/desktop/privacy.png) |  |  |
+
+### 모바일 · 라이트
+
+|   |   |   |   |
+|---|---|---|---|
+| **메시지 목록** | **메시지 대화** | **게시물 상세** | **해시태그** |
+| ![](mockups/final-amber/more/light/mobile/messages-list.png) | ![](mockups/final-amber/more/light/mobile/messages-chat.png) | ![](mockups/final-amber/more/light/mobile/post-detail.png) | ![](mockups/final-amber/more/light/mobile/hashtag.png) |
+| **설정 · 계정** | **설정 · 테마** | **내 신고** | **로그인** |
+| ![](mockups/final-amber/more/light/mobile/settings-account.png) | ![](mockups/final-amber/more/light/mobile/settings-theme.png) | ![](mockups/final-amber/more/light/mobile/my-reports.png) | ![](mockups/final-amber/more/light/mobile/login.png) |
+| **소셜 가입** | **아이디 찾기** | **아이디 찾기 결과** | **비밀번호 찾기** |
+| ![](mockups/final-amber/more/light/mobile/social-signup.png) | ![](mockups/final-amber/more/light/mobile/find-id.png) | ![](mockups/final-amber/more/light/mobile/find-id-result.png) | ![](mockups/final-amber/more/light/mobile/forgot-password.png) |
+| **비밀번호 찾기 · 발송** | **비밀번호 재설정** | **재설정 링크 오류** | **회원가입 1단계** |
+| ![](mockups/final-amber/more/light/mobile/forgot-password-sent.png) | ![](mockups/final-amber/more/light/mobile/reset-password.png) | ![](mockups/final-amber/more/light/mobile/reset-password-invalid.png) | ![](mockups/final-amber/more/light/mobile/signup-step1.png) |
+| **회원가입 2단계** | **OAuth 처리 중** | **OAuth 오류** | **게시물 수정** |
+| ![](mockups/final-amber/more/light/mobile/signup-step2.png) | ![](mockups/final-amber/more/light/mobile/oauth-processing.png) | ![](mockups/final-amber/more/light/mobile/oauth-error.png) | ![](mockups/final-amber/more/light/mobile/sheet-edit-post.png) |
+| **프로필 수정** | **모음집 저장** | **게시글 공유** | **신고** |
+| ![](mockups/final-amber/more/light/mobile/sheet-edit-profile.png) | ![](mockups/final-amber/more/light/mobile/sheet-save-collection.png) | ![](mockups/final-amber/more/light/mobile/sheet-share.png) | ![](mockups/final-amber/more/light/mobile/sheet-report.png) |
+| **게임 전적 연동** | **카카오페이 결제** | **게시물 작성 펼침** | **결제 결과 · 충전 완료** |
+| ![](mockups/final-amber/more/light/mobile/sheet-game-stats.png) | ![](mockups/final-amber/more/light/mobile/sheet-kakaopay.png) | ![](mockups/final-amber/more/light/mobile/composer-expanded.png) | ![](mockups/final-amber/more/light/mobile/payment-success.png) |
+| **결제 결과 · 확인 중** | **결제 결과 · 미완료** | **이용약관** | **개인정보 처리방침** |
+| ![](mockups/final-amber/more/light/mobile/payment-checking.png) | ![](mockups/final-amber/more/light/mobile/payment-failed.png) | ![](mockups/final-amber/more/light/mobile/terms.png) | ![](mockups/final-amber/more/light/mobile/privacy.png) |
+
 
 ## 재현 방법
 
