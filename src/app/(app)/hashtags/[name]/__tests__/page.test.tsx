@@ -70,7 +70,7 @@ vi.mock('@/app/home/components/Post', () => ({
 import HashtagPostsPage from '../page';
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,

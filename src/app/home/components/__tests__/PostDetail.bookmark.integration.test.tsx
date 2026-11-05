@@ -9,7 +9,7 @@ const api = vi.hoisted(() => ({
   fetchBookmarkCollections: vi.fn(),
   fetchMyBookmarks: vi.fn(),
   fetchPostComments: vi.fn(),
-  fetchPostDetail: vi.fn(),
+  fetchPostDetailByNumber: vi.fn(),
   unbookmarkPost: vi.fn(),
 }));
 
@@ -25,7 +25,7 @@ vi.mock('@/lib/feed-api', async (importOriginal) => ({
   fetchBookmarkCollections: api.fetchBookmarkCollections,
   fetchMyBookmarks: api.fetchMyBookmarks,
   fetchPostComments: api.fetchPostComments,
-  fetchPostDetail: api.fetchPostDetail,
+  fetchPostDetailByNumber: api.fetchPostDetailByNumber,
   unbookmarkPost: api.unbookmarkPost,
 }));
 // The list card is unrelated to the detail modal operation.
@@ -41,7 +41,7 @@ import BookmarksPage from '@/app/(app)/bookmarks/page';
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1',
+  postId: 'post-1', postNumber: 1,
   author: '작성자',
   authorHandle: 'author',
   authorProfileImageUrl: null,
@@ -102,7 +102,7 @@ function renderIntegratedScreens() {
   render(
     <BookmarkCollectionProvider>
       <ContextState />
-      <PostDetail postId={'post-1'} onBack={vi.fn()} />
+      <PostDetail postNumber={1} onBack={vi.fn()} />
       <BookmarksPage />
     </BookmarkCollectionProvider>,
   );
@@ -128,7 +128,7 @@ function globalCollectionReads() {
 describe('PostDetail and /bookmarks collection synchronization', () => {
   beforeEach(() => {
     for (const mock of Object.values(api)) mock.mockReset();
-    api.fetchPostDetail.mockResolvedValue(post);
+    api.fetchPostDetailByNumber.mockResolvedValue(post);
     api.fetchPostComments.mockResolvedValue([]);
     api.fetchMyBookmarks.mockResolvedValue({ items: [post], nextCursor: null, hasNext: false });
     api.unbookmarkPost.mockResolvedValue(undefined);
@@ -187,7 +187,7 @@ describe('PostDetail and /bookmarks collection synchronization', () => {
       ])
       .mockReturnValueOnce(refresh.promise);
     api.addPostToBookmarkCollection.mockResolvedValue({
-      postId: 'post-1',
+      postId: 'post-1', postNumber: 1,
       bookmarkedByMe: true,
       collectionIds: ['collection-a'],
       collection: collection(3),

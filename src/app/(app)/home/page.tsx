@@ -10,7 +10,7 @@ import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
 import { usePostLike } from '@/hooks/usePostLike';
-import { type PostRecord, fetchFeed } from '@/lib/feed-api';
+import { type PostRecord, fetchFeed, getPostHref } from '@/lib/feed-api';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
@@ -24,7 +24,6 @@ function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
-  const legacyPostId = searchParams.get('postId');
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
@@ -45,7 +44,6 @@ function HomePageContent() {
     loadPage,
     getKey: (post) => post.postId,
     queryKey: activeTab,
-    enabled: !legacyPostId,
     initialErrorMessage: '피드를 불러오지 못했습니다.',
     loadMoreErrorMessage: '게시물을 더 불러오지 못했습니다.',
   });
@@ -63,16 +61,8 @@ function HomePageContent() {
   }, [setPosts]);
   const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
-  useEffect(() => {
-    if (!legacyPostId) return;
-
-    const target = searchParams.get('target') === 'comments' ? '?target=comments' : '';
-    router.replace(`/posts/${encodeURIComponent(legacyPostId)}${target}`);
-  }, [legacyPostId, router, searchParams]);
-
   const handleTabChange = (tab: FeedTab) => {
     const params = new URLSearchParams(searchParams.toString());
-    params.delete('postId');
     params.delete('target');
     if (tab === 'following') {
       params.set('tab', 'following');
@@ -139,9 +129,9 @@ function HomePageContent() {
     setPosts((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
+    router.push(getPostHref(postNumber, search));
   };
 
   useEffect(() => {
@@ -231,8 +221,8 @@ function HomePageContent() {
                     post={post}
                     likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                     onToggleLike={handleToggleLike}
-                    onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                    onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                    onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                    onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                     onShare={handlePostUpdated}
                     onRepostChange={handleRepostChanged}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}

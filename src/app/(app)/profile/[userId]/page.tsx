@@ -48,6 +48,7 @@ import {
   fetchUserPosts,
   followUser,
   getInitials,
+  getPostHref,
   unfollowUser,
   updateMyProfile,
   uploadProfileImage,
@@ -712,9 +713,9 @@ export default function ProfilePage() {
     setMediaItems((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
+    router.push(getPostHref(postNumber, search));
   };
 
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
@@ -1347,8 +1348,8 @@ export default function ProfilePage() {
                   post={post}
                   likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                   onToggleLike={toggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                   onShare={handlePostUpdated}
                   onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
@@ -1385,7 +1386,7 @@ export default function ProfilePage() {
                   <button
                     key={item.mediaId}
                     type="button"
-                    onClick={() => handleOpenPost(item.postId)}
+                    onClick={() => handleOpenPost(item.postNumber)}
                     className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
                     aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시물 상세 보기`}
                   >

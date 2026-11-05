@@ -8,7 +8,7 @@ import {
   fetchCollectionBookmarks,
   fetchMyBookmarks,
 } from '@/lib/feed-api';
-import type { BookmarkScope, PostRecord } from '@/lib/feed-api';
+import { type BookmarkScope, type PostRecord, getPostHref } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import { useCursorList } from '@/hooks/useCursorList';
@@ -175,9 +175,9 @@ export default function BookmarksPage() {
     removeBookmark(postId);
   };
 
-  const handleOpenPost = (postId: string, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(`/posts/${encodeURIComponent(postId)}${search}`);
+    router.push(getPostHref(postNumber, search));
   };
 
   return (
@@ -376,8 +376,8 @@ export default function BookmarksPage() {
                   post={post}
                   likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                   onToggleLike={handleToggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postId)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postId, 'comments')}
+                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
                   onShare={handlePostUpdated}
                   onRepostChange={handleRepostChanged}
                   onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}

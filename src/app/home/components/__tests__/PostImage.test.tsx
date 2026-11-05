@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@/test/feedback';
 import type { PostRecord } from '@/lib/feed-api';
 
-const api = vi.hoisted(() => ({ fetchPostDetail: vi.fn(), fetchPostComments: vi.fn() }));
+const api = vi.hoisted(() => ({ fetchPostDetailByNumber: vi.fn(), fetchPostComments: vi.fn() }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'viewer' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({
   ...(await original<typeof import('@/lib/feed-api')>()), ...api,
@@ -20,7 +20,7 @@ import { Post } from '../Post';
 import { PostDetail } from '../PostDetail';
 
 const post: PostRecord = {
-  postId: 'post-1', author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
+  postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
   authorVerifiedBadge: false, content: '이미지 테스트', game: null,
   media: [1, 2].map((number) => ({
     mediaId: `image-${number}`, mediaType: 'IMAGE', mediaUrl: `/image-${number}.png`, thumbnailUrl: null, sortOrder: number - 1,
@@ -33,7 +33,7 @@ const standalone = <PostImage src="/image.png" imageNumber={1} width={1200} heig
 
 beforeEach(() => {
   vi.clearAllMocks();
-  api.fetchPostDetail.mockResolvedValue(post);
+  api.fetchPostDetailByNumber.mockResolvedValue(post);
   api.fetchPostComments.mockResolvedValue([]);
 });
 
@@ -42,7 +42,7 @@ describe.each(['card', 'detail'] as const)('%s image preview', (kind) => {
     const openDetail = vi.fn();
     const view = kind === 'card'
       ? render(<Post post={post} onOpenDetail={openDetail} />)
-      : render(<PostDetail postId={post.postId} onBack={vi.fn()} />);
+      : render(<PostDetail postNumber={post.postNumber} onBack={vi.fn()} />);
     const trigger = await screen.findByRole('button', { name: '게시물 이미지 2 확대 보기' });
     expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
     trigger.focus();

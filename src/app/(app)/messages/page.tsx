@@ -22,6 +22,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { getPostHref } from '@/lib/feed-api';
 import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
 import {
@@ -302,14 +303,14 @@ function SharedPostCard({
   onOpenPost,
 }: {
   message: ChatMessage;
-  onOpenPost: (postId: string) => void;
+  onOpenPost: (postNumber: number) => void;
 }) {
   if (!message.sharedPost) return null;
 
   return (
     <button
       type="button"
-      onClick={() => onOpenPost(message.sharedPost!.postId)}
+      onClick={() => onOpenPost(message.sharedPost!.postNumber)}
       className="mt-3 block w-full overflow-hidden rounded-2xl border border-white/20 bg-white text-left text-black shadow-sm transition hover:border-black"
     >
       <div className="border-b border-zinc-100 px-4 py-3">
@@ -473,7 +474,7 @@ function MessageBubble({
   actionLoading: boolean;
   onToggleAction: () => void;
   onDelete: () => void;
-  onOpenPost: (postId: string) => void;
+  onOpenPost: (postNumber: number) => void;
   onOpenImage: (attachment: ChatAttachment) => void;
 }) {
   // 모바일에는 호버가 없으니 내 메시지를 길게 누르면 메뉴를 연다.
@@ -1600,8 +1601,8 @@ export default function MessagesPage() {
     setAttachmentMenuOpen(false);
   };
 
-  const handleOpenPost = (postId: string) => {
-    router.push(`/posts/${encodeURIComponent(postId)}`);
+  const handleOpenPost = (postNumber: number) => {
+    router.push(getPostHref(postNumber));
   };
 
   const handleOpenImage = useCallback((attachment: { url: string; name: string }) => {
