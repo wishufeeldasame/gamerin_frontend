@@ -230,7 +230,7 @@ describe('MentoringPage deep links', () => {
 
     expect(await screen.findByText('랭크 게임 코칭')).toBeInTheDocument();
     const target = document.getElementById('mentoring-application-application-1');
-    await waitFor(() => expect(target).toHaveClass('ring-2', 'ring-yellow-300'));
+    await waitFor(() => expect(target).toHaveClass('ring-2', 'ring-line-focus'));
     await waitFor(() => expect(target?.scrollIntoView).toHaveBeenCalled());
   });
 
@@ -265,6 +265,30 @@ describe('MentoringPage deep links', () => {
     expect(screen.queryByRole('button', { name: '프로그램 신고' })).not.toBeInTheDocument();
   });
 
+  it('프로그램 상세를 키보드로 닫으면 원래 카드로 포커스가 돌아간다', async () => {
+    const user = userEvent.setup();
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
+    mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorId: 'mentor-2', mentorAbout: '' });
+    render(<MentoringPage />);
+
+    const card = await screen.findByRole('button', { name: program.title });
+    await user.click(card);
+    const dialog = await screen.findByRole('dialog', { name: program.title });
+    expect(dialog).toHaveFocus();
+    await user.tab();
+    expect(within(dialog).getByRole('button', { name: '프로그램 상세 닫기' })).toHaveFocus();
+    const report = within(dialog).getByRole('button', { name: '프로그램 신고' });
+    await user.click(report);
+    expect(await screen.findByRole('dialog', { name: '멘토링 프로그램 신고' })).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: '멘토링 프로그램 신고' })).not.toBeInTheDocument();
+    expect(dialog).toBeInTheDocument();
+    expect(report).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(dialog).not.toBeInTheDocument();
+    expect(card).toHaveFocus();
+  });
+
   it('opens the owned program and highlights a review identified by reviewId', async () => {
     navigation.searchParams = new URLSearchParams('reviewId=review-1');
     mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
@@ -274,7 +298,7 @@ describe('MentoringPage deep links', () => {
 
     expect(await screen.findByText(review.content)).toBeInTheDocument();
     const target = document.getElementById('mentoring-review-review-1');
-    expect(target).toHaveClass('ring-2', 'ring-yellow-300');
+    expect(target).toHaveClass('ring-2', 'ring-line-focus');
     await waitFor(() => expect(target?.scrollIntoView).toHaveBeenCalled());
   });
 
@@ -337,10 +361,11 @@ describe('MentoringPage game filter', () => {
     );
     render(<MentoringPage />);
 
-    const select = await screen.findByRole('combobox');
-    await waitFor(() => expect(select).toBeEnabled());
+    const filters = within(screen.getByRole('group', { name: '게임 필터' }));
+    const all = filters.getByRole('button', { name: '전체' });
+    await waitFor(() => expect(all).toBeEnabled());
     expect(await screen.findByText(program.title)).toBeInTheDocument();
-    expect(screen.getAllByRole('option').map((option) => option.textContent)).toEqual([
+    expect(filters.getAllByRole('button').map((button) => button.textContent)).toEqual([
       '전체',
       'PUBG',
       'League of Legends',
@@ -350,7 +375,7 @@ describe('MentoringPage game filter', () => {
     );
     expect(screen.queryByRole('button', { name: '필터 초기화' })).not.toBeInTheDocument();
 
-    await user.selectOptions(select, 'LOL');
+    await user.click(filters.getByRole('button', { name: 'League of Legends' }));
     await waitFor(() =>
       expect(mentoringApi.fetchMentoringPrograms).toHaveBeenLastCalledWith(
         expect.objectContaining({ gameName: 'LOL' }),
@@ -364,7 +389,7 @@ describe('MentoringPage game filter', () => {
         expect.objectContaining({ gameName: undefined }),
       ),
     );
-    expect(select).toHaveValue('');
+    expect(all).toHaveAttribute('aria-pressed', 'true');
     expect(await screen.findByText(program.title)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '필터 초기화' })).not.toBeInTheDocument();
   });
@@ -382,7 +407,7 @@ describe('MentoringPage game filter', () => {
     render(<MentoringPage />);
 
     expect(await screen.findByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
-    expect(screen.getByRole('combobox')).toBeDisabled();
+    expect(screen.getByRole('button', { name: '전체', exact: true })).toBeDisabled();
   });
 
   it('/games 실패 안내와 다시 시도는 프로그램 등록 폼에도 보인다', async () => {
@@ -460,12 +485,12 @@ describe('MentoringPage game filter', () => {
     // 첫 요청이 끝나기 전에 사용자 전환으로 두 번째 요청이 시작되어 성공한다.
     auth.userId = 'user-2';
     rerender(<MentoringPage />);
-    await waitFor(() => expect(screen.getByRole('combobox')).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: '전체', exact: true })).toBeEnabled());
 
     await act(async () => {
       rejectFirst(new Error('late'));
     });
-    expect(screen.getByRole('combobox')).toBeEnabled();
+    expect(screen.getByRole('button', { name: '전체', exact: true })).toBeEnabled();
     expect(screen.queryByText(/게임 목록을 불러오지 못했습니다/)).not.toBeInTheDocument();
   });
 

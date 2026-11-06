@@ -50,7 +50,7 @@ const screens: Screen[] = [
   { name: 'mentoring-mine', path: '/mentoring?tab=mine' },
   { name: 'mentoring-programs', path: '/mentoring', action: click('내 프로그램') },
   { name: 'mentoring-register', path: '/mentoring', action: click('멘토 되기') },
-  { name: 'mentoring-first-registration', path: '/mentoring', mentor: false, action: async page => { await click('멘토 되기')(page); await click('멘토 등록하기')(page); } },
+  { name: 'mentoring-first-registration', path: '/mentoring', mentor: false, action: async page => { await click('멘토 되기')(page); await expect(page.getByRole('heading', { name: '멘토 등록 요청' })).toBeVisible(); } },
   { name: 'mentoring-own-detail', path: '/mentoring', action: async page => { await click('내 프로그램')(page); await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '멘티 리뷰' })).toBeVisible(); } },
   { name: 'mentoring-review', path: '/mentoring?tab=mine', action: async page => { await click('리뷰 작성')(page); await expect(page.getByRole('heading', { name: '리뷰 작성' })).toBeVisible(); } },
   { name: 'login', path: '/login', anonymous: true },
