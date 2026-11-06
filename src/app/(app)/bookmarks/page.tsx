@@ -98,7 +98,15 @@ function NewCollectionButton() {
   };
 
   return (
-    <form onSubmit={(event) => void handleSubmit(event)} className="w-64 shrink-0 xl:mt-2 xl:w-auto">
+    <form
+      onSubmit={(event) => void handleSubmit(event)}
+      onBlur={(event) => {
+        // 아무것도 적지 않고 폼 밖으로 포커스가 나가면 닫는다(모바일에는 Esc가 없다). 입력→만들기 Tab 이동은 폼 안이라 닫지 않는다.
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        if (!name.trim() && !pending) close();
+      }}
+      className="w-64 shrink-0 xl:mt-2 xl:w-auto"
+    >
       <div className="flex gap-1.5">
         <input
           autoFocus
@@ -110,17 +118,19 @@ function NewCollectionButton() {
           onKeyDown={(event) => {
             if (event.key === 'Escape') close();
           }}
-          onBlur={() => {
-            // 아무것도 적지 않고 벗어나면 닫는다. 모바일에는 Esc가 없다.
-            if (!name.trim() && !pending) close();
-          }}
           disabled={pending}
           maxLength={40}
           placeholder="모음집 이름"
           aria-label="새 모음집 이름"
           className="input-base h-9 min-w-0 xl:h-10"
         />
-        <button type="submit" disabled={pending} className="btn-primary h-9 xl:h-10">
+        <button
+          type="submit"
+          disabled={pending}
+          // Safari는 클릭한 버튼에 포커스를 주지 않아 relatedTarget이 비고 폼이 닫힌다. 클릭 동안 입력 포커스를 유지한다.
+          onMouseDown={(event) => event.preventDefault()}
+          className="btn-primary h-9 xl:h-10"
+        >
           {pending ? '저장 중...' : '만들기'}
         </button>
       </div>
@@ -286,7 +296,7 @@ export default function BookmarksPage() {
         <p className="mt-1 text-caption text-fg-tertiary">
           {selectedLabel}
           {/* 전체·미분류는 총개수 API가 없어 다 불러왔을 때만 센다. 모음집은 서버 개수를 쓴다. */}
-          {!loading && !hasNext ? ` · ${bookmarks.length}개` : ''}
+          {!loading && !error && !hasNext ? ` · ${bookmarks.length}개` : ''}
         </p>
 
         <div className="mt-4 flex items-center gap-2">

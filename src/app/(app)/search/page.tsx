@@ -435,7 +435,7 @@ function SearchPageContent() {
           <form
             role="search"
             onSubmit={handleSearchSubmit}
-            className="mt-4 flex h-11 w-full items-center gap-2.5 rounded-control border border-transparent bg-subtle px-3.5 focus-within:border-line-focus"
+            className="mt-4 flex h-11 w-full items-center gap-2.5 rounded-control border border-transparent bg-subtle px-3.5 focus-within:border-fg-brand dark:focus-within:border-line-focus"
           >
             <Search
               size={20}

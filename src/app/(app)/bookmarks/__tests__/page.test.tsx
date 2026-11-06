@@ -479,4 +479,34 @@ describe('BookmarksPage state synchronization', () => {
     });
     expect(screen.getByRole('button', { name: '새 모음집' })).toBeInTheDocument();
   });
+
+  it('keeps the new collection form while focus moves inside it and closes when an empty form loses focus', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+
+    fireEvent.click(screen.getByRole('button', { name: '새 모음집' }));
+    const input = screen.getByRole('textbox', { name: '새 모음집 이름' });
+    const submitButton = screen.getByRole('button', { name: '만들기' });
+
+    // 입력에서 만들기 버튼으로 Tab 이동: 폼 안이므로 닫지 않는다.
+    fireEvent.blur(input, { relatedTarget: submitButton });
+    expect(screen.getByRole('textbox', { name: '새 모음집 이름' })).toBeInTheDocument();
+
+    // 버튼 클릭은 입력 포커스를 유지해 blur 없이 제출되고 오류가 보인다.
+    expect(fireEvent.mouseDown(submitButton)).toBe(false);
+    fireEvent.click(submitButton);
+    expect(screen.getByRole('alert')).toHaveTextContent('모음집 이름을 입력해 주세요.');
+
+    // 빈 채로 폼 밖으로 포커스가 나가면 닫는다.
+    fireEvent.blur(submitButton, { relatedTarget: document.body });
+    expect(screen.queryByRole('textbox', { name: '새 모음집 이름' })).not.toBeInTheDocument();
+  });
+
+  it('does not show a bookmark count when the first page fails', async () => {
+    api.fetchMyBookmarks.mockRejectedValue(new Error('북마크를 불러오지 못했습니다.'));
+    render(<BookmarksPage />);
+
+    expect(await screen.findByText('북마크를 불러오지 못했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText(/0개/)).not.toBeInTheDocument();
+  });
 });
