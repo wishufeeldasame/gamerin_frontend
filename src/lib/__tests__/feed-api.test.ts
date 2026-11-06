@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { createComment, fetchPostComments, fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -26,6 +26,14 @@ describe('feed-api 이미지 주소', () => {
       { mediaUrl: 'http://api.test/uploads/a.png', thumbnailUrl: null },
       { mediaUrl: '', thumbnailUrl: 'https://cdn.test/t.png' },
     ]);
+  });
+
+  it('댓글 작성자 프로필 이미지도 API 주소로 바꾼다', async () => {
+    apiRequest.mockResolvedValueOnce([{ commentId: 'c-1', authorProfileImageUrl: '/uploads/profile-images/a.png' }]);
+    expect((await fetchPostComments('p-1'))[0].authorProfileImageUrl).toBe('http://api.test/uploads/profile-images/a.png');
+
+    apiRequest.mockResolvedValueOnce({ commentId: 'c-2', authorProfileImageUrl: null });
+    expect((await createComment('p-1', '내용')).authorProfileImageUrl).toBeNull();
   });
 });
 

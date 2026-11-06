@@ -496,17 +496,23 @@ export async function sharePost(postId: string, target: ShareTarget = 'COPY_LINK
   });
 }
 
+function normalizeComment(comment: CommentRecord): CommentRecord {
+  return { ...comment, authorProfileImageUrl: toAbsoluteAssetUrl(comment.authorProfileImageUrl) };
+}
+
 export async function createComment(postId: string, content: string) {
-  return apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
+  const comment = await apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
     method: 'POST',
     body: JSON.stringify({ content }),
   });
+  return normalizeComment(comment);
 }
 
 export async function fetchPostComments(postId: string, options: FeedRequestOptions = {}) {
-  return apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
+  const comments = await apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
     signal: options.signal,
   });
+  return Array.isArray(comments) ? comments.map(normalizeComment) : [];
 }
 
 export async function deleteComment(postId: string, commentId: string) {
