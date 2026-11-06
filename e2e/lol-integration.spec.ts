@@ -51,7 +51,6 @@ async function openLolPrompt(page: Page) {
   await page.getByRole('button', { name: '전적', exact: true }).click();
   await page.getByRole('button', { name: '전적 추가' }).click();
   await page.locator('div.group').filter({ has: page.getByRole('heading', { name: 'League of Legends', exact: true }) }).getByRole('button', { name: '연결', exact: true }).click();
-  await page.getByRole('checkbox').check();
 }
 
 for (const mode of [

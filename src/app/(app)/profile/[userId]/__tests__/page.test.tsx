@@ -11,6 +11,7 @@ const api = vi.hoisted(() => ({
   likePost: vi.fn(),
   unlikePost: vi.fn(),
 }));
+const gameStats = vi.hoisted(() => ({ refreshValorantSummary: vi.fn() }));
 const auth = vi.hoisted(() => ({
   updateUser: vi.fn(),
   user: {
@@ -37,6 +38,10 @@ vi.mock('@/lib/feed-api', async (importOriginal) => ({
   fetchUserProfile: api.fetchUserProfile,
   likePost: api.likePost,
   unlikePost: api.unlikePost,
+}));
+vi.mock('@/lib/game-stats-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/game-stats-api')>()),
+  refreshValorantSummary: gameStats.refreshValorantSummary,
 }));
 vi.mock('@/app/home/components/FetchGameStatsModal', () => ({
   FetchGameStatsModal: () => null,
@@ -211,6 +216,43 @@ describe('ProfilePage', () => {
     expect(cover).toHaveAttribute('src', '/images/default-profile-cover.svg');
     expect(cover).toHaveClass('object-cover');
     expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
+  });
+
+  it('발로란트 전적을 현재·최고 티어와 경쟁전 지표로 표시한다', async () => {
+    api.fetchUserProfile.mockResolvedValue({
+      ...profile,
+      gameStats: {
+        VALORANT: {
+          connected: true, region: 'KR', platform: 'PC', tierLabel: 'Gold 2', peakTierLabel: 'Platinum 1', rr: 40,
+          kd: 1.2, acs: 215, headshotRate: 24, winRate: 60, matches: 10,
+        },
+      },
+    });
+
+    render(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /전적/ }));
+
+    expect(await screen.findByText(
+      'Gold 2 40RR · 최고 Platinum 1 · K/D 1.20 · ACS 215 · 헤드샷 24% · 승률 60% · 10게임',
+    )).toBeInTheDocument();
+    expect(screen.getByText('경쟁전 KR')).toBeInTheDocument();
+  });
+
+  it('발로란트를 10분 안에 다시 새로고침하면 요청하지 않고 남은 시간을 안내한다', async () => {
+    const updatedAt = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const ownProfile = {
+      ...profile, id: 'viewer-1', handle: 'viewer',
+      gameStats: { VALORANT: { connected: true, tierLabel: 'Gold 2', matches: 3, updatedAt } },
+    };
+    api.fetchUserProfile.mockResolvedValue(ownProfile);
+    api.fetchMyProfile.mockResolvedValue(ownProfile);
+
+    render(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('button', { name: /전적/ }));
+    fireEvent.click(await screen.findByRole('button', { name: /새로고침/ }));
+
+    expect(await screen.findByText(/10분마다 새로고침할 수 있습니다. 7분 뒤/)).toBeInTheDocument();
+    expect(gameStats.refreshValorantSummary).not.toHaveBeenCalled();
   });
 
   it('shows the server error and a link back home when the profile does not exist', async () => {

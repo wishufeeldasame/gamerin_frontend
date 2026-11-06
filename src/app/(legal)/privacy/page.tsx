@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import {
   LEGAL_CONTACT_EMAIL,
-  LEGAL_EFFECTIVE_DATE,
+  PRIVACY_EFFECTIVE_DATE,
   LegalList,
   LegalNotice,
   LegalSection,
@@ -77,7 +77,7 @@ export default function PrivacyPage() {
             ['활동', '좋아요, 리포스트, 공유, 북마크, 팔로우, 알림'],
             [
               '게임 계정 연결',
-              'Riot ID(닉네임#태그), PUUID, PUBG 플레이어명과 계정 ID, Rainbow Six Siege 플레이어명, 플랫폼, 티어, KDA, KD, 승률, 경기 수 등 전적',
+              'Riot ID(닉네임#태그), PUUID, PUBG 플레이어명과 계정 ID, Rainbow Six Siege 플레이어명, 발로란트 리전, 플랫폼, 티어(현재·최고), KDA, KD, 평균 전투 점수, 헤드샷 비율, 승률, 경기 수 등 전적',
             ],
             ['멘토링', '멘토 소개, 프로그램 내용과 가격, 신청 메시지, 평점과 후기, 신청·정산 내역'],
             ['신고', '신고 사유, 상세 내용, 신고 대상 내용 일부'],
@@ -217,6 +217,7 @@ export default function PrivacyPage() {
             ['Riot Games', 'Riot ID, PUUID', '국외'],
             ['PUBG Developer API(KRAFTON)', '플레이어명, 계정 ID', '국외'],
             ['r6data.com', '플레이어명', '국외'],
+            ['HenrikDev API(발로란트 비공식 API)', 'Riot ID, 리전, HenrikDev가 발급한 PUUID', '국외'],
           ]}
         />
       </LegalSection>
@@ -307,7 +308,7 @@ export default function PrivacyPage() {
           이 처리방침을 변경하면 시행 전에 서비스 공지 또는 이 화면으로 알립니다. 이용자의 권리에 중대한 영향을 주는 변경은
           개정 전 또는 개정 즉시 별도로 안내합니다. 이전 처리방침이 생기면 이 화면에서 확인할 수 있게 합니다.
         </p>
-        <LegalList items={[`버전: ${PRIVACY_VERSION}`, `공고일·시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
+        <LegalList items={[`버전: ${PRIVACY_VERSION}`, `공고일·시행일: ${PRIVACY_EFFECTIVE_DATE}`]} />
       </LegalSection>
     </>
   );
