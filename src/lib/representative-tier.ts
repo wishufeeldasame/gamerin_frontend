@@ -9,7 +9,7 @@ export interface RepresentativeTier {
 const GAME_SHORT_NAME: Record<RepresentativeGame, string> = { PUBG: 'PUBG', R6: 'R6', LOL: 'LoL', VALORANT: 'VALORANT' };
 
 // 게임별 보유 엠블럼. 값은 디비전 이미지 개수이며 0이면 디비전 없이 한 장이다.
-const EMBLEMS: Record<RepresentativeGame, { dir: string; ext: string; tiers: Record<string, number> }> = {
+const EMBLEMS: Record<RepresentativeGame, { dir: string; ext: string; tiers: Record<string, number>; lowestDivisionFirst?: true }> = {
   LOL: {
     dir: 'lol',
     ext: 'png',
@@ -33,6 +33,8 @@ const EMBLEMS: Record<RepresentativeGame, { dir: string; ext: string; tiers: Rec
   VALORANT: {
     dir: 'valorant',
     ext: 'png',
+    // 발로란트만 1이 가장 낮다(Gold 1 < Gold 3). 나머지 게임은 1이 가장 높다.
+    lowestDivisionFirst: true,
     tiers: {
       iron: 3, bronze: 3, silver: 3, gold: 3, platinum: 3,
       diamond: 3, ascendant: 3, immortal: 3, radiant: 0,
@@ -66,7 +68,9 @@ export function tierEmblemSrc(tier: RepresentativeTier): string | null {
   if (divisions === 0) return `/images/tiers/${emblem.dir}/${tierWord}.${emblem.ext}`;
 
   const parsed = ROMAN[divisionWord] ?? Number(divisionWord);
-  const division = Number.isInteger(parsed) && parsed >= 1 && parsed <= divisions ? parsed : 1;
+  // 못 읽으면 그 티어의 가장 낮은 디비전으로 보수적으로 표시한다.
+  const lowest = emblem.lowestDivisionFirst ? 1 : divisions;
+  const division = Number.isInteger(parsed) && parsed >= 1 && parsed <= divisions ? parsed : lowest;
   return `/images/tiers/${emblem.dir}/${tierWord}-${division}.${emblem.ext}`;
 }
 

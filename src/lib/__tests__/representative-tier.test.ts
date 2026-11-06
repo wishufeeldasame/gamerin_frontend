@@ -17,9 +17,10 @@ describe('tierEmblemSrc', () => {
     expect(tierEmblemSrc({ game, tierLabel })).toBe(src);
   });
 
-  it('디비전이 없거나 범위를 벗어나면 그 티어의 1번 이미지를 쓴다', () => {
-    expect(tierEmblemSrc({ game: 'R6', tierLabel: 'Gold' })).toBe('/images/tiers/r6/gold-1.png');
-    expect(tierEmblemSrc({ game: 'PUBG', tierLabel: 'Gold V' })).toBe('/images/tiers/pubg/gold-1.webp');
+  it('디비전이 없거나 범위를 벗어나면 그 티어의 가장 낮은 디비전 이미지를 쓴다', () => {
+    expect(tierEmblemSrc({ game: 'R6', tierLabel: 'Gold' })).toBe('/images/tiers/r6/gold-5.png');
+    expect(tierEmblemSrc({ game: 'PUBG', tierLabel: 'Gold V' })).toBe('/images/tiers/pubg/gold-4.webp');
+    expect(tierEmblemSrc({ game: 'VALORANT', tierLabel: 'Gold' })).toBe('/images/tiers/valorant/gold-1.png');
     expect(tierEmblemSrc({ game: 'PUBG', tierLabel: 'Survivor 3' })).toBe('/images/tiers/pubg/survivor-1.webp');
   });
 
