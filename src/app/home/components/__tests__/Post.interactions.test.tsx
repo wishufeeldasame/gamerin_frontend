@@ -187,7 +187,7 @@ describe('FE-7 shared menus and actions', () => {
     fireEvent.change(textarea, { target: { value: '  새 댓글  ' } });
     act(() => { fireEvent.submit(form); fireEvent.submit(form); });
     expect(api.createComment).toHaveBeenCalledTimes(1);
-    expect(within(form).getByRole('button', { name: '댓글 전송' })).toBeDisabled();
+    expect(within(form).getByRole('button', { name: '등록' })).toBeDisabled();
     await act(async () => finish({ ...comment, commentId: 'created', content: '새 댓글' }));
     expect(textarea).toHaveValue('');
   });

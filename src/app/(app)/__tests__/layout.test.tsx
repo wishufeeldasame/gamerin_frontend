@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const navigation = vi.hoisted(() => ({ replace: vi.fn() }));
+const navigation = vi.hoisted(() => ({ replace: vi.fn(), pathname: '/home' }));
 const auth = vi.hoisted(() => ({
   user: null as { id: string } | null,
   isAuthReady: true,
@@ -11,7 +11,7 @@ const auth = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   useRouter: () => navigation,
-  usePathname: () => '/home',
+  usePathname: () => navigation.pathname,
 }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => auth,
@@ -41,6 +41,7 @@ const flushEffects = () => act(async () => {
 describe('AppLayout 인증 확인', () => {
   beforeEach(() => {
     navigation.replace.mockReset();
+    navigation.pathname = '/home';
     auth.user = null;
     auth.isAuthReady = true;
     auth.isSessionUnavailable = false;
@@ -108,5 +109,17 @@ describe('AppLayout 인증 확인', () => {
 
     expect(screen.getByText('page')).toBeInTheDocument();
     expect(navigation.replace).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['/home', true],
+    ['/posts/12', false],
+    ['/notifications', false],
+  ])('%s에서 모바일 상단 바 표시 여부는 %s다(상세 화면은 자체 뒤로 헤더)', (pathname, visible) => {
+    navigation.pathname = pathname;
+    auth.user = { id: 'user-1' };
+    render(<AppLayout><p>page</p></AppLayout>);
+
+    expect(screen.queryByText('top-bar') !== null).toBe(visible);
   });
 });
