@@ -112,11 +112,11 @@ export function UserRowsSkeleton({ count = 4 }: { count?: number }) {
 export function ProfileSkeleton() {
   return (
     <Skeleton loading label="프로필을 불러오는 중">
-      <div className="page-container">
-        <div className={`h-56 w-full rounded-3xl ${block}`} />
-        <div className="-mt-12 px-6">
-          <div className={`h-28 w-28 rounded-3xl ${block}`} />
-          <h1 className="mt-4 text-3xl font-black">사용자 닉네임</h1>
+      <div className="px-4 pt-2 md:px-6 lg:pt-5 xl:max-w-[624px] xl:pr-0">
+        <div className={`h-32 w-full rounded-xl md:h-56 md:rounded-card ${block}`} />
+        <div className="-mt-9 md:-mt-11">
+          <div className={`relative ml-3 size-[72px] rounded-full border-4 border-canvas md:ml-4 md:size-[88px] ${block}`} />
+          <h1 className="mt-4 text-title">사용자 닉네임</h1>
           <p className="text-sm font-bold">@handle</p>
           <p className="mt-3 text-sm leading-6">자기소개가 들어갈 자리입니다. 자기소개가 들어갈 자리입니다.</p>
           <p className="mt-4 text-sm font-black">0 팔로워 0 팔로잉 0 게시물</p>

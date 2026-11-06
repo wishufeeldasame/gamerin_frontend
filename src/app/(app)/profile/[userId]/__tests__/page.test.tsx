@@ -232,9 +232,10 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
     fireEvent.click(await screen.findByRole('button', { name: /전적/ }));
 
-    expect(await screen.findByText(
-      'Gold 2 40RR · 최고 Platinum 1 · K/D 1.20 · ACS 215 · 헤드샷 24% · 승률 60% · 10게임',
-    )).toBeInTheDocument();
+    expect(await screen.findByText('Gold 2 40RR')).toBeInTheDocument();
+    for (const value of ['Platinum 1', '1.20', '215', '24%', '60%', '10']) {
+      expect(screen.getByText(value, { selector: 'dd' })).toBeInTheDocument();
+    }
     expect(screen.getByText('경쟁전 KR')).toBeInTheDocument();
   });
 

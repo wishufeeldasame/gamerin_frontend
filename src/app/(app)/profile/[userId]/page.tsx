@@ -7,10 +7,6 @@ import Link from 'next/link';
 import { PostListSkeleton, ProfileSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
   Settings,
-  Edit3,
-  Grid,
-  BarChart3,
-  Layers,
   Plus,
   RefreshCw,
   ExternalLink,
@@ -27,7 +23,6 @@ import {
   Gamepad2,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
@@ -72,6 +67,7 @@ import {
   type ValorantSummaryResponse,
 } from '@/lib/game-stats-api';
 import { useCursorList } from '@/hooks/useCursorList';
+import { useMileageBalance } from '@/hooks/useMileageBalance';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
@@ -231,76 +227,56 @@ function formatNullablePercent(value: number | null) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
-function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: boolean) {
+type GameStatMetric = { label: string; value: string };
+
+function formatGameStats(gameName: string, stats: unknown, isOwnProfile: boolean): GameStatMetric[] | string {
   const record = toGameStatsRecord(stats);
-  if (!record) {
-    return String(stats ?? '');
+  if (!record) return String(stats ?? '');
+
+  const game = gameName.toUpperCase();
+  const tier = readStringStat(record, 'tierLabel');
+  const matches = readNumberStat(record, game === 'LOL' ? 'games' : 'matches');
+  const ratio = readNumberStat(record, game === 'LOL' ? 'kda' : 'kd');
+
+  if (
+    (game === 'LOL' && ratio === null && matches === null)
+    || (game === 'VALORANT' && !tier && matches === null)
+  ) {
+    return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
   }
 
-  if (gameName.toUpperCase() === 'LOL') {
-    const tier = readStringStat(record, 'tierLabel');
-    const kda = readNumberStat(record, 'kda');
-    const games = readNumberStat(record, 'games');
-    if (kda === null && games === null) {
-      return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
-    }
-    return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
-      `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
-      games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
-  }
-
-  if (gameName.toUpperCase() === 'VALORANT') {
-    return formatValorantSummary(record, isOwnProfile);
-  }
-
-  if (!isCommonGameStats(gameName)) {
+  if (game !== 'LOL' && game !== 'VALORANT' && !isCommonGameStats(game)) {
     return Object.entries(record)
-      .filter(
-        ([key]) =>
-          key !== 'accountId' && key !== 'playerNameNormalized',
-      )
+      .filter(([key]) => key !== 'accountId' && key !== 'playerNameNormalized')
       .map(([key, value]) => `${key}: ${String(value)}`)
       .join(' · ');
   }
 
-  const summaryParts: string[] = [];
-  const tierLabel = readStringStat(record, 'tierLabel');
-  const winRate = readNumberStat(record, 'winRate');
-  const statsMode = readStatsMode(record);
-  const kd = readNumberStat(record, 'kd');
-  const matches = readNumberStat(record, 'matches');
-
-  if (statsMode === 'RANKED' && tierLabel) {
-    summaryParts.push(tierLabel);
+  const metrics: GameStatMetric[] = [];
+  if (game === 'LOL') {
+    metrics.push({ label: '티어', value: tier ?? 'UNRANKED' });
+  } else if (game === 'VALORANT') {
+    // HenrikDev 티어 표기를 유지하고 최근 경쟁전 지표를 표시한다.
+    const rr = readNumberStat(record, 'rr');
+    const peak = readStringStat(record, 'peakTierLabel');
+    metrics.push({ label: '티어', value: `${tier ?? 'Unrated'}${rr === null ? '' : ` ${rr}RR`}` });
+    if (peak) metrics.push({ label: '최고', value: peak });
+  } else if (readStatsMode(record) === 'RANKED' && tier) {
+    metrics.push({ label: '티어', value: tier });
   }
 
-  summaryParts.push(`K/D ${kd === null ? '-' : kd.toFixed(2)}`);
-  summaryParts.push(`승률 ${formatNullablePercent(winRate)}`);
-  summaryParts.push(matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`);
-
-  return summaryParts.join(' · ');
-}
-
-// 티어는 HenrikDev 표기(Gold 2, Unrated) 그대로, 지표는 최근 경쟁전 기준이다.
-function formatValorantSummary(record: GameStatsRecord, isOwnProfile: boolean) {
-  const tier = readStringStat(record, 'tierLabel');
-  const peak = readStringStat(record, 'peakTierLabel');
-  const rr = readNumberStat(record, 'rr');
-  const matches = readNumberStat(record, 'matches');
-  if (!tier && matches === null) {
-    return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
+  metrics.push({ label: game === 'LOL' ? 'KDA' : 'K/D', value: ratio?.toFixed(2) ?? '-' });
+  if (game === 'VALORANT') {
+    metrics.push(
+      { label: 'ACS', value: String(readNumberStat(record, 'acs') ?? '-') },
+      { label: '헤드샷', value: formatNullablePercent(readNumberStat(record, 'headshotRate')) },
+    );
   }
-  const kd = readNumberStat(record, 'kd');
-  const acs = readNumberStat(record, 'acs');
-  return [
-    `${tier ?? 'Unrated'}${rr === null ? '' : ` ${rr}RR`}`,
-    peak ? `최고 ${peak}` : null,
-    `K/D ${kd === null ? '-' : kd.toFixed(2)}`,
-    `ACS ${acs === null ? '-' : acs}`,
-    `헤드샷 ${formatNullablePercent(readNumberStat(record, 'headshotRate'))}`,
-    `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
-    matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`,
-  ].filter(Boolean).join(' · ');
+  metrics.push(
+    { label: '승률', value: formatNullablePercent(readNumberStat(record, 'winRate')) },
+    { label: '판수', value: matches?.toLocaleString('ko-KR') ?? '-' },
+  );
+  return metrics;
 }
 
 const VALORANT_REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
@@ -599,7 +575,7 @@ export default function ProfilePage() {
     return entries.map(([gameName, stats]) => ({
       gameName,
       displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
-      summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
+      stats: formatGameStats(gameName, stats, isOwnProfile),
       detail: gameName.toUpperCase() === 'LOL'
         ? riotId?.split('#')[0] ?? null
         : gameName.toUpperCase() === 'VALORANT'
@@ -1003,40 +979,40 @@ export default function ProfilePage() {
   };
 
   const renderConnectedAccounts = () => (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-      <div className="mb-6">
-        <h2 className="section-title">연결된 계정</h2>
-        <p className="mt-1 text-sm font-bold text-zinc-400">
+    <section className="rounded-card border border-line-card bg-surface p-4 md:p-5">
+      <div className="mb-4">
+        <h2 className="text-heading text-fg-primary">연결된 계정</h2>
+        <p className="mt-1 text-body text-fg-secondary">
           YouTube, Twitch, SOOP 채널을 프로필에 표시할 수 있습니다.
         </p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {(Object.keys(connectedPlatformMeta) as ConnectedPlatformId[]).map((platformId) => {
           const meta = connectedPlatformMeta[platformId];
           const account = connectedAccounts[platformId];
           const Icon = meta.icon;
 
           return (
-            <div key={platformId} className="rounded-2xl bg-zinc-50 p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div key={platformId} className="rounded-control bg-subtle p-3">
+              <div className="flex flex-col gap-3">
                 <div className="flex min-w-0 items-center gap-4">
-                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white ${meta.color}`}>
-                    <Icon size={24} />
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white ${meta.color}`}>
+                    <Icon size={18} />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-lg font-black text-black">{meta.label}</h3>
+                    <h3 className="text-body font-semibold text-fg-primary">{meta.label}</h3>
                     {account ? (
                       <a
                         href={account.url}
                         target="_blank"
                         rel="noreferrer"
-                        className="truncate text-sm font-bold text-blue-600 hover:underline"
+                        className="block truncate text-label text-fg-brand hover:underline"
                       >
                         {account.handle}
                       </a>
                     ) : (
-                      <p className="text-sm font-bold text-zinc-400">아직 연결되지 않았습니다.</p>
+                      <p className="text-body text-fg-secondary">아직 연결되지 않았습니다.</p>
                     )}
                   </div>
                 </div>
@@ -1047,7 +1023,7 @@ export default function ProfilePage() {
                       href={account.url}
                       target="_blank"
                       rel="noreferrer"
-                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-zinc-100"
+                      className="btn-secondary"
                     >
                       <ExternalLink size={16} />
                       열기
@@ -1055,7 +1031,7 @@ export default function ProfilePage() {
                     <button
                       type="button"
                       onClick={() => handleDisconnectPlatform(platformId)}
-                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-red-500 transition hover:bg-red-50"
+                      className="btn-secondary text-fg-danger! hover:bg-danger-subtle!"
                     >
                       <Trash2 size={16} />
                       해제
@@ -1069,7 +1045,8 @@ export default function ProfilePage() {
                         setPlatformInputs({ ...platformInputs, [platformId]: event.target.value })
                       }
                       placeholder={meta.placeholder}
-                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                      aria-label={`${meta.label} 채널 ID`}
+                      className="input-base min-w-0 bg-surface!"
                     />
                     <button
                       type="button"
@@ -1087,6 +1064,11 @@ export default function ProfilePage() {
       </div>
     </section>
   );
+
+  const isOwnProfile = Boolean(profile && currentUser && (
+    profile.handle === currentUser.handle || profile.id === currentUser.id
+  ));
+  const mileageBalance = useMileageBalance(isOwnProfile && !loading ? currentUser?.id : undefined, 'mobile');
 
   if (!currentUser || loading) {
     return (
@@ -1108,421 +1090,469 @@ export default function ProfilePage() {
     );
   }
 
-  const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
   const disconnectTargetConfig = disconnectTarget ? GAME_STATS_UI_CONFIG[disconnectTarget] : null;
   const displayedCover =
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
+  const linkedAccounts = Object.values(connectedAccounts).filter((account) => account !== null);
   const tabs = [
-    { name: 'posts' as const, label: '게시글', icon: <Grid size={16} /> },
-    { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
-    { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
+    { name: 'posts' as const, label: '게시글' },
+    { name: 'stats' as const, label: '전적' },
+    { name: 'media' as const, label: '미디어' },
   ];
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl bg-background pb-20 md:px-8 md:pt-6">
-      <div className="relative h-32 overflow-hidden bg-zinc-950 md:h-56 md:rounded-2xl">
-        <Image
-          src={displayedCover}
-          alt={`${profile.nickname} profile cover`}
-          fill
-          priority
-          unoptimized
-          sizes="(max-width: 1152px) 100vw, 1152px"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
-      </div>
+    <div className="mx-auto flex w-full gap-10 px-4 pb-6 pt-2 md:px-6 lg:pt-5 xl:pr-0">
+      <div className="min-w-0 flex-1">
+        <div className="relative h-32 overflow-hidden rounded-xl bg-subtle md:h-56 md:rounded-card">
+          <Image
+            src={displayedCover}
+            alt={`${profile.nickname} profile cover`}
+            fill
+            priority
+            unoptimized
+            sizes="(min-width: 1280px) 600px, 100vw"
+            className="object-cover"
+          />
+        </div>
 
-      <div className="px-4 md:px-6">
-        <div className="relative mb-4 flex items-end justify-between -mt-10 md:mb-8 md:-mt-16">
-          <div className="relative">
-            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-background bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
-              {displayedAvatar ? (
-                <Image
-                  src={displayedAvatar}
-                  alt="프로필 이미지"
-                  fill
-                  unoptimized
-                  sizes="(max-width: 768px) 80px, 144px"
-                  className="object-cover"
-                />
+        <header>
+          <div className="relative -mt-9 mb-4 flex items-end justify-between gap-2 md:-mt-11">
+            <div className="ml-3 shrink-0 md:ml-4">
+              <div className="relative flex size-[72px] items-center justify-center overflow-hidden rounded-full border-4 border-canvas bg-subtle text-body text-fg-secondary md:size-[88px]">
+                {displayedAvatar ? (
+                  <Image
+                    src={displayedAvatar}
+                    alt="프로필 이미지"
+                    fill
+                    unoptimized
+                    sizes="(min-width: 768px) 88px, 72px"
+                    className="object-cover"
+                  />
+                ) : (
+                  getInitials(profile.nickname)
+                )}
+              </div>
+            </div>
+
+            <div className="relative top-3 flex flex-wrap justify-end gap-2 md:top-2">
+              {isOwnProfile ? (
+                <>
+                  <Link href="/settings" className="btn-secondary-square" aria-label="설정">
+                    <Settings size={18} className="text-icon-secondary" />
+                  </Link>
+                  <button type="button" onClick={() => setShowEditProfileModal(true)} className="btn-secondary">
+                    프로필 수정
+                  </button>
+                </>
               ) : (
-                getInitials(profile.nickname)
+                <>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setProfileReportMenuOpen((current) => !current)}
+                      className="btn-secondary-square"
+                      aria-label="사용자 메뉴"
+                      aria-expanded={profileReportMenuOpen}
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
+
+                    {profileReportMenuOpen ? (
+                      <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileReportMenuOpen(false);
+                            setProfileReportOpen(true);
+                          }}
+                          className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                        >
+                          <Flag size={15} />
+                          사용자 신고
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfileReportMenuOpen(false)}
+                          className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
+                    title="메시지"
+                    className="btn-secondary-square"
+                    aria-label="메시지"
+                  >
+                    <MessageCircle size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleFollow}
+                    disabled={followLoading}
+                    className={isFollowing ? 'btn-secondary' : 'btn-primary'}
+                  >
+                    {isFollowing ? '팔로잉' : '팔로우'}
+                  </button>
+                </>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-end gap-1.5 md:mb-1 md:gap-2">
-            {isOwnProfile ? (
-              <>
-            <Link
-              href="/wallet"
-              className="btn-secondary-square max-md:h-9! max-md:w-9! lg:hidden"
-              aria-label="내 지갑"
-            >
-              <WalletCards size={18} />
-            </Link>
-            <Link
-              href="/settings"
-              className="btn-secondary-square max-md:h-9! max-md:w-9!"
-              aria-label="설정"
-            >
-              <Settings size={18} />
-            </Link>
-            <button
-              onClick={() => setShowEditProfileModal(true)}
-              className="btn-primary max-md:h-9! max-md:px-3.5! max-md:text-xs!"
-            >
-              <Edit3 size={14} />
-              프로필 수정
-            </button>
-              </>
-            ) : (
-              <>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setProfileReportMenuOpen((current) => !current)}
-                    className="btn-secondary-square max-md:h-9! max-md:w-9!"
-                    aria-label="사용자 메뉴"
-                    aria-expanded={profileReportMenuOpen}
+          <div className="space-y-3">
+            <div>
+              <h1 className="flex items-center gap-2 text-title text-fg-primary">
+                <span className="min-w-0 break-all">{profile.nickname}</span>
+                <MembershipBadge active={profile.membershipBadge} size={24} /><RepresentativeTierBadge tier={profile.representativeTier} size={24} />
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="min-w-0 break-all text-body text-fg-tertiary">@{profile.handle}</p>
+                {!isOwnProfile && profile.followsViewer ? (
+                  <span className="rounded-full bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
+                    나를 팔로우합니다
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-body text-fg-primary">
+              {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
+            </p>
+
+            {profile.location || profile.website ? (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-caption text-fg-secondary">
+                {profile.location ? (
+                  <div className="flex min-w-0 max-w-full items-center gap-1.5">
+                    <MapPin size={16} className="shrink-0" />
+                    <span className="truncate">{profile.location}</span>
+                  </div>
+                ) : null}
+                {profile.website ? (
+                  <a
+                    href={profile.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 max-w-full items-center gap-1.5 transition hover:text-fg-brand"
                   >
-                    <MoreHorizontal size={18} />
-                  </button>
+                    <Globe size={16} className="shrink-0" />
+                    <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
 
-                  {profileReportMenuOpen ? (
-                    <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setProfileReportMenuOpen(false);
-                          setProfileReportOpen(true);
-                        }}
-                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-                      >
-                        <Flag size={15} />
-                        사용자 신고
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setProfileReportMenuOpen(false)}
-                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
-                      >
-                        취소
-                      </button>
-                    </div>
-                  ) : null}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
-                  title="메시지"
-                  className="btn-secondary-square max-md:h-9! max-md:w-9!"
-                  aria-label="메시지"
-                >
-                  <MessageCircle size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleToggleFollow}
-                  disabled={followLoading}
-                  className={`${isFollowing ? 'btn-secondary' : 'btn-primary'} max-md:h-9! max-md:px-3.5! max-md:text-xs!`}
-                >
-                  {isFollowing ? '팔로잉' : '팔로우'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <h1 className="page-title flex items-center gap-2">
-              {profile.nickname}
-              <MembershipBadge active={profile.membershipBadge} size={24} /><RepresentativeTierBadge tier={profile.representativeTier} size={24} />
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
-              {!isOwnProfile && profile.followsViewer ? (
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black leading-none tracking-tight text-zinc-500">
-                  나를 팔로우합니다
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <button
+                type="button"
+                onClick={() => openFollowList('followers')}
+                className="flex min-h-8 items-center gap-1 text-left transition hover:underline focus-visible:outline-2 focus-visible:outline-fg-brand"
+              >
+                <span className="text-body font-medium text-fg-primary">
+                  {profile.followersCount.toLocaleString()}
                 </span>
-              ) : null}
+                <span className="text-body text-fg-secondary">팔로워</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openFollowList('following')}
+                className="flex min-h-8 items-center gap-1 text-left transition hover:underline focus-visible:outline-2 focus-visible:outline-fg-brand"
+              >
+                <span className="text-body font-medium text-fg-primary">
+                  {profile.followingCount.toLocaleString()}
+                </span>
+                <span className="text-body text-fg-secondary">팔로잉</span>
+              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-body font-medium text-fg-primary">{profile.postCount.toLocaleString()}</span>
+                <span className="text-body text-fg-secondary">게시글</span>
+              </div>
             </div>
           </div>
 
-          <p className="max-w-xl whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-800 md:text-base">
-            {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
-          </p>
+          {isOwnProfile ? (
+            <Link
+              href="/wallet"
+              className="mt-3 flex items-center gap-3 rounded-xl border border-line-card bg-surface px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand lg:hidden"
+            >
+              <WalletCards size={20} className="shrink-0 text-icon-secondary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-caption text-fg-tertiary">마일리지</p>
+                <p className="text-body font-medium text-fg-primary">
+                  {mileageBalance === null ? '—' : `${mileageBalance.toLocaleString('ko-KR')} M`}
+                </p>
+              </div>
+              <span className="text-label text-fg-brand">충전 ›</span>
+            </Link>
+          ) : null}
+        </header>
 
-          {profile.location || profile.website ? (
-            <div className="flex max-w-xl flex-wrap gap-4 text-sm font-bold text-zinc-500">
-              {profile.location ? (
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <MapPin size={16} className="shrink-0" />
-                  <span className="truncate">{profile.location}</span>
+        <div data-view-occluder="top" className="sticky top-[var(--app-header-height)] z-10 mt-3 flex gap-6 border-b border-line bg-canvas md:mt-4">
+          {tabs.map((tab) => (
+            <button
+              key={tab.name}
+              type="button"
+              onClick={() => setActiveTab(tab.name)}
+              aria-pressed={activeTab === tab.name}
+              className={`h-12 border-b-2 text-body transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-fg-brand ${
+                activeTab === tab.name ? 'border-brand font-semibold text-fg-primary' : 'border-transparent text-fg-secondary hover:text-fg-primary'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="pt-4">
+          {activeTab === 'stats' ? (
+            <section className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-heading text-fg-primary">인증된 전적</h2>
+
+                {isOwnProfile ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => setShowFetchStatsModal(true)}
+                      className="btn-secondary px-3!"
+                    >
+                      <Plus size={14} className="sm:size-4" />
+                      전적 추가
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void handleRefreshStats()}
+                      disabled={isRefreshing || isDisconnectingGame}
+                      className="btn-secondary-square"
+                      aria-label="연결된 게임 전적 새로고침"
+                    >
+                      <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+              {gameStatEntries.length === 0 ? (
+                <p className="rounded-card border border-line-card bg-surface p-5 text-body text-fg-secondary">
+                  아직 연결된 게임 전적이 없습니다.
+                </p>
+              ) : gameStatEntries.map((entry) => {
+                const iconMeta = getGameIconMeta(entry.gameName);
+
+                return (
+                  <article key={entry.gameName} className="rounded-card border border-line-card bg-surface p-4 md:p-5">
+                    <div className="flex items-center gap-3">
+                      <div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-control bg-subtle">
+                        {iconMeta ? (
+                          <Image
+                            src={iconMeta.url}
+                            alt={`${entry.gameName} 아이콘`}
+                            fill
+                            sizes="36px"
+                            className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
+                          />
+                        ) : (
+                          <Gamepad2 size={20} className="text-icon-secondary" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="break-words text-heading text-fg-primary">{entry.displayName}</h3>
+                        {entry.detail ? <p className="break-words text-caption text-fg-tertiary">{entry.detail}</p> : null}
+                      </div>
+                      {entry.syncedAt && parseDisplayTime(entry.syncedAt) ? (
+                        <p className="hidden text-caption text-fg-tertiary sm:block">{formatRelativeTimeLabel(entry.syncedAt)}</p>
+                      ) : null}
+                      {isOwnProfile && entry.disconnectGameName ? (
+                        <button
+                          type="button"
+                          onClick={() => setDisconnectTarget(entry.disconnectGameName)}
+                          disabled={isRefreshing || isDisconnectingGame}
+                          className="btn-icon hover:bg-danger-subtle hover:text-fg-danger"
+                          aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연결 해제`}
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      ) : null}
+                    </div>
+                    {typeof entry.stats === 'string' ? (
+                      <p className="mt-3 break-words text-body text-fg-secondary">{entry.stats}</p>
+                    ) : (
+                      <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {entry.stats.map(({ label, value }) => (
+                          <div key={label} className="min-w-0 rounded-control bg-subtle px-3 py-2.5">
+                            <dt className="text-caption text-fg-secondary">{label}</dt>
+                            <dd className={`break-words text-heading ${label === '티어' ? 'text-fg-brand' : 'text-fg-primary'}`}>
+                              {value}
+                            </dd>
+                          </div>
+                        ))}
+                      </dl>
+                    )}
+                  </article>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {activeTab === 'posts' ? (
+            <div className="space-y-3">
+              {postsLoading ? (
+                <PostListSkeleton />
+              ) : postsError ? (
+                <div className="py-16 text-center">
+                  <p className="font-black text-red-500">{postsError}</p>
+                  <button
+                    type="button"
+                    onClick={() => void reloadPosts()}
+                    className="btn-primary mt-4"
+                  >
+                    다시 시도
+                  </button>
                 </div>
-              ) : null}
-              {profile.website ? (
-                <a
-                  href={profile.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex min-w-0 max-w-full items-center gap-1.5 transition hover:text-black"
+              ) : posts.length === 0 ? (
+                <div className="py-16 text-center">
+                  <h3 className="section-title mb-1">아직 게시글이 없습니다</h3>
+                  <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시글이 없습니다.</p>
+                </div>
+              ) : (
+                posts.map((post) => (
+                  <Post
+                    key={post.postId}
+                    post={post}
+                    likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                    onToggleLike={toggleLike}
+                    onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                    onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
+                    onShare={handlePostUpdated}
+                    onRepostChange={handleRepostChanged}
+                    onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                    onBookmarkChange={handleBookmarkChanged}
+                  />
+                ))
+              )}
+
+              {postsHasNext ? (
+                <button
+                  type="button"
+                  onClick={() => void loadMorePosts()}
+                  disabled={loadingMorePosts}
+                  className="btn-secondary w-full"
                 >
-                  <Globe size={16} className="shrink-0" />
-                  <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
-                </a>
+                  {loadingMorePosts ? '불러오는 중...' : '게시글 더 보기'}
+                </button>
               ) : null}
             </div>
           ) : null}
 
-          <div className="flex flex-wrap gap-x-5 gap-y-1 md:gap-8">
-            <button
-              type="button"
-              onClick={() => openFollowList('followers')}
-              className="flex items-center gap-2 text-left transition hover:opacity-70"
-            >
-              <span className="text-lg font-black text-black md:text-2xl">
-                {profile.followersCount.toLocaleString()}
-              </span>
-              <span className="text-xs font-bold text-zinc-500">팔로워</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openFollowList('following')}
-              className="flex items-center gap-2 text-left transition hover:opacity-70"
-            >
-              <span className="text-lg font-black text-black md:text-2xl">
-                {profile.followingCount.toLocaleString()}
-              </span>
-              <span className="text-xs font-bold text-zinc-500">팔로잉</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black text-black md:text-2xl">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-bold text-zinc-500">게시글</span>
+          {activeTab === 'media' ? (
+            <div className="space-y-4">
+              {mediaItems.length === 0 ? (
+                <div className="py-16 text-center">
+                  <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
+                  <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시글이 여기에 표시됩니다.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-1">
+                  {mediaItems.map((item) => (
+                    <button
+                      key={item.mediaId}
+                      type="button"
+                      onClick={() => handleOpenPost(item.postNumber)}
+                      className="relative aspect-square overflow-hidden rounded-md border border-line-card bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand"
+                      aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시글 상세 보기`}
+                    >
+                      {item.mediaType === 'VIDEO' ? (
+                        <>
+                          <video
+                            muted
+                            playsInline
+                            preload="metadata"
+                            poster={item.thumbnailUrl ?? undefined}
+                            src={item.mediaUrl}
+                            className="h-full w-full bg-black object-cover"
+                          />
+                          <span className="absolute right-1 top-1 rounded-md bg-black/60 p-1 text-white">
+                            <Play size={14} fill="currentColor" />
+                          </span>
+                        </>
+                      ) : (
+                        <div className="relative h-full w-full">
+                          <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
+                        </div>
+                      )}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {mediaHasNext ? (
+                <button
+                  type="button"
+                  onClick={handleLoadMoreMedia}
+                  disabled={loadingMoreMedia}
+                  className="btn-secondary w-full"
+                >
+                  {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
+                </button>
+              ) : null}
+              {isOwnProfile ? renderConnectedAccounts() : null}
             </div>
-          </div>
+          ) : null}
         </div>
       </div>
 
-      <div data-view-occluder="top" className="sticky top-[var(--app-header-height)] z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.name}
-            onClick={() => setActiveTab(tab.name)}
-            className={`relative flex h-12 flex-1 items-center justify-center gap-2 text-sm font-black transition-all md:flex-none ${
-              activeTab === tab.name ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-300 hover:text-zinc-500'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-            {activeTab === tab.name ? (
-              <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black dark:bg-[#f5b93d]" />
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-0 md:pt-6">
-        {activeTab === 'stats' ? (
-          <div className="m-4 rounded-2xl border border-zinc-200 bg-white p-4 md:m-0 md:p-8">
-            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
-              <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
-
-              {isOwnProfile ? (
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  <button
-                    onClick={() => setShowFetchStatsModal(true)}
-                    className="flex items-center gap-1 rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-800 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-                  >
-                    <Plus size={14} className="sm:size-4" />
-                    전적 추가
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshStats()}
-                    disabled={isRefreshing || isDisconnectingGame}
-                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
-                    aria-label="연결된 게임 전적 새로고침"
-                  >
-                    <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="space-y-2 sm:space-y-4">
-              {gameStatEntries.length === 0 ? (
-                <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
-                  아직 연결된 게임 전적이 없습니다.
-                </div>
-              ) : (
-                gameStatEntries.map((entry) => {
-                  const iconMeta = getGameIconMeta(entry.gameName);
+      <aside aria-label="프로필 요약" className="hidden w-[300px] shrink-0 space-y-4 pt-2 xl:block">
+        {activeTab !== 'stats' ? (
+          <section>
+            <h2 className="mb-3 text-heading text-fg-primary">인증된 전적</h2>
+            {gameStatEntries.length === 0 ? (
+              <p className="rounded-card border border-line-card bg-surface p-4 text-label text-fg-secondary">
+                아직 연결된 게임 전적이 없습니다.
+              </p>
+            ) : (
+              <ul className="divide-y divide-line rounded-card border border-line-card bg-surface px-4">
+                {gameStatEntries.map((entry) => {
+                  const metrics = typeof entry.stats === 'string' ? [] : entry.stats;
+                  const tier = metrics.find(({ label }) => label === '티어');
+                  const summary = typeof entry.stats === 'string' ? entry.stats : metrics
+                    .filter(({ label }) => label === 'K/D' || label === 'KDA' || label === '승률' || label === '판수')
+                    .map(({ label, value }) => label === '판수' ? `${value}판` : `${label} ${value}`)
+                    .join(' · ');
 
                   return (
-                    <div
-                      key={entry.gameName}
-                      className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-5 md:px-5"
-                    >
-                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:h-12 sm:w-12 sm:rounded-xl">
-                          {iconMeta ? (
-                            <Image
-                              src={iconMeta.url}
-                              alt={`${entry.gameName} 아이콘`}
-                              fill
-                              sizes="48px"
-                              className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
-                            />
-                          ) : (
-                            <Gamepad2 size={24} className="text-zinc-400" />
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
-                          {entry.detail ? (
-                            <p className="max-w-xl break-keep text-xs font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
-                          ) : null}
-                          <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
-                        </div>
+                    <li key={entry.gameName} className="space-y-1 py-3">
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                        <p className="break-words text-body font-medium text-fg-primary">{entry.displayName}</p>
+                        {tier ? <p className="text-label text-fg-brand">{tier.value}</p> : null}
                       </div>
-
-                      <div className="flex shrink-0 items-center gap-2 text-right">
-                        {entry.syncedAt && parseDisplayTime(entry.syncedAt) ? (
-                          <p className="hidden text-sm font-black tracking-widest text-zinc-400 sm:block">{formatRelativeTimeLabel(entry.syncedAt)}</p>
-                        ) : null}
-                        {isOwnProfile && entry.disconnectGameName ? (
-                          <button
-                            type="button"
-                            onClick={() => setDisconnectTarget(entry.disconnectGameName)}
-                            disabled={isRefreshing || isDisconnectingGame}
-                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
-                            aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연결 해제`}
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        ) : null}
-                      </div>
-                    </div>
+                      <p className="break-words text-caption text-fg-secondary">{summary}</p>
+                    </li>
                   );
-                })
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === 'posts' ? (
-          <div className="space-y-3 p-4 md:p-0">
-            {postsLoading ? (
-              <PostListSkeleton />
-            ) : postsError ? (
-              <div className="py-16 text-center">
-                <p className="font-black text-red-500">{postsError}</p>
-                <button
-                  type="button"
-                  onClick={() => void reloadPosts()}
-                  className="btn-primary mt-4"
-                >
-                  다시 시도
-                </button>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="py-16 text-center">
-                <h3 className="section-title mb-1">아직 게시글이 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시글이 없습니다.</p>
-              </div>
-            ) : (
-              posts.map((post) => (
-                <Post
-                  key={post.postId}
-                  post={post}
-                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
-                  onToggleLike={toggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
-                  onShare={handlePostUpdated}
-                  onRepostChange={handleRepostChanged}
-                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={handleBookmarkChanged}
-                />
-              ))
+                })}
+              </ul>
             )}
-
-            {postsHasNext ? (
-              <button
-                type="button"
-                onClick={() => void loadMorePosts()}
-                disabled={loadingMorePosts}
-                className="btn-secondary w-full"
-              >
-                {loadingMorePosts ? '불러오는 중...' : '게시글 더 보기'}
-              </button>
-            ) : null}
-          </div>
+          </section>
         ) : null}
-
-        {activeTab === 'media' ? (
-          <div className="space-y-4 p-4 md:space-y-6 md:p-0">
-            {isOwnProfile ? renderConnectedAccounts() : null}
-
-            {mediaItems.length === 0 ? (
-              <div className="py-16 text-center">
-                <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시글이 여기에 표시됩니다.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1 md:gap-4">
-                {mediaItems.map((item) => (
-                  <button
-                    key={item.mediaId}
-                    type="button"
-                    onClick={() => handleOpenPost(item.postNumber)}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                    aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시글 상세 보기`}
-                  >
-                    {item.mediaType === 'VIDEO' ? (
-                      <>
-                        <video
-                          muted
-                          playsInline
-                          preload="metadata"
-                          poster={item.thumbnailUrl ?? undefined}
-                          src={item.mediaUrl}
-                          className="h-full w-full bg-black object-cover transition duration-300 group-hover:scale-105"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm md:h-12 md:w-12">
-                            <Play size={18} className="ml-0.5 fill-white" />
-                          </span>
-                        </span>
-                      </>
-                    ) : (
-                      <div className="relative h-full w-full">
-                        <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
-                      </div>
-                    )}
-                  </button>
+        {isOwnProfile ? (
+          <section>
+            <h2 className="mb-2 text-heading text-fg-primary">연결된 계정</h2>
+            {linkedAccounts.length > 0 ? (
+              <ul className="space-y-1">
+                {linkedAccounts.map((account) => (
+                  <li key={account.id} className="flex items-baseline justify-between gap-3 py-1">
+                    <span className="text-body text-fg-secondary">{account.label}</span>
+                    <a href={account.url} target="_blank" rel="noreferrer" className="min-w-0 truncate text-label text-fg-primary hover:underline">
+                      {account.handle}
+                    </a>
+                  </li>
                 ))}
-              </div>
-            )}
-
-            {mediaHasNext ? (
-              <button
-                type="button"
-                onClick={handleLoadMoreMedia}
-                disabled={loadingMoreMedia}
-                className="btn-secondary w-full"
-              >
-                {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
-              </button>
-            ) : null}
-          </div>
+              </ul>
+            ) : <p className="text-label text-fg-secondary">아직 연결된 계정이 없습니다.</p>}
+          </section>
         ) : null}
-      </div>
+      </aside>
 
       {isOwnProfile && showFetchStatsModal ? (
         <FetchGameStatsModal
@@ -1636,7 +1666,7 @@ export default function ProfilePage() {
                           onClick={closeFollowList}
                           className="flex min-w-0 flex-1 items-center gap-3"
                         >
-                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-body text-fg-secondary">
                             {followUserRecord.profileImageUrl ? (
                               <Image
                                 src={followUserRecord.profileImageUrl}

@@ -69,14 +69,17 @@ for (const mode of [
     expect(calls.connects()).toBe(0);
     await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
     await page.getByRole('button', { name: '연결', exact: true }).last().click();
-    await expect(page.getByText('GOLD I · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
+    await expect(page.locator('dd').getByText('GOLD I', { exact: true })).toBeVisible();
+    for (const value of ['3.25', '60%', '20']) {
+      await expect(page.locator('dd').getByText(value, { exact: true })).toBeVisible();
+    }
     await expect(page.getByText('소환사', { exact: true })).toBeVisible();
     await expect(page.getByText('경쟁전 PubgPlayer', { exact: true })).toBeVisible();
     if (mode.width === 1440) await expect(page.getByText('GOLD I', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
-    await expect(page.getByText('PLATINUM IV · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
+    await expect(page.locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'League of Legends 전적 연결 해제' }).click();
     await page.getByRole('button', { name: '연결 해제', exact: true }).click();
     await expect(page.getByRole('button', { name: 'League of Legends 전적 연결 해제' })).toHaveCount(0);
@@ -97,7 +100,7 @@ test('Riot 계정 연결 후 요약 조회 실패는 연결을 유지하고 새�
   await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
   await expect(page.getByText(/Riot API Key/)).toHaveCount(0);
   await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
-  await expect(page.getByText('PLATINUM IV · KDA 3.25 · 승률 60% · 20게임', { exact: true })).toBeVisible();
+  await expect(page.locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
   expect(calls.connects()).toBe(1);
 });
 
