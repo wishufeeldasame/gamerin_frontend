@@ -15,10 +15,11 @@ export const VIEW_DWELL_MS = 1_000;
 export const VIEW_BATCH_SIZE = 50;
 export const VIEW_FLUSH_DELAY_MS = 5_000;
 
-// 카드가 화면보다 훨씬 길면 비율이 0.5에 못 미친다. 0.1 단위로 받아 보이는 높이로도 판정하고, 1초가 끝날 때 다시 잰다.
+// 카드가 화면보다 길면 비율이 0.5에 못 미친다. 화면 높이 기준 경계는 threshold로 잡을 수 없어,
+// 화면에 걸친 카드가 있는 동안 스크롤마다(프레임당 1번) 다시 재고 1초가 끝날 때도 다시 잰다.
 const THRESHOLDS = Array.from({ length: 11 }, (_, index) => index / 10);
 
-type Target = { postId: string; seen: boolean; timer: ReturnType<typeof setTimeout> | null };
+type Target = { postId: string; intersecting: boolean; seen: boolean; timer: ReturnType<typeof setTimeout> | null };
 
 let ownerId: string | null = null;
 const reported = new Set<string>();
@@ -28,6 +29,9 @@ let pendingGeneration: number | null = null;
 let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let observer: IntersectionObserver | null = null;
 const targets = new Map<Element, Target>();
+let recheckFrame: number | null = null;
+let watchingScroll = false;
+const SCROLL_OPTIONS = { capture: true, passive: true } as const;
 
 function flush(keepalive = false) {
   if (flushTimer !== null) {
@@ -88,11 +92,39 @@ function arm(element: Element, target: Target) {
   if (target.seen && !document.hidden) target.timer ??= setTimeout(() => commit(element), VIEW_DWELL_MS);
 }
 
+function recheck() {
+  recheckFrame = null;
+  targets.forEach((target, element) => {
+    if (!target.intersecting) return;
+    target.seen = isSeenNow(element);
+    if (target.seen) arm(element, target);
+    else disarm(target);
+  });
+}
+
+function scheduleRecheck() {
+  recheckFrame ??= requestAnimationFrame(recheck);
+}
+
+function updateScrollWatch() {
+  const needed = [...targets.values()].some((target) => target.intersecting);
+  if (needed === watchingScroll) return;
+  watchingScroll = needed;
+  if (needed) {
+    window.addEventListener('scroll', scheduleRecheck, SCROLL_OPTIONS);
+    window.addEventListener('resize', scheduleRecheck);
+  } else {
+    window.removeEventListener('scroll', scheduleRecheck, SCROLL_OPTIONS);
+    window.removeEventListener('resize', scheduleRecheck);
+  }
+}
+
 function unobserve(element: Element) {
   const target = targets.get(element);
   if (target) disarm(target);
   targets.delete(element);
   observer?.unobserve(element);
+  updateScrollWatch();
 }
 
 function commit(element: Element) {
@@ -100,7 +132,6 @@ function commit(element: Element) {
   if (!target) return;
   target.timer = null;
   if (document.hidden) return;
-  // shortcut: 1초 사이 기준 아래로 내려갔다 같은 0.1 구간 안에서 돌아오면 놓친다. 정확히 하려면 스크롤마다 다시 재야 한다.
   if (!isSeenNow(element)) {
     target.seen = false;
     return;
@@ -113,10 +144,12 @@ function handleEntries(entries: IntersectionObserverEntry[]) {
   for (const entry of entries) {
     const target = targets.get(entry.target);
     if (!target) continue;
+    target.intersecting = entry.isIntersecting;
     target.seen = isSeen(entry);
     if (target.seen) arm(entry.target, target);
     else disarm(target);
   }
+  updateScrollWatch();
 }
 
 function getObserver() {
@@ -152,7 +185,7 @@ export function usePostViewImpression(
       pending = [];
     }
     if (reported.has(postId)) return;
-    targets.set(element, { postId, seen: false, timer: null });
+    targets.set(element, { postId, intersecting: false, seen: false, timer: null });
     getObserver().observe(element);
     return () => unobserve(element);
   }, [ref, postId, userId]);
@@ -163,6 +196,9 @@ export function resetPostViewImpressionForTest() {
   if (flushTimer !== null) clearTimeout(flushTimer);
   targets.forEach(disarm);
   targets.clear();
+  if (recheckFrame !== null) cancelAnimationFrame(recheckFrame);
+  recheckFrame = null;
+  updateScrollWatch();
   flushTimer = null;
   observer = null;
   ownerId = null;

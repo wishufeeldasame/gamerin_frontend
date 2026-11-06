@@ -137,6 +137,38 @@ describe('usePostViewImpression', () => {
     expect(recordPostViews).toHaveBeenCalledWith(['tall'], { keepalive: false });
   });
 
+  it('긴 카드가 콜백 없이 화면 높이 절반 경계를 넘으면 스크롤 때 다시 재서 센다', () => {
+    const { container } = render(<Card postId="tall" />);
+    const card = cardOf(container, 'tall');
+    show(card, 300, 3000);
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).not.toHaveBeenCalled();
+    place(card, 400, 3000);
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    advance(20);
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).toHaveBeenCalledWith(['tall'], { keepalive: false });
+  });
+
+  it('스크롤로 기준 아래로 내려가면 타이머를 끈다', () => {
+    const { container } = render(<Card postId="a" />);
+    const card = cardOf(container, 'a');
+    show(card, 400);
+    advance(500);
+    place(card, 100);
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    advance(20);
+    place(card, 400);
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    advance(20);
+    advance(600);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(recordPostViews).not.toHaveBeenCalled();
+    advance(VIEW_DWELL_MS);
+    act(() => { window.dispatchEvent(new Event('pagehide')); });
+    expect(recordPostViews).toHaveBeenCalledWith(['a'], { keepalive: true });
+  });
+
   it('탭을 숨기면 1초를 처음부터 다시 잰다', () => {
     const { container } = render(<Card postId="a" />);
     show(cardOf(container, 'a'), 400);
