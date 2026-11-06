@@ -8,6 +8,7 @@ import { PostComposer } from '@/app/home/components/PostComposer';
 import { PendingPostCard } from '@/app/home/components/PendingPostCard';
 import { Post } from '@/app/home/components/Post';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
+import { SuggestedFriendsCard } from '@/app/home/components/SuggestedFriendsCard';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
 import { usePostLike } from '@/hooks/usePostLike';
@@ -270,7 +271,8 @@ function HomePageContent() {
         </div>
       </main>
 
-      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 py-6 xl:block">
+      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 space-y-6 py-6 xl:block">
+        <SuggestedFriendsCard />
         <RightSidebar />
       </aside>
     </div>

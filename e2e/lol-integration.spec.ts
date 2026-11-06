@@ -100,7 +100,7 @@ test('Riot 계정 연결 후 요약 조회 실패는 연결을 유지하고 새�
   await openLolPrompt(page);
   await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
   await page.getByRole('button', { name: '연결', exact: true }).last().click();
-  await expect(page.getByText('계정 연결됨 · 전적 새로고침으로 불러와 주세요.', { exact: true })).toBeVisible();
+  await expect(lolCard(page).getByText('계정 연결됨 · 전적 새로고침으로 불러와 주세요.', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'League of Legends 전적 연결 해제' })).toBeVisible();
   await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
   await expect(page.getByText(/Riot API Key/)).toHaveCount(0);
@@ -117,6 +117,6 @@ test('다른 사용자의 요약 없는 Riot 연결에는 새로고침 안내를
   } } }));
   await page.goto('/profile/other');
   await page.getByRole('tab', { name: '전적', exact: true }).click();
-  await expect(page.getByText('계정 연결됨', { exact: true })).toBeVisible();
+  await expect(lolCard(page).getByText('계정 연결됨', { exact: true })).toBeVisible();
   await expect(page.getByText(/전적 새로고침으로/)).toHaveCount(0);
 });

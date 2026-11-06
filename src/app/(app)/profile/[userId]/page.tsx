@@ -29,6 +29,7 @@ import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
 import { ReportContentModal } from '@/app/home/components/Report';
+import { SuggestedFriendsCard } from '@/app/home/components/SuggestedFriendsCard';
 import {
   PostRecord,
   FollowUserRecord,
@@ -1097,7 +1098,6 @@ export default function ProfilePage() {
   const displayedCover =
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
-  const showStatsSummary = activeTab !== 'stats';
   const tabs = [
     { name: 'posts' as const, label: '게시글' },
     { name: 'stats' as const, label: '전적' },
@@ -1105,7 +1105,7 @@ export default function ProfilePage() {
   ];
 
   return (
-    <div className={`mx-auto flex w-full gap-10 px-4 pb-6 pt-2 md:px-6 lg:pt-5 ${showStatsSummary ? 'xl:pr-0' : ''}`}>
+    <div className="mx-auto flex w-full gap-10 px-4 pb-6 pt-2 md:px-6 lg:pt-5 xl:pr-0">
       <div className="min-w-0 flex-1">
         <div className="relative h-32 overflow-hidden rounded-xl bg-subtle md:h-56 md:rounded-card">
           <Image
@@ -1561,42 +1561,41 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {showStatsSummary ? (
-        <aside
-          aria-label="프로필 요약"
-          className="hidden w-[300px] shrink-0 pt-2 xl:sticky xl:top-[var(--app-header-height)] xl:block xl:self-start"
-        >
-          <section>
-            <h2 className="mb-3 text-heading text-fg-primary">인증된 전적</h2>
-            {gameStatEntries.length === 0 ? (
-              <p className="rounded-card border border-line-card bg-surface p-4 text-label text-fg-secondary">
-                아직 연결된 게임 전적이 없습니다.
-              </p>
-            ) : (
-              <ul className="divide-y divide-line rounded-card border border-line-card bg-surface px-4">
-                {gameStatEntries.map((entry) => {
-                  const metrics = typeof entry.stats === 'string' ? [] : entry.stats;
-                  const tier = metrics.find(({ label }) => label === '티어');
-                  const summary = typeof entry.stats === 'string' ? entry.stats : metrics
-                    .filter(({ label }) => label === 'K/D' || label === 'KDA' || label === '승률' || label === '판수')
-                    .map(({ label, value }) => label === '판수' ? `${value}판` : `${label} ${value}`)
-                    .join(' · ');
+      <aside
+        aria-label="프로필 요약"
+        className="hidden w-[300px] shrink-0 space-y-6 pt-2 xl:sticky xl:top-[var(--app-header-height)] xl:block xl:self-start"
+      >
+        <section>
+          <h2 className="mb-3 text-heading text-fg-primary">인증된 전적</h2>
+          {gameStatEntries.length === 0 ? (
+            <p className="rounded-card border border-line-card bg-surface p-4 text-label text-fg-secondary">
+              아직 연결된 게임 전적이 없습니다.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line rounded-card border border-line-card bg-surface px-4">
+              {gameStatEntries.map((entry) => {
+                const metrics = typeof entry.stats === 'string' ? [] : entry.stats;
+                const tier = metrics.find(({ label }) => label === '티어');
+                const summary = typeof entry.stats === 'string' ? entry.stats : metrics
+                  .filter(({ label }) => label === 'K/D' || label === 'KDA' || label === '승률' || label === '판수')
+                  .map(({ label, value }) => label === '판수' ? `${value}판` : `${label} ${value}`)
+                  .join(' · ');
 
-                  return (
-                    <li key={entry.gameName} className="space-y-1 py-3">
-                      <div className="flex flex-wrap items-baseline justify-between gap-x-2">
-                        <p className="break-words text-body font-medium text-fg-primary">{entry.displayName}</p>
-                        {tier ? <p className="text-label text-fg-brand">{tier.value}</p> : null}
-                      </div>
-                      <p className="break-words text-caption text-fg-secondary">{summary}</p>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </section>
-        </aside>
-      ) : null}
+                return (
+                  <li key={entry.gameName} className="space-y-1 py-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                      <p className="break-words text-body font-medium text-fg-primary">{entry.displayName}</p>
+                      {tier ? <p className="text-label text-fg-brand">{tier.value}</p> : null}
+                    </div>
+                    <p className="break-words text-caption text-fg-secondary">{summary}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <SuggestedFriendsCard />
+      </aside>
 
       {isOwnProfile && showFetchStatsModal ? (
         <FetchGameStatsModal

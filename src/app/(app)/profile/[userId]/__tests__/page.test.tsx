@@ -197,7 +197,7 @@ describe('ProfilePage', () => {
     expect(statsTab).toBeInTheDocument();
 
     fireEvent.click(statsTab);
-    expect(await screen.findByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+    expect(within(screen.getByRole('tabpanel', { name: '전적' })).getByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
   });
 
   it('방향키와 Home·End로 프로필 탭을 이동하고 패널을 전환한다', async () => {
@@ -209,17 +209,18 @@ describe('ProfilePage', () => {
     expect(posts).toHaveAttribute('tabindex', '0');
     expect(stats).toHaveAttribute('tabindex', '-1');
     expect(document.getElementById(stats.getAttribute('aria-controls')!)).not.toBeVisible();
-    expect(screen.getByRole('complementary', { name: '프로필 요약', hidden: true })).toBeInTheDocument();
+    const summary = screen.getByRole('complementary', { name: '프로필 요약', hidden: true });
 
     fireEvent.keyDown(posts, { key: 'ArrowRight' });
     expect(stats).toHaveFocus();
     expect(stats).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tabpanel', { name: '전적' })).toBeVisible();
-    expect(screen.queryByRole('complementary', { name: '프로필 요약', hidden: true })).not.toBeInTheDocument();
+    expect(summary).toBeInTheDocument();
 
     fireEvent.keyDown(stats, { key: 'End' });
     expect(media).toHaveFocus();
     expect(screen.getByRole('tabpanel', { name: '미디어' })).toBeVisible();
+    expect(summary).toBeInTheDocument();
 
     fireEvent.keyDown(media, { key: 'Home' });
     expect(posts).toHaveFocus();
@@ -273,7 +274,7 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
     fireEvent.click(await screen.findByRole('tab', { name: '전적' }));
 
-    expect(await screen.findByText('Gold 2 40RR')).toBeInTheDocument();
+    expect(within(screen.getByRole('tabpanel', { name: '전적' })).getByText('Gold 2 40RR')).toBeInTheDocument();
     for (const value of ['Platinum 1', '1.20', '215', '24%', '60%', '10']) {
       expect(screen.getByText(value, { selector: 'dd' })).toBeInTheDocument();
     }
