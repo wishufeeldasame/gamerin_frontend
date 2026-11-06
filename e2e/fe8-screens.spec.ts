@@ -111,7 +111,7 @@ async function checkIconHovers(page: Page, theme: 'light' | 'dark') {
   }
 }
 
-test('프로필 전적 요약은 스크롤에 고정되고 전적 탭은 한 열을 쓴다', async ({ page }) => {
+test('프로필 탭을 바꿔도 본문 폭과 오른쪽 전적 요약을 유지한다', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await installAuditFixture(page, 'dark', { linkedStats: true });
   await page.route('**/api/v1/users/viewer/posts?**', route => route.fulfill({
@@ -130,12 +130,17 @@ test('프로필 전적 요약은 스크롤에 고정되고 전적 탭은 한 열
   await page.evaluate(() => window.scrollTo(0, 500));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(500);
   await expect.poll(async () => (await summary.boundingBox())?.y).toBe(0);
-  const postsWidth = (await page.getByRole('tabpanel', { name: '게시글' }).boundingBox())?.width ?? 0;
+  const postsBox = await page.getByRole('tabpanel', { name: '게시글' }).boundingBox();
+  expect(postsBox).not.toBeNull();
 
-  await page.getByRole('tab', { name: '전적' }).click();
-  await expect(summary).toHaveCount(0);
-  const statsWidth = (await page.getByRole('tabpanel', { name: '전적' }).boundingBox())?.width ?? 0;
-  expect(statsWidth).toBeGreaterThan(postsWidth);
+  for (const name of ['전적', '미디어']) {
+    await page.getByRole('tab', { name }).click();
+    await expect(summary).toBeVisible();
+    await expect.poll(() => page.getByRole('tabpanel', { name }).boundingBox()).toMatchObject({
+      x: postsBox?.x,
+      width: postsBox?.width,
+    });
+  }
 });
 
 for (const width of [1440, 375]) {
