@@ -161,17 +161,17 @@
 }
 
 .dark {
-  --canvas: #0C0C0E;
-  --subtle: #1F1F24;
+  --canvas: #19191D;
+  --subtle: var(--surface-elevated);
   --inverse: #FFFFFF;
   --brand-hover: #FBCD5A;
   --brand-subtle: #2A2112;
   --danger-subtle: #2A1212;
   --success-subtle: #0F2416;
-  --nav-active: #1F1F24;
+  --nav-active: var(--subtle);
   --fg-primary: #F4F4F5;
   --fg-secondary: #A1A1AA;
-  --fg-tertiary: #8B8B94;
+  --fg-tertiary: #94949E;
   --fg-brand: #F8C24A;
   --fg-danger: #F87171;
   --fg-success: #4ADE80;
@@ -182,11 +182,11 @@
   --line-danger: #F87171;
   --line-card: transparent;
   /* 바탕 → 표면 → 한 단계 밝은 표면 순으로 밝아지는 뉴트럴 3단계 (#138) */
-  --background: #0c0c0e;
+  --background: var(--canvas);
   --foreground: #ededef;
-  --surface: #151518;
-  --surface-elevated: #1f1f24;
-  --line: #2a2a30;
+  --surface: #222226;
+  --surface-elevated: #2B2B31;
+  --line: #38383F;
   --avatar: #303037;
 }
 

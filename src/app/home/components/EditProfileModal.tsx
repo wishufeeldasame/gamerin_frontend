@@ -104,6 +104,7 @@ export function EditProfileModal({
     website: userInfo?.website || '',
   });
   const [coverPreview, setCoverPreview] = useState<string>(coverImage || DEFAULT_PROFILE_COVER);
+  const isDefaultCover = coverPreview === DEFAULT_PROFILE_COVER;
   const [avatarPreview, setAvatarPreview] = useState<string | null>(avatarImage);
   const [saving, setSaving] = useState(false);
   const [processingImage, setProcessingImage] = useState(false);
@@ -270,16 +271,16 @@ export function EditProfileModal({
             </button>
           </div>
 
-          <div onClick={handleCoverClick} className="relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden">
+          <div onClick={handleCoverClick} className={`relative h-48 bg-zinc-900 group cursor-pointer overflow-hidden ${isDefaultCover ? 'dark:bg-surface-elevated' : ''}`}>
             <Image
               src={coverPreview}
               alt="커버 이미지"
               fill
               unoptimized
               sizes="(max-width: 768px) 100vw, 768px"
-              className="object-cover opacity-60 group-hover:scale-105 transition-transform duration-700"
+              className={`object-cover opacity-60 group-hover:scale-105 transition-transform duration-700 ${isDefaultCover ? 'dark:hidden' : ''}`}
             />
-            <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-all">
+            <div className={`absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/40 transition-all ${isDefaultCover ? 'dark:bg-transparent dark:group-hover:bg-black/20' : ''}`}>
               <div className="flex flex-col items-center gap-2">
                 <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/30 shadow-xl">
                   <Camera size={24} />

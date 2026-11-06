@@ -1115,7 +1115,7 @@ export default function ProfilePage() {
             priority
             unoptimized
             sizes="(min-width: 1280px) 600px, 100vw"
-            className="object-cover"
+            className={displayedCover === DEFAULT_PROFILE_COVER ? 'object-cover dark:hidden' : 'object-cover'}
           />
         </div>
 
