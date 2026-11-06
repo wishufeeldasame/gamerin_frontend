@@ -1210,7 +1210,8 @@ export default function ProfilePage() {
             <div>
               <h1 className="flex items-center gap-2 text-title text-fg-primary">
                 <span className="min-w-0 break-all">{profile.nickname}</span>
-                <MembershipBadge active={profile.membershipBadge} size={24} /><RepresentativeTierBadge tier={profile.representativeTier} size={24} />
+                <MembershipBadge active={profile.membershipBadge} size={24} />
+                <RepresentativeTierBadge tier={profile.representativeTier} size={24} />
               </h1>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="min-w-0 break-all text-body text-fg-tertiary">@{profile.handle}</p>

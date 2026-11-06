@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord, UserProfile } from '@/lib/feed-api';
@@ -243,6 +243,21 @@ describe('ProfilePage', () => {
     expect(cover).toHaveAttribute('src', '/images/default-profile-cover.svg');
     expect(cover).toHaveClass('object-cover');
     expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
+  });
+
+  it.each([false, true])('닉네임 옆에 대표 티어를 멤버십 여부(%s)와 독립적으로 표시한다', async (membershipBadge) => {
+    api.fetchUserProfile.mockResolvedValue({
+      ...profile,
+      membershipBadge,
+      representativeTier: { game: 'VALORANT', tierLabel: 'Ascendant 3' },
+    });
+    render(<ProfilePage />);
+
+    const header = within(await screen.findByRole('heading', { level: 1 }));
+    const tier = header.getByRole<HTMLImageElement>('img', { name: 'VALORANT Ascendant 3' });
+    expect(new URL(tier.src).pathname).toBe('/images/tiers/valorant/ascendant-3.png');
+    expect(tier).not.toHaveAttribute('srcset');
+    expect(header.queryAllByRole('img', { name: '멤버십 회원' })).toHaveLength(membershipBadge ? 1 : 0);
   });
 
   it('발로란트 전적을 현재·최고 티어와 경쟁전 지표로 표시한다', async () => {
