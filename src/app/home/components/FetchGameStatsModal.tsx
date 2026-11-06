@@ -50,13 +50,6 @@ interface FetchGameStatsModalProps {
   onConnected?: () => Promise<void> | void;
 }
 
-const GAME_TRANSFER_RECIPIENT: Record<ConnectableGame, string> = {
-  LOL: 'Riot API',
-  PUBG: 'PUBG API',
-  R6: 'r6data.com',
-  VALORANT: 'HenrikDev API',
-};
-
 function getGameLabel(game: ConnectableGame) {
   if (game === 'LOL') return 'League of Legends';
   if (game === 'VALORANT') return 'VALORANT';
@@ -127,14 +120,12 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   const [promptGame, setPromptGame] = useState<ConnectableGame | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [playerNameError, setPlayerNameError] = useState('');
-  const [transferConsent, setTransferConsent] = useState(false);
   const [valorantRegion, setValorantRegion] = useState<ValorantRegion>('KR');
 
   const handleConnect = (gameName: string, connectableGame?: ConnectableGame) => {
     if (connectableGame) {
       setPlayerName('');
       setPlayerNameError('');
-      setTransferConsent(false);
       setValorantRegion('KR');
       setPromptGame(connectableGame);
       return;
@@ -148,7 +139,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   };
 
   const handleSubmit = async () => {
-    if (!promptGame || connectingGame || !transferConsent) {
+    if (!promptGame || connectingGame) {
       return;
     }
 
@@ -227,7 +218,6 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
     setPromptGame(null);
     setPlayerName('');
     setPlayerNameError('');
-    setTransferConsent(false);
   };
 
   const selectedGameLabel = promptGame ? getGameLabel(promptGame) : '';
@@ -385,16 +375,6 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   {playerNameError ? (
                     <p className="text-xs font-bold leading-relaxed text-red-500">{playerNameError}</p>
                   ) : null}
-                  <label className="flex items-start gap-2 text-xs font-bold leading-relaxed text-zinc-500">
-                    <input
-                      type="checkbox"
-                      className="mt-0.5 h-4 w-4 shrink-0 accent-black dark:accent-[#f5b93d]"
-                      checked={transferConsent}
-                      onChange={(event) => setTransferConsent(event.target.checked)}
-                    />
-                    전적 조회를 위해 입력한 정보를 국외의 {GAME_TRANSFER_RECIPIENT[promptGame]}로 보내는 데
-                    동의합니다.
-                  </label>
                 </div>
 
                 <div className="flex items-center gap-4 border-t border-zinc-100 bg-zinc-50 p-6">
@@ -406,7 +386,6 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                   </button>
                   <button
                     onClick={() => void handleSubmit()}
-                    disabled={!transferConsent}
                     className="btn-primary flex-1"
                   >
                     연결

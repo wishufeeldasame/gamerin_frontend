@@ -19,17 +19,14 @@ vi.mock('@/lib/game-stats-api', () => ({
 import { FetchGameStatsModal } from '../FetchGameStatsModal';
 
 describe('FetchGameStatsModal', () => {
-  it('국외 전송에 동의해야 게임 계정을 연결할 수 있다', async () => {
+  it('동의 체크 없이 바로 게임 계정을 연결한다', async () => {
     render(<FetchGameStatsModal onClose={vi.fn()} />);
     const row = screen.getByRole('heading', { name: 'Rainbow Six Siege' }).closest('div.group') as HTMLElement;
     fireEvent.click(within(row).getByRole('button', { name: '연결' }));
     fireEvent.change(screen.getByPlaceholderText('Ubisoft Connect 닉네임을 입력하세요'), { target: { value: 'player' } });
 
-    const submit = screen.getAllByRole('button', { name: '연결' }).at(-1) as HTMLElement;
-    expect(submit).toBeDisabled();
-
-    fireEvent.click(screen.getByLabelText(/r6data\.com/));
-    fireEvent.click(submit);
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: '연결' }).at(-1) as HTMLElement);
 
     await waitFor(() => expect(mocks.connectR6).toHaveBeenCalledWith('player'));
   });
@@ -41,7 +38,6 @@ describe('FetchGameStatsModal', () => {
 
     const input = screen.getByLabelText('Riot ID');
     fireEvent.change(input, { target: { value: '요원' } });
-    fireEvent.click(screen.getByLabelText(/HenrikDev API/));
     const submit = screen.getAllByRole('button', { name: '연결' }).at(-1) as HTMLElement;
     fireEvent.click(submit);
     expect(await screen.findByText(/닉네임#태그 형식/)).toBeInTheDocument();
