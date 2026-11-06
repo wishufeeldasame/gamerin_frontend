@@ -39,12 +39,12 @@ export function RelatedHashtagPosts({ content, excludePostId }: { content: strin
           <li key={item.postId}>
             <Link
               href={getPostHref(item.postNumber)}
-              className="block h-full rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-line dark:bg-surface"
+              className="block h-full rounded-card border border-line-card bg-surface p-4 transition-colors hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus"
             >
-              <p className="text-xs font-bold text-zinc-400">
+              <p className="text-caption text-fg-tertiary">
                 {item.author} · <RelativeTime createdAt={item.createdAt} />
               </p>
-              <p className="mt-1 line-clamp-2 text-sm font-medium text-zinc-800">{item.content || '미디어 게시글'}</p>
+              <p className="mt-1 line-clamp-2 text-body text-fg-primary">{item.content || '미디어 게시글'}</p>
             </Link>
           </li>
         ))}

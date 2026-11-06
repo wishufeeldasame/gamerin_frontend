@@ -126,7 +126,7 @@ describe('PostDetail comment concurrency', () => {
     fireEvent.change(screen.getByRole('textbox', { name: '댓글 입력' }), {
       target: { value: '새 댓글 첫 줄\n새 댓글 둘째 줄' },
     });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     await waitFor(() => {
       const submitted = Array.from(container.querySelectorAll('p.whitespace-pre-wrap'))
         .find((element) => element.textContent === '새 댓글 첫 줄\n새 댓글 둘째 줄');
@@ -140,7 +140,7 @@ describe('PostDetail comment concurrency', () => {
     const { onPostUpdated } = await renderDetail();
     const input = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(input, { target: { value: 'pending comment' } });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     fireEvent.click(screen.getByRole('button', { name: '좋아요 2개', pressed: false }));
     await screen.findByRole('button', { name: '좋아요 3개', pressed: true });
     fireEvent.click(screen.getByRole('button', { name: '리포스트', pressed: false }));
@@ -164,10 +164,10 @@ describe('PostDetail comment concurrency', () => {
     await renderDetail();
     const input = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(input, { target: { value: 'retry me' } });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     await act(async () => { failed.reject(new Error('comment failed')); await failed.promise.catch(() => undefined); });
     expect(input).toHaveValue('retry me');
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     fireEvent.change(input, { target: { value: 'newer draft' } });
     await act(async () => { successful.resolve(makeComment('comment-2', 'retry me')); await successful.promise; });
     expect(input).toHaveValue('newer draft');
@@ -196,16 +196,16 @@ describe('PostDetail comment concurrency', () => {
     const { rerender } = await renderDetail(onPostUpdated);
     const firstInput = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(firstInput, { target: { value: 'old response' } });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     rerender(<PostDetail postNumber={2} onBack={vi.fn()} onPostUpdated={onPostUpdated} />);
     await screen.findByText('Post two');
     const secondInput = screen.getByRole('textbox', { name: '댓글 입력' });
     fireEvent.change(secondInput, { target: { value: 'new response' } });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     expect(api.createComment).toHaveBeenNthCalledWith(2, 'post-2', 'new response');
     await act(async () => { oldRequest.resolve(makeComment('old-comment', 'old response')); await oldRequest.promise; });
     expect(screen.queryByText('old response')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '댓글 전송' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '등록' })).toBeDisabled();
     expect(onPostUpdated).not.toHaveBeenCalled();
     await act(async () => { newRequest.resolve(makeComment('new-comment', 'new response')); await newRequest.promise; });
     expect(onPostUpdated.mock.calls[0][0]).toMatchObject({ postId: 'post-2', postNumber: 2, comments: 5 });
@@ -217,7 +217,7 @@ describe('PostDetail comment concurrency', () => {
     const onPostUpdated = vi.fn();
     const { unmount } = await renderDetail(onPostUpdated);
     fireEvent.change(screen.getByRole('textbox', { name: '댓글 입력' }), { target: { value: 'unmounted response' } });
-    fireEvent.click(screen.getByRole('button', { name: '댓글 전송' }));
+    fireEvent.click(screen.getByRole('button', { name: '등록' }));
     unmount();
     await act(async () => { request.resolve(makeComment('after-unmount', 'unmounted response')); await request.promise; });
     expect(onPostUpdated).not.toHaveBeenCalled();

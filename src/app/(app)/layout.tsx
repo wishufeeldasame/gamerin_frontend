@@ -19,8 +19,8 @@ export default function AppLayout({
   const pathname = usePathname();
   const { user, isAuthReady, isSessionUnavailable } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
-  // 알림 페이지는 자체 뒤로 헤더를 쓰므로 모바일 상단 바를 숨긴다.
-  const showTopBar = pathname !== '/notifications';
+  // 알림·게시물 상세는 자체 뒤로 헤더를 쓰므로 모바일 상단 바를 숨긴다(F15).
+  const showTopBar = pathname !== '/notifications' && !pathname.startsWith('/posts/');
 
   useEffect(() => {
     if (!isAuthReady) return;
