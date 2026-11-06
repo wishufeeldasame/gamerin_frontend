@@ -158,7 +158,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/profile/viewer');
         await expect(page.getByRole('button', { name: '프로필 수정', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: '게시글', exact: true })).toBeVisible();
+        await expect(page.getByRole('tab', { name: '게시글', exact: true })).toBeVisible();
         await checkLayout(page, info, 'profile');
         await page.getByRole('button', { name: '프로필 수정', exact: true }).click();
         await expect(page.getByPlaceholder('닉네임을 입력하세요')).toBeVisible();
@@ -166,7 +166,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await checkLayout(page, info, 'edit-profile');
 
         await page.goto('/profile/viewer');
-        await page.getByRole('button', { name: '전적', exact: true }).click();
+        await page.getByRole('tab', { name: '전적', exact: true }).click();
         await page.getByRole('button', { name: '전적 추가', exact: true }).click();
         await expect(page.getByText('게임 전적 연결', { exact: true })).toBeVisible();
         await expect(page.getByText('등급, 승률, 킬/데스/어시스트 비율 연동', { exact: true })).toBeVisible();
