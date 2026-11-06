@@ -225,7 +225,7 @@ function WalletContent() {
                 type="button"
                 disabled={!selectedProduct || selectedForPayment !== null}
                 onClick={() => selectedProduct && setSelectedForPayment(selectedProduct)}
-                className={`btn-primary mt-3 h-[50px]! w-full px-2! text-body! font-medium! ${FOCUS_RING}`}
+                className={`mt-3 inline-flex h-[50px] w-full shrink-0 items-center justify-center rounded-control bg-brand px-2 text-body font-medium text-fg-on-brand transition hover:bg-brand-hover disabled:cursor-not-allowed disabled:bg-subtle disabled:text-fg-tertiary ${FOCUS_RING}`}
               >
                 {selectedProduct ? `카카오페이로 ${money(selectedProduct.price)}원 결제` : '충전 금액을 선택해 주세요'}
               </button>

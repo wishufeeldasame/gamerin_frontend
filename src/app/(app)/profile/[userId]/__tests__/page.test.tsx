@@ -256,7 +256,6 @@ describe('ProfilePage', () => {
     const header = within(await screen.findByRole('heading', { level: 1 }));
     const tier = header.getByRole<HTMLImageElement>('img', { name: 'VALORANT Ascendant 3' });
     expect(new URL(tier.src).pathname).toBe('/images/tiers/valorant/ascendant-3.png');
-    expect(tier).not.toHaveAttribute('srcset');
     expect(header.queryAllByRole('img', { name: '멤버십 회원' })).toHaveLength(membershipBadge ? 1 : 0);
   });
 

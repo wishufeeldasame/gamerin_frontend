@@ -4,7 +4,7 @@ import "./globals.css";
 import { AuthProvider } from '@/app/context/AuthContext';
 import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
 import { FeedbackProviders } from '@/app/context/FeedbackProviders';
-import { APP_THEME_COLORS } from '@/lib/user-settings';
+import { APP_THEME_COLORS } from '@/lib/theme-colors';
 
 // 2. 서비스에 맞는 메타데이터 설정 (가독성과 검색 최적화)
 export const metadata: Metadata = {

@@ -37,6 +37,7 @@ const products = [5_000, 10_000, 30_000, 50_000].map((price) => ({
 describe('WalletPage', () => {
   beforeEach(() => {
     navigation.back.mockReset();
+    navigation.push.mockReset();
     navigation.replace.mockReset();
     mileageApi.fetchMyMileageBalance.mockReset().mockResolvedValue({ currentBalance: 12_500 });
     mileageApi.fetchMyMileageTransactions.mockReset().mockResolvedValue({

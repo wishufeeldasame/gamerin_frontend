@@ -1,6 +1,6 @@
-export type ThemeMode = 'light' | 'dark';
+import { APP_THEME_COLORS } from '@/lib/theme-colors';
 
-export const APP_THEME_COLORS = { light: '#FAFAFA', dark: '#19191D' } as const;
+export type ThemeMode = 'light' | 'dark';
 
 export type UserSettings = {
   theme: ThemeMode;
