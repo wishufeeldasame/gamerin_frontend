@@ -193,11 +193,38 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     await screen.findByTestId('post-post-1');
-    const statsTab = screen.getByRole('button', { name: '전적' });
+    const statsTab = screen.getByRole('tab', { name: '전적' });
     expect(statsTab).toBeInTheDocument();
 
     fireEvent.click(statsTab);
     expect(await screen.findByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+  });
+
+  it('방향키와 Home·End로 프로필 탭을 이동하고 패널을 전환한다', async () => {
+    render(<ProfilePage />);
+    const posts = await screen.findByRole('tab', { name: '게시글', selected: true });
+    const stats = screen.getByRole('tab', { name: '전적', selected: false });
+    const media = screen.getByRole('tab', { name: '미디어', selected: false });
+
+    expect(posts).toHaveAttribute('tabindex', '0');
+    expect(stats).toHaveAttribute('tabindex', '-1');
+    expect(document.getElementById(stats.getAttribute('aria-controls')!)).not.toBeVisible();
+    expect(screen.getByRole('complementary', { name: '프로필 요약', hidden: true })).toBeInTheDocument();
+
+    fireEvent.keyDown(posts, { key: 'ArrowRight' });
+    expect(stats).toHaveFocus();
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: '전적' })).toBeVisible();
+    expect(screen.queryByRole('complementary', { name: '프로필 요약', hidden: true })).not.toBeInTheDocument();
+
+    fireEvent.keyDown(stats, { key: 'End' });
+    expect(media).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: '미디어' })).toBeVisible();
+
+    fireEvent.keyDown(media, { key: 'Home' });
+    expect(posts).toHaveFocus();
+    fireEvent.keyDown(posts, { key: 'ArrowLeft' });
+    expect(media).toHaveFocus();
   });
 
   it.each([
@@ -230,7 +257,7 @@ describe('ProfilePage', () => {
     });
 
     render(<ProfilePage />);
-    fireEvent.click(await screen.findByRole('button', { name: /전적/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: '전적' }));
 
     expect(await screen.findByText('Gold 2 40RR')).toBeInTheDocument();
     for (const value of ['Platinum 1', '1.20', '215', '24%', '60%', '10']) {
@@ -249,7 +276,7 @@ describe('ProfilePage', () => {
     api.fetchMyProfile.mockResolvedValue(ownProfile);
 
     render(<ProfilePage />);
-    fireEvent.click(await screen.findByRole('button', { name: /전적/ }));
+    fireEvent.click(await screen.findByRole('tab', { name: '전적' }));
     fireEvent.click(await screen.findByRole('button', { name: /새로고침/ }));
 
     expect(await screen.findByText(/10분마다 새로고침할 수 있습니다. 7분 뒤/)).toBeInTheDocument();

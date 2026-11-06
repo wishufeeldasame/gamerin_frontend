@@ -149,7 +149,7 @@ for (const width of [390, 1440]) {
       expect(await contrast(page.getByRole('button', { name: '커버 이미지 초기화' }))).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByPlaceholder('닉네임을 입력하세요'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'edit-profile');
-      await page.goto('/profile/viewer'); await page.getByRole('button', { name: '전적', exact: true }).click();
+      await page.goto('/profile/viewer'); await page.getByRole('tab', { name: '전적', exact: true }).click();
       await page.getByRole('button', { name: '전적 추가', exact: true }).click();
       const game = page.getByRole('heading', { name: 'League of Legends', exact: true });
       await expect(game).toBeVisible(); await expect.poll(() => contrast(game)).toBeGreaterThanOrEqual(4.5);

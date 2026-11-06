@@ -46,9 +46,15 @@ async function installLolFixture(page: Page, theme: 'light' | 'dark', failFirstS
   return { connects: () => connectCalls, summaries: () => summaryCalls, disconnects: () => disconnectCalls };
 }
 
+function lolCard(page: Page) {
+  return page.getByRole('tabpanel', { name: '전적' }).getByRole('article').filter({
+    has: page.getByRole('heading', { name: 'League of Legends', exact: true }),
+  });
+}
+
 async function openLolPrompt(page: Page) {
   await page.goto('/profile/viewer');
-  await page.getByRole('button', { name: '전적', exact: true }).click();
+  await page.getByRole('tab', { name: '전적', exact: true }).click();
   await page.getByRole('button', { name: '전적 추가' }).click();
   await page.locator('div.group').filter({ has: page.getByRole('heading', { name: 'League of Legends', exact: true }) }).getByRole('button', { name: '연결', exact: true }).click();
 }
@@ -69,17 +75,16 @@ for (const mode of [
     expect(calls.connects()).toBe(0);
     await page.getByRole('textbox', { name: 'Riot ID' }).fill('소환사#KR1');
     await page.getByRole('button', { name: '연결', exact: true }).last().click();
-    await expect(page.locator('dd').getByText('GOLD I', { exact: true })).toBeVisible();
+    await expect(lolCard(page).locator('dd').getByText('GOLD I', { exact: true })).toBeVisible();
     for (const value of ['3.25', '60%', '20']) {
-      await expect(page.locator('dd').getByText(value, { exact: true })).toBeVisible();
+      await expect(lolCard(page).locator('dd').getByText(value, { exact: true })).toBeVisible();
     }
     await expect(page.getByText('소환사', { exact: true })).toBeVisible();
     await expect(page.getByText('경쟁전 PubgPlayer', { exact: true })).toBeVisible();
-    if (mode.width === 1440) await expect(page.getByText('GOLD I', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
-    await expect(page.locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
+    await expect(lolCard(page).locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'League of Legends 전적 연결 해제' }).click();
     await page.getByRole('button', { name: '연결 해제', exact: true }).click();
     await expect(page.getByRole('button', { name: 'League of Legends 전적 연결 해제' })).toHaveCount(0);
@@ -100,7 +105,7 @@ test('Riot 계정 연결 후 요약 조회 실패는 연결을 유지하고 새�
   await expect(page.getByText('internal-account-identifier')).toHaveCount(0);
   await expect(page.getByText(/Riot API Key/)).toHaveCount(0);
   await page.getByRole('button', { name: '연결된 게임 전적 새로고침' }).click();
-  await expect(page.locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
+  await expect(lolCard(page).locator('dd').getByText('PLATINUM IV', { exact: true })).toBeVisible();
   expect(calls.connects()).toBe(1);
 });
 
@@ -111,7 +116,7 @@ test('다른 사용자의 요약 없는 Riot 연결에는 새로고침 안내를
     gameStats: { RIOT: { connected: true } }, verifiedBadge: false, followersCount: 0, followingCount: 0, postCount: 0, mediaPostCount: 0, mediaItemCount: 0,
   } } }));
   await page.goto('/profile/other');
-  await page.getByRole('button', { name: '전적', exact: true }).click();
+  await page.getByRole('tab', { name: '전적', exact: true }).click();
   await expect(page.getByText('계정 연결됨', { exact: true })).toBeVisible();
   await expect(page.getByText(/전적 새로고침으로/)).toHaveCount(0);
 });

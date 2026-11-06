@@ -4,6 +4,7 @@ import { auditPost, auditVisibleText, controlContrast, installAuditFixture, type
 
 type Screen = { name: string; path: string; anonymous?: boolean; mentor?: boolean; linkedStats?: boolean; attachments?: boolean; programState?: 'apply' | 'closed' | 'applied'; fixtureMode?: AuditMode; action?: (page: Page, theme: 'light' | 'dark') => Promise<void> };
 const click = (name: string) => async (page: Page) => { await page.getByRole('button', { name, exact: true }).click(); };
+const clickTab = (name: string) => async (page: Page) => { await page.getByRole('tab', { name, exact: true }).click(); };
 const verifySignupEmail = async (page: Page) => { await click('인증번호 받기')(page); await page.getByLabel('인증번호').fill('123456'); await click('확인')(page); await expect(page.getByText('이메일 인증이 완료되었습니다.')).toBeVisible(); };
 async function checkHover(control: Locator, theme: 'light' | 'dark', lightBackground: number[]) {
   await control.hover();
@@ -19,7 +20,7 @@ async function checkHover(control: Locator, theme: 'light' | 'dark', lightBackgr
 const screens: Screen[] = [
   { name: 'composer-suggestions-hover', path: '/home', action: async (page, theme) => { await page.getByPlaceholder('무슨 생각을 하고 있나요?').fill('#게'); await checkHover(page.getByRole('button', { name: /#게임.*게시글 1개/ }), theme, [250, 250, 250]); } },
   { name: 'profile-follower-row-hover', path: '/profile/viewer', action: async (page, theme) => { await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByRole('heading', { name: '팔로워', exact: true })).toBeVisible(); await checkHover(page.getByRole('link', { name: /대화상대/ }).locator('..'), theme, [250, 250, 250]); } },
-  { name: 'profile-disconnect-cancel-hover', path: '/profile/viewer', linkedStats: true, action: async (page, theme) => { await click('전적')(page); await click('PUBG 전적 연결 해제')(page); await expect(page.getByRole('heading', { name: 'PUBG 전적 연결을 해제할까요?' })).toBeVisible(); await checkHover(page.getByRole('button', { name: '취소', exact: true }), theme, [244, 244, 245]); } },
+  { name: 'profile-disconnect-cancel-hover', path: '/profile/viewer', linkedStats: true, action: async (page, theme) => { await clickTab('전적')(page); await click('PUBG 전적 연결 해제')(page); await expect(page.getByRole('heading', { name: 'PUBG 전적 연결을 해제할까요?' })).toBeVisible(); await checkHover(page.getByRole('button', { name: '취소', exact: true }), theme, [244, 244, 245]); } },
   { name: 'messages-attachment-trigger-hover', path: '/messages', action: async (page, theme) => { await page.getByRole('button', { name: /대화상대/ }).click(); await checkHover(page.getByRole('button', { name: '첨부 메뉴', exact: true }), theme, [228, 228, 231]); } },
   { name: 'home', path: '/home' },
   { name: 'home-load-more-error', path: '/home', action: async page => { let firstRequests = 0, nextRequests = 0; await page.route('**/api/v1/feed?*', route => { if (new URL(route.request().url()).searchParams.has('cursor')) return route.fulfill({ status: 500, json: { success: false, message: '추가 페이지 조회 실패' } }); return route.fulfill({ json: { success: true, data: { items: [auditPost], nextCursor: 'next-page', hasNext: true } } }); }); /* Dev StrictMode aborts its first effect's fetch, so count only completed requests. */ page.on('requestfinished', request => { const url = new URL(request.url()); if (url.pathname !== '/api/v1/feed') return; if (url.searchParams.has('cursor')) nextRequests++; else firstRequests++; }); /* The pre-reload document may still be hydrating and hit this route too; let it settle before counting. */ await page.waitForLoadState('networkidle'); firstRequests = nextRequests = 0; await page.reload(); await page.evaluate(() => scrollTo(0, document.body.scrollHeight)); await expect(page.locator('main [role="alert"] > span').filter({ hasText: '추가 페이지 조회 실패' })).toBeVisible(); expect(firstRequests).toBe(1); expect(nextRequests).toBe(1); } },
@@ -31,8 +32,8 @@ const screens: Screen[] = [
   { name: 'profile-posts', path: '/profile/viewer' },
   { name: 'profile-report-hover', path: '/profile/recipient', action: async (page, theme) => { await click('사용자 메뉴')(page); await checkHover(page.getByRole('button', { name: '사용자 신고', exact: true }), theme, [254, 242, 242]); } },
   { name: 'profile-cancel-hover', path: '/profile/recipient', action: async (page, theme) => { await click('사용자 메뉴')(page); await checkHover(page.getByRole('button', { name: '취소', exact: true }), theme, [250, 250, 250]); } },
-  { name: 'profile-stats', path: '/profile/viewer', action: click('전적') },
-  { name: 'profile-media', path: '/profile/viewer', action: click('미디어') },
+  { name: 'profile-stats', path: '/profile/viewer', action: clickTab('전적') },
+  { name: 'profile-media', path: '/profile/viewer', action: clickTab('미디어') },
   { name: 'settings-account', path: '/settings' },
   { name: 'settings-theme', path: '/settings', action: click('테마') },
   { name: 'settings-tab-hover', path: '/settings', action: async (page, theme) => { const tab = page.getByRole('button', { name: '테마', exact: true }); await expect(tab).not.toHaveAttribute('aria-current', 'page'); await checkHover(tab, theme, [244, 244, 245]); } },
@@ -81,14 +82,14 @@ const screens: Screen[] = [
   { name: 'reset-invalid', path: '/auth/reset-password?token=fixture', anonymous: true, action: async page => { await page.getByPlaceholder('새 비밀번호', { exact: true }).fill('short'); } },
   { name: 'login-focus', path: '/login', anonymous: true, action: async page => { await click('아이디로 로그인')(page); await page.locator('input[name="username"]').focus(); } },
   { name: 'modal-edit-profile', path: '/profile/viewer', action: click('프로필 수정') },
-  { name: 'modal-game-stats', path: '/profile/viewer', action: async page => { await click('전적')(page); await click('전적 추가')(page); } },
+  { name: 'modal-game-stats', path: '/profile/viewer', action: async page => { await clickTab('전적')(page); await click('전적 추가')(page); } },
   { name: 'modal-share', path: '/posts/1', action: async page => { await click('게시글 공유')(page); await page.getByRole('button', { name: /대화상대/ }).click(); } },
   { name: 'modal-report', path: '/posts/1', action: async page => { await click('게시글 메뉴')(page); await click('게시글 신고')(page); await click('스팸')(page); } },
   { name: 'modal-report-error', path: '/posts/1', action: async page => { await page.route('**/api/v1/reports', route => route.fulfill({ status: 500, json: { success: false, message: '신고 접수 실패 테스트' } })); await click('게시글 메뉴')(page); await click('게시글 신고')(page); await click('스팸')(page); await click('신고 접수')(page); await page.getByRole('dialog', { name: '신고하시겠습니까?' }).getByRole('button', { name: '신고 접수', exact: true }).click(); await expect(page.getByText('신고 접수 실패 테스트', { exact: true }).first()).toBeVisible(); } },
   { name: 'modal-collection', path: '/posts/1', action: async page => { await page.route('**/api/v1/posts/{post-1,by-number/1}', route => route.fulfill({ json: { success: true, data: { ...auditPost, bookmarkedByMe: false } } })); await page.reload(); await click('북마크 저장')(page); await click('새 모음집 만들기')(page); } },
   { name: 'toast-error', path: '/settings', action: async page => { await click('비밀번호 변경')(page); await expect(page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' })).toBeVisible(); await page.mouse.move(0, 0); } },
   { name: 'modal-confirm', path: '/posts/1', action: async page => { await page.route('**/api/v1/posts/{post-1,by-number/1}', route => route.fulfill({ json: { success: true, data: { ...auditPost, mine: true, authorHandle: 'viewer' } } })); await page.reload(); await click('게시글 메뉴')(page); await click('삭제')(page); await expect(page.getByRole('alertdialog')).toBeVisible(); } },
-  { name: 'profile-linked-stats', path: '/profile/viewer', linkedStats: true, action: click('전적') },
+  { name: 'profile-linked-stats', path: '/profile/viewer', linkedStats: true, action: clickTab('전적') },
   { name: 'profile-followers', path: '/profile/viewer', action: async page => { await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByRole('heading', { name: '팔로워', exact: true })).toBeVisible(); } },
   { name: 'profile-follow-error', path: '/profile/viewer', action: async page => { await page.route('**/api/v1/users/viewer/followers?*', route => route.fulfill({ status: 500, json: { success: false, message: '팔로워를 조회하지 못했습니다.' } })); await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByText('팔로워를 조회하지 못했습니다.')).toBeVisible(); } },
   { name: 'messages-recipient-error', path: '/messages', action: async page => { await page.route('**/api/v1/messages/recipients?*', route => route.fulfill({ status: 500, json: { success: false, message: '사용자를 검색하지 못했습니다.' } })); await click('새 대화 시작')(page); await expect(page.getByText('사용자를 검색하지 못했습니다.')).toBeVisible(); } },
@@ -109,6 +110,33 @@ async function checkIconHovers(page: Page, theme: 'light' | 'dark') {
     if (color) await checkHover(button, theme, colors[color]);
   }
 }
+
+test('프로필 전적 요약은 스크롤에 고정되고 전적 탭은 한 열을 쓴다', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await installAuditFixture(page, 'dark', { linkedStats: true });
+  await page.route('**/api/v1/users/viewer/posts?**', route => route.fulfill({
+    json: { success: true, data: {
+      items: Array.from({ length: 12 }, (_, index) => ({
+        ...auditPost, postId: `profile-post-${index}`, postNumber: index + 1,
+      })),
+      hasNext: false,
+    } },
+  }));
+
+  await page.goto('/profile/viewer');
+  const summary = page.getByRole('complementary', { name: '프로필 요약' });
+  await expect(summary.getByText('GOLD', { exact: true })).toBeVisible();
+  await expect(page.getByRole('tabpanel', { name: '게시글' }).getByRole('article')).toHaveCount(12);
+  await page.evaluate(() => window.scrollTo(0, 500));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(500);
+  await expect.poll(async () => (await summary.boundingBox())?.y).toBe(0);
+  const postsWidth = (await page.getByRole('tabpanel', { name: '게시글' }).boundingBox())?.width ?? 0;
+
+  await page.getByRole('tab', { name: '전적' }).click();
+  await expect(summary).toHaveCount(0);
+  const statsWidth = (await page.getByRole('tabpanel', { name: '전적' }).boundingBox())?.width ?? 0;
+  expect(statsWidth).toBeGreaterThan(postsWidth);
+});
 
 for (const width of [390, 1440]) for (const theme of ['light', 'dark'] as const) {
   test.describe(`${width}px ${theme} full audit`, () => {
