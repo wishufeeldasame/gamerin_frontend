@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Hash, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Post } from '@/app/home/components/Post';
 import { PostListSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
@@ -30,6 +30,7 @@ import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
+import { RightSidebar } from '@/app/home/components/RightSidebar';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -51,39 +52,44 @@ function normalizeQuery(value: string) {
   return value.trim().slice(0, 100);
 }
 
+// 라이트에서 흰 카드 위 yellow/500 포커스는 대비가 3:1에 못 미쳐 text/brand를 쓴다(PR #180과 같은 규칙).
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
+
 function EmptyState({ query, label, compact = false }: { query: string; label: string; compact?: boolean }) {
   // 전체 탭의 섹션별 빈 결과는 한 줄로 줄여 다른 섹션 결과가 밀리지 않게 한다.
   if (compact) {
-    return <p className="rounded-xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-400 dark:bg-surface">{label} 결과가 없습니다.</p>;
+    return <p className="rounded-card border border-line-card bg-surface px-4 py-3 text-body text-fg-secondary">{label} 결과가 없습니다.</p>;
   }
 
   return (
-    <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 px-6 py-10 text-center dark:border-line dark:bg-surface">
-      <Search className="mx-auto text-zinc-300 dark:text-zinc-600" size={28} />
-      <h2 className="section-title mt-3">
+    <div className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+      <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+        <Search size={20} strokeWidth={1.67} aria-hidden="true" />
+      </span>
+      <h2 className="mt-4 text-body font-bold text-fg-primary">
         {query ? (label === '전체' ? '검색 결과가 없습니다.' : `${label} 결과가 없습니다.`) : '검색어를 입력해 주세요.'}
       </h2>
-      <p className="mt-2 text-sm font-bold text-zinc-400">
+      <p className="mt-1 text-body text-fg-secondary">
         {query ? '다른 키워드로 다시 검색해 보세요.' : '위 검색창에서 사용자, 게시글, 해시태그를 검색할 수 있습니다.'}
       </p>
     </div>
   );
 }
 
-function AccountCard({ account }: { account: SimpleUserProfile }) {
+function AccountRow({ account }: { account: SimpleUserProfile }) {
   return (
     <Link
       href={`/profile/${encodeURIComponent(account.handle)}`}
-      className="flex items-center gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-zinc-300 dark:border-line dark:bg-surface"
+      className={`-mx-2 flex items-center gap-3 rounded-control px-2 py-2.5 transition hover:bg-subtle ${FOCUS_RING}`}
     >
-      <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+      <div className="relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-label text-fg-secondary">
         {account.profileImageUrl ? (
           <Image
             src={account.profileImageUrl}
             alt={account.nickname}
             fill
             unoptimized
-            sizes="48px"
+            sizes="40px"
             className="object-cover"
           />
         ) : (
@@ -91,34 +97,27 @@ function AccountCard({ account }: { account: SimpleUserProfile }) {
         )}
       </div>
       <div className="min-w-0 flex-1">
-        <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
+        <p className="flex min-w-0 items-center gap-1.5 text-body font-medium text-fg-primary">
           <span className="truncate">{account.nickname}</span>
           <MembershipBadge active={account.membershipBadge} /><RepresentativeTierBadge tier={account.representativeTier} />
         </p>
-        <p className="truncate text-xs font-bold text-zinc-400">@{account.handle}</p>
+        <p className="truncate text-caption text-fg-tertiary">@{account.handle}</p>
         {account.bio ? (
-          <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500">{account.bio}</p>
+          <p className="mt-0.5 line-clamp-1 text-label font-normal text-fg-secondary">{account.bio}</p>
         ) : null}
       </div>
     </Link>
   );
 }
 
-function HashtagCard({ hashtag }: { hashtag: HashtagSummary }) {
+function HashtagChip({ hashtag }: { hashtag: HashtagSummary }) {
   return (
     <Link
       href={`/hashtags/${encodeURIComponent(hashtag.name)}`}
-      className="flex items-center justify-between gap-4 rounded-2xl border border-zinc-100 bg-white p-4 transition hover:border-emerald-300 dark:border-line dark:bg-surface"
+      className={`inline-flex h-9 max-w-full items-center rounded-full bg-subtle px-3 text-label text-fg-primary transition hover:bg-line ${FOCUS_RING}`}
     >
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 dark:bg-emerald-950/40">
-          <Hash size={20} />
-        </span>
-        <div className="min-w-0">
-          <p className="truncate text-sm font-black text-black dark:text-zinc-100">#{hashtag.name}</p>
-          <p className="text-xs font-bold text-zinc-400">게시글 {hashtag.postCount.toLocaleString()}개</p>
-        </div>
-      </div>
+      <span className="truncate">#{hashtag.name}</span>
+      <span className="ml-1 shrink-0 text-fg-tertiary">· {hashtag.postCount.toLocaleString()}</span>
     </Link>
   );
 }
@@ -133,15 +132,15 @@ function SectionHeader({
   onMore?: () => void;
 }) {
   return (
-    <div className="mb-4 flex items-center justify-between gap-4">
-      <h2 className="text-lg font-black text-black dark:text-zinc-100">{title}</h2>
+    <div className="mb-3 flex items-center justify-between gap-4">
+      <h2 className="text-heading text-fg-primary">{title}</h2>
       {hasMore && onMore ? (
         <button
           type="button"
           onClick={onMore}
-          className="text-xs font-black text-zinc-400 transition hover:text-black dark:hover:text-zinc-100"
+          className={`rounded-sm text-label text-fg-secondary transition hover:text-fg-primary ${FOCUS_RING}`}
         >
-          더보기
+          모두 보기
         </button>
       ) : null}
     </div>
@@ -416,22 +415,32 @@ function SearchPageContent() {
     </div>
   );
 
+  const loadMoreButton = (onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={loadingMore}
+      className="btn-secondary mt-3 w-full"
+    >
+      {loadingMore ? '불러오는 중...' : '더보기'}
+    </button>
+  );
+
   return (
-    <div>
-      <div className="page-container">
-        <header className="pb-7">
+    <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
+      <div className="min-w-0 flex-1 px-4 py-4 md:px-0 lg:py-6">
+        <header className="pb-4">
           <h1 className="page-title">검색 결과</h1>
-          <p className="page-subtitle">
-            {query ? `'${query}'에 대한 결과` : '검색어를 입력해 주세요'}
-          </p>
+          {/* 시안대로 버튼 없이 Enter로 제출한다. 모바일 키보드는 type=search라 검색 키가 나온다. */}
           <form
             role="search"
             onSubmit={handleSearchSubmit}
-            className="mt-4 flex h-12 w-full items-center gap-3 rounded-xl border border-zinc-200 bg-white pl-4 pr-1.5 shadow-sm focus-within:border-[#f5b93d] dark:border-neutral-700 dark:bg-surface"
+            className="mt-4 flex h-11 w-full items-center gap-2.5 rounded-control border border-transparent bg-subtle px-3.5 focus-within:border-line-focus"
           >
             <Search
-              size={19}
-              className="shrink-0 text-zinc-400"
+              size={20}
+              strokeWidth={1.67}
+              className="shrink-0 text-icon-secondary"
               aria-hidden="true"
             />
             <input
@@ -441,19 +450,14 @@ function SearchPageContent() {
               placeholder="사용자, 게시글, 해시태그 검색"
               aria-label="검색 페이지 검색"
               maxLength={100}
-              className="min-w-0 flex-1 bg-transparent text-sm font-medium text-zinc-900 outline-none placeholder:text-zinc-400 dark:text-zinc-100 dark:placeholder:!text-zinc-400"
+              enterKeyHint="search"
+              className="min-w-0 flex-1 bg-transparent text-body text-fg-primary outline-none placeholder:text-fg-tertiary"
             />
-            <button
-              type="submit"
-              className="h-9 shrink-0 rounded-lg bg-black px-4 text-sm font-bold text-white transition hover:bg-zinc-800 dark:bg-[#f5b93d] dark:text-black dark:hover:bg-[#dca62f]"
-            >
-              검색
-            </button>
           </form>
         </header>
 
         <nav
-          className="grid grid-cols-4 border-b border-zinc-200 dark:border-line"
+          className="flex gap-7 border-b border-line"
           aria-label="검색 결과 유형"
         >
           {searchTabs.map((tab) => {
@@ -465,29 +469,31 @@ function SearchPageContent() {
                 type="button"
                 onClick={() => setTab(tab.value)}
                 aria-pressed={isSelected}
-                className={`relative flex min-h-12 items-center justify-center px-2 text-sm font-black transition ${
-                  isSelected
-                    ? 'text-black dark:text-zinc-100'
-                    : 'text-zinc-400 hover:text-zinc-700 dark:text-zinc-500 dark:hover:text-zinc-200'
+                className={`relative shrink-0 py-3 text-body transition-colors ${FOCUS_RING} ${
+                  isSelected ? 'font-bold text-fg-primary' : 'text-fg-tertiary hover:text-fg-secondary'
                 }`}
               >
-                <span>{tab.label}</span>
-                {isSelected ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[#f5b93d]" /> : null}
+                {tab.label}
+                {isSelected ? <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" /> : null}
               </button>
             );
           })}
         </nav>
 
-        <section className="mt-8 min-h-72" aria-live="polite">
+        <section className="mt-6 min-h-72" aria-live="polite">
           {loading ? (
             activeTab === 'accounts' ? <UserRowsSkeleton /> : <PostListSkeleton count={3} label="검색 결과를 불러오는 중" />
           ) : error ? (
-            <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
-              <p className="font-black text-red-500 dark:text-red-300">{error}</p>
+            <div role="alert" className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+                <Search size={20} strokeWidth={1.67} aria-hidden="true" />
+              </span>
+              <p className="mt-4 text-body font-bold text-fg-primary">{error}</p>
+              <p className="mt-1 text-body text-fg-secondary">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
               <button
                 type="button"
                 onClick={() => void reload()}
-                className="btn-primary mt-5"
+                className="btn-secondary mt-6"
               >
                 다시 시도
               </button>
@@ -496,7 +502,7 @@ function SearchPageContent() {
             <EmptyState query={query} label={activeTabLabel} />
           ) : activeTab === 'all' ? (
             overview ? (
-              <div className="space-y-10">
+              <div className="space-y-8">
                 <section>
                   <SectionHeader
                     title="사용자"
@@ -504,9 +510,9 @@ function SearchPageContent() {
                     onMore={() => setTab('accounts')}
                   />
                   {overview.accounts.items.length > 0 ? (
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div>
                       {overview.accounts.items.map((account) => (
-                        <AccountCard key={account.userId} account={account} />
+                        <AccountRow key={account.userId} account={account} />
                       ))}
                     </div>
                   ) : (
@@ -521,9 +527,9 @@ function SearchPageContent() {
                     onMore={() => setTab('hashtags')}
                   />
                   {overview.hashtags.items.length > 0 ? (
-                    <div className="grid gap-3 md:grid-cols-2">
+                    <div className="flex flex-wrap gap-2">
                       {overview.hashtags.items.map((hashtag) => (
-                        <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
+                        <HashtagChip key={hashtag.hashtagId} hashtag={hashtag} />
                       ))}
                     </div>
                   ) : (
@@ -546,21 +552,12 @@ function SearchPageContent() {
           ) : activeTab === 'accounts' ? (
             accounts.length > 0 ? (
               <>
-                <div className="grid gap-3 md:grid-cols-2">
+                <div>
                   {accounts.map((account) => (
-                    <AccountCard key={account.userId} account={account} />
+                    <AccountRow key={account.userId} account={account} />
                   ))}
                 </div>
-                {accountHasNext ? (
-                  <button
-                    type="button"
-                    onClick={() => void loadMoreAccounts()}
-                    disabled={loadingMore}
-                    className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
-                  >
-                    {loadingMore ? '불러오는 중...' : '더보기'}
-                  </button>
-                ) : null}
+                {accountHasNext ? loadMoreButton(() => void loadMoreAccounts()) : null}
               </>
             ) : (
               <EmptyState query={query} label="사용자" />
@@ -569,24 +566,15 @@ function SearchPageContent() {
             posts.length > 0 ? (
               <>
                 {renderPosts(posts)}
-                {postHasNext ? (
-                  <button
-                    type="button"
-                    onClick={() => void loadMorePosts()}
-                    disabled={loadingMore}
-                    className="mt-6 w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
-                  >
-                    {loadingMore ? '불러오는 중...' : '더보기'}
-                  </button>
-                ) : null}
+                {postHasNext ? loadMoreButton(() => void loadMorePosts()) : null}
               </>
             ) : (
               <EmptyState query={query} label="게시글" />
             )
           ) : hashtags.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="flex flex-wrap gap-2">
               {hashtags.map((hashtag) => (
-                <HashtagCard key={hashtag.hashtagId} hashtag={hashtag} />
+                <HashtagChip key={hashtag.hashtagId} hashtag={hashtag} />
               ))}
             </div>
           ) : (
@@ -594,6 +582,10 @@ function SearchPageContent() {
           )}
         </section>
       </div>
+
+      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 py-6 xl:block">
+        <RightSidebar />
+      </aside>
     </div>
   );
 }
@@ -602,7 +594,7 @@ export default function SearchPage() {
   return (
     <Suspense
       fallback={
-        <div className="mx-auto max-w-6xl px-4 py-16 text-center text-sm font-bold text-zinc-400">
+        <div className="px-4 py-16 text-center text-body text-fg-tertiary">
           검색 화면을 불러오는 중입니다.
         </div>
       }

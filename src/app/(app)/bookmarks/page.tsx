@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Bookmark, Folder, ImageIcon, Search } from 'lucide-react';
+import { Bookmark, ImageIcon, Plus, Search } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import {
@@ -34,7 +34,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === keyword.toLowerCase() ? (
-          <mark key={`${part}-${index}`} className="rounded bg-[#f5b93d]/40 px-0.5 text-inherit">
+          <mark key={`${part}-${index}`} className="rounded-sm bg-brand-subtle px-0.5 text-fg-brand">
             {part}
           </mark>
         ) : (
@@ -42,6 +42,90 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
         )
       )}
     </>
+  );
+}
+
+// 라이트에서 흰 바탕 위 yellow/500 포커스는 대비가 부족해 text/brand를 쓴다(PR #180과 같은 규칙).
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
+
+// 시안의 `+ 새 모음집`. 이름 규칙(최대 40자, 빈 이름 불가)은 SaveToCollectionModal과 같다.
+function NewCollectionButton() {
+  const { createCollection } = useBookmarkCollections();
+  const [isOpen, setIsOpen] = useState(false);
+  const [name, setName] = useState('');
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+
+  const close = () => {
+    setIsOpen(false);
+    setName('');
+    setError('');
+  };
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className={`flex h-9 shrink-0 items-center gap-1 rounded-full px-3 text-label text-fg-brand transition hover:bg-subtle xl:h-11 xl:rounded-control ${FOCUS_RING}`}
+      >
+        <Plus size={16} strokeWidth={1.67} aria-hidden="true" />
+        새 모음집
+      </button>
+    );
+  }
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (pending) return;
+
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError('모음집 이름을 입력해 주세요.');
+      return;
+    }
+
+    setPending(true);
+    setError('');
+    try {
+      await createCollection(trimmedName);
+      close();
+    } catch (createError) {
+      setError(createError instanceof Error ? createError.message : '모음집을 만들 수 없습니다.');
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <form onSubmit={(event) => void handleSubmit(event)} className="w-64 shrink-0 xl:mt-2 xl:w-auto">
+      <div className="flex gap-1.5">
+        <input
+          autoFocus
+          value={name}
+          onChange={(event) => {
+            setName(event.target.value);
+            setError('');
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Escape') close();
+          }}
+          onBlur={() => {
+            // 아무것도 적지 않고 벗어나면 닫는다. 모바일에는 Esc가 없다.
+            if (!name.trim() && !pending) close();
+          }}
+          disabled={pending}
+          maxLength={40}
+          placeholder="모음집 이름"
+          aria-label="새 모음집 이름"
+          className="input-base h-9 min-w-0 xl:h-10"
+        />
+        <button type="submit" disabled={pending} className="btn-primary h-9 xl:h-10">
+          {pending ? '저장 중...' : '만들기'}
+        </button>
+      </div>
+      {error ? <p role="alert" className="mt-1 text-caption text-fg-danger">{error}</p> : null}
+    </form>
   );
 }
 
@@ -181,163 +265,130 @@ export default function BookmarksPage() {
     router.push(getPostHref(postNumber, search));
   };
 
+  const selectedLabel = selectedCollection?.name
+    ?? (selectedCollectionId === 'unclassified' ? '미분류' : '전체 북마크');
+  const collectionItems = [
+    { id: 'all', name: '전체 북마크', count: null },
+    { id: 'unclassified', name: '미분류', count: null },
+    ...collections.map((collection) => ({
+      id: collection.collectionId,
+      name: collection.name,
+      count: collectionCountSyncPending ? '동기화 중' : String(collection.bookmarkCount),
+    })),
+  ];
+
   return (
     // 불러오는 동안 화면보다 짧아지면 스크롤바가 사라졌다 다시 생겨 깜빡인다.
-    <div className={`page-container ${loading ? 'min-h-[100dvh]' : ''}`}>
-      <div className="mb-6 flex flex-col gap-4 md:mb-10 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="page-title">북마크</h1>
-          <p className="page-subtitle">
-            북마크 {bookmarks.length}개
-          </p>
-        </div>
+    // 모음집 목록은 한 벌만 렌더링하고, 모바일은 제목 아래 가로 칩, xl 이상은 오른쪽 열 목록(F8)으로 배치만 바꾼다.
+    <div className={`mx-auto grid w-full max-w-6xl grid-cols-1 md:px-8 xl:grid-cols-[minmax(0,1fr)_20rem] xl:grid-rows-[auto_1fr] xl:gap-x-8 ${loading ? 'min-h-[100dvh]' : ''}`}>
+      <header className="min-w-0 px-4 pt-4 md:px-0 lg:pt-6 xl:col-start-1">
+        <h1 className="page-title">북마크</h1>
+        <p className="mt-1 text-caption text-fg-tertiary">
+          {selectedLabel}
+          {/* 전체·미분류는 총개수 API가 없어 다 불러왔을 때만 센다. 모음집은 서버 개수를 쓴다. */}
+          {!loading && !hasNext ? ` · ${bookmarks.length}개` : ''}
+        </p>
 
-        <div className="w-full space-y-3 md:w-96">
-          <div className="relative">
+        <div className="mt-4 flex items-center gap-2">
+          <div className="relative min-w-0 flex-1">
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500"
+              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-icon-secondary"
               size={18}
+              strokeWidth={1.67}
+              aria-hidden="true"
             />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="게시글, 작성자, 게임 검색"
-              className="w-full rounded-2xl border-none bg-zinc-100 py-4 pl-12 pr-4 text-sm font-black text-black shadow-inner outline-none transition-all placeholder:text-zinc-400 focus:ring-2 focus:ring-black dark:!bg-surface dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:shadow-none dark:focus:ring-[#f5b93d]"
+              aria-label="북마크 검색"
+              className="input-base pl-10"
             />
           </div>
 
           <button
             type="button"
             onClick={() => setMediaOnly((current) => !current)}
-            className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2 text-xs font-black transition ${
+            aria-pressed={mediaOnly}
+            className={`inline-flex h-11 shrink-0 items-center gap-1.5 rounded-control px-3 text-label transition ${FOCUS_RING} ${
               mediaOnly
-                ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black'
-                : 'bg-zinc-100 text-zinc-500 hover:text-black dark:bg-surface dark:text-zinc-400 dark:hover:text-zinc-100'
+                ? 'bg-brand-subtle text-fg-brand'
+                : 'bg-subtle text-fg-secondary hover:text-fg-primary'
             }`}
           >
-            <ImageIcon size={14} />
-            미디어만 보기
+            <ImageIcon size={16} strokeWidth={1.67} aria-hidden="true" />
+            미디어만
           </button>
-
         </div>
-      </div>
+      </header>
 
-      <section className="mb-10" aria-label="북마크 모음집">
-        <div className="mb-4 flex items-end justify-between gap-4">
-          <div>
-            <h2 className="text-lg font-black text-black dark:text-zinc-100">모음집</h2>
-            <p className="mt-1 text-xs font-bold text-zinc-400">
-              저장한 게시글을 모음집별로 확인하세요.
-            </p>
-          </div>
-          <span className="text-xs font-black text-zinc-400">
-            {collectionsLoading ? '불러오는 중' : `${collections.length}개`}
+      <aside
+        aria-label="북마크 모음집"
+        className="min-w-0 py-3 xl:sticky xl:top-[var(--app-header-height)] xl:col-start-2 xl:row-span-2 xl:row-start-1 xl:self-start xl:py-6"
+      >
+        <h2 className="mb-3 hidden items-baseline gap-1.5 text-heading text-fg-primary xl:flex">
+          모음집
+          <span className="text-label font-normal text-fg-tertiary">
+            {collectionsLoading ? '불러오는 중' : collections.length}
           </span>
-        </div>
+        </h2>
 
-        <div className="flex gap-3 overflow-x-auto pb-2">
-          <button
-            type="button"
-            onClick={() => setSelectedCollectionId('all')}
-            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
-              selectedCollectionId === 'all'
-                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
-                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
-            }`}
-          >
-            <Bookmark size={20} className="fill-current" />
-            <span>
-              <strong className="block text-sm font-black">전체 북마크</strong>
-              <small className="mt-1 block text-xs font-bold opacity-60">
-                {bookmarks.length}개 게시글
-              </small>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setSelectedCollectionId('unclassified')}
-            className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
-              selectedCollectionId === 'unclassified'
-                ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
-                : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
-            }`}
-          >
-            <Folder size={20} className={selectedCollectionId === 'unclassified' ? 'fill-current' : 'text-zinc-400'} />
-            <span>
-              <strong className="block text-sm font-black">미분류</strong>
-              <small className="mt-1 block text-xs font-bold opacity-60">
-                모음집 없는 북마크
-              </small>
-            </span>
-          </button>
-
-          {collections.map((collection) => {
-            const isSelected = selectedCollectionId === collection.collectionId;
+        <div className="flex gap-2 overflow-x-auto px-4 [scrollbar-width:none] md:px-0 xl:flex-col xl:gap-0.5 xl:overflow-visible">
+          {collectionItems.map((item) => {
+            const isSelected = selectedCollectionId === item.id;
 
             return (
               <button
-                key={collection.collectionId}
+                key={item.id}
                 type="button"
-                onClick={() => setSelectedCollectionId(collection.collectionId)}
-                className={`flex min-h-24 w-40 shrink-0 flex-col justify-between rounded-lg border p-4 text-left transition ${
+                onClick={() => setSelectedCollectionId(item.id)}
+                aria-pressed={isSelected}
+                className={`flex h-9 max-w-56 shrink-0 items-center gap-1.5 rounded-full border px-3 text-label transition xl:h-11 xl:max-w-none xl:justify-between xl:rounded-control xl:border-transparent xl:px-3 xl:text-body ${FOCUS_RING} ${
                   isSelected
-                    ? 'border-black bg-black text-white shadow-lg dark:border-[#f5b93d]/60 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none'
-                    : 'border-zinc-200 bg-white text-black hover:border-zinc-400 dark:border-line dark:bg-surface dark:text-zinc-100 dark:hover:border-neutral-600'
+                    ? 'border-brand bg-brand-subtle text-fg-brand xl:bg-subtle xl:font-medium xl:text-fg-primary'
+                    : 'border-transparent bg-subtle text-fg-secondary hover:text-fg-primary xl:bg-transparent xl:hover:bg-subtle'
                 }`}
               >
-                <Folder size={20} className={isSelected ? 'fill-current' : 'text-zinc-400'} />
-                  <span className="min-w-0">
-                    <strong className="block truncate text-sm font-black">
-                    {collection.name}
-                  </strong>
-                  <small className="mt-1 block text-xs font-bold opacity-60">
-                    {collectionCountSyncPending ? '동기화 중' : `${collection.bookmarkCount}개 게시글`}
-                  </small>
-                </span>
+                <span className="truncate">{item.name}</span>
+                {item.count !== null ? (
+                  <span className={`shrink-0 text-caption ${isSelected ? '' : 'text-fg-tertiary'}`}>{item.count}</span>
+                ) : null}
               </button>
             );
           })}
+          <NewCollectionButton />
         </div>
-      </section>
+      </aside>
 
-      {selectedCollection ? (
-        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
-          <Folder size={16} />
-          <span>{selectedCollection.name}</span>
-        </div>
-      ) : selectedCollectionId === 'unclassified' ? (
-        <div className="mb-5 flex items-center gap-2 text-sm font-black text-zinc-500 dark:text-zinc-400">
-          <Folder size={16} />
-          <span>미분류 북마크</span>
-        </div>
-      ) : null}
-
-
+      <section className="min-w-0 px-4 pb-4 md:px-0 xl:col-start-1 xl:pt-3" aria-label={`${selectedLabel} 게시물`}>
       {loading ? (
         <PostListSkeleton count={3} label="북마크를 불러오는 중" />
       ) : error ? (
-        <div className="rounded-3xl border border-red-100 bg-red-50 p-10 text-center dark:border-red-900 dark:bg-red-950/40">
-          <p className="font-black text-red-500 dark:text-red-300">{error}</p>
+        <div role="alert" className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+            <Bookmark size={20} strokeWidth={1.67} aria-hidden="true" />
+          </span>
+          <p className="mt-4 text-body font-bold text-fg-primary">{error}</p>
+          <p className="mt-1 text-body text-fg-secondary">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
           <button
             type="button"
             onClick={() => void reload()}
-            className="btn-primary mt-5"
+            className="btn-secondary mt-6"
           >
             다시 시도
           </button>
         </div>
       ) : bookmarks.length === 0 ? (
-        <div className="rounded-3xl border border-dashed border-zinc-200 bg-zinc-50 px-6 py-16 text-center dark:border-line dark:bg-surface">
-          <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-3xl bg-white text-zinc-300 shadow-sm dark:bg-black dark:text-zinc-500 dark:shadow-none">
-            <Bookmark size={30} />
-          </div>
-          <h2 className="text-2xl font-black italic tracking-tight text-black dark:text-zinc-100">
+        <div className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+            <Bookmark size={20} strokeWidth={1.67} aria-hidden="true" />
+          </span>
+          <h2 className="mt-4 text-body font-bold text-fg-primary">
             {selectedCollection || selectedCollectionId === 'unclassified' || query.trim() || mediaOnly
               ? '표시할 북마크가 없습니다'
               : '아직 저장한 게시글이 없습니다'}
           </h2>
-          <p className="mt-3 text-sm font-bold text-zinc-400 dark:text-zinc-500">
+          <p className="mt-1 text-body text-fg-secondary">
             {selectedCollection || selectedCollectionId === 'unclassified'
               ? '선택한 모음집 조건에 맞는 게시글이 없습니다.'
               : query.trim() || mediaOnly
@@ -354,22 +405,10 @@ export default function BookmarksPage() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.04 }}
               >
-                {post.media.length > 0 ? (
-                  <div className="mb-2 mt-4 flex flex-wrap items-center gap-2 px-4 text-xs font-black uppercase tracking-widest md:mt-0 md:px-2 text-zinc-400 dark:text-zinc-500">
-                    <span className="flex items-center gap-1 rounded-lg bg-zinc-100 px-2 py-1 text-zinc-500 dark:bg-surface dark:text-zinc-400">
-                      <ImageIcon size={12} />
-                      미디어
-                    </span>
-                    {query.trim() ? (
-                      <span className="normal-case">
-                        <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
-                      </span>
-                    ) : null}
-                  </div>
-                ) : query.trim() ? (
-                  <div className="mb-2 mt-4 px-4 text-xs font-black text-zinc-400 dark:text-zinc-500 md:mt-0 md:px-2">
+                {query.trim() ? (
+                  <p className="mb-1.5 px-1 text-caption text-fg-tertiary">
                     <HighlightedText text={`${post.author} @${post.authorHandle}`} query={query} />
-                  </div>
+                  </p>
                 ) : null}
                 <Post
                   post={post}
@@ -407,13 +446,14 @@ export default function BookmarksPage() {
               type="button"
               onClick={handleLoadMore}
               disabled={loadingMore}
-              className="w-full rounded-2xl border border-zinc-100 bg-white px-6 py-4 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300 dark:border-line dark:bg-surface dark:text-zinc-400 dark:hover:border-[#f5b93d] dark:hover:text-zinc-100 dark:disabled:text-zinc-700"
+              className="btn-secondary w-full"
             >
               {loadingMore ? '불러오는 중...' : '더 보기'}
             </button>
           ) : null}
         </div>
       )}
+      </section>
     </div>
   );
 }
