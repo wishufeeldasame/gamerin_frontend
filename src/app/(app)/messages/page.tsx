@@ -59,6 +59,7 @@ import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 import { ConversationListSkeleton, MessageThreadSkeleton } from '@/app/home/components/LoadingSkeletons';
 
 const MESSAGE_PAGE_SIZE = 30;
@@ -168,7 +169,7 @@ function ConversationCard({
         <div className="flex items-center justify-between gap-2">
           <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
             <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
-            <MembershipBadge active={conversation.recipient.membershipBadge} />
+            <MembershipBadge active={conversation.recipient.membershipBadge} /><RepresentativeTierBadge tier={conversation.recipient.representativeTier} />
             <span className="truncate text-xs font-bold text-zinc-400">
               <HighlightedText text={conversation.recipient.handle} query={query} />
             </span>
@@ -283,7 +284,7 @@ function NewChatPicker({
               <span className="min-w-0">
                 <span className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
                   <span className="truncate">{recipient.name}</span>
-                  <MembershipBadge active={recipient.membershipBadge} />
+                  <MembershipBadge active={recipient.membershipBadge} /><RepresentativeTierBadge tier={recipient.representativeTier} />
                 </span>
                 <span className="block truncate text-xs font-bold text-zinc-400">
                   {recipient.handle}

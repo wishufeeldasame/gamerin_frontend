@@ -10,6 +10,7 @@ import { deleteMyAccount } from '@/lib/account-api';
 import { changePassword } from '@/lib/auth-api';
 import { validatePassword } from '@/lib/auth-validation';
 import { ThemeMode, loadUserSettings, saveUserSettings } from '@/lib/user-settings';
+import { RepresentativeGameSetting } from './RepresentativeGameSetting';
 
 type SettingsSection = 'account' | 'appearance';
 
@@ -117,6 +118,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+
+      <RepresentativeGameSetting />
 
       <div className="border-t border-zinc-200 pt-6">
         <h3 className="section-title mb-4">비밀번호 변경</h3>

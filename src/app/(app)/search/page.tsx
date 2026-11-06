@@ -29,6 +29,7 @@ import {
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 
 const searchTabs = [
   { value: 'all', label: '전체' },
@@ -92,7 +93,7 @@ function AccountCard({ account }: { account: SimpleUserProfile }) {
       <div className="min-w-0 flex-1">
         <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
           <span className="truncate">{account.nickname}</span>
-          <MembershipBadge active={account.membershipBadge} />
+          <MembershipBadge active={account.membershipBadge} /><RepresentativeTierBadge tier={account.representativeTier} />
         </p>
         <p className="truncate text-xs font-bold text-zinc-400">@{account.handle}</p>
         {account.bio ? (

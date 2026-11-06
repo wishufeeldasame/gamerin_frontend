@@ -1,4 +1,5 @@
 import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import type { RepresentativeGame } from '@/lib/representative-tier';
 
 export class GameStatsApiError extends ApiError {
   constructor(status: number, message: string, reason: ApiFailureReason = 'http') {
@@ -116,5 +117,13 @@ export function refreshR6Summary() {
 export function disconnectGameStats(gameName: GameName) {
   return gameStatsRequest<null>(GAME_STATS_DISCONNECT_PATH[gameName], {
     method: 'DELETE',
+  });
+}
+
+/** 대표 게임을 바꾼다(null이면 표시 안 함). 응답은 data: null이므로 호출자가 /auth/me로 다시 조회한다. */
+export function updateRepresentativeGame(game: RepresentativeGame | null) {
+  return gameStatsRequest<null>('/api/v1/users/me/representative-game', {
+    method: 'PATCH',
+    body: JSON.stringify({ game }),
   });
 }

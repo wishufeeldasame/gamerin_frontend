@@ -18,6 +18,8 @@ import {
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 import { ProgramListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
@@ -162,8 +164,13 @@ function formatRatingLabel(stats: { ratingAvg: number; reviewCount: number } | n
   return stats && stats.reviewCount > 0 ? `평점 ${stats.ratingAvg.toFixed(1)}` : '리뷰 없음';
 }
 
-function MembershipBadgeInline({ active }: { active?: boolean }) {
-  return active ? <span className="ml-0.5 inline-flex align-middle"><MembershipBadge active /></span> : null;
+function MembershipBadgeInline({ active, tier }: { active?: boolean; tier?: RepresentativeTier | null }) {
+  return active || tier ? (
+    <span className="ml-0.5 inline-flex items-center gap-0.5 align-middle">
+      <MembershipBadge active={active} />
+      <RepresentativeTierBadge tier={tier} />
+    </span>
+  ) : null;
 }
 
 function programMentorName(program: MentoringProgramResponse | MentoringProgramDetailResponse) {
@@ -1227,7 +1234,7 @@ export default function MentoringPage() {
                             {splitProgramContent(program.content).content}
                           </p>
                           <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · {formatRatingLabel(mentorStatsById[program.mentorId])}
+                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} /> · {formatRatingLabel(mentorStatsById[program.mentorId])}
                           </p>
                         </div>
 
@@ -1359,7 +1366,7 @@ export default function MentoringPage() {
                 <div className="rounded-2xl border border-zinc-100 p-6">
                   <h2 className="flex items-center gap-1 text-2xl font-black text-black">
                     {mentorProfile.nickname}
-                    <MembershipBadge active={mentorProfile.membershipBadge} /> 멘토
+                    <MembershipBadge active={mentorProfile.membershipBadge} /><RepresentativeTierBadge tier={mentorProfile.representativeTier} /> 멘토
                   </h2>
 
                   <div className="mt-5 grid grid-cols-3 gap-3 text-center">
@@ -1660,7 +1667,7 @@ export default function MentoringPage() {
                   <div className="mt-5 rounded-2xl border border-zinc-100 p-6">
                     <h3 className="flex items-center gap-1 text-2xl font-black text-black">
                       {programMentorName(selectedProgram)}
-                      <MembershipBadge active={selectedProgram.membershipBadge} /> 멘토
+                      <MembershipBadge active={selectedProgram.membershipBadge} /><RepresentativeTierBadge tier={selectedProgram.representativeTier} /> 멘토
                     </h3>
 
                     <div className="mt-5 grid grid-cols-3 gap-3 text-center">
@@ -1705,7 +1712,7 @@ export default function MentoringPage() {
                           <article key={review.id} className="rounded-xl border border-zinc-100 p-4">
                             <div className="flex items-start justify-between gap-3">
                               <div>
-                                <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
+                                <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
                                 <p className="mt-1 text-xs font-bold text-zinc-400">
                                   {formatDateTime(review.createdAt)}
                                 </p>
@@ -1963,7 +1970,7 @@ export default function MentoringPage() {
                       >
                         <div className="flex items-start justify-between gap-3">
                           <div>
-                            <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
+                            <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
                             <p className="mt-1 text-xs font-bold text-zinc-400">
                               {formatDateTime(review.createdAt)}
                             </p>
@@ -2185,8 +2192,8 @@ function ApplicationCard({
         <div className="min-w-0">
           <h3 className="truncate font-black text-black">{application.programTitle}</h3>
           <p className="mt-1 text-xs font-bold text-zinc-400">
-            멘토 {application.mentorNickname}<MembershipBadgeInline active={application.mentorMembershipBadge} /> · 멘티{' '}
-            {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} />
+            멘토 {application.mentorNickname}<MembershipBadgeInline active={application.mentorMembershipBadge} tier={application.mentorRepresentativeTier} /> · 멘티{' '}
+            {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} tier={application.menteeRepresentativeTier} />
           </p>
         </div>
         <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">

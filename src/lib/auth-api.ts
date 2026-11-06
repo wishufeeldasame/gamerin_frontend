@@ -1,5 +1,11 @@
 import { getApiBaseUrl } from '@/lib/api-base';
 import { ApiError, apiRequest } from '@/lib/api-client';
+import {
+  type RepresentativeGame,
+  type RepresentativeTier,
+  isRepresentativeGame,
+  toRepresentativeTier,
+} from '@/lib/representative-tier';
 import { getPublicRequestErrorMessage, readPublicResponseErrorMessage } from '@/lib/public-request-error';
 import {
   BLOCKED_ACCOUNT_MESSAGE,
@@ -43,6 +49,10 @@ export interface AuthUser {
   hasPassword?: boolean;
   /** 현재 유효한 멤버십 여부(노란 체크 배지). */
   membershipBadge?: boolean;
+  /** 설정에서 고른 대표 게임(#179). 없으면 null. */
+  representativeGame?: RepresentativeGame | null;
+  /** 닉네임 옆에 표시할 대표 티어. 티어가 없으면 null. */
+  representativeTier?: RepresentativeTier | null;
 }
 
 export const DEFAULT_GAME_TIER = 'Unranked';
@@ -84,7 +94,8 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status, hasPassword, membershipBadge } = me as Record<string, unknown>;
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier } =
+    me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
   }
@@ -101,6 +112,8 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     status: typeof status === 'string' ? status : undefined,
     hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
     membershipBadge: membershipBadge === true,
+    representativeGame: isRepresentativeGame(representativeGame) ? representativeGame : null,
+    representativeTier: toRepresentativeTier(representativeTier),
   };
 }
 

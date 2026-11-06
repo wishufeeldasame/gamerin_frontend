@@ -34,6 +34,7 @@ import {
 import { subscribeToNotificationInvalidation } from '@/lib/notification-sync';
 import { RelativeTime } from './RelativeTime';
 import { MembershipBadge } from './MembershipBadge';
+import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 
 interface NotificationPanelProps {
   onClose: () => void;
@@ -352,8 +353,11 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef, 
 
                 <div className="min-w-0 flex-1">
                   <p className="text-body text-fg-primary">
-                    {notification.actor?.membershipBadge ? (
-                      <span className="mr-1 inline-flex align-middle"><MembershipBadge active /></span>
+                    {notification.actor?.membershipBadge || notification.actor?.representativeTier ? (
+                      <span className="mr-1 inline-flex items-center gap-0.5 align-middle">
+                        <MembershipBadge active={notification.actor.membershipBadge} />
+                        <RepresentativeTierBadge tier={notification.actor.representativeTier} />
+                      </span>
                     ) : null}
                     {presentation.message}
                   </p>

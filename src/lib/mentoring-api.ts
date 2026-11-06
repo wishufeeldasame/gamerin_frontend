@@ -1,6 +1,7 @@
 import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 import { invalidateMileageAfter } from '@/lib/mileage-sync';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 const MENTORING_BASE = '/api/v1/mentoring';
 
@@ -25,6 +26,7 @@ export interface MentorProfileResponse {
   reviewCount: number;
   menteeCount: number;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface GameResponse {
@@ -47,6 +49,7 @@ export interface MentoringProgramResponse {
   createdAt: string;
   /** 멘토의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringProgramDetailResponse {
@@ -64,6 +67,7 @@ export interface MentoringProgramDetailResponse {
   createdAt: string;
   /** 멘토의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringApplicationResponse {
@@ -81,7 +85,9 @@ export interface MentoringApplicationResponse {
   createdAt: string;
   reviewed: boolean;
   mentorMembershipBadge?: boolean;
+  mentorRepresentativeTier?: RepresentativeTier | null;
   menteeMembershipBadge?: boolean;
+  menteeRepresentativeTier?: RepresentativeTier | null;
   /** 신청 시점에 저장된 정산 수수료율(bp). 멘토 관점 응답에만 있다. */
   feeRateBp?: number;
   feeAmount?: number;
@@ -102,6 +108,7 @@ export interface MentoringReviewResponse {
   createdAt: string;
   /** 리뷰 작성자(멘티)의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringProgramRequest {
