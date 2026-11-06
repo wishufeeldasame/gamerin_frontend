@@ -85,8 +85,8 @@ function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
 
   if (game === 'VALORANT') {
     if (error.status === 404) return 'Riot ID를 확인해 주세요. (예: 닉네임#KR1)';
-    if (error.status === 409 || error.status === 400) return error.message;
-    if (error.status === 429) return '발로란트 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    // 429는 서버의 연동 시도 제한과 HenrikDev 한도 초과 모두 한글 안내를 주므로 그대로 보여 준다.
+    if (error.status === 409 || error.status === 400 || error.status === 429) return error.message;
     if (error.status === 502 || error.status === 503) {
       return '발로란트 전적 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
     }
