@@ -6,10 +6,9 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share2 } from 'lucide-react';
+import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { motion } from 'framer-motion';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   PostMedia,
@@ -56,13 +55,13 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
     if (item.mediaType === 'VIDEO') {
       return (
         <div className="pointer-events-none relative z-10 px-4 pb-3 md:px-5">
-          <div className="pointer-events-auto overflow-hidden rounded-xl bg-black" data-card-open-ignore="true">
+          <div className="pointer-events-auto overflow-hidden rounded-control bg-black" data-card-open-ignore="true">
             <video
               controls
               playsInline
               preload="metadata"
               poster={item.thumbnailUrl ?? undefined}
-              className="max-h-[420px] w-full bg-black object-contain"
+              className="aspect-video w-full bg-black object-contain"
               src={item.mediaUrl}
             />
           </div>
@@ -72,7 +71,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
 
     return (
       <div className="pointer-events-none relative z-10 px-4 pb-3 md:px-5">
-        <div className="relative overflow-hidden rounded-xl border border-zinc-100">
+        <div className="relative overflow-hidden rounded-control bg-subtle">
           <PostImage
             src={item.mediaUrl}
             imageNumber={1}
@@ -89,7 +88,7 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
   return (
     <div className="pointer-events-none relative z-10 grid grid-cols-2 gap-1.5 px-4 pb-3 md:px-5">
       {media.slice(0, 4).map((item, index) => (
-        <div key={item.mediaId} className="relative overflow-hidden rounded-xl border border-zinc-100">
+        <div key={item.mediaId} className="relative overflow-hidden rounded-control bg-subtle">
           {item.mediaType === 'VIDEO' ? (
             <div className="pointer-events-auto" data-card-open-ignore="true">
               <video
@@ -277,9 +276,8 @@ export function Post({
 
   return (
     <>
-      <motion.article
-        whileHover={{ y: -4 }}
-        className={`relative isolate overflow-hidden border-b border-zinc-100 bg-white transition-all duration-300 md:rounded-2xl md:border md:shadow-sm md:hover:shadow-xl ${
+      <article
+        className={`relative isolate overflow-hidden rounded-card border border-line-card bg-surface ${
           onOpenDetail ? 'cursor-pointer' : ''
         }`}
       >
@@ -288,12 +286,12 @@ export function Post({
             type="button"
             onClick={() => onOpenDetail(post)}
             aria-label={`${post.author}님의 게시글 열기`}
-            className="absolute inset-0 z-0 focus:outline-none md:rounded-2xl focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-black dark:focus-visible:ring-white"
+            className="absolute inset-0 z-0 rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fg-brand dark:focus-visible:ring-line-focus"
           />
         ) : null}
         {post.reposterInfo ? (
-          <div className="pointer-events-none relative z-10 flex items-center gap-2 border-b border-zinc-100 px-4 py-2.5 text-xs font-bold text-zinc-500 md:px-5 dark:border-line dark:text-zinc-400">
-            <Repeat2 size={15} className="text-emerald-500" />
+          <div className="pointer-events-none relative z-10 flex items-center gap-2 px-4 pt-3 text-caption font-medium text-fg-tertiary md:px-5">
+            <Repeat2 size={15} strokeWidth={1.67} className="text-fg-success" />
             <span className="flex min-w-0 items-center">
               <span className="inline-flex shrink-0 items-center gap-1">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>
               <span className="truncate">
@@ -312,21 +310,21 @@ export function Post({
             data-card-open-ignore="true"
           >
             {post.authorProfileImageUrl ? (
-              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl">
+              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full">
                 <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
               </div>
             ) : (
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-subtle text-label text-fg-secondary">
                 {initials}
               </div>
             )}
 
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-x-2">
-                <h2 className="text-base font-black tracking-tight text-black">{post.author}</h2>
+              <div className="flex flex-wrap items-center gap-x-1.5">
+                <h2 className="text-body font-medium text-fg-primary">{post.author}</h2>
                 <MembershipBadge active={post.authorMembershipBadge} />
               </div>
-              <span className="text-xs font-bold text-zinc-400">
+              <span className="text-caption text-fg-tertiary">
                 @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
               </span>
             </div>
@@ -342,11 +340,11 @@ export function Post({
               aria-expanded={menuOpen}
               aria-controls={menuOpen ? menuId : undefined}
             >
-              <MoreHorizontal size={20} />
+              <MoreHorizontal size={20} strokeWidth={1.67} />
             </button>
 
             {menuOpen ? (
-              <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-10 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+              <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-10 z-30 min-w-36 rounded-control bg-surface-elevated p-1 shadow-xl ring-1 ring-line">
                 {canReportPost ? (
                   <button
                     type="button"
@@ -354,9 +352,9 @@ export function Post({
                       closeMenu();
                       setReportOpen(true);
                     }}
-                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                    className="flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-label text-fg-danger transition hover:bg-danger-subtle"
                   >
-                    <Flag size={15} />
+                    <Flag size={16} strokeWidth={1.67} />
                     게시글 신고
                   </button>
                 ) : null}
@@ -374,7 +372,7 @@ export function Post({
                         returnFocusTo: menuTriggerRef.current,
                       });
                     }}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                    className="flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-primary transition hover:bg-subtle"
                   >
                     수정
                   </button>
@@ -385,7 +383,7 @@ export function Post({
                     type="button"
                     onClick={handleDelete}
                     disabled={deleting}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                    className="flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {deleting ? '삭제 중...' : '삭제'}
                   </button>
@@ -394,7 +392,7 @@ export function Post({
                 <button
                   type="button"
                   onClick={closeMenu}
-                  className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
+                  className="flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-secondary transition hover:bg-subtle hover:text-fg-primary"
                 >
                   취소
                 </button>
@@ -404,7 +402,7 @@ export function Post({
         </div>
 
         {post.content ? (
-          <p onClick={handleBodyClick} className="pointer-events-auto w-full cursor-text select-text text-left text-base font-medium leading-7 text-zinc-800">
+          <p onClick={handleBodyClick} className="pointer-events-auto w-full cursor-text select-text text-left text-body text-fg-primary">
             <HashtagText text={post.content} />
           </p>
         ) : null}
@@ -412,30 +410,30 @@ export function Post({
 
         {hasMedia ? <MediaBlock key={post.postId} media={post.media} /> : null}
 
-        <div className="pointer-events-none relative z-10 flex items-center justify-between border-t border-zinc-50 bg-white px-2 py-0.5 text-zinc-400 md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-4 [&_button]:focus-visible:outline-black dark:[&_button]:focus-visible:outline-white">
-          <div className="flex items-center gap-1 md:gap-3">
+        <div className="pointer-events-none relative z-10 flex items-center justify-between px-2 pb-1 text-icon-secondary md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-fg-brand dark:[&_button]:focus-visible:outline-line-focus">
+          <div className="flex items-center gap-1 md:gap-2">
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
             aria-label={`좋아요 ${post.likes}개`}
             aria-pressed={post.likedByMe}
             disabled={likeLoading}
-            className={`group flex items-center gap-2 transition-colors ${
+            className={`group flex items-center gap-1.5 transition-colors ${
               post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
             } disabled:cursor-not-allowed disabled:opacity-60`}
           >
-            <Heart size={20} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
-            <span className="text-sm font-black text-zinc-800">{post.likes}</span>
+            <Heart size={20} strokeWidth={1.67} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
+            <span className="text-label text-fg-secondary">{post.likes}</span>
           </button>
 
           <button
             type="button"
             onClick={handleOpenComments}
-            className="flex items-center gap-2 transition-colors hover:text-black"
+            className="flex items-center gap-1.5 transition-colors hover:text-icon-primary"
             aria-label="댓글 보기"
           >
-            <MessageCircle size={20} />
-            <span className="text-sm font-black text-zinc-800">{post.comments}</span>
+            <MessageCircle size={20} strokeWidth={1.67} />
+            <span className="text-label text-fg-secondary">{post.comments}</span>
           </button>
 
           <button
@@ -446,45 +444,42 @@ export function Post({
             aria-pressed={isReposted}
             aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
             title={repostButtonTitle}
-            className={`group flex items-center gap-2 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
-              isReposted ? 'text-emerald-500' : 'hover:text-emerald-500'
+            className={`group flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+              isReposted ? 'text-fg-success' : 'hover:text-fg-success'
             }`}
           >
-            <Repeat2 size={20} />
-            <span
-              className={`text-sm font-black ${
-                isReposted ? 'text-emerald-500' : 'text-zinc-800'
-              }`}
-            >
-              {repostCount}
-            </span>
+            <Repeat2 size={20} strokeWidth={1.67} />
+            <span className="text-label text-fg-secondary">{repostCount}</span>
           </button>
 
           {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
+          </div>
+
+          <div className="flex items-center">
           <button
             type="button"
             onClick={() => { closeAll(); setCollectionModalOpen(true); }}
             aria-haspopup="dialog"
             disabled={bookmarking}
-            className={`group flex items-center gap-2 transition-colors ${
-              bookmarked ? 'text-black' : 'hover:text-black'
+            className={`flex items-center transition-colors ${
+              bookmarked ? 'text-icon-brand' : 'hover:text-icon-primary'
             }`}
             aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
           >
-            <Bookmark size={20} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : 'transition-all group-hover:fill-black dark:group-hover:fill-[#f5b93d]'} />
+            <Bookmark size={20} strokeWidth={1.67} className={bookmarked ? 'fill-current' : undefined} />
           </button>
-          </div>
 
           <button
             type="button"
             onClick={() => { closeAll(); setShareOpen(true); }}
-            className="flex items-center rounded-full text-zinc-400 transition-all hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+            className="flex items-center transition-colors hover:text-icon-primary"
             aria-label="게시글 공유"
           >
-            <Share2 size={20} />
+            <Share size={20} strokeWidth={1.67} />
           </button>
+          </div>
         </div>
-      </motion.article>
+      </article>
 
       {shareOpen ? (
         <SharePostModal

@@ -397,7 +397,7 @@ function SearchPageContent() {
       : loadSearch;
 
   const renderPosts = (items: PostRecord[]) => (
-    <div className="-mx-4 md:mx-0 md:space-y-4">
+    <div className="space-y-3">
       {items.map((post) => (
         <Post
           key={post.postId}

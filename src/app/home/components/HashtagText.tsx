@@ -46,7 +46,7 @@ export function HashtagText({ text, className, linkHashtags = true }: HashtagTex
           <Link
             key={`${part.value}-${index}`}
             href={`/hashtags/${encodeURIComponent(part.hashtag)}`}
-            className="font-black text-emerald-700 transition hover:text-emerald-800 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 dark:focus-visible:outline-emerald-400"
+            className="font-medium text-fg-brand hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus"
             data-card-open-ignore="true"
           >
             {part.value}
