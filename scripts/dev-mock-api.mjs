@@ -55,20 +55,21 @@ const mkPost = (n, handle, content, o = {}) => {
   return {
     postId: `post-${n}`, postNumber: n, author: u.nickname, authorHandle: u.handle, authorProfileImageUrl: null,
     authorVerifiedBadge: u.verified, authorMembershipBadge: u.member, game: null, content, media: [],
-    likes: 3 + n * 4, comments: n % 4, shares: n % 3, isReposted: false, repostCount: n % 2,
+    likes: 3 + n * 4, comments: n % 4, shares: n % 3, isReposted: false, repostCount: n % 2, viewCount: n * 137,
     likedByMe: false, bookmarkedByMe: false, mine: handle === TEST_ID, createdAt: ago(n * 47), ...o,
   };
 };
 const posts = [
-  mkPost(1, 'sniper_min', '오늘 에란겔 막판 원 줄었을 때 600m 헤드샷 성공!! 손이 떨려서 한참 말도 못했다 #배그 #스나이퍼', { game: 'PUBG', likes: 42, comments: 3, likedByMe: true }),
-  mkPost(2, 'rank_yuna', '다이아 승급전 3연패 후 겨우 올라감. 멘탈 관리가 제일 중요한 듯 #롤 #랭크', { game: 'LOL', likes: 31, comments: 2, bookmarkedByMe: true }),
+  mkPost(1, 'sniper_min', '오늘 에란겔 막판 원 줄었을 때 600m 헤드샷 성공!! 손이 떨려서 한참 말도 못했다 #배그 #스나이퍼', { game: 'PUBG', likes: 42, comments: 3, likedByMe: true, viewCount: 12_345 }),
+  mkPost(2, 'rank_yuna', '다이아 승급전 3연패 후 겨우 올라감. 멘탈 관리가 제일 중요한 듯 #롤 #랭크', { game: 'LOL', likes: 31, comments: 2, bookmarkedByMe: true, viewCount: 1_234_567 }),
   mkPost(3, 'tank_dohyun', '탱커 하면서 느낀 점: 핑 하나 안 찍는 팀원보다 말없이 같이 밀어주는 팀원이 더 고맙다.'),
   mkPost(4, 'support_seoyeon', '듀오 구합니다. 평일 저녁 9시 이후, 마이크 가능하신 분이면 좋겠어요. 티어 무관, 분위기 좋은 분 환영! #듀오 #롤', { likedByMe: true, bookmarkedByMe: true, comments: 1 }),
-  mkPost(5, TEST_ID, '디자인 점검용 게시물입니다 @sniper_min 님 멘션 테스트. 아주 긴 글이 어떻게 줄바꿈되는지도 확인하려고 조금 길게 씁니다. 배틀그라운드에서 자기장이 줄어들 때 차량을 어디에 세워 두느냐가 후반 생존율을 크게 좌우한다고 생각합니다. 여러분은 어떻게 생각하세요? #배그 #전략', { game: 'PUBG', likes: 7, comments: 2, mine: true, editableUntil: ago(-60), editCount: 0 }),
+  mkPost(5, TEST_ID, '디자인 점검용 게시물입니다 @sniper_min 님 멘션 테스트. 아주 긴 글이 어떻게 줄바꿈되는지도 확인하려고 조금 길게 씁니다. 배틀그라운드에서 자기장이 줄어들 때 차량을 어디에 세워 두느냐가 후반 생존율을 크게 좌우한다고 생각합니다. 여러분은 어떻게 생각하세요? #배그 #전략', { game: 'PUBG', likes: 7, comments: 2, mine: true, editableUntil: ago(-60), editCount: 0, viewCount: 0 }),
   mkPost(6, 'pubg_hajun', '치킨 먹었다 🍗', { likes: 12 }),
   mkPost(7, 'rank_yuna', '이번 시즌 정글 챔피언 티어 정리해봤습니다. 1티어는 변함없이 같고 메타가 안정된 느낌. 질문은 댓글로 주세요!', { game: 'LOL', isReposted: true, repostCount: 5, reposterInfo: { userId: 'u-minjun', nickname: '민준', repostedAt: ago(30) } }),
   mkPost(8, 'sniper_min', '새 키보드 샀는데 소리가 너무 좋다 #장비', { likes: 19, bookmarkedByMe: true }),
 ];
+const viewedPostIds = new Set();
 const postById = (id) => posts.find((p) => p.postId === id || String(p.postNumber) === id);
 const comments = [
   { commentId: 'comment-1', author: '유나', authorHandle: 'rank_yuna', authorProfileImageUrl: null, authorVerifiedBadge: false, authorMembershipBadge: true, content: '와 이건 클립 올려야죠!', createdAt: ago(20), mine: false },
@@ -290,6 +291,21 @@ createServer(async (req, res) => {
     } else {
       send(res, 401, { success: false, message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
     }
+    return;
+  }
+
+  // 카드 노출 보고(#183). 실제 서버처럼 같은 글은 한 번만 센다(목은 서버를 다시 켤 때까지).
+  if (req.method === 'POST' && path === '/api/v1/posts/views') {
+    let ids = [];
+    try { ids = JSON.parse(raw || '{}').postIds ?? []; } catch { /* 형식 오류는 아래에서 400 */ }
+    if (!Array.isArray(ids) || ids.length < 1 || ids.length > 50) {
+      send(res, 400, { success: false, message: 'postIds는 1~50개여야 합니다.' });
+      return;
+    }
+    const counted = ids.map(postById).filter((p) => p && !viewedPostIds.has(p.postId));
+    counted.forEach((p) => { viewedPostIds.add(p.postId); p.viewCount += 1; });
+    console.log(`[mock] views ${ids.length} reported, ${counted.length} counted`);
+    send(res, 200, { success: true, data: { counted: counted.length } });
     return;
   }
 

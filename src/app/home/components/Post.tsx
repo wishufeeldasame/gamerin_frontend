@@ -23,6 +23,7 @@ import { SharePostModal } from './SharePostModal';
 import SaveToCollectionModal from './SaveToCollectionModal';
 import { ReportContentModal } from './Report';
 import { useRepost } from '@/hooks/useRepost';
+import { usePostViewImpression } from '@/hooks/usePostViewImpression';
 import { HashtagText } from './HashtagText';
 import { RelativeTime } from './RelativeTime';
 import { usePopup } from '@/app/context/PopupContext';
@@ -30,6 +31,7 @@ import { useDismissable } from '@/hooks/useDismissable';
 import { PostImage } from './PostImage';
 import { MembershipBadge } from './MembershipBadge';
 import { RepresentativeTierBadge } from './RepresentativeTierBadge';
+import { PostViewCount } from './PostViewCount';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 interface PostProps {
@@ -160,6 +162,8 @@ export function Post({
   const { isOpen: menuOpen, toggle: toggleMenu, close: closeMenu, closeAll } = usePopup(menuId);
   const menuTriggerRef = useRef<HTMLButtonElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const articleRef = useRef<HTMLElement>(null);
+  usePostViewImpression(articleRef, post.postId, user?.id);
   useDismissable({ open: menuOpen, onDismiss: closeMenu, triggerRef: menuTriggerRef, panelRef: menuPanelRef });
   const [reportOpen, setReportOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -278,6 +282,7 @@ export function Post({
   return (
     <>
       <article
+        ref={articleRef}
         className={`relative isolate overflow-hidden rounded-card border border-line-card bg-surface ${
           onOpenDetail ? 'cursor-pointer' : ''
         }`}
@@ -412,7 +417,7 @@ export function Post({
         {hasMedia ? <MediaBlock key={post.postId} media={post.media} /> : null}
 
         <div className="pointer-events-none relative z-10 flex items-center justify-between px-2 pb-1 text-icon-secondary md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-fg-brand dark:[&_button]:focus-visible:outline-line-focus">
-          <div className="flex items-center gap-1 md:gap-2">
+          <div className="flex items-center min-[400px]:gap-1 md:gap-2">
           <button
             type="button"
             onClick={() => onToggleLike?.(post)}
@@ -452,6 +457,8 @@ export function Post({
             <Repeat2 size={20} strokeWidth={1.67} />
             <span className="text-label text-fg-secondary">{repostCount}</span>
           </button>
+
+          <PostViewCount count={post.viewCount} />
 
           {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
           </div>
