@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createComment, fetchPostComments, fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { createComment, fetchPostComments, fetchPostDetailByNumber, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -34,6 +34,31 @@ describe('feed-api 이미지 주소', () => {
 
     apiRequest.mockResolvedValueOnce({ commentId: 'c-2', authorProfileImageUrl: null });
     expect((await createComment('p-1', '내용')).authorProfileImageUrl).toBeNull();
+  });
+});
+
+describe('조회수', () => {
+  it.each([
+    [0, 0],
+    [12_345, 12_345],
+    [undefined, null],
+    [null, null],
+    ['12', null],
+    [-1, null],
+    [1.5, null],
+    [Number.NaN, null],
+  ])('viewCount %s → %s', (viewCount, expected) => {
+    expect(normalizePostRecord({ viewCount } as unknown as PostRecord).viewCount).toBe(expected);
+  });
+
+  it('노출한 게시물 ID를 POST /posts/views로 보낸다', async () => {
+    apiRequest.mockResolvedValueOnce({ counted: 2 });
+    await expect(recordPostViews(['a', 'b'], { keepalive: true })).resolves.toEqual({ counted: 2 });
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts/views', expect.anything(), {
+      keepalive: true,
+      method: 'POST',
+      body: JSON.stringify({ postIds: ['a', 'b'] }),
+    });
   });
 });
 
