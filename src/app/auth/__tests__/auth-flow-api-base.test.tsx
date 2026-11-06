@@ -129,7 +129,7 @@ describe('인증 흐름 화면의 API 주소', () => {
       agreedToPrivacy: true,
       agreedToAge14: true,
       termsVersion: '1.0',
-      privacyVersion: '1.0',
+      privacyVersion: '1.1',
       emailVerificationToken: 'verify-token',
     });
   });

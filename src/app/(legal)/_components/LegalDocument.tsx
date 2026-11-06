@@ -2,6 +2,8 @@ import type { ReactNode } from 'react';
 
 export const LEGAL_CONTACT_EMAIL = 'wishufeelthesame@gmail.com';
 export const LEGAL_EFFECTIVE_DATE = '2026년 11월 2일';
+// 처리방침 1.1(발로란트 전적 조회처 HenrikDev 추가)부터 약관과 시행일이 다르다.
+export const PRIVACY_EFFECTIVE_DATE = '2026년 11월 6일';
 
 export function LegalNotice() {
   return (

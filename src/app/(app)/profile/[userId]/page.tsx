@@ -62,12 +62,14 @@ import {
   fetchPubgSummary,
   fetchLolSummary,
   refreshR6Summary,
+  refreshValorantSummary,
   GameStatsApiError,
   type GameName,
   type PubgSummaryResponse,
   type LolSummaryResponse,
   type R6SummaryResponse,
   type StatsMode,
+  type ValorantSummaryResponse,
 } from '@/lib/game-stats-api';
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
@@ -95,6 +97,10 @@ const GAME_STATS_UI_CONFIG: Record<
   },
   R6: {
     displayName: 'Rainbow Six Siege',
+    disconnectable: true,
+  },
+  VALORANT: {
+    displayName: 'VALORANT',
     disconnectable: true,
   },
 };
@@ -207,7 +213,10 @@ function isCommonGameStats(gameName: string) {
 function getDisconnectableGameName(gameName: string): GameName | null {
   const normalizedGameName = gameName.toUpperCase();
 
-  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6' && normalizedGameName !== 'LOL') {
+  if (
+    normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6'
+    && normalizedGameName !== 'LOL' && normalizedGameName !== 'VALORANT'
+  ) {
     return null;
   }
 
@@ -240,6 +249,10 @@ function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: 
       games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
   }
 
+  if (gameName.toUpperCase() === 'VALORANT') {
+    return formatValorantSummary(record, isOwnProfile);
+  }
+
   if (!isCommonGameStats(gameName)) {
     return Object.entries(record)
       .filter(
@@ -266,6 +279,48 @@ function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: 
   summaryParts.push(matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`);
 
   return summaryParts.join(' · ');
+}
+
+// 티어는 HenrikDev 표기(Gold 2, Unrated) 그대로, 지표는 최근 경쟁전 기준이다.
+function formatValorantSummary(record: GameStatsRecord, isOwnProfile: boolean) {
+  const tier = readStringStat(record, 'tierLabel');
+  const peak = readStringStat(record, 'peakTierLabel');
+  const rr = readNumberStat(record, 'rr');
+  const matches = readNumberStat(record, 'matches');
+  if (!tier && matches === null) {
+    return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
+  }
+  const kd = readNumberStat(record, 'kd');
+  const acs = readNumberStat(record, 'acs');
+  return [
+    `${tier ?? 'Unrated'}${rr === null ? '' : ` ${rr}RR`}`,
+    peak ? `최고 ${peak}` : null,
+    `K/D ${kd === null ? '-' : kd.toFixed(2)}`,
+    `ACS ${acs === null ? '-' : acs}`,
+    `헤드샷 ${formatNullablePercent(readNumberStat(record, 'headshotRate'))}`,
+    `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
+    matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`,
+  ].filter(Boolean).join(' · ');
+}
+
+const VALORANT_REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
+
+/** 마지막 갱신 뒤 10분이 지나지 않았으면 남은 분(올림), 아니면 0. */
+function getValorantRefreshWaitMinutes(stats: unknown, now = Date.now()) {
+  const record = toGameStatsRecord(stats);
+  if (!record?.connected) return 0;
+  const updatedAt = Date.parse(readStringStat(record, 'updatedAt') ?? '');
+  if (Number.isNaN(updatedAt)) return 0;
+  const remaining = updatedAt + VALORANT_REFRESH_COOLDOWN_MS - now;
+  return remaining > 0 ? Math.ceil(remaining / 60000) : 0;
+}
+
+function formatValorantDetail(stats: unknown) {
+  const record = toGameStatsRecord(stats);
+  if (!record) return null;
+  // riotId는 본인 응답에만 포함된다.
+  const riotName = readStringStat(record, 'riotId')?.split('#')[0] ?? null;
+  return ['경쟁전', readStringStat(record, 'region'), riotName].filter(Boolean).join(' ');
 }
 
 function formatGameStatsDetail(gameName: string, stats: unknown) {
@@ -349,6 +404,11 @@ function applyLolSummary(gameStats: UserProfile['gameStats'], summary: LolSummar
   };
 }
 
+function applyValorantSummary(gameStats: UserProfile['gameStats'], summary: ValorantSummaryResponse) {
+  if (!summary.connected) return removeGameStats(gameStats, 'VALORANT');
+  return { ...gameStats, VALORANT: { ...(toGameStatsRecord(gameStats.VALORANT) ?? {}), ...summary } };
+}
+
 function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
   if (!(error instanceof GameStatsApiError)) {
     return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
@@ -359,6 +419,11 @@ function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
     if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
     if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
     if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  if (gameName === 'VALORANT') {
+    if (error.status === 429) return '발로란트 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    if (error.status === 502 || error.status === 503) return '발로란트 전적 서버를 일시적으로 사용할 수 없습니다.';
   }
 
   if (gameName === 'LOL' && (error.status === 403 || error.status === 503)) {
@@ -537,6 +602,8 @@ export default function ProfilePage() {
       summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
       detail: gameName.toUpperCase() === 'LOL'
         ? riotId?.split('#')[0] ?? null
+        : gameName.toUpperCase() === 'VALORANT'
+        ? formatValorantDetail(stats)
         : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
       // 서버가 마지막 갱신 시각(updatedAt)을 준 게임만 "N분 전"을 표시한다.
@@ -555,7 +622,7 @@ export default function ProfilePage() {
 
     const refreshRequests: Array<{
       gameName: GameName;
-      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse>;
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse | ValorantSummaryResponse>;
     }> = [];
 
     if (isConnectedGameStats(profile.gameStats.PUBG)) {
@@ -567,9 +634,17 @@ export default function ProfilePage() {
     if (isConnectedGameStats(profile.gameStats.RIOT) || isConnectedGameStats(profile.gameStats.LOL)) {
       refreshRequests.push({ gameName: 'LOL', request: fetchLolSummary });
     }
+    // 서버도 10분 안의 재조회는 외부 API를 부르지 않고 저장값을 돌려준다(HenrikDev 호출 한도).
+    const valorantWaitMinutes = getValorantRefreshWaitMinutes(profile.gameStats.VALORANT);
+    if (isConnectedGameStats(profile.gameStats.VALORANT) && valorantWaitMinutes === 0) {
+      refreshRequests.push({ gameName: 'VALORANT', request: refreshValorantSummary });
+    }
+    const valorantCooldownNotice = valorantWaitMinutes > 0
+      ? `발로란트 전적은 10분마다 새로고침할 수 있습니다. ${valorantWaitMinutes}분 뒤 다시 시도해 주세요.`
+      : null;
 
     if (refreshRequests.length === 0) {
-      toast.info('새로고침할 게임 전적이 없습니다.');
+      toast.info(valorantCooldownNotice ?? '새로고침할 게임 전적이 없습니다.');
       return;
     }
 
@@ -600,6 +675,8 @@ export default function ProfilePage() {
             ? applyLolSummary(updatedGameStats, result.value as LolSummaryResponse)
             : gameName === 'R6'
             ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
+            : gameName === 'VALORANT'
+            ? applyValorantSummary(updatedGameStats, result.value as ValorantSummaryResponse)
             : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
 
@@ -637,6 +714,9 @@ export default function ProfilePage() {
 
       if (failures.length > 0) {
         toast.error(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
+      }
+      if (valorantCooldownNotice) {
+        toast.info(valorantCooldownNotice);
       }
     } finally {
       setIsRefreshing(false);

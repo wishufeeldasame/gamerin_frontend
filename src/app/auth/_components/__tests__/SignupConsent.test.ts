@@ -8,7 +8,7 @@ describe('toSignupConsentPayload', () => {
       agreedToPrivacy: true,
       agreedToAge14: true,
       termsVersion: '1.0',
-      privacyVersion: '1.0',
+      privacyVersion: '1.1',
     });
     expect(toSignupConsentPayload({ age: false, terms: true, privacy: false })).toMatchObject({
       agreedToTerms: true,
