@@ -11,16 +11,23 @@ import {
   connectPubg,
   connectR6,
   connectRiot,
+  connectValorant,
   fetchLolSummary,
   fetchPubgSummary,
   GameStatsApiError,
+  type ValorantRegion,
 } from '@/lib/game-stats-api';
 
 const PUBG_NICKNAME_REGEX = /^[A-Za-z0-9_-]{4,16}$/;
 const PUBG_NICKNAME_ERROR_MESSAGE =
   '닉네임은 4~16자의 영문, 숫자, 하이픈(-), 밑줄(_)만 사용 가능합니다.';
 
-type ConnectableGame = 'PUBG' | 'R6' | 'LOL';
+type ConnectableGame = 'PUBG' | 'R6' | 'LOL' | 'VALORANT';
+
+const VALORANT_REGIONS: Array<{ value: ValorantRegion; label: string }> = [
+  { value: 'KR', label: '한국 (KR)' },
+  { value: 'AP', label: '아시아·태평양 (AP)' },
+];
 
 const availableGames: Array<{
   name: string;
@@ -30,7 +37,7 @@ const availableGames: Array<{
   connectableGame?: ConnectableGame;
 }> = [
   { name: 'League of Legends', description: '티어, 승률, 최근 5경기 KDA', iconUrl: '/images/games/lol.png', connectableGame: 'LOL' },
-  { name: 'VALORANT', description: '등급, 평균 전투 점수, 헤드샷 비율', iconUrl: '/images/games/valorant.png' },
+  { name: 'VALORANT', description: '현재·최고 티어, 경쟁전 K/D·평균 전투 점수·헤드샷 비율', iconUrl: '/images/games/valorant.png', connectableGame: 'VALORANT' },
   { name: 'Overwatch 2', description: '실력 등급, 영웅 전적', iconUrl: '/images/games/overwatch2.png' },
   { name: 'PUBG', description: '티어, 킬/데스 비율, 승률, 경기 수', iconUrl: '/images/games/pubg.png', connectableGame: 'PUBG' },
   { name: 'Rainbow Six Siege', description: '티어, 킬/데스 비율, 승률, 경기 수', iconUrl: '/images/games/rainbow6.png', invertInDark: true, connectableGame: 'R6' },
@@ -47,10 +54,12 @@ const GAME_TRANSFER_RECIPIENT: Record<ConnectableGame, string> = {
   LOL: 'Riot API',
   PUBG: 'PUBG API',
   R6: 'r6data.com',
+  VALORANT: 'HenrikDev API',
 };
 
 function getGameLabel(game: ConnectableGame) {
   if (game === 'LOL') return 'League of Legends';
+  if (game === 'VALORANT') return 'VALORANT';
   return game === 'R6' ? 'Rainbow Six Siege' : 'PUBG';
 }
 
@@ -74,6 +83,15 @@ function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
     }
   }
 
+  if (game === 'VALORANT') {
+    if (error.status === 404) return 'Riot ID를 확인해 주세요. (예: 닉네임#KR1)';
+    if (error.status === 409 || error.status === 400) return error.message;
+    if (error.status === 429) return '발로란트 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    if (error.status === 502 || error.status === 503) {
+      return '발로란트 전적 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
+    }
+  }
+
   if (game === 'LOL' && (error.status === 403 || error.status === 503)) {
     return 'Riot 전적 서버를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.';
   }
@@ -82,7 +100,7 @@ function getConnectionErrorMessage(game: ConnectableGame, error: unknown) {
 }
 
 function validatePlayerName(game: ConnectableGame, playerName: string) {
-  if (game === 'LOL') {
+  if (game === 'LOL' || game === 'VALORANT') {
     return /^[^#\r\n]+#[^#\s]+$/.test(playerName) && playerName.split('#').every((part) => part.trim())
       ? ''
       : 'Riot ID를 닉네임#태그 형식으로 입력해 주세요. (예: 소환사#KR1)';
@@ -110,12 +128,14 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   const [playerName, setPlayerName] = useState('');
   const [playerNameError, setPlayerNameError] = useState('');
   const [transferConsent, setTransferConsent] = useState(false);
+  const [valorantRegion, setValorantRegion] = useState<ValorantRegion>('KR');
 
   const handleConnect = (gameName: string, connectableGame?: ConnectableGame) => {
     if (connectableGame) {
       setPlayerName('');
       setPlayerNameError('');
       setTransferConsent(false);
+      setValorantRegion('KR');
       setPromptGame(connectableGame);
       return;
     }
@@ -170,6 +190,10 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
         } catch (error) {
           summaryError = error;
         }
+      } else if (selectedGame === 'VALORANT') {
+        // 연동 응답 전에 서버가 티어·경쟁전 전적까지 저장하므로 별도 요약 조회가 필요 없다.
+        await connectValorant(normalizedPlayerName, valorantRegion);
+        connectionCompleted = true;
       } else {
         await connectR6(normalizedPlayerName);
         connectionCompleted = true;
@@ -210,6 +234,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
   const promptDescription =
     promptGame === 'LOL'
       ? '한국 서버 Riot ID를 닉네임#태그 형식으로 입력하세요.'
+      : promptGame === 'VALORANT'
+      ? 'PC 발로란트 Riot ID와 리전을 선택하세요. 전적은 경쟁전 기준입니다.'
       : promptGame === 'R6'
       ? 'PC Ubisoft Connect 닉네임을 입력해 전적을 연결하세요.'
       : 'PUBG 계정 연결을 시작하려면 닉네임을 입력하세요.';
@@ -312,7 +338,7 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
 
                 <div className="space-y-4 p-6">
                   <label className="block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">
-                    {promptGame === 'LOL' ? 'Riot ID' : '닉네임'}
+                    {promptGame === 'LOL' || promptGame === 'VALORANT' ? 'Riot ID' : '닉네임'}
                   </label>
                   <input
                     value={playerName}
@@ -320,8 +346,8 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                       setPlayerName(event.target.value);
                       setPlayerNameError('');
                     }}
-                    placeholder={promptGame === 'LOL' ? '소환사#KR1' : promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
-                    aria-label={promptGame === 'LOL' ? 'Riot ID' : '게임 닉네임'}
+                    placeholder={promptGame === 'LOL' ? '소환사#KR1' : promptGame === 'VALORANT' ? '요원#KR1' : promptGame === 'R6' ? 'Ubisoft Connect 닉네임을 입력하세요' : 'PUBG 닉네임을 입력하세요'}
+                    aria-label={promptGame === 'LOL' || promptGame === 'VALORANT' ? 'Riot ID' : '게임 닉네임'}
                     aria-invalid={Boolean(playerNameError)}
                     className={`w-full rounded-2xl border bg-zinc-50 px-4 py-4 text-sm font-bold text-black outline-none transition focus:bg-white dark:placeholder:!text-zinc-400 dark:focus:bg-surface ${
                       playerNameError
@@ -329,6 +355,33 @@ export function FetchGameStatsModal({ onClose, onConnected }: FetchGameStatsModa
                         : 'border-zinc-200 focus:border-black dark:focus:!border-[#f5b93d]'
                     }`}
                   />
+                  {promptGame === 'VALORANT' ? (
+                    <fieldset>
+                      <legend className="mb-2 block text-xs font-black uppercase tracking-[0.3em] text-zinc-400">리전</legend>
+                      <div className="grid grid-cols-2 gap-2">
+                        {VALORANT_REGIONS.map((region) => (
+                          <label
+                            key={region.value}
+                            className={`flex cursor-pointer items-center justify-center rounded-2xl border px-3 py-3 text-sm font-bold transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-black dark:has-[:focus-visible]:ring-[#f5b93d] ${
+                              valorantRegion === region.value
+                                ? 'border-black bg-black text-white dark:!border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
+                                : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-zinc-400'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="valorant-region"
+                              value={region.value}
+                              checked={valorantRegion === region.value}
+                              onChange={() => setValorantRegion(region.value)}
+                              className="sr-only"
+                            />
+                            {region.label}
+                          </label>
+                        ))}
+                      </div>
+                    </fieldset>
+                  ) : null}
                   {playerNameError ? (
                     <p className="text-xs font-bold leading-relaxed text-red-500">{playerNameError}</p>
                   ) : null}

@@ -43,7 +43,7 @@ describe('SocialCompletePage', () => {
         agreedToPrivacy: true,
         agreedToAge14: true,
         termsVersion: '1.0',
-        privacyVersion: '1.0',
+        privacyVersion: '1.1',
       }),
     );
   });
