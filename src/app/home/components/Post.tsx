@@ -286,7 +286,7 @@ export function Post({
             type="button"
             onClick={() => onOpenDetail(post)}
             aria-label={`${post.author}님의 게시글 열기`}
-            className="absolute inset-0 z-0 rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-line-focus"
+            className="absolute inset-0 z-0 rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fg-brand dark:focus-visible:ring-line-focus"
           />
         ) : null}
         {post.reposterInfo ? (
@@ -410,7 +410,7 @@ export function Post({
 
         {hasMedia ? <MediaBlock key={post.postId} media={post.media} /> : null}
 
-        <div className="pointer-events-none relative z-10 flex items-center justify-between px-2 pb-1 text-icon-secondary md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-line-focus">
+        <div className="pointer-events-none relative z-10 flex items-center justify-between px-2 pb-1 text-icon-secondary md:px-3 [&_button]:pointer-events-auto [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-fg-brand dark:[&_button]:focus-visible:outline-line-focus">
           <div className="flex items-center gap-1 md:gap-2">
           <button
             type="button"
@@ -423,7 +423,7 @@ export function Post({
             } disabled:cursor-not-allowed disabled:opacity-60`}
           >
             <Heart size={20} strokeWidth={1.67} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
-            <span className={`text-label ${post.likedByMe ? 'text-red-500' : 'text-fg-secondary'}`}>{post.likes}</span>
+            <span className="text-label text-fg-secondary">{post.likes}</span>
           </button>
 
           <button
@@ -449,9 +449,7 @@ export function Post({
             }`}
           >
             <Repeat2 size={20} strokeWidth={1.67} />
-            <span className={`text-label ${isReposted ? 'text-fg-success' : 'text-fg-secondary'}`}>
-              {repostCount}
-            </span>
+            <span className="text-label text-fg-secondary">{repostCount}</span>
           </button>
 
           {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}

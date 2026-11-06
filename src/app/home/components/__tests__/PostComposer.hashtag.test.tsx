@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react';
+import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { render } from '@/test/feedback';
 
@@ -22,6 +22,18 @@ describe('PostComposer 해시태그 버튼', () => {
     textarea.setSelectionRange(2, 2);
     fireEvent.click(hashtagButton);
     expect(textarea.value).toBe('오늘 # 랭크');
+  });
+
+  it('기존 단어 앞에 #을 넣으면 뒤에 공백을 두고 커서는 # 바로 뒤에 둔다', async () => {
+    render(<PostComposer />);
+    const textarea = screen.getByLabelText<HTMLTextAreaElement>('게시글 내용');
+
+    fireEvent.change(textarea, { target: { value: '오늘 랭크' } });
+    textarea.setSelectionRange(3, 3);
+    fireEvent.click(screen.getByRole('button', { name: '해시태그 추가' }));
+
+    expect(textarea.value).toBe('오늘 # 랭크');
+    await waitFor(() => expect(textarea.selectionStart).toBe(4));
   });
 
   it('자동완성이 열린 채 #을 넣으면 이전 추천을 닫는다', async () => {

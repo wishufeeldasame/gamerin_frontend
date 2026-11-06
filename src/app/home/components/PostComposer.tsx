@@ -362,11 +362,14 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     const start = textarea?.selectionStart ?? content.length;
     const end = textarea?.selectionEnd ?? content.length;
     const before = content.slice(0, start);
-    const insert = before === '' || /\s$/.test(before) ? '#' : ' #';
+    const after = content.slice(end);
+    const prefix = before === '' || /\s$/.test(before) ? '#' : ' #';
+    // 뒤 글자가 태그 문자면 띄워서 기존 단어가 새 태그에 붙지 않게 한다.
+    const insert = /^[\p{L}\p{N}_]/u.test(after) ? `${prefix} ` : prefix;
     if (content.length - (end - start) + insert.length > MAX_POST_CONTENT_LENGTH) return;
 
-    const nextCaretPosition = start + insert.length;
-    const nextContent = `${before}${insert}${content.slice(end)}`;
+    const nextCaretPosition = start + prefix.length;
+    const nextContent = `${before}${insert}${after}`;
     setContent(nextContent);
     updateActiveHashtagQuery(nextContent, nextCaretPosition);
     setExpanded(true);
