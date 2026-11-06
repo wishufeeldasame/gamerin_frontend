@@ -48,6 +48,8 @@ export interface PostRecord {
   shares: number;
   isReposted: boolean;
   repostCount: number;
+  /** 조회수(백엔드 #183). 리포스트 카드는 원글 값이다. 없거나 형식이 틀리면 null이고 화면에 표시하지 않는다 */
+  viewCount?: number | null;
   reposterInfo?: ReposterInfo | null;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
@@ -177,6 +179,10 @@ function normalizePostMedia(media: PostMedia): PostMedia {
   };
 }
 
+function toViewCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
 export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
@@ -188,6 +194,7 @@ export function normalizePostRecord(post: PostRecord): PostRecord {
     shares: toNumber(post.shares),
     isReposted: Boolean(post.isReposted),
     repostCount: toNumber(post.repostCount),
+    viewCount: toViewCount(post.viewCount),
     reposterInfo: post.reposterInfo ?? null,
     likedByMe: Boolean(post.likedByMe),
     bookmarkedByMe: Boolean(post.bookmarkedByMe),
@@ -393,6 +400,15 @@ export async function updatePostContent(postId: string, content: string) {
 export async function deletePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}`, {
     method: 'DELETE',
+  });
+}
+
+/** 카드 노출 보고(#183). 서버가 같은 사용자·같은 글을 24시간에 1번만 센다. 한 번에 1~50개 */
+export async function recordPostViews(postIds: string[], options: ApiRequestOptions = {}) {
+  return apiRequest<{ counted: number }>('/api/v1/posts/views', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify({ postIds }),
   });
 }
 

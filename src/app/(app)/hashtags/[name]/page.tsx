@@ -88,8 +88,8 @@ export default function HashtagPostsPage() {
   return (
     <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
       <div className="min-w-0 flex-1 lg:py-6">
-        {/* 모바일은 앱 상단 바 대신 뒤로 헤더(F15), 데스크톱은 시안대로 제목만 둔다. */}
-        <header className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:p-0">
+        {/* 모바일은 앱 상단 바 대신 뒤로 헤더(F15), 데스크톱은 시안대로 제목만 둔다. 상단 바처럼 조회수 노출 판정에서 가린 영역으로 뺀다(F24). */}
+        <header data-view-occluder="top" className="sticky top-0 z-20 flex min-w-0 items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:p-0">
           <button type="button" onClick={goBack} className={`btn-icon text-icon-primary lg:hidden ${FOCUS_RING}`} aria-label="뒤로 가기">
             <ChevronLeft size={24} strokeWidth={1.67} />
           </button>

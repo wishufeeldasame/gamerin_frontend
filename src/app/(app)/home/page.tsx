@@ -159,7 +159,7 @@ function HomePageContent() {
   return (
     <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
       <main className="min-h-screen min-w-0 flex-1">
-        <div className="sticky top-[var(--app-header-height)] z-20 flex gap-7 border-b border-line bg-canvas px-4 md:px-0">
+        <div data-view-occluder="top" className="sticky top-[var(--app-header-height)] z-20 flex gap-7 border-b border-line bg-canvas px-4 md:px-0">
           {[
             { label: '추천', value: 'all' as const },
             { label: '팔로잉', value: 'following' as const },

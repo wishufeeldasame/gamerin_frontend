@@ -38,6 +38,7 @@ import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from './MembershipBadge';
 import { RepresentativeTierBadge } from './RepresentativeTierBadge';
+import { PostViewCount } from './PostViewCount';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 const MAX_COMMENT_LENGTH = 300;
@@ -630,7 +631,7 @@ export function PostDetail({
 
         {/* 액션 바는 Post 카드와 같은 모양이다(댓글 수는 이 화면에서 버튼이 아니다). */}
         <div className="flex items-center justify-between px-2 py-1 text-icon-secondary md:px-3 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-fg-brand dark:[&_button]:focus-visible:outline-line-focus">
-          <div className="flex items-center gap-1 md:gap-2">
+          <div className="flex items-center min-[400px]:gap-1 md:gap-2">
             <button
               type="button"
               onClick={handleToggleLike}
@@ -663,6 +664,7 @@ export function PostDetail({
               <Repeat2 size={20} strokeWidth={1.67} />
               <span className="text-label text-fg-secondary">{post.repostCount}</span>
             </button>
+            <PostViewCount count={post.viewCount} />
             {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
           </div>
           <div className="flex items-center">

@@ -48,6 +48,15 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => {
+  it('shows the abbreviated view count with the exact count for screen readers, and hides it when absent', async () => {
+    await show(kind, { ...post, viewCount: 12_345 });
+    expect(screen.getByText('1.2만')).toBeInTheDocument();
+    expect(screen.getByText('조회수 12,345회')).toHaveClass('sr-only');
+  });
+  it('hides the view count when the server sent none', async () => {
+    await show(kind, { ...post, viewCount: null });
+    expect(screen.queryByText(/조회수/)).not.toBeInTheDocument();
+  });
   it('merges a late share response after closing into the latest like state', async () => {
     let resolve!: (value: { postId: string; shares: number }) => void;
     const pending = new Promise<{ postId: string; shares: number }>((done) => { resolve = done; });
