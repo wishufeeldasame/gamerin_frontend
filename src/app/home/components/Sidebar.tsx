@@ -267,6 +267,9 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
   }, [notificationOpen, notificationPanelRef]);
   // 패널이 열려 있으면 그 메뉴만 활성으로 보인다(F5).
   const [home, ...rest] = links.map((item) => ({ ...item, isActive: item.isActive && !panelOpen }));
+  // 검색 결과·해시태그 화면에서는 패널이 닫혀 있어도 검색 메뉴를 활성으로 둔다(시안).
+  const pathname = usePathname();
+  const onSearchRoute = !panelOpen && (pathname === '/search' || pathname.startsWith('/hashtags/'));
 
   const linkItem = (item: (typeof links)[number]) => (
     <li key={item.label}>
@@ -282,6 +285,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
     icon: typeof Home,
     label: string,
     badge?: ReactNode,
+    active = popup.isOpen,
   ) => (
     <li>
       <button
@@ -290,9 +294,9 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
         onClick={popup.toggle}
         aria-expanded={popup.isOpen}
         aria-controls={popup.isOpen ? popup.id : undefined}
-        className={navItemClass(popup.isOpen)}
+        className={navItemClass(active)}
       >
-        <NavIcon icon={icon} active={popup.isOpen} />
+        <NavIcon icon={icon} active={active} />
         {label}
         {badge}
       </button>
@@ -308,7 +312,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
       <nav aria-label="주요 메뉴" className="min-h-0 flex-1">
         <ul className="space-y-1">
           {linkItem(home)}
-          {panelButton(search, Search, '검색')}
+          {panelButton(search, Search, '검색', undefined, onSearchRoute || search.isOpen)}
           {panelButton(
             notification,
             Bell,

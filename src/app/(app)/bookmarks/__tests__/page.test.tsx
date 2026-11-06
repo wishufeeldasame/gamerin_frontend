@@ -20,6 +20,7 @@ const capturedPostProps = vi.hoisted(() => ({
 const bookmarkContext = vi.hoisted(() => ({
   collections: [] as BookmarkCollection[],
   loading: false,
+  createCollection: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
@@ -30,6 +31,7 @@ vi.mock('@/app/context/BookmarkCollectionContext', () => ({
   useBookmarkCollections: () => ({
     collections: bookmarkContext.collections,
     loading: bookmarkContext.loading,
+    createCollection: bookmarkContext.createCollection,
   }),
 }));
 
@@ -215,6 +217,7 @@ describe('BookmarksPage state synchronization', () => {
     api.unlikePost.mockReset();
     bookmarkContext.collections = initialCollections;
     bookmarkContext.loading = false;
+    bookmarkContext.createCollection.mockReset();
     api.fetchCollectionBookmarks.mockResolvedValue(pageWithPost);
     api.fetchMyBookmarks.mockResolvedValue(pageWithPost);
     api.likePost.mockResolvedValue(undefined);
@@ -265,10 +268,10 @@ describe('BookmarksPage state synchronization', () => {
     expect(screen.queryByTestId('post-post-1')).not.toBeInTheDocument();
     expect(screen.getAllByText('동기화 중')).toHaveLength(2);
     expect(
-      within(getCollectionButton('모음집 A')).queryByText('5개 게시글'),
+      within(getCollectionButton('모음집 A')).queryByText('5'),
     ).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 B')).queryByText('4개 게시글'),
+      within(getCollectionButton('모음집 B')).queryByText('4'),
     ).not.toBeInTheDocument();
 
     bookmarkContext.collections = [
@@ -279,10 +282,10 @@ describe('BookmarksPage state synchronization', () => {
 
     await waitFor(() => {
       expect(
-        within(getCollectionButton('모음집 A')).getByText('4개 게시글'),
+        within(getCollectionButton('모음집 A')).getByText('4'),
       ).toBeInTheDocument();
       expect(
-        within(getCollectionButton('모음집 B')).getByText('3개 게시글'),
+        within(getCollectionButton('모음집 B')).getByText('3'),
       ).toBeInTheDocument();
     });
     expect(screen.queryByText('동기화 중')).not.toBeInTheDocument();
@@ -301,7 +304,7 @@ describe('BookmarksPage state synchronization', () => {
 
     expect(screen.queryByText('동기화 중')).not.toBeInTheDocument();
     expect(
-      within(getCollectionButton('모음집 A')).getByText('5개 게시글'),
+      within(getCollectionButton('모음집 A')).getByText('5'),
     ).toBeInTheDocument();
   });
 
@@ -324,7 +327,7 @@ describe('BookmarksPage state synchronization', () => {
     });
 
     expect(
-      within(getCollectionButton('모음집 A')).getByText('5개 게시글'),
+      within(getCollectionButton('모음집 A')).getByText('5'),
     ).toBeInTheDocument();
   });
 
@@ -451,5 +454,59 @@ describe('BookmarksPage state synchronization', () => {
       expect(renderedPost).toHaveAttribute('data-like-loading', 'false');
     });
     expect(screen.getAllByRole('alert').map((element) => element.textContent)).toContain('좋아요 요청 실패');
+  });
+
+  it('creates an empty collection from the collection list', async () => {
+    bookmarkContext.createCollection.mockRejectedValueOnce(new Error('이미 있는 이름입니다.'));
+    bookmarkContext.createCollection.mockResolvedValueOnce(initialCollections[0]);
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+
+    fireEvent.click(screen.getByRole('button', { name: '새 모음집' }));
+    const input = screen.getByRole('textbox', { name: '새 모음집 이름' });
+    fireEvent.click(screen.getByRole('button', { name: '만들기' }));
+    expect(screen.getByRole('alert')).toHaveTextContent('모음집 이름을 입력해 주세요.');
+    expect(bookmarkContext.createCollection).not.toHaveBeenCalled();
+
+    fireEvent.change(input, { target: { value: '  공략  ' } });
+    fireEvent.click(screen.getByRole('button', { name: '만들기' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('이미 있는 이름입니다.');
+    expect(bookmarkContext.createCollection).toHaveBeenCalledWith('공략');
+
+    fireEvent.click(screen.getByRole('button', { name: '만들기' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('textbox', { name: '새 모음집 이름' })).not.toBeInTheDocument();
+    });
+    expect(screen.getByRole('button', { name: '새 모음집' })).toBeInTheDocument();
+  });
+
+  it('keeps the new collection form while focus moves inside it and closes when an empty form loses focus', async () => {
+    render(<BookmarksPage />);
+    await screen.findByTestId('post-post-1');
+
+    fireEvent.click(screen.getByRole('button', { name: '새 모음집' }));
+    const input = screen.getByRole('textbox', { name: '새 모음집 이름' });
+    const submitButton = screen.getByRole('button', { name: '만들기' });
+
+    // 입력에서 만들기 버튼으로 Tab 이동: 폼 안이므로 닫지 않는다.
+    fireEvent.blur(input, { relatedTarget: submitButton });
+    expect(screen.getByRole('textbox', { name: '새 모음집 이름' })).toBeInTheDocument();
+
+    // 버튼 클릭은 입력 포커스를 유지해 blur 없이 제출되고 오류가 보인다.
+    expect(fireEvent.mouseDown(submitButton)).toBe(false);
+    fireEvent.click(submitButton);
+    expect(screen.getByRole('alert')).toHaveTextContent('모음집 이름을 입력해 주세요.');
+
+    // 빈 채로 폼 밖으로 포커스가 나가면 닫는다.
+    fireEvent.blur(submitButton, { relatedTarget: document.body });
+    expect(screen.queryByRole('textbox', { name: '새 모음집 이름' })).not.toBeInTheDocument();
+  });
+
+  it('does not show a bookmark count when the first page fails', async () => {
+    api.fetchMyBookmarks.mockRejectedValue(new Error('북마크를 불러오지 못했습니다.'));
+    render(<BookmarksPage />);
+
+    expect(await screen.findByText('북마크를 불러오지 못했습니다.')).toBeInTheDocument();
+    expect(screen.queryByText(/0개/)).not.toBeInTheDocument();
   });
 });
