@@ -19,8 +19,8 @@ export default function AppLayout({
   const pathname = usePathname();
   const { user, isAuthReady, isSessionUnavailable } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
-  // 알림·게시물 상세·해시태그는 자체 뒤로 헤더를 쓰므로 모바일 상단 바를 숨긴다(F15).
-  const showTopBar = pathname !== '/notifications' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
+  // 알림·게시물 상세·해시태그·지갑은 자체 뒤로 헤더를 쓰므로 모바일 상단 바를 숨긴다(F15).
+  const showTopBar = pathname !== '/notifications' && pathname !== '/wallet' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
 
   useEffect(() => {
     if (!isAuthReady) return;

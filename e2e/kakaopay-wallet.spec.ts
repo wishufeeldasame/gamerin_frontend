@@ -105,23 +105,56 @@ async function choosePackage(page: Page) {
   await page.getByRole('button', { name: '카카오페이로 10,000원 결제' }).click();
 }
 
-for (const viewport of [
-  { name: 'mobile', width: 390, height: 844, columns: 1 },
-  { name: 'desktop', width: 1280, height: 900, columns: 2 },
-]) {
-  test('지갑 충전 패키지 배치: ' + viewport.name, async ({ context, page }) => {
-    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+for (const theme of ['dark', 'light'] as const) for (const width of [1440, 375, 320]) {
+  test(`지갑 v2 배치 및 결제창: ${theme} ${width}px`, async ({ context, page }, info) => {
+    await page.setViewportSize({ width, height: width === 1440 ? 1024 : 844 });
     await mockWallet(context);
+    await context.addInitScript((mode) => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: mode })), theme);
+    await context.route('**/api/v1/mileage/me/transactions?**', route => route.fulfill({
+      json: { success: true, data: { last: true, content: [
+        { id: 'out', amount: -15000, typeDescription: '멘토링 신청', description: '랭크 게임 코칭', createdAt: '2026-11-04T20:40:00+09:00' },
+        { id: 'in', amount: 10000, typeDescription: '카카오페이 충전', description: '마일리지 충전', createdAt: '2026-11-03T21:12:00+09:00' },
+      ] } },
+    }));
     await page.goto('/wallet');
 
+    await expect(page.locator('html')).toHaveClass(theme === 'dark' ? /dark/ : /^(?!.*dark)/);
     await expect(page.getByRole('heading', { name: '내 지갑' })).toBeVisible();
+    await expect(page.getByRole('button', { name: '뒤로', exact: true })).toHaveCount(width === 1440 ? 0 : 1);
+    await expect(page.getByRole('button', { name: '검색 열기' })).toHaveCount(0);
     const radios = page.getByRole('radio');
     await expect(radios).toHaveCount(4);
     await expect(page.getByRole('button', { name: '충전 금액을 선택해 주세요' })).toBeDisabled();
 
-    const first = await radios.nth(0).boundingBox();
-    const second = await radios.nth(1).boundingBox();
-    expect(first?.y === second?.y).toBe(viewport.columns === 2);
+    const group = page.getByRole('radiogroup');
+    const first = (await radios.nth(0).boundingBox())!;
+    const second = (await radios.nth(1).boundingBox())!;
+    const history = page.getByRole('tablist', { name: '지갑 내역' });
+    const historyBox = (await history.boundingBox())!;
+    expect(first.y).toBe(second.y);
+    expect(historyBox.x > (await group.boundingBox())!.x).toBe(width === 1440);
+
+    const mileageTab = page.getByRole('tab', { name: '마일리지 내역' });
+    const paymentTab = page.getByRole('tab', { name: '결제 내역' });
+    await mileageTab.focus();
+    await mileageTab.press('ArrowRight');
+    await expect(paymentTab).toBeFocused();
+    await expect(page.getByRole('tabpanel', { name: '결제 내역' })).toBeVisible();
+    await paymentTab.press('Home');
+    await expect(page.getByRole('tabpanel', { name: '마일리지 내역' }).getByText('+10,000 M')).toBeVisible();
+
+    await radios.nth(1).click();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: info.outputPath('wallet.png'), animations: 'disabled' });
+    await page.getByRole('button', { name: '카카오페이로 10,000원 결제' }).click();
+    const dialog = page.getByRole('dialog', { name: '카카오페이로 충전하기' });
+    await expect(dialog).toBeVisible();
+    const dialogBox = (await dialog.boundingBox())!;
+    expect(Math.abs(dialogBox.y + dialogBox.height - (width === 1440 ? 1024 : 844)) < 2).toBe(width !== 1440);
+    await page.screenshot({ path: info.outputPath('kakao-dialog.png'), animations: 'disabled' });
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
   });
 }
 
