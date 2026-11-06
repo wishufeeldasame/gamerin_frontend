@@ -15,6 +15,7 @@ import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { useDesktopChange } from '@/hooks/useDesktopChange';
 import { MembershipBadge } from './MembershipBadge';
+import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 import { NotificationPanel } from './NotificationPanel';
 import { SearchPanel } from './SearchPanel';
 
@@ -181,7 +182,7 @@ function AccountCard() {
         <div className="min-w-0 flex-1">
           <p className="flex min-w-0 items-center gap-1 text-label font-bold text-fg-primary">
             <span className="truncate">{user.nickname}</span>
-            <MembershipBadge active={user.membershipBadge} />
+            <MembershipBadge active={user.membershipBadge} /><RepresentativeTierBadge tier={user.representativeTier} />
           </p>
           {user.handle ? <p className="truncate text-caption text-fg-tertiary">@{user.handle}</p> : null}
         </div>

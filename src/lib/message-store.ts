@@ -1,6 +1,7 @@
 'use client';
 
 import { formatRelativeTimeLabel } from '@/lib/time-format';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 export type MessageRecipient = {
   id: string;
@@ -10,6 +11,7 @@ export type MessageRecipient = {
   online: boolean;
   profileImageUrl?: string | null;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 };
 
 export type SharedPostPreview = {

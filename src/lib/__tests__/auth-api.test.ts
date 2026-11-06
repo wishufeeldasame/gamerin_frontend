@@ -46,6 +46,8 @@ describe('toAuthUser', () => {
       role: 'ROLE_ADMIN',
       status: 'ACTIVE',
       membershipBadge: false,
+      representativeGame: null,
+      representativeTier: null,
     });
   });
 
@@ -58,6 +60,14 @@ describe('toAuthUser', () => {
     expect(user).toMatchObject({ id: 'new-id', name: '저장이름', nickname: '새닉', gameTier: 'Gold', bio: '소개' });
     expect(user?.role).toBeUndefined();
     expect(user?.status).toBeUndefined();
+  });
+
+  it('/me의 대표 게임·티어를 검증해 담는다', () => {
+    const tier = { game: 'LOL', tierLabel: 'GOLD I' };
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', representativeGame: 'LOL', representativeTier: tier }))
+      .toMatchObject({ representativeGame: 'LOL', representativeTier: tier });
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', representativeGame: 'X', representativeTier: {} }))
+      .toMatchObject({ representativeGame: null, representativeTier: null });
   });
 
   it('/me의 hasPassword를 반영하고, 없으면 저장된 값을 유지한다', () => {
@@ -96,6 +106,8 @@ describe('loginWithPassword', () => {
       role: 'USER',
       status: 'ACTIVE',
       membershipBadge: false,
+      representativeGame: null,
+      representativeTier: null,
     });
   });
 

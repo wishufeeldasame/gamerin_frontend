@@ -2,6 +2,7 @@ import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import { toNumber } from '@/lib/coerce';
 import type { CursorPage } from '@/types/api';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 interface NotificationRequestOptions {
   signal?: AbortSignal;
@@ -31,6 +32,7 @@ export interface NotificationActor {
   profileImageUrl: string | null;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface NotificationRecord<TType = NotificationType> {

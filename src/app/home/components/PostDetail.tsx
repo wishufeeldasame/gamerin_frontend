@@ -37,6 +37,7 @@ import { RelatedHashtagPosts } from './RelatedHashtagPosts';
 import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from './MembershipBadge';
+import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 const MAX_COMMENT_LENGTH = 300;
@@ -513,7 +514,7 @@ export function PostDetail({
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-x-1.5">
                   <h2 className="text-body font-medium text-fg-primary">{post.author}</h2>
-                  <MembershipBadge active={post.authorMembershipBadge} />
+                  <MembershipBadge active={post.authorMembershipBadge} /><RepresentativeTierBadge tier={post.authorRepresentativeTier} />
                 </div>
                 <p className="text-caption text-fg-tertiary">
                   @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
@@ -813,7 +814,7 @@ export function PostDetail({
                       <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
                         <span className="inline-flex items-center gap-1 text-body font-medium text-fg-primary">
                           {comment.author}
-                          <MembershipBadge active={comment.authorMembershipBadge} />
+                          <MembershipBadge active={comment.authorMembershipBadge} /><RepresentativeTierBadge tier={comment.authorRepresentativeTier} />
                         </span>
                         <span className="text-caption text-fg-tertiary">
                           @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />

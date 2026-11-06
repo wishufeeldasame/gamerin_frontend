@@ -72,6 +72,7 @@ import {
 import { useCursorList } from '@/hooks/useCursorList';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
@@ -498,6 +499,7 @@ export default function ProfilePage() {
             location: loadedProfile.location ?? '',
             website: loadedProfile.website ?? '',
             profileImageUrl: loadedProfile.profileImageUrl,
+            representativeTier: loadedProfile.representativeTier ?? null,
           });
         }
       } catch (loadError) {
@@ -612,6 +614,8 @@ export default function ProfilePage() {
           ...refreshed,
           followedByMe: false,
         };
+        // 대표 게임 티어가 바뀌었을 수 있으므로 사이드바 등 인증 사용자 표시도 맞춘다.
+        updateUser({ representativeTier: refreshed.representativeTier ?? null });
         setProfileCover(refreshed.coverImageUrl || null);
         setProfileAvatar(refreshed.profileImageUrl);
       } catch (profileRefreshError) {
@@ -641,6 +645,7 @@ export default function ProfilePage() {
 
   const handleGameConnected = async () => {
     const refreshed = await fetchMyProfile();
+    updateUser({ representativeTier: refreshed.representativeTier ?? null });
     setProfile({
       ...refreshed,
       followedByMe: false,
@@ -659,14 +664,20 @@ export default function ProfilePage() {
     try {
       setIsDisconnectingGame(true);
       await disconnectGameStats(gameName);
+      // 서버가 해제한 게임이 대표였다면 대표 설정도 비우므로 화면 상태를 맞춘다.
+      const wasRepresentative = currentUser?.representativeGame === gameName;
       setProfile((current) =>
         current
           ? {
               ...current,
               gameStats: removeGameStats(current.gameStats, gameName),
+              ...(wasRepresentative ? { representativeTier: null } : {}),
             }
           : current,
       );
+      if (wasRepresentative) {
+        updateUser({ representativeGame: null, representativeTier: null });
+      }
       setDisconnectTarget(null);
     } catch (disconnectError) {
       toast.error(getGameStatsErrorMessage(gameName, disconnectError));
@@ -1149,7 +1160,7 @@ export default function ProfilePage() {
           <div>
             <h1 className="page-title flex items-center gap-2">
               {profile.nickname}
-              <MembershipBadge active={profile.membershipBadge} size={24} />
+              <MembershipBadge active={profile.membershipBadge} size={24} /><RepresentativeTierBadge tier={profile.representativeTier} size={24} />
             </h1>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
@@ -1562,7 +1573,7 @@ export default function ProfilePage() {
                           <div className="min-w-0">
                             <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
                               <span className="truncate">{followUserRecord.nickname}</span>
-                              <MembershipBadge active={followUserRecord.membershipBadge} />
+                              <MembershipBadge active={followUserRecord.membershipBadge} /><RepresentativeTierBadge tier={followUserRecord.representativeTier} />
                             </p>
                             <p className="truncate text-xs font-bold text-zinc-400">
                               @{followUserRecord.handle}

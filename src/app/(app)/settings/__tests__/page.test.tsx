@@ -34,6 +34,9 @@ vi.mock('@/lib/account-api', () => ({
   deleteMyAccount: account.deleteMyAccount,
 }));
 
+// 대표 게임 섹션은 RepresentativeGameSetting.test.tsx에서 따로 검증한다.
+vi.mock('../RepresentativeGameSetting', () => ({ RepresentativeGameSetting: () => null }));
+
 import SettingsPage from '../page';
 
 function renderSettings() {

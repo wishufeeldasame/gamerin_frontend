@@ -29,6 +29,7 @@ import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { PostImage } from './PostImage';
 import { MembershipBadge } from './MembershipBadge';
+import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 interface PostProps {
@@ -293,7 +294,7 @@ export function Post({
           <div className="pointer-events-none relative z-10 flex items-center gap-2 px-4 pt-3 text-caption font-medium text-fg-tertiary md:px-5">
             <Repeat2 size={15} strokeWidth={1.67} className="text-fg-success" />
             <span className="flex min-w-0 items-center">
-              <span className="inline-flex shrink-0 items-center gap-1">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /></span>
+              <span className="inline-flex shrink-0 items-center gap-1">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /><RepresentativeTierBadge tier={post.reposterInfo.representativeTier} /></span>
               <span className="truncate">
                 님이 리포스트했습니다{' · '}
                 <RelativeTime createdAt={post.reposterInfo.repostedAt} />
@@ -322,7 +323,7 @@ export function Post({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-1.5">
                 <h2 className="text-body font-medium text-fg-primary">{post.author}</h2>
-                <MembershipBadge active={post.authorMembershipBadge} />
+                <MembershipBadge active={post.authorMembershipBadge} /><RepresentativeTierBadge tier={post.authorRepresentativeTier} />
               </div>
               <span className="text-caption text-fg-tertiary">
                 @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />

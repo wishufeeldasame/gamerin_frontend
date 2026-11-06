@@ -11,6 +11,7 @@ import { toNumber } from '@/lib/coerce';
 import { formatRelativeTimeLabel } from '@/lib/time-format';
 import type { CursorPage } from '@/types/api';
 import type { BookmarkCollection } from '@/types/bookmark';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 export interface PostMedia {
   mediaId: string;
@@ -25,6 +26,7 @@ export interface ReposterInfo {
   userId: string;
   nickname: string;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   repostedAt: string;
 }
 
@@ -37,6 +39,7 @@ export interface PostRecord {
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
   authorMembershipBadge?: boolean;
+  authorRepresentativeTier?: RepresentativeTier | null;
   game?: string | null;
   content: string | null;
   media: PostMedia[];
@@ -65,6 +68,7 @@ export interface CommentRecord {
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
   authorMembershipBadge?: boolean;
+  authorRepresentativeTier?: RepresentativeTier | null;
   content: string;
   createdAt: string;
   mine: boolean;
@@ -82,6 +86,7 @@ export interface UserProfile {
   gameStats: Record<string, unknown>;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   followersCount: number;
   followingCount: number;
   postCount: number;
@@ -119,6 +124,7 @@ export interface FollowUserRecord {
   profileImageUrl: string | null;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   isFollowing: boolean;
   followedAt: string;
 }
