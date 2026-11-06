@@ -2,7 +2,7 @@
 
 작성일: 2026-11-04 · 갱신: 2026-11-06 · 코드 확인 기준: frontend `feature/design-v2` `029a734`(1절 진단 수치는 반영 전 `develop` `d3fee9b` 기준)
 
-**상태: 시안 확정, 코드 반영 진행 중.** 2026-11-05에 사용자가 **다크 기본 + 노랑 Amber `#F5B93D`(시안 J)**와 **L2 사이드바 통합형 레이아웃**을 확정했다(2-1절, [mockups.md](mockups.md) 확정안). 데스크톱·모바일 주요 화면과 탭·상태 화면을 새 Figma 파일에 그렸다. 코드는 통합 브랜치 `feature/design-v2`에 단계별 PR로 반영하고 있다. 1~3단계(토큰·공통 유틸리티·앱 셸 L2)와 4단계 첫 묶음(게시물 카드·작성창·홈 피드)·둘째 묶음(게시물 상세)·셋째 묶음(검색 결과·해시태그·북마크)이 끝났다. 넷째 묶음(프로필)은 구현했고, 지갑·멘토링·멤버십·로그인 화면이 남았다(7절, 9절). 시안 A~D, E~J, L1/L2의 결정과 피드백도 [mockups.md](mockups.md)에 정리했다.
+**상태: 시안 확정, 코드 반영 진행 중.** 2026-11-05에 사용자가 **다크 기본 + 노랑 Amber `#F5B93D`(시안 J)**와 **L2 사이드바 통합형 레이아웃**을 확정했다(2-1절, [mockups.md](mockups.md) 확정안). 데스크톱·모바일 주요 화면과 탭·상태 화면을 새 Figma 파일에 그렸다. 코드는 통합 브랜치 `feature/design-v2`에 단계별 PR로 반영하고 있다. 1~3단계(토큰·공통 유틸리티·앱 셸 L2)와 4단계 첫 묶음(게시물 카드·작성창·홈 피드)·둘째 묶음(게시물 상세)·셋째 묶음(검색 결과·해시태그·북마크)이 끝났다. 넷째 묶음(프로필)이 끝났고, 다섯째 묶음(내 지갑)을 구현했다. 멘토링·멤버십·로그인 화면이 남았다(7절, 9절). 시안 A~D, E~J, L1/L2의 결정과 피드백도 [mockups.md](mockups.md)에 정리했다.
 
 - Figma 파일(현행): [GamerIN Design System v2](https://www.figma.com/design/e4aQUNEbh9n2aXiStJYniH) (팀 `서장호's team`, Student 플랜) — 4-1절
 - Figma 파일(초기, 참고용): [GamerIN Design System v2](https://www.figma.com/design/KFhNXMpM8Klw9oXWiCkhRZ) (팀 `서장호의 팀`, Starter 플랜). 3·4절의 컴포넌트·화면은 이 파일 기준이며 새 파일로 옮기지 않았다.
@@ -72,6 +72,21 @@ D7·D8은 확정안에서 바뀌었다(2-1절 F6).
 | F23 | 게시물 카드 이름 옆 티어는 작성자의 **대표 게임 티어**(wishufeeldasame/gamerin_backend#179 `authorRepresentativeTier`)를 **엠블럼 이미지만** 보여 준다. 티어 글자(`Diamond 2`)와 게임 약칭은 붙이지 않고, 엠블럼에 `LoL Gold I` 같은 대체 텍스트를 단다. 메타 줄의 `· 게임`(게시물 게임 태그)은 만들지 않는다. 조회수는 wishufeeldasame/gamerin_backend#183으로 진행한다. | 사용자 결정(2026-11-05). 대표 티어와 게시물 게임을 한 카드에 같이 두면 두 게임이 다를 때 티어가 어느 게임 것인지 헷갈린다. 게임마다 엠블럼 그림이 달라 엠블럼만으로 게임이 구분된다. 게시물 게임은 게임별 피드 필터가 필요해질 때 그 UI와 함께 설계한다. Figma 시안은 티어 글자·게임 이름을 그린 그대로다. |
 | F24 | 조회수(wishufeeldasame/gamerin_backend#183, #188 `viewCount`)는 시안대로 액션 줄의 리포스트 다음에 눈 아이콘과 숫자로 둔다(카드·상세 공통 `PostViewCount`, 버튼 아님). 1만 미만은 `1,234`, 1만 이상은 `1.2만`·`12만`·`1.5억`이다(단위 앞 숫자가 10 미만이면 소수 한 자리, 반올림 없이 버림, `formatViewCount`). 0은 다른 숫자처럼 보이고, 응답에 값이 없거나 0 이상의 정수가 아니면 숨긴다. 카드 노출 집계(`usePostViewImpression`): 모바일 상단 바·하단 탭 바와 홈·프로필의 sticky 탭(`data-view-occluder`)에 가린 부분을 뺀 화면 영역에서 카드가 절반 이상(화면보다 긴 카드는 그 영역 높이의 절반 이상) 보이는 상태가 탭이 보이는 채로 1초 이어지면 1회다(탭을 숨기면 1초를 처음부터 다시 재고, 화면에 걸친 카드가 있는 동안 스크롤·창 크기 변경 때와 1초가 끝날 때 보이는 높이를 다시 잰다). 같은 탭에서 같은 글은 한 번만 보고하고(사용자가 바뀌면 초기화), 50개가 차거나 첫 노출 5초 뒤 `POST /api/v1/posts/views`로 묶어 보낸다. 탭을 숨기거나 떠날 때(`visibilitychange`·`pagehide`) 남은 것을 `keepalive`로 바로 보낸다. 실패는 다시 보내지 않고, 보내기 전에 로그아웃·다른 사용자 로그인·토큰 갱신으로 인증 세대가 바뀌면 남은 것은 버린다. 비로그인이거나 IntersectionObserver가 없으면 보고하지 않는다. 상세는 서버가 `GET`에서 세고 응답 값은 이번 조회 전 값이므로 그대로 보여 준다. | 구현 결정(2026-11-06). 서버가 같은 사용자·같은 글을 24시간에 1번만 세므로(`PostViewService`) 프론트 중복 제거는 요청 수만 줄인다. 조회수는 근사치라 재시도로 요청을 늘리지 않는다. 절반·1초는 흔히 쓰는 노출 기준(IAB 디스플레이 광고 기준)이다. 시안은 0을 숨기지만 코드의 좋아요·댓글·리포스트 숫자가 0도 보이므로 맞췄다. |
 
+#### 다크 팔레트 밝기 조정
+
+프로필 모바일 시안에서 다크 바탕이 너무 어두워, 중립색의 밝기를 아래와 같이 높이기로 했다. 공통 다크 토큰과 현행 Figma의 Dark 모드에 아래 값을 반영했다. D3·D10의 기존 다크 값은 이전 결정 기록이다.
+
+| 역할 | 적용값 |
+|---|---|
+| 화면 바탕 (`canvas`, `background`) | `#19191D` |
+| 카드·모바일 하단 탭 표면 (`surface`) | `#222226` |
+| 한 단계 밝은 표면 (`surface-elevated`)과 사진 없는 프로필 기본 커버 | `#2B2B31` |
+| 기본 구분선 (`line`) | `#38383F` |
+
+초기 화면과 설치형 웹앱은 `APP_THEME_COLORS.dark`(`#19191D`)를 사용한다. 다크에서 사진이 없는 프로필 커버와 수정 미리보기는 `#2B2B31`을 표시한다. 라이트 기본 커버는 기존 SVG를 사용한다. 업로드한 커버와 미디어에는 팔레트 변환을 적용하지 않는다.
+
+기존 다크 보조 글자 `#8B8B94`는 한 단계 밝은 표면에서 4.17:1이었다. 공통 `text/tertiary`를 `#94949E`로 올려 `#2B2B31` 위에서 4.68:1을 확보했다. Chromium에서 홈·검색·해시태그·북마크·게시물 상세·프로필·지갑과 모바일 알림을 확인했다.
+
 ### 2-2. 토큰
 
 CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 Web code syntax에 넣어 두었다).
@@ -82,6 +97,7 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 |---|---|
 | yellow | 50 `#FFF9EB` · 100 `#FEF0C7` · 200 `#FDE08A` · 300 `#FBCD5A` · 400 `#F8C24A` · **500 `#F5B93D`** · 600 `#DB9A1F` · 700 `#B07614` · 800 `#7D5310` · 900 `#4A310A` · 950 `#2A2112` |
 | neutral | 0 `#FFFFFF` · 50 `#FAFAFA` · 100 `#F4F4F5` · 200 `#E4E4E7` · 300 `#D4D4D8` · 400 `#A1A1AA` · 450 `#8B8B94` · 500 `#71717A` · 600 `#52525B` · 700 `#3F3F46` · 800 `#2A2A30` · 850 `#1F1F24` · 900 `#151518` · 950 `#0C0C0E` · ink `#1A1406` |
+| dark-neutral | 450 `#94949E` · 800 `#38383F` · 850 `#2B2B31` · 900 `#222226` · 950 `#19191D` |
 | red | 50 `#FEF2F2` · 300 `#F87171` · 500 `#DC2626` · 950 `#2A1212` |
 | green | 50 `#F0FDF4` · 300 `#4ADE80` · 500 `#16A34A` · 950 `#0F2416` |
 
@@ -89,9 +105,10 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 
 | 토큰 | Light | Dark | 용도 |
 |---|---|---|---|
-| `bg/canvas` | neutral/50 | neutral/950 | 페이지 바탕 |
-| `bg/surface` | neutral/0 | neutral/900 | 카드·헤더·사이드바 |
-| `bg/subtle` | neutral/100 | neutral/850 | hover, 검색창, 미디어 자리 |
+| `bg/canvas` | neutral/50 | dark-neutral/950 | 페이지 바탕 |
+| `bg/surface` | neutral/0 | dark-neutral/900 | 카드·헤더·모바일 하단 탭 |
+| `bg/subtle` | neutral/100 | dark-neutral/850 | hover, 검색창, 미디어 자리. 다크의 `--surface-elevated`와 같은 값 |
+| `bg/profile-cover` | 기존 기본 SVG | dark-neutral/850 | 사진이 없는 프로필 커버. Figma에서 Light 모드에만 기존 벡터 삽화를 표시 |
 | `bg/inverse` | neutral/900 | neutral/0 | 토스트 등 반전 표면 |
 | `bg/brand` | yellow/500 | yellow/500 | Primary 버튼, 로고 마크 |
 | `bg/brand-hover` | yellow/600 | yellow/300 | Primary hover |
@@ -99,12 +116,12 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 | `bg/danger-subtle` / `bg/success-subtle` | red/50 / green/50 | red/950 / green/950 | Danger 버튼, 상태 배너 |
 | `text/primary` | neutral/900 | neutral/100 | 본문·제목 |
 | `text/secondary` | neutral/600 (D10) | neutral/400 | 보조 설명, 비활성 메뉴 |
-| `text/tertiary` | neutral/500 (D10) | neutral/450 (D10) | 핸들·시간·placeholder |
+| `text/tertiary` | neutral/500 (D10) | dark-neutral/450 | 핸들·시간·placeholder |
 | `text/on-brand` | neutral/ink | neutral/ink | 노랑 바탕 위 글자 |
 | `text/brand` | yellow/800 | yellow/400 | 해시태그, 티어 라벨 |
 | `text/danger` / `text/success` | red/500 / green/500 | red/300 / green/300 | 오류·성공 문구 |
 | `icon/primary` / `icon/secondary` / `icon/brand` | neutral/900 / neutral/500 / yellow/600 | neutral/100 / neutral/400 / yellow/500 | 아이콘 |
-| `border/default` / `border/strong` | neutral/200 / neutral/300 | neutral/800 / neutral/700 | 구분선·카드 테두리 / Secondary 버튼 |
+| `border/default` / `border/strong` | neutral/200 / neutral/300 | dark-neutral/800 / neutral/700 | 구분선·카드 테두리 / Secondary 버튼 |
 | `border/focus` / `border/danger` | yellow/500 / red/500 | yellow/500 / red/300 | 포커스 / 오류 입력 |
 | `border/card` | neutral/200 | 투명(`#00000000`) | 카드 테두리. 라이트에서만 보인다(F13) |
 
@@ -157,8 +174,8 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 
 | 페이지 | 내용 |
 |---|---|
-| Foundations | 비어 있음. 변수(Primitives 34, Brand 4×6모드, Color 25×Light/Dark, Dimension 12), 텍스트 스타일 7, 이펙트 스타일 2만 있다. 초기 파일의 Foundations 문서 페이지는 옮기지 않았다. |
-| Components | 아이콘 36종(lucide 원본 SVG), Avatar, Nav Item, Post Action, Post Card(Media 16:9 고정), Notification Item, Tab, Chip, User Row, Program Card, Charge Option, History Row, Application Card, Benefit Row, Profile Cover(기본 커버 SVG), Tab Bar Item, Mobile Tab Bar, Mobile Top Bar |
+| Foundations | 비어 있음. 변수(Primitives 39, Brand 4×6모드, Color 27×Light/Dark, Dimension 12), 텍스트 스타일 7, 이펙트 스타일 2만 있다. 초기 파일의 Foundations 문서 페이지는 옮기지 않았다. |
+| Components | 아이콘 36종(lucide 원본 SVG), Avatar, Nav Item, Post Action, Post Card(Media 16:9 고정), Notification Item, Tab, Chip, User Row, Program Card, Charge Option, History Row, Application Card, Benefit Row, Profile Cover(Light 기본 SVG, Dark 단색), Tab Bar Item, Mobile Tab Bar, Mobile Top Bar |
 | Mockups · Dark | 시안 E~J(색 6종), L1/L2 레이아웃, L2 알림·검색 패널 열림 상태 |
 | Screens | 확정 레이아웃의 데스크톱 화면: 홈, 검색 결과, 북마크, 프로필(게시물·전적·미디어), 내 지갑, 멘토링(멘토 찾기·내 멘토링·내 프로그램·멘토 되기·프로그램 상세), 멤버십(미가입·이용 중), 상태(홈 로딩·오류, 북마크 빈 상태, 검색 결과 없음, 세션 확인 실패). 각 화면에 Amber·Violet 두 벌이 있다. |
 | Mobile | 390×844: 홈, 검색 패널, 알림 페이지, 북마크, 프로필, 내 지갑, 멘토링, 멤버십. Amber·Violet 두 벌 |
@@ -225,6 +242,7 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 4. `Post` / `PostComposer` / 각 페이지(검색 결과, 북마크, 프로필, 지갑, 멘토링, 멤버십) / 로그인 화면 순서로 화면 단위 PR로 적용한다. 첫 묶음(브랜치 `feat/design-v2-post`, PR #180)은 `Post`·`PostComposer`·홈 피드(탭, 오류 화면 F22 문구)·임시 카드·스켈레톤이다. 게시물이 모든 폭에서 카드가 되어 검색·해시태그·북마크·프로필 목록의 모바일 여백(16px)과 간격(12px)도 함께 맞췄다. 시안과 다르게 둔 것: 조회수(첫 묶음 당시 응답에 값이 없었다. 이후 백엔드 wishufeeldasame/gamerin_backend#188과 브랜치 `feat/design-v2-view-count`로 액션 줄에 넣었다(F24). 대표 티어 엠블럼(F23)은 백엔드 #179와 프론트 PR #182로 구현했다), 메타 줄 게임 이름(만들지 않음, F23), 작성창 placeholder(코드 문구 유지), 멘션 색(해시태그와 구분하려고 하늘색 유지), 라이트 모드 카드·액션 바 포커스 색(`yellow/500`은 흰 카드 위 대비가 3:1에 못 미쳐 `text/brand` `#7D5310`, 다크는 `border/focus` 그대로). 둘째 묶음(브랜치 `feat/design-v2-post-detail`, PR #181)은 게시물 상세다. 게시물 카드와 댓글을 각각 `rounded-card` 카드로 나누고, 모든 폭에서 `‹ 게시물` 뒤로 헤더를 둔다. 모바일은 앱 상단 바 대신 이 헤더가 위에 붙는다(F15). 시안과 다르게 둔 것: 조회수(첫 묶음과 같음. 이후 F24로 추가. 티어 엠블럼은 #182에서 추가), 댓글 줄의 `@핸들`(유지), 댓글 글자 수(입력 중에만 입력창 아래 표시). 이후 대표 티어 엠블럼과 대표 게임 설정(PR #182), 발로란트 전적 연동 화면(PR #184, 원 PR #183), 게시물 조회수 표시와 카드 노출 집계(브랜치 `feat/design-v2-view-count`, F24)가 같은 브랜치에 들어갔다(8절). 셋째 묶음(브랜치 `feat/design-v2-search-bookmark`)은 검색 결과·해시태그·북마크다. 세 화면 모두 홈과 같은 본문 + 오른쪽 열 구성이고, 빈·오류 상태는 홈 오류 화면과 같은 카드다. 검색 결과는 버튼 없는 검색창(Enter 제출), 왼쪽 정렬 탭 밑줄, 카드 없는 사용자 행, `#이름 · 개수` 해시태그 칩, 섹션 `모두 보기`다. 해시태그는 모바일에서 앱 상단 바 대신 `‹ #이름` 뒤로 헤더를 쓰고(F15), 데스크톱은 시안대로 제목만 둔다. 북마크는 모음집 목록을 xl(1280) 이상에서 오른쪽 열(F8), 그 아래 폭에서 제목 아래 가로 칩으로 둔다(DOM은 한 벌). 시안의 `+ 새 모음집`을 넣었다(이름 입력 → `createCollection`). 사이드바 `검색` 메뉴는 `/search`·`/hashtags/*`에서 활성이다. 시안과 다르게 둔 것: 검색 결과 사용자 행의 `팔로우` 버튼과 `발로란트 Diamond 2`·`팔로워 1.2만` 글자(검색 응답에 팔로우 상태·팔로워 수가 없다. 티어는 F23대로 엠블럼만), 오른쪽 열 `추천 플레이어`(코드에서 숨김 `SHOW_SUGGESTED_FRIENDS = false`, 백엔드 #168 대기라 이용약관 줄만 보인다), 북마크 `전체 북마크`·`미분류` 개수(총개수 API가 없다. 헤더 `· N개`는 조회 오류 없이 목록을 끝까지 불러왔을 때만 붙인다), 북마크 검색창·`미디어만` 토글(시안에 없지만 기존 기능이라 헤더 아래 한 줄로 남겼다), 북마크 빈 상태 문구(시안 `아직 저장한 게시물이 없어요` 대신 코드 문구 `아직 저장한 게시글이 없습니다` 유지), 모바일 모음집 칩 끝의 `+ 새 모음집`(모바일 시안에는 없다), 1024~1279 폭의 북마크(시안 없음. 오른쪽 열 대신 칩을 쓴다), 게시물 카드의 게임 이름(첫 묶음과 같다. 조회수는 F24로 들어갔다).
    - 넷째 묶음(`feat/design-v2-profile`)은 프로필이다. F6·F12·F14에 맞춰 기본 커버·원형 아바타·설정과 수정 버튼을 배치했다. 게시글·미디어 탭은 xl(1280px) 이상에서 본문 600px과 스크롤에 고정되는 전적 요약 열 300px(F8)을 쓴다. 전적 탭은 요약 열을 숨기고 본문 한 열에 게임별 지표 카드를 표시한다. 탭은 방향키·Home·End로 전환하고, 미디어는 3열 썸네일로 표시한다. 내 프로필의 lg 미만 마일리지 카드는 기존 잔액 API와 지갑 링크를 쓴다(F9).
    - 시안과 다른 점은 기존 데이터와 동작을 따른다. 연결된 미디어 계정의 v2 반영은 마지막 작업으로 보류한다. 이번에는 본인 미디어 탭 맨 위에서 브라우저에 저장된 링크를 관리하는 기존 흐름을 유지한다. 전적 탭의 추가·새로고침·해제와 갱신 시각은 유지한다. 사이드바와 마일리지 카드는 폭에 따라 각각 잔액을 읽는다. 표시 이름 옆은 멤버십 배지와 대표 티어 엠블럼(F23)을 사용한다.
+   - 다섯째 묶음(`feat/design-v2-wallet`)은 내 지갑이다. F8의 940px 본문 안에서 xl(1280px) 이상은 잔액·충전과 내역을 좌우에 놓고, 그 아래에서는 한 열로 쌓는다. 충전 상품은 모든 폭에서 2열이며 서버 상품만 표시하고 사용자가 고르기 전에는 결제 버튼을 비활성화한다. 모바일은 뒤로 헤더(F15)와 잔액 아래 멤버십 링크(F7)를 쓴다. 내역 탭은 방향키·Home·End로 전환한다. 카카오페이 확인창은 데스크톱 중앙 모달, 모바일 하단 시트다. 팝업 다시 열기·결제 중단, 내역 설명·시각과 금액 단위는 기존 표시를 따른다.
 5. 앱 전체 폰트를 Noto Sans KR로 바꾼다. 관리자 화면 `admin-font.ts`와 같은 woff2를 쓰고, 크기(약 3.9MB)와 preload 정책을 함께 검토한다.
 6. 관리자 화면의 별도 팔레트(`#667085`, `#315ef5` 등)는 이번 개편에서 그대로 둔다(F20).
 7. 각 단계마다 `npm run lint`, `npm test`, `npm run build`를 실행하고, 라이트·다크와 모바일·데스크톱 화면을 확인한다.
@@ -257,6 +275,8 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | 2026-11-06 | 게시물 조회수(프론트 PR #186, 백엔드 #188, F24): 카드·상세 액션 줄에 조회수 표시(`PostViewCount`, `formatViewCount`), 카드 노출 집계 훅 `usePostViewImpression`, 목 API에 `viewCount`·`POST /posts/views` 추가. 데스크톱·모바일 × 다크·라이트로 확인 |
 | 2026-11-06 | 4단계 셋째 묶음(PR #185): 검색 결과·해시태그·북마크에 확정안 적용(검색창·탭·사용자 행·해시태그 칩, 해시태그 모바일 뒤로 헤더, 북마크 오른쪽 열 모음집 목록·가로 칩·`+ 새 모음집`, 사이드바 검색 활성). 데스크톱(1440·1100) 다크·라이트, 모바일 375·320 다크·라이트로 확인 |
 | 2026-11-06 | 4단계 넷째 묶음(PR #188): 프로필 확정안 적용. 리뷰 반영으로 전적 요약 고정, 전적 탭 본문 확장, 탭 키보드 조작, 프로필 빈·오류 상태와 메뉴·모달 토큰, 잔액 훅 테스트를 추가했다. 연결된 미디어 계정의 v2 반영은 마지막으로 미뤘다 |
+| 2026-11-06 | 4단계 다섯째 묶음: 내 지갑에 Amber 시안, 모바일 뒤로 헤더, 결제 확인 시트를 반영했다. Chromium 목 API에서 1440·375·320px 다크·라이트와 PC 팝업·모바일 결제 흐름을 확인했다 |
+| 2026-11-06 | 공통 다크 팔레트 밝기 조정. 앱 셸·프로필 기본 커버·웹앱 초기 색상과 Figma 변수·최종 시안을 동기화했다 |
 
 ## 9. 확정 상태와 다음 단계
 
@@ -273,9 +293,11 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 | 로그인 화면 | **확정**: 제목 `다시 오신 걸 환영해요`(F18), 토글 제거·폼 항상 펼침(F19). Figma 시안은 코드 그대로(제목·토글)다 |
 | 웹앱 | 매니페스트·iOS 메타·안전 영역·앱 안 이동 통일을 3단계에서 넣었다(10-1절 아래 표). iOS 하단 Safari 조작창이 사라지는지, 라이트 모드 상태 표시줄(`black-translucent`) 글자가 보이는지는 실기기 확인 필요 |
 | 관리자 화면 | **확정**: 이번 개편에서 제외(F20) |
-| 코드 반영 | 진행 중(통합 브랜치 `feature/design-v2`). 1단계 토큰·기본 다크, 2단계 공통 유틸리티, 3단계 앱 셸 L2·웹앱 설정 완료(PR #179). 4단계 첫 묶음 게시물 카드·작성창·홈 피드(PR #180), 둘째 묶음 게시물 상세(PR #181). 대표 티어 엠블럼과 대표 게임 설정(PR #182), 발로란트 전적 연동 화면(PR #184, 원 PR #183), 게시물 조회수(F24, PR #186). 4단계 셋째 묶음 검색 결과·해시태그·북마크(PR #185), 넷째 묶음 프로필(`feat/design-v2-profile`). 다음은 지갑·멘토링·멤버십·로그인 화면의 디자인 적용. 연결된 미디어 계정은 v2 마지막 작업 |
+| 코드 반영 | 진행 중(통합 브랜치 `feature/design-v2`). 1단계 토큰·기본 다크, 2단계 공통 유틸리티, 3단계 앱 셸 L2·웹앱 설정 완료(PR #179). 4단계 첫 묶음 게시물 카드·작성창·홈 피드(PR #180), 둘째 묶음 게시물 상세(PR #181). 대표 티어 엠블럼과 대표 게임 설정(PR #182), 발로란트 전적 연동 화면(PR #184, 원 PR #183), 게시물 조회수(F24, PR #186). 4단계 셋째 묶음 검색 결과·해시태그·북마크(PR #185), 넷째 묶음 프로필(PR #188), 다섯째 묶음 내 지갑(`feat/design-v2-wallet`). 다음은 멘토링·멤버십·로그인 화면의 디자인 적용. 연결된 미디어 계정은 v2 마지막 작업 |
 | 티어 표시 | **확정**: 시안대로 둔다(2026-11-05 사용자 결정). 앱 셸에서 `user.gameTier`(티어·`미배치`) 글자 표시는 뺐고 현재 화면 어디에서도 쓰지 않는다(필드는 `auth-api.ts`에 남아 있고 게임 연동 모달이 갱신한다). 닉네임 옆에는 대표 티어 엠블럼(`RepresentativeTierBadge`)만 둔다(F23, PR #182). 표시 위치: 사이드바 계정 카드(`Sidebar.tsx`, `@핸들`과 함께), 프로필 이름 옆과 팔로워·팔로잉 목록, 게시물 카드(리포스터 포함)·상세·댓글, 검색 결과 계정, 멘토링(멘토·프로그램·리뷰), DM 대화 목록·상대 헤더, 알림. 대표 게임은 설정 화면의 `RepresentativeGameSetting`에서 연동한 게임 중 고른다. 게임별 티어 글자는 프로필 전적 탭에서 본다 |
 | 임시 목 API | 로그인 이후 화면을 백엔드 없이 확인하려고 `scripts/dev-mock-api.mjs`와 `npm run dev:mock`을 추가했다. **v2 적용 완료 후 두 가지 모두 삭제한다** |
+
+프로필 헤더에서는 멤버십 배지와 대표 티어 엠블럼을 독립적으로 표시한다. 둘 다 해당하면 닉네임, 멤버십 배지, 대표 티어 엠블럼 순으로 표시한다. 로컬 프로덕션 컨테이너에서 고밀도 화면용 발로란트 티어 엠블럼의 `/_next/image` 48px 요청이 504를 반환했다. 대표 티어 배지만 런타임 변환을 건너뛰고 번들에 포함된 정적 파일을 읽는다.
 
 ## 10. 웹앱(데스크톱·iOS 홈 화면 앱) 고려사항
 
@@ -295,9 +317,9 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 
 | 항목 | 반영 |
 |---|---|
-| 매니페스트 | `src/app/manifest.ts`(`start_url /home`, `scope /`, `display standalone`, 바탕·테마 `#0C0C0E`). 아이콘은 `public/icons/`에 192·512·maskable 512(`logo.png` 가운데를 노란 바탕에 얹음) |
+| 매니페스트 | `src/app/manifest.ts`(`start_url /home`, `scope /`, `display standalone`, 바탕·테마 `#19191D`). 아이콘은 `public/icons/`에 192·512·maskable 512(`logo.png` 가운데를 노란 바탕에 얹음) |
 | iOS 메타 | `appleWebApp`(`capable`, `title GamerIN`, `statusBarStyle black-translucent`), `icons.apple` 180. Next 15는 `capable`을 `mobile-web-app-capable`로만 내보내서 `apple-mobile-web-app-capable`을 `other`로 따로 넣었다 |
-| theme-color | `viewport.themeColor #0C0C0E`. 라이트 테마면 첫 화면 스크립트와 `applyThemeMode`가 `#FAFAFA`로 바꾼다. `media`별 지정(10-2 제안 3)은 앱 테마가 OS 설정과 따로 움직여서 쓰지 않았다 |
+| theme-color | `viewport.themeColor #19191D`. 라이트 테마면 첫 화면 스크립트와 `applyThemeMode`가 `#FAFAFA`로 바꾼다. `media`별 지정(10-2 제안 3)은 앱 테마가 OS 설정과 따로 움직여서 쓰지 않았다 |
 | 안전 영역 | 모바일 상단 바·알림 페이지 헤더·전체 화면 검색에 `env(safe-area-inset-top)`, `--app-header-height`가 상단 바 높이를 포함한다 |
 | 앱 안 이동 | 멤버십 이동을 `router.push('/membership')`로 바꿨다(`Post.tsx`, `PostDetail.tsx`) |
 
@@ -325,13 +347,13 @@ Figma MCP 호출 한도(Starter 플랜)에 걸려 Figma 화면은 만들지 못�
 1. `src/app/manifest.ts`를 추가한다.
    - `name`·`short_name`: `GamerIN`
    - `start_url: '/home'`, `scope: '/'`, `display: 'standalone'`
-   - `background_color`·`theme_color`: 다크 기본 `#0C0C0E`
+   - `background_color`·`theme_color`: 다크 기본 `#19191D`
    - 아이콘 192·512와 maskable 아이콘
 2. `metadata`에 iOS 설정을 넣는다.
    - `appleWebApp: { capable: true, title: 'GamerIN', statusBarStyle: 'black-translucent' }`
    - `icons.apple`: 180×180 아이콘
    - Next 버전에 따라 출력되는 메타 이름이 다를 수 있으니 빌드 결과 HTML에서 확인한다.
-3. `viewport.themeColor`를 라이트(`#FAFAFA`)·다크(`#0C0C0E`) `media`별로 지정한다.
+3. `viewport.themeColor`를 라이트(`#FAFAFA`)·다크(`#19191D`) `media`별로 지정한다.
 4. 앱 안 이동은 클라이언트 이동으로 통일한다. `window.location.assign('/membership')`(`Post.tsx:370`, `PostDetail.tsx:544`)은 `router.push`로 바꾼다.
 5. 범위 밖으로 나가는 것은 의도한 경우만 남긴다: 외부 링크(YouTube·Twitch 등), 카카오페이 결제, Google OAuth.
    - 이때 iOS 조작 UI가 뜨는 것은 정상 동작이다.

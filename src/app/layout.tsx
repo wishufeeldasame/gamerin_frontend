@@ -4,6 +4,7 @@ import "./globals.css";
 import { AuthProvider } from '@/app/context/AuthContext';
 import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
 import { FeedbackProviders } from '@/app/context/FeedbackProviders';
+import { APP_THEME_COLORS } from '@/lib/theme-colors';
 
 // 2. 서비스에 맞는 메타데이터 설정 (가독성과 검색 최적화)
 export const metadata: Metadata = {
@@ -31,7 +32,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0C0C0E",
+  themeColor: APP_THEME_COLORS.dark,
 };
 
 export default function RootLayout({
@@ -45,18 +46,20 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: `
+              let isLight = location.pathname.startsWith('/admin');
               try {
                 const settings = JSON.parse(localStorage.getItem('gamerin_user_settings') || '{}');
-                if (settings.theme !== 'light' && !location.pathname.startsWith('/admin')) {
-                  document.documentElement.classList.add('dark');
-                } else {
-                  // 메타 태그가 이 스크립트 뒤에 올 수 있어 문서를 다 읽은 뒤 바꾼다.
-                  document.addEventListener('DOMContentLoaded', function () {
-                    var meta = document.querySelector('meta[name="theme-color"]');
-                    if (meta) meta.setAttribute('content', '#FAFAFA');
-                  });
-                }
+                isLight ||= settings?.theme === 'light';
               } catch {}
+              if (!isLight) {
+                document.documentElement.classList.add('dark');
+              } else {
+                // 메타 태그가 이 스크립트 뒤에 올 수 있어 문서를 다 읽은 뒤 바꾼다.
+                document.addEventListener('DOMContentLoaded', function () {
+                  var meta = document.querySelector('meta[name="theme-color"]');
+                  if (meta) meta.setAttribute('content', '${APP_THEME_COLORS.light}');
+                });
+              }
             `,
           }}
         />

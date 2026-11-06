@@ -22,6 +22,7 @@ export function RepresentativeTierBadge({ tier: rawTier, size = 16 }: { tier?: R
       <Image
         src={src}
         alt={label}
+        unoptimized
         width={size}
         height={size}
         style={{ width: size, height: size }}

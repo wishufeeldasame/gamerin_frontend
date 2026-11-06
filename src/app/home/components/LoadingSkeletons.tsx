@@ -76,14 +76,14 @@ export function ProgramListSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-export function ChargeProductsSkeleton({ count = 6 }: { count?: number }) {
+export function ChargeProductsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <Skeleton loading label="충전 금액을 불러오는 중">
-      <div className="mt-5 grid grid-cols-2 gap-2.5 lg:gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-2.5 xl:mt-4 xl:gap-3">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="flex min-h-16 flex-col justify-center rounded-xl border border-zinc-200 px-4 py-3 dark:border-neutral-700">
-            <strong className="text-lg font-black">10,000원</strong>
-            <span className="mt-0.5 text-xs font-bold">→ 10,000 M</span>
+          <div key={index} className="flex min-h-[72px] flex-col justify-center rounded-xl border border-line bg-subtle px-3 py-3 xl:px-4">
+            <strong className="text-heading">10,000원</strong>
+            <span className="mt-0.5 text-caption">→ 10,000 M</span>
           </div>
         ))}
       </div>

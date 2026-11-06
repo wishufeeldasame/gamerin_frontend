@@ -138,6 +138,65 @@ test('프로필 전적 요약은 스크롤에 고정되고 전적 탭은 한 열
   expect(statsWidth).toBeGreaterThan(postsWidth);
 });
 
+for (const width of [1440, 375]) {
+  test(`v2 다크 팔레트 ${width}px`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 });
+    await installAuditFixture(page, 'dark', { linkedStats: true });
+    const paths = ['/home', '/search?q=게임', '/hashtags/게임', '/bookmarks', '/posts/1', '/profile/viewer', '/wallet'];
+    if (width === 375) paths.push('/notifications');
+
+    for (const [index, path] of paths.entries()) {
+      await page.goto(path);
+      await expect(page.locator('main').first()).toBeVisible();
+      await expect(page.locator('meta[name="theme-color"]')).toHaveAttribute('content', '#19191D');
+      await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(25, 25, 29)');
+      const tokens = await page.locator('html').evaluate((element) => {
+        const css = getComputedStyle(element);
+        return ['--canvas', '--surface', '--surface-elevated', '--subtle', '--line', '--fg-tertiary', '--brand']
+          .map((token) => css.getPropertyValue(token).trim().toUpperCase());
+      });
+      expect(tokens).toEqual(['#19191D', '#222226', '#2B2B31', '#2B2B31', '#38383F', '#94949E', '#F5B93D']);
+      if (width === 375) {
+        await expect(page.locator('[data-mobile-tab-bar]')).toHaveCSS('background-color', 'rgb(34, 34, 38)');
+      }
+      if (path === '/profile/viewer') {
+        const cover = page.locator('img[src="/images/default-profile-cover.svg"]');
+        await expect(cover).toBeAttached();
+        await expect(cover).toBeHidden();
+        await expect(cover.locator('..')).toHaveCSS('background-color', 'rgb(43, 43, 49)');
+      }
+      await page.screenshot({ path: info.outputPath(`dark-v2-${index}.png`), animations: 'disabled' });
+    }
+
+    const manifest = await page.request.get('/manifest.webmanifest');
+    expect(await manifest.json()).toMatchObject({ background_color: '#19191D', theme_color: '#19191D' });
+  });
+}
+
+test('v2 Light 프로필 기본 커버는 기존 이미지를 유지한다', async ({ page }) => {
+  await installAuditFixture(page, 'light');
+  await page.goto('/profile/viewer');
+  await expect(page.locator('img[src="/images/default-profile-cover.svg"]')).toBeVisible();
+});
+
+test('v2 Dark 프로필은 업로드한 커버를 표시한다', async ({ page }) => {
+  await installAuditFixture(page, 'dark');
+  await page.route('**/api/v1/users/cover-owner', route => route.fulfill({
+    json: { success: true, data: {
+      id: 'cover-owner', handle: 'cover-owner', nickname: '커버 사용자',
+      coverImageUrl: '/images/games/lol.png', profileImageUrl: null, gameStats: {},
+      followersCount: 0, followingCount: 0, postCount: 0,
+    } },
+  }));
+  await page.route('**/api/v1/users/cover-owner/**', route => route.fulfill({
+    json: { success: true, data: { items: [], hasNext: false, nextCursor: null } },
+  }));
+  await page.goto('/profile/cover-owner');
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.getByRole('img', { name: '커버 사용자 profile cover' })).toHaveAttribute('src', /\/images\/games\/lol\.png$/);
+  await expect(page.getByRole('img', { name: '커버 사용자 profile cover' })).toBeVisible();
+});
+
 for (const width of [390, 1440]) for (const theme of ['light', 'dark'] as const) {
   test.describe(`${width}px ${theme} full audit`, () => {
     test.use({ viewport: { width, height: 900 }, colorScheme: theme, timezoneId: 'Asia/Seoul' });

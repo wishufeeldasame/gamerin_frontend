@@ -191,6 +191,8 @@ D가 양산형으로 보인 원인을 이렇게 판단했다(**추정**). 모든
 
 ## 확정안 — L2 + Amber
 
+확정 Dark 시안의 중립색과 Light 시안의 다크 테마 미리보기를 갱신했다. 변경값은 [README.md](README.md#다크-팔레트-밝기-조정)에 기록했다.
+
 사용자 확정: 다크 기본, 브랜드 Amber `#F5B93D`, L2 레이아웃. 결정 목록은 [README.md](README.md) 2-1절(F1~F13)에 있다. 화면은 현행 Figma 파일의 `Screens`·`Mobile`·`Light`·`Screens · FHD` 페이지에 있다. Violet 버전도 `Screens`·`Mobile`에 비교용으로 남겼다.
 
 프로필에는 커버 사진을 넣었다(F12). 커버는 현재 코드에 있는 기능인데 첫 확정안 이미지에서 빠져 있었다. 아래 프로필 이미지는 커버를 넣은 버전으로 교체했다. 사진이 없을 때의 기본 이미지 `public/images/default-profile-cover.svg`를 Figma `Profile Cover` 컴포넌트로 옮겼다. SVG의 격자 패턴은 Figma로 가져올 때 빠져서, 같은 56px 간격의 선으로 다시 그렸다.
