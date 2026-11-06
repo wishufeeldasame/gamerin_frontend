@@ -40,8 +40,22 @@ import { MembershipBadge } from './MembershipBadge';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 const MAX_COMMENT_LENGTH = 300;
+// btn-* 유틸리티의 포커스 색(yellow/500)은 라이트 모드 밝은 바탕에서 3:1에 못 미쳐 이 화면에서는 라이트만 바꾼다.
+const FOCUS_RING = 'focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
 const MENU_DANGER_ITEM = 'flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-label text-fg-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50';
 const MENU_CANCEL_ITEM = 'flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-secondary transition hover:bg-subtle hover:text-fg-primary';
+
+// 모바일은 앱 상단 바 대신 이 헤더를 쓴다(F15). 웹앱 독립 실행에는 브라우저 뒤로가기가 없다.
+export function PostDetailHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="sticky top-0 z-20 flex items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:-ml-2 lg:px-0 lg:pb-4 lg:pt-0">
+      <button type="button" onClick={onBack} className={`btn-icon text-icon-primary ${FOCUS_RING}`} aria-label="뒤로 가기">
+        <ChevronLeft size={24} strokeWidth={1.67} />
+      </button>
+      <h1 className="text-title text-fg-primary">게시물</h1>
+    </div>
+  );
+}
 
 interface PostDetailProps {
   postNumber: number;
@@ -445,15 +459,7 @@ export function PostDetail({
     }
   };
 
-  // 모바일은 앱 상단 바 대신 이 헤더를 쓴다(F15). 웹앱 독립 실행에는 브라우저 뒤로가기가 없다.
-  const header = (
-    <div className="sticky top-0 z-20 flex items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:-ml-2 lg:px-0 lg:pb-4 lg:pt-0">
-      <button type="button" onClick={onBack} className="btn-icon text-icon-primary" aria-label="뒤로 가기">
-        <ChevronLeft size={24} strokeWidth={1.67} />
-      </button>
-      <h1 className="text-title text-fg-primary">게시물</h1>
-    </div>
-  );
+  const header = <PostDetailHeader onBack={onBack} />;
 
   if (loading) {
     return (
@@ -470,7 +476,7 @@ export function PostDetail({
         {header}
         <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
           <p className="text-body text-fg-danger">{error ?? '게시글을 찾을 수 없습니다.'}</p>
-          <Link href="/home" className="btn-secondary">
+          <Link href="/home" className={`btn-secondary ${FOCUS_RING}`}>
             홈으로 돌아가기
           </Link>
         </div>
@@ -519,7 +525,7 @@ export function PostDetail({
                 type="button"
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
-                className="btn-icon -mr-2"
+                className={`btn-icon -mr-2 ${FOCUS_RING}`}
                 aria-label="게시글 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
@@ -748,7 +754,7 @@ export function PostDetail({
                   }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
-                  className="block max-h-40 min-h-10 w-full resize-none rounded-control border border-line bg-subtle px-3.5 py-[7px] text-body text-fg-primary outline-none transition-colors [field-sizing:content] placeholder:text-fg-tertiary focus:border-line-focus"
+                  className="block max-h-40 min-h-10 w-full resize-none rounded-control border border-line bg-subtle px-3.5 py-[7px] text-body text-fg-primary outline-none transition-colors [field-sizing:content] placeholder:text-fg-tertiary focus:border-fg-brand dark:focus:border-line-focus"
                   rows={1}
                 />
                 {/* 빈 입력창에는 시안처럼 글자 수를 숨긴다. 좁은 화면에서 안내 문구가 두 줄로 꺾이지 않게 한다. */}
@@ -765,7 +771,7 @@ export function PostDetail({
                 <button
                   type="submit"
                   disabled={!commentText.trim() || submittingComment}
-                  className="btn-secondary"
+                  className={`btn-secondary ${FOCUS_RING}`}
                 >
                   등록
                 </button>
@@ -821,7 +827,7 @@ export function PostDetail({
                               current === comment.commentId ? null : comment.commentId
                             )
                           }
-                          className="btn-icon"
+                          className={`btn-icon ${FOCUS_RING}`}
                           aria-label="댓글 메뉴"
                           ref={(element) => {
                             if (element) commentMenuButtonRefs.current.set(comment.commentId, element);

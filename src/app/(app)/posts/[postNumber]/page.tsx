@@ -1,7 +1,8 @@
 'use client';
 
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { PostDetail } from '@/app/home/components/PostDetail';
+import { PostDetail, PostDetailHeader } from '@/app/home/components/PostDetail';
+import { canGoBack } from '@/lib/history-back';
 import { RightSidebar } from '@/app/home/components/RightSidebar';
 
 export default function PostPermalinkPage() {
@@ -14,7 +15,7 @@ export default function PostPermalinkPage() {
 
   const goBack = () => {
     // 공유 링크로 바로 열었으면 돌아갈 기록이 없다(웹앱 독립 실행에는 브라우저 뒤로가기도 없다).
-    if (window.history.length > 1) router.back();
+    if (canGoBack()) router.back();
     else router.replace('/home');
   };
 
@@ -23,7 +24,10 @@ export default function PostPermalinkPage() {
       <main className="min-h-screen min-w-0 flex-1">
         <div className="lg:py-6">
           {postNumber === null ? (
-            <p role="alert" className="p-6 text-center text-body text-fg-tertiary">게시글을 찾을 수 없습니다.</p>
+            <>
+              <PostDetailHeader onBack={goBack} />
+              <p role="alert" className="p-6 text-center text-body text-fg-tertiary">게시글을 찾을 수 없습니다.</p>
+            </>
           ) : (
           <PostDetail
             postNumber={postNumber}
