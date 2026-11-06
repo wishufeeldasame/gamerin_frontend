@@ -52,6 +52,7 @@ export function MobileTabBar() {
     <nav
       aria-label="주요 메뉴"
       data-mobile-tab-bar
+      data-view-occluder="bottom"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:hidden"
     >
       <ul className="grid h-16 grid-cols-5">

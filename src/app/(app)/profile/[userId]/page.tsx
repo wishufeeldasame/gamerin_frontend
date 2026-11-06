@@ -1307,7 +1307,7 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      <div className="sticky top-[var(--app-header-height)] z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
+      <div data-view-occluder="top" className="sticky top-[var(--app-header-height)] z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
         {tabs.map((tab) => (
           <button
             key={tab.name}

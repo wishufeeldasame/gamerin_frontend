@@ -169,6 +169,43 @@ describe('usePostViewImpression', () => {
     expect(recordPostViews).toHaveBeenCalledWith(['a'], { keepalive: true });
   });
 
+  it('모바일 상단 바·sticky 탭이 가린 부분은 보이는 높이에서 뺀다', () => {
+    const { container } = render(<><div data-view-occluder="top" /><Card postId="a" /></>);
+    rects.set(container.querySelector('[data-view-occluder]')!, { top: 0, bottom: 56, height: 56 } as DOMRect);
+    const card = cardOf(container, 'a');
+    // 300px 카드가 화면 위에 160px 걸쳐 있지만 상단 바 아래로는 104px만 보인다.
+    show(card, 160, 300);
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).not.toHaveBeenCalled();
+    place(card, 220, 300);
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    advance(20);
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).toHaveBeenCalledWith(['a'], { keepalive: false });
+  });
+
+  it('모바일 하단 탭 바가 가린 부분은 빼고, 숨겨진 바(높이 0)는 무시한다', () => {
+    const { container } = render(<>
+      <div data-view-occluder="bottom" data-bar="tab" />
+      <div data-view-occluder="top" data-bar="hidden" />
+      <Card postId="a" />
+    </>);
+    const viewport = window.innerHeight;
+    rects.set(container.querySelector('[data-bar="tab"]')!, { top: viewport - 64, bottom: viewport, height: 64 } as DOMRect);
+    const card = cardOf(container, 'a');
+    rects.set(card, { top: viewport - 160, bottom: viewport + 140, height: 300 } as DOMRect);
+    act(() => {
+      callback([{ target: card, isIntersecting: true } as IntersectionObserverEntry], {} as IntersectionObserver);
+    });
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).not.toHaveBeenCalled();
+    rects.set(card, { top: viewport - 240, bottom: viewport + 60, height: 300 } as DOMRect);
+    act(() => { window.dispatchEvent(new Event('scroll')); });
+    advance(20);
+    advance(VIEW_DWELL_MS + VIEW_FLUSH_DELAY_MS);
+    expect(recordPostViews).toHaveBeenCalledWith(['a'], { keepalive: false });
+  });
+
   it('탭을 숨기면 1초를 처음부터 다시 잰다', () => {
     const { container } = render(<Card postId="a" />);
     show(cardOf(container, 'a'), 400);

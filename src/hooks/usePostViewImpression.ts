@@ -6,7 +6,7 @@ import { recordPostViews } from '@/lib/feed-api';
 
 /*
  * 카드 노출 집계(백엔드 #183, design-system-v2 README 결정 F24).
- * 카드가 화면에 절반 이상(또는 화면 높이의 절반 이상을 차지하며) 보이는 상태가 탭이 보이는 채로 1초 이어지면 노출 1회로 본다.
+ * 카드가 고정 바에 가리지 않는 화면 영역에 절반 이상(또는 그 영역 높이의 절반 이상을 차지하며) 보이는 상태가 탭이 보이는 채로 1초 이어지면 노출 1회로 본다.
  * 탭 하나에서 같은 글은 한 번만 보고하고, 모아서 50개가 차거나 첫 노출 뒤 5초가 지나면 보낸다.
  * 탭을 숨기거나 떠날 때 남은 것을 keepalive로 보낸다. 실패는 다시 보내지 않는다.
  */
@@ -68,19 +68,26 @@ function meetsVisibility(visibleHeight: number, height: number, viewportHeight: 
     && (visibleHeight >= height * VIEW_VISIBLE_RATIO || visibleHeight >= viewportHeight * VIEW_VISIBLE_RATIO);
 }
 
-function isSeen(entry: IntersectionObserverEntry) {
-  return entry.isIntersecting && meetsVisibility(
-    entry.intersectionRect.height,
-    entry.boundingClientRect.height,
-    entry.rootBounds?.height ?? window.innerHeight,
-  );
+type Band = { top: number; bottom: number };
+
+/** 화면에서 고정·sticky 바(`data-view-occluder="top|bottom"`)에 가리지 않는 세로 구간. 숨겨진 바(높이 0)는 건너뛴다. */
+function visibleBand(): Band {
+  let top = 0;
+  let bottom = window.innerHeight;
+  document.querySelectorAll('[data-view-occluder]').forEach((occluder) => {
+    const rect = occluder.getBoundingClientRect();
+    if (rect.height <= 0) return;
+    if (occluder.getAttribute('data-view-occluder') === 'bottom') bottom = Math.min(bottom, rect.top);
+    else top = Math.max(top, rect.bottom);
+  });
+  return { top, bottom };
 }
 
-function isSeenNow(element: Element) {
+// IntersectionObserver 콜백과 재측정이 같은 기준을 쓰도록 판정은 항상 여기서 한다.
+function isSeenNow(element: Element, band: Band) {
   const rect = element.getBoundingClientRect();
-  const viewportHeight = window.innerHeight;
-  const visibleHeight = Math.min(rect.bottom, viewportHeight) - Math.max(rect.top, 0);
-  return meetsVisibility(visibleHeight, rect.height, viewportHeight);
+  const visibleHeight = Math.min(rect.bottom, band.bottom) - Math.max(rect.top, band.top);
+  return meetsVisibility(visibleHeight, rect.height, band.bottom - band.top);
 }
 
 function disarm(target: Target) {
@@ -94,9 +101,10 @@ function arm(element: Element, target: Target) {
 
 function recheck() {
   recheckFrame = null;
+  const band = visibleBand();
   targets.forEach((target, element) => {
     if (!target.intersecting) return;
-    target.seen = isSeenNow(element);
+    target.seen = isSeenNow(element, band);
     if (target.seen) arm(element, target);
     else disarm(target);
   });
@@ -132,7 +140,7 @@ function commit(element: Element) {
   if (!target) return;
   target.timer = null;
   if (document.hidden) return;
-  if (!isSeenNow(element)) {
+  if (!isSeenNow(element, visibleBand())) {
     target.seen = false;
     return;
   }
@@ -141,11 +149,12 @@ function commit(element: Element) {
 }
 
 function handleEntries(entries: IntersectionObserverEntry[]) {
+  const band = visibleBand();
   for (const entry of entries) {
     const target = targets.get(entry.target);
     if (!target) continue;
     target.intersecting = entry.isIntersecting;
-    target.seen = isSeen(entry);
+    target.seen = entry.isIntersecting && isSeenNow(entry.target, band);
     if (target.seen) arm(entry.target, target);
     else disarm(target);
   }
