@@ -116,6 +116,7 @@ describe('AppLayout 인증 확인', () => {
     ['/posts/12', false],
     ['/notifications', false],
     ['/wallet', false],
+    ['/membership', false],
   ])('%s에서 모바일 상단 바 표시 여부는 %s다(상세 화면은 자체 뒤로 헤더)', (pathname, visible) => {
     navigation.pathname = pathname;
     auth.user = { id: 'user-1' };
