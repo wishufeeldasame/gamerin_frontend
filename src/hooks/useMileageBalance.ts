@@ -5,13 +5,14 @@ import { fetchMyMileageBalance } from '@/lib/mileage-api';
 import { subscribeToMileageInvalidation } from '@/lib/mileage-sync';
 import { DESKTOP_QUERY } from './useDesktopChange';
 
-export function useMileageBalance(userId: string | undefined, surface: 'desktop' | 'mobile') {
+// onError는 effect를 재시작하므로 호출부에서 안정된 함수 참조를 넘긴다.
+export function useMileageBalance(userId: string | undefined, surface?: 'desktop' | 'mobile', onError?: (error: unknown) => void) {
   const [result, setResult] = useState<{ userId: string; balance: number | null } | null>(null);
 
   useEffect(() => {
     // 사용자 객체는 프로필 수정 때마다 바뀌므로 계정이 바뀔 때만 다시 구독한다.
     if (!userId) return;
-    const desktop = window.matchMedia?.(DESKTOP_QUERY);
+    const desktop = surface ? window.matchMedia?.(DESKTOP_QUERY) : undefined;
     let latestRequest = 0;
     let disposed = false;
 
@@ -24,7 +25,10 @@ export function useMileageBalance(userId: string | undefined, surface: 'desktop'
       };
       fetchMyMileageBalance()
         .then((response) => settle(response.currentBalance))
-        .catch(() => settle(null));
+        .catch((error: unknown) => {
+          settle(null);
+          if (!disposed && request === latestRequest) onError?.(error);
+        });
     };
     // 내 동작(멘토링 신청·취소, 결제)은 mileage-sync 신호로 바로 반영한다.
     // 다른 사람·서버가 바꾼 잔액(멘토 거절 환불, 정산, 관리자 처리)은 탭으로 돌아올 때 따라잡는다.
@@ -42,7 +46,7 @@ export function useMileageBalance(userId: string | undefined, surface: 'desktop'
       document.removeEventListener('visibilitychange', loadWhenVisible);
       desktop?.removeEventListener?.('change', load);
     };
-  }, [userId, surface]);
+  }, [userId, surface, onError]);
 
   return result?.userId === userId ? result?.balance ?? null : null;
 }

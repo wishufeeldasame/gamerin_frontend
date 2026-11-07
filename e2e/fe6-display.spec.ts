@@ -126,9 +126,9 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await expect(page.getByText('한국어 화면 확인용 게시글')).toBeVisible();
         await expect(page.locator('time').filter({ hasText: '1분 전' }).first()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await expect(page.locator('time').filter({ hasText: '9월 29일' })).toHaveAttribute('datetime', '2026-09-29T06:05:00.000Z');
-        if (viewport.width >= 1024) await expect(page.getByText('미배치')).toHaveCount(2);
+        await expect(page.getByText('미배치', { exact: true })).toHaveCount(0);
         await checkLayout(page, info, 'home');
-        await page.getByRole('button', { name: '알림', exact: true }).click();
+        await page.getByRole('button', { name: /^알림(?:\s*,|$)/ }).click();
         await expect(page.getByText('테스터님이 내 게시글을 좋아합니다.')).toBeVisible();
         await expect(page.locator('time').last()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await checkLayout(page, info, 'notifications');
@@ -190,10 +190,11 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/mentoring');
         await expect(page.getByRole('heading', { name: '멘토링', exact: true })).toBeVisible();
-        await expect(page.getByText('프로그램 둘러보기', { exact: true })).toBeVisible();
+        await expect(page.getByRole('group', { name: '게임 필터' })).toBeVisible();
         await checkLayout(page, info, 'mentoring-find');
-        await page.getByRole('button', { name: '내 멘토링', exact: true }).click();
-        await expect(page.getByText('마일리지', { exact: true })).toBeVisible();
+        await page.getByRole('tab', { name: '내 멘토링', exact: true }).click();
+        await expect(page.getByRole('link', { name: /내 마일리지/ })).toBeVisible();
+        await expect(page.getByRole('heading', { name: '내가 신청한 멘토링' })).toBeVisible();
         await checkLayout(page, info, 'mentoring');
       });
 

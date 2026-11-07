@@ -62,13 +62,13 @@ export function MessageThreadSkeleton() {
 export function ProgramListSkeleton({ count = 3 }: { count?: number }) {
   return (
     <Skeleton loading label="프로그램을 불러오는 중">
-      <div className="grid gap-4">
+      <div className="grid gap-3 xl:grid-cols-2 xl:gap-5">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="rounded-2xl border border-zinc-100 p-5 dark:border-zinc-800">
-            <p className="mb-2 text-xs font-black">게임 이름</p>
-            <h3 className="text-xl font-black">프로그램 제목이 들어갈 자리</h3>
-            <p className="mt-2 text-sm leading-6">프로그램 소개가 들어갈 자리입니다. 프로그램 소개가 들어갈 자리입니다.</p>
-            <p className="mt-3 text-xs font-black">멘토 이름 · 평점</p>
+          <div key={index} className="min-w-0 rounded-card border border-line-card bg-surface p-4 sm:p-5">
+            <p className="text-caption">게임 이름</p>
+            <p className="mt-3 text-heading">프로그램 제목이 들어갈 자리</p>
+            <p className="mt-3 mb-3 text-caption">프로그램 소개가 들어갈 자리입니다.</p>
+            <p className="border-t border-line pt-3 text-label">멘토 이름 · 가격</p>
           </div>
         ))}
       </div>
