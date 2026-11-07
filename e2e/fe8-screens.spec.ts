@@ -48,10 +48,10 @@ const screens: Screen[] = [
   { name: 'mentoring-find', path: '/mentoring' },
   { name: 'mentoring-detail', path: '/mentoring', action: async page => { await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '랭크 게임 코칭', level: 2 })).toBeVisible(); } },
   { name: 'mentoring-mine', path: '/mentoring?tab=mine' },
-  { name: 'mentoring-programs', path: '/mentoring', action: click('내 프로그램') },
-  { name: 'mentoring-register', path: '/mentoring', action: click('멘토 되기') },
-  { name: 'mentoring-first-registration', path: '/mentoring', mentor: false, action: async page => { await click('멘토 되기')(page); await expect(page.getByRole('heading', { name: '멘토 등록 요청' })).toBeVisible(); } },
-  { name: 'mentoring-own-detail', path: '/mentoring', action: async page => { await click('내 프로그램')(page); await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '멘티 리뷰' })).toBeVisible(); } },
+  { name: 'mentoring-programs', path: '/mentoring', action: clickTab('내 프로그램') },
+  { name: 'mentoring-register', path: '/mentoring', action: clickTab('멘토 되기') },
+  { name: 'mentoring-first-registration', path: '/mentoring', mentor: false, action: async page => { await clickTab('멘토 되기')(page); await expect(page.getByRole('heading', { name: '멘토 등록 요청' })).toBeVisible(); } },
+  { name: 'mentoring-own-detail', path: '/mentoring', action: async page => { await clickTab('내 프로그램')(page); await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '멘티 리뷰' })).toBeVisible(); } },
   { name: 'mentoring-review', path: '/mentoring?tab=mine', action: async page => { await click('리뷰 작성')(page); await expect(page.getByRole('heading', { name: '리뷰 작성' })).toBeVisible(); } },
   { name: 'login', path: '/login', anonymous: true },
   { name: 'login-form', path: '/login', anonymous: true, action: click('아이디로 로그인') },
@@ -93,7 +93,7 @@ const screens: Screen[] = [
   { name: 'profile-followers', path: '/profile/viewer', action: async page => { await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByRole('heading', { name: '팔로워', exact: true })).toBeVisible(); } },
   { name: 'profile-follow-error', path: '/profile/viewer', action: async page => { await page.route('**/api/v1/users/viewer/followers?*', route => route.fulfill({ status: 500, json: { success: false, message: '팔로워를 조회하지 못했습니다.' } })); await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByText('팔로워를 조회하지 못했습니다.')).toBeVisible(); } },
   { name: 'messages-recipient-error', path: '/messages', action: async page => { await page.route('**/api/v1/messages/recipients?*', route => route.fulfill({ status: 500, json: { success: false, message: '사용자를 검색하지 못했습니다.' } })); await click('새 대화 시작')(page); await expect(page.getByText('사용자를 검색하지 못했습니다.')).toBeVisible(); } },
-  ...(['apply', 'closed', 'applied'] as const).map(programState => ({ name: `mentoring-${programState}`, path: '/mentoring', programState, action: async (page: Page) => { if (programState === 'applied') { await click('내 멘토링')(page); await expect(page.getByRole('button', { name: '리뷰 작성', exact: true })).toBeVisible(); await click('멘토 찾기')(page); } await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '랭크 게임 코칭', level: 2 })).toBeVisible(); } })),
+  ...(['apply', 'closed', 'applied'] as const).map(programState => ({ name: `mentoring-${programState}`, path: '/mentoring', programState, action: async (page: Page) => { if (programState === 'applied') { await clickTab('내 멘토링')(page); await expect(page.getByRole('button', { name: '리뷰 작성', exact: true })).toBeVisible(); await clickTab('멘토 찾기')(page); } await page.getByRole('button', { name: /랭크 게임 코칭/ }).first().click(); await expect(page.getByRole('heading', { name: '랭크 게임 코칭', level: 2 })).toBeVisible(); } })),
 ];
 const stateScreens = screens.filter(row => ['home', 'search-overview', 'bookmarks', 'hashtag', 'post-detail', 'profile-posts', 'messages-list', 'mentoring-find', 'mentoring-mine'].includes(row.name));
 const iconHoverScreens = new Set(['home', 'post-detail', 'messages-chat', 'messages-new', 'profile-followers', 'profile-linked-stats', 'modal-edit-profile', 'modal-share', 'modal-report', 'modal-report-error', 'signup-step1']);

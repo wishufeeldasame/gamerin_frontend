@@ -5,6 +5,7 @@ import { fetchMyMileageBalance } from '@/lib/mileage-api';
 import { subscribeToMileageInvalidation } from '@/lib/mileage-sync';
 import { DESKTOP_QUERY } from './useDesktopChange';
 
+// onError는 effect를 재시작하므로 호출부에서 안정된 함수 참조를 넘긴다.
 export function useMileageBalance(userId: string | undefined, surface?: 'desktop' | 'mobile', onError?: (error: unknown) => void) {
   const [result, setResult] = useState<{ userId: string; balance: number | null } | null>(null);
 

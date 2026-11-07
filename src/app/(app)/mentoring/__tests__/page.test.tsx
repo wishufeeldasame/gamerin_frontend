@@ -187,12 +187,22 @@ describe('MentoringPage error handling', () => {
     render(<MentoringPage />);
 
     await user.click(await screen.findByRole('button', { name: '리뷰 작성' }));
+    const ratings = within(screen.getByRole('radiogroup', { name: '평점' }));
+    const five = ratings.getByRole('radio', { name: '5점', checked: true });
+    await user.click(five);
+    await user.keyboard('{ArrowLeft}');
+    expect(ratings.getByRole('radio', { name: '4점', checked: true })).toHaveFocus();
+    await user.keyboard('{Home}');
+    expect(ratings.getByRole('radio', { name: '1점', checked: true })).toHaveFocus();
+    await user.keyboard('{End}');
+    expect(five).toHaveFocus();
     await user.type(screen.getByPlaceholderText('멘토링이 어땠는지 자세히 적어 주세요.'), '좋은 피드백이었습니다.');
     await user.click(screen.getByRole('button', { name: '리뷰 등록' }));
 
     expect(await screen.findByText('이미 리뷰 작성이 완료된 멘토링입니다.')).toBeInTheDocument();
     expect(screen.getByText('리뷰 작성 완료')).toBeInTheDocument();
     expect(mentoringApi.createMentoringReview).toHaveBeenCalledOnce();
+    expect(mentoringApi.createMentoringReview).toHaveBeenCalledWith(expect.objectContaining({ rating: 5 }));
   });
 });
 
@@ -271,7 +281,7 @@ describe('MentoringPage deep links', () => {
     mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorId: 'mentor-2', mentorAbout: '' });
     render(<MentoringPage />);
 
-    const card = await screen.findByRole('button', { name: program.title });
+    const card = await screen.findByRole('button', { name: new RegExp(program.title) });
     await user.click(card);
     const dialog = await screen.findByRole('dialog', { name: program.title });
     expect(dialog).toHaveFocus();
@@ -354,6 +364,37 @@ describe('MentoringPage game filter', () => {
     mileageApi.fetchMyMileageTransactions.mockResolvedValue(pageResponse([]));
   });
 
+  it('방향키와 Home·End로 탭을 고르고 연결된 패널을 표시한다', async () => {
+    const user = userEvent.setup();
+    render(<MentoringPage />);
+    const tabs = within(screen.getByRole('tablist', { name: '멘토링 메뉴' }));
+    const find = tabs.getByRole('tab', { name: '멘토 찾기', selected: true });
+    const mine = tabs.getByRole('tab', { name: '내 멘토링', selected: false });
+    const become = tabs.getByRole('tab', { name: '멘토 되기', selected: false });
+    expect(mine).toHaveAttribute('tabindex', '-1');
+    await user.click(find);
+    await user.keyboard('{ArrowRight}');
+    expect(mine).toHaveFocus();
+    expect(mine).toHaveAttribute('aria-selected', 'true');
+    const panel = screen.getByRole('tabpanel', { name: '내 멘토링' });
+    expect(panel).toHaveAttribute('id', mine.getAttribute('aria-controls'));
+    expect(screen.queryByRole('tabpanel', { name: '멘토 찾기' })).not.toBeInTheDocument();
+    await user.keyboard('{End}');
+    expect(become).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: '멘토 되기' })).toBeVisible();
+    await user.keyboard('{Home}{ArrowLeft}');
+    expect(become).toHaveFocus();
+  });
+
+  it('프로그램 카드 이름에 게임·평점·멘토·가격을 포함한다', async () => {
+    mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
+    mentoringApi.fetchMentorProfile.mockResolvedValue(mentorProfile);
+    render(<MentoringPage />);
+    const card = await screen.findByRole('button', { name: /랭크 게임 코칭/ });
+    await waitFor(() => expect(card).toHaveAccessibleName(/리뷰 1/));
+    expect(card).toHaveAccessibleName(/Valorant.*5\.0.*랭크 게임 코칭.*멘토.*10,000 M/);
+  });
+
   it('필터 선택지는 /games 응답이고, 선택한 코드로 조회하며, 빈 결과에서 초기화한다', async () => {
     const user = userEvent.setup();
     mentoringApi.fetchMentoringPrograms.mockImplementation(async ({ gameName }: { gameName?: string }) =>
@@ -424,7 +465,7 @@ describe('MentoringPage game filter', () => {
     });
     render(<MentoringPage />);
 
-    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
     expect(await screen.findByText('프로그램 만들기')).toBeInTheDocument();
     expect(screen.getByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
 
@@ -447,7 +488,7 @@ describe('MentoringPage game filter', () => {
     });
     render(<MentoringPage />);
 
-    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
     expect(await screen.findByText('프로그램 만들기')).toBeInTheDocument();
     expect(screen.getByText('게임 목록을 불러오는 중입니다.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeDisabled();
@@ -469,7 +510,7 @@ describe('MentoringPage game filter', () => {
     });
     render(<MentoringPage />);
 
-    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
     expect(await screen.findByText(heading)).toBeInTheDocument();
     expect(screen.queryByText('프로그램 만들기')).not.toBeInTheDocument();
   });
@@ -500,7 +541,7 @@ describe('MentoringPage game filter', () => {
     mentoringApi.createMentoringProgram.mockResolvedValue(program);
     const { container } = render(<MentoringPage />);
 
-    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
     const select = await screen.findByDisplayValue('PUBG');
     await user.selectOptions(select, 'LOL');
     await user.type(container.querySelector('input[name=title]')!, '롤 코칭');
@@ -524,7 +565,7 @@ describe('MentoringPage game filter', () => {
     mentoringApi.fetchGames.mockResolvedValueOnce(games).mockRejectedValue(new Error('boom'));
     const { rerender } = render(<MentoringPage />);
 
-    await user.click(await screen.findByRole('button', { name: '멘토 되기' }));
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
     await screen.findByDisplayValue('PUBG');
     expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeEnabled();
 
