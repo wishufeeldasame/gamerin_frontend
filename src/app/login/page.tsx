@@ -34,6 +34,7 @@ import {
 const BIRTH_DATE_ENABLED = false;
 
 const OAUTH_ERROR_MESSAGES: Record<string, string> = {
+  account_withdrawn: '탈퇴한 계정입니다. 다시 가입해 주세요.',
   email_not_verified: 'Google 계정의 이메일이 인증되지 않아 계속할 수 없습니다. Google에서 이메일을 인증한 뒤 다시 시도해 주세요.',
 };
 

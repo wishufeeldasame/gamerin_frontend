@@ -252,6 +252,13 @@ describe('인증 흐름 화면의 API 주소', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Google 계정의 이메일이 인증되지 않아');
   });
 
+  it('탈퇴한 계정의 Google 로그인으로 돌아오면 재가입 안내를 표시한다', async () => {
+    jsdom.reconfigure({ url: 'http://localhost:3000/login?error=account_withdrawn' });
+    render(<LoginPage />);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('탈퇴한 계정입니다. 다시 가입해 주세요.');
+  });
+
   it('알 수 없는 OAuth 오류 코드(상속 속성 이름 포함)는 무시한다', async () => {
     jsdom.reconfigure({ url: 'http://localhost:3000/login?error=__proto__' });
     render(<LoginPage />);
