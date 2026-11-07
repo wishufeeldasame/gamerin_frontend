@@ -9,7 +9,7 @@
 ## 구성과 토큰
 
 - 데스크톱: 440px 폭, 패딩 28px. 모바일: 좌우 16px, 패딩 20px. 375·320px에서도 가운데 배치한다.
-- 모달 표면 `bg/surface`, 입력·Google 버튼 `bg/subtle`, 테두리 `border/default`, 본문 `text/primary`, 작은 보조 글자 `text/tertiary`. 다크 표면의 작은 글자는 #94949E를 사용한다. 모달 반경 20px, 입력·버튼 반경 10px.
+- 모달 표면 `bg/surface`, 입력·Google 버튼 `bg/subtle`, 테두리 `border/default`, 본문 `text/primary`, 작은 보조 글자 `text/tertiary`. 다크 입력 보조 글자는 `text/tertiary` #94949E를 사용한다(#2B2B31 위 4.68:1). 라이트 입력 안내는 `text/secondary` #52525B를 사용해 대비 4.5:1 이상을 확보한다. 모달 반경 20px, 입력·버튼 반경 10px.
 - 제목 F18 `다시 오신 걸 환영해요`, Google 버튼·로그인 버튼 높이 48px. F19 `또는 아이디로 로그인` 아래 폼을 항상 펼친다. 닫기 터치 영역 44px.
 - 행동별 설명을 바꾼다. 예: `댓글을 남기려면 로그인이 필요해요.` 입력 오류는 해당 필드 아래 표시한다. 요청 중 중복 제출을 막고 상태를 알린다.
 
