@@ -418,3 +418,8 @@ D가 양산형으로 보인 원인을 이렇게 판단했다(**추정**). 모든
 3. 폰트는 저장소의 `src/app/(admin)/admin/_fonts/NotoSansKR-VF.woff2`를 상대경로로 읽는다.
 4. 아이콘 데이터 `icons.json`은 `node icons.mjs <lucide-react 패키지 디렉터리>`로 다시 만들 수 있다. 기준은 `package-lock.json`의 lucide-react 1.8.0이다.
 5. 시안 T의 `shoot`은 페이지 이름 `feed profile`이다(`build.mjs`가 `feed.html`, `profile.html` 생성).
+
+
+### 2026-11-07 로그인 모달 대체 시안
+
+FE #187·BE #189의 공개 탐색 정책에 따라 별도 로그인 페이지 대신 모바일에서도 중앙 로그인 모달을 쓴다. F18·F19 반영. [시안 명세와 다크·라이트 1440/375/320 내보내기](login-modal.md). 기존 로그인 페이지 이미지는 이전 기록이다.
