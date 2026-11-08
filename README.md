@@ -1,5 +1,13 @@
 # GamerIN Frontend
 
+## 공통 모달·기타 화면 v2
+
+공유·게임 전적 연결·프로필/게시글 수정·모음집 저장·신고는 1024px 이상에서 중앙 모달, 그 아래에서 손잡이와 안전 영역을 갖춘 하단 시트다. 공통 `modal-overlay`, `modal-panel`, `modal-handle`과 v2 입력·버튼·색상 토큰을 사용한다. 네이티브 공통 확인창과 신고의 최종 확인창은 중앙에 유지한다.
+
+전적 연결 모달은 프로필 `gameStats`의 `connected === true`인 게임을 `연동 완료`로 표시하고 재연결을 막는다. `RIOT`·`LOL`은 LoL, `VALORANT`는 별도 연결이다. 미지원 게임은 `지원 예정`으로 비활성화한다. 결제 결과와 공개 `/terms`·`/privacy`도 v2 토큰을 사용하며 결제 로직·약관 본문·버전·API·DB·Docker 계약은 바꾸지 않는다.
+
+브라우저 회귀: `npm run test:e2e -- e2e/design-v2-modals-misc.spec.ts --workers=2`. API는 모의 응답으로 검증하므로 실결제·외부 전적 API·iOS 실기기 검증을 대신하지 않는다.
+
 ## 추천 친구 연동 (백엔드 #192)
 
 홈·프로필의 `SuggestedFriendsCard`는 인증 복원 완료 후 `GET /api/v1/users/me/recommendations?limit=5`를 호출한다. 비로그인·로그아웃 진행·차단·세션 복원 장애 상태에서는 카드를 숨긴다. 기존 xl(1280px) 이상 오른쪽 열 배치를 유지한다.

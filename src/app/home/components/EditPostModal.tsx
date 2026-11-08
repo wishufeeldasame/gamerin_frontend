@@ -117,7 +117,7 @@ export function EditPostModal({
 
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+      className="modal-overlay z-[80]"
       onMouseDown={saving ? undefined : onClose}
       data-card-open-ignore="true"
     >
@@ -129,11 +129,12 @@ export function EditPostModal({
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
         onClick={(event) => event.stopPropagation()}
-        className="w-full max-w-lg rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-line dark:bg-surface"
+        className="modal-panel overflow-y-auto p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] lg:max-w-[480px] lg:p-6"
       >
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="edit-post-title" className="text-xl font-black text-black dark:text-zinc-100">게시글 수정</h2>
-          <span className={`text-xs font-black ${expired ? 'text-red-500' : 'text-zinc-400'}`} aria-live="polite">
+        <div aria-hidden="true" className="modal-handle !mt-0 mb-4" />
+        <div className="flex flex-wrap items-baseline justify-between gap-3">
+          <h2 id="edit-post-title" className="text-title text-fg-primary">게시글 수정</h2>
+          <span className={`text-caption ${expired ? 'text-fg-danger' : 'text-fg-secondary'}`} aria-live="polite">
             {expired ? '수정 가능 시간이 지났습니다' : `남은 시간 ${Math.ceil(remainingMs / MINUTE_MS)}분`}
           </span>
         </div>
@@ -145,15 +146,15 @@ export function EditPostModal({
           maxLength={MAX_POST_CONTENT_LENGTH}
           disabled={saving}
           aria-label="게시글 본문"
-          className="mt-4 min-h-40 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition focus:border-[#f5b93d] dark:focus:!border-[#f5b93d]"
+          className="input-base mt-4 min-h-40 resize-none py-3"
         />
-        <p className={`mt-1 text-right text-xs font-bold ${content.length >= MAX_POST_CONTENT_LENGTH ? 'text-red-500' : 'text-zinc-400'}`}>
+        <p className={`mt-1 text-right text-caption ${content.length >= MAX_POST_CONTENT_LENGTH ? 'text-fg-danger' : 'text-fg-tertiary'}`}>
           {content.length}/{MAX_POST_CONTENT_LENGTH}
         </p>
-        <p className="mt-2 text-xs font-bold text-zinc-500">이미지·영상은 수정할 수 없습니다. 게시글당 1회만 수정할 수 있습니다.</p>
+        <p className="mt-2 text-caption text-fg-secondary">이미지·영상은 수정할 수 없습니다. 게시글당 1회만 수정할 수 있습니다.</p>
 
         {error ? (
-          <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
+          <p role="alert" className="mt-4 rounded-control bg-danger-subtle p-3 text-label text-fg-danger">
             {error}
           </p>
         ) : null}
@@ -163,7 +164,7 @@ export function EditPostModal({
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="h-12 rounded-xl border border-zinc-200 px-5 text-sm font-black text-black disabled:opacity-50 dark:border-neutral-700"
+            className="btn-secondary"
           >
             취소
           </button>
