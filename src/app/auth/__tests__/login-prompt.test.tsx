@@ -109,6 +109,13 @@ describe('공통 중앙 로그인 모달', () => {
     expect(navigation.replace).toHaveBeenCalledWith('/?tab=all', { scroll: false });
   });
 
+  it('탈퇴한 소셜 계정의 오류를 모달에 표시한다', async () => {
+    navigation.params = new URLSearchParams('login=1&error=account_withdrawn');
+    render(<LoginPromptProvider><p>feed</p></LoginPromptProvider>);
+    expect(await screen.findByRole('dialog')).toHaveTextContent('탈퇴한 계정입니다.');
+    expect(navigation.replace).toHaveBeenCalledWith('/', { scroll: false });
+  });
+
   it('알 수 없는 OAuth 오류로 모달을 열지 않는다', () => {
     navigation.params = new URLSearchParams('error=__proto__');
     render(<LoginPromptProvider><p>feed</p></LoginPromptProvider>);

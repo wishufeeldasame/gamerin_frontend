@@ -18,7 +18,7 @@ export function safeLoginReturnTo(value: string | null | undefined): string {
     if (/^\/(?:auth|login|signup|find-id|find-id-result|find-Password|admin)(?:\/|$)/i.test(url.pathname)) return '/';
     if (/^\/home\/?$/.test(url.pathname)) url.pathname = '/';
     url.searchParams.delete('login');
-    if (url.pathname === '/' && url.searchParams.get('error') === 'email_not_verified') url.searchParams.delete('error');
+    if (url.pathname === '/' && ['email_not_verified', 'account_withdrawn'].includes(url.searchParams.get('error') ?? '')) url.searchParams.delete('error');
     return url.pathname + url.search + url.hash;
   } catch {
     return '/';

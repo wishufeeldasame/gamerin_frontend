@@ -31,3 +31,5 @@
 | 라이트 | [데스크톱](mockups/final-amber/login-modal/light/desktop.png) | [375](mockups/final-amber/login-modal/light/mobile-375.png) | [320](mockups/final-amber/login-modal/light/mobile-320.png) |
 
 기존 전체 로그인 페이지 시안은 이전 기록으로 남긴다. 이 문서와 `login-modal/` 이미지가 로그인 UI의 최신 기준이다. 배경은 기존 홈 시안을 재사용한 예시다. 브라우저 조작 없이 Figma 렌더를 확인했다.
+
+- OAuth 이메일 미인증·탈퇴 계정 오류는 `/?login=1&error=...`의 중앙 모달에 안내한다. 삭제한 `/login`으로 이동하지 않는다.

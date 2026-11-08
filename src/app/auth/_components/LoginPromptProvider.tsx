@@ -24,9 +24,12 @@ function LoginQueryPrompt() {
   const router = useRouter();
   const { user, isAuthReady } = useAuth();
   useEffect(() => {
-    if (!isAuthReady || user || (params.get('login') !== '1' && params.get('error') !== 'email_not_verified')) return;
+    const error = params.get('error');
+    const message = error === 'email_not_verified' ? OAUTH_ERROR
+      : error === 'account_withdrawn' ? '탈퇴한 계정입니다. 다른 계정으로 로그인해 주세요.' : undefined;
+    if (!isAuthReady || user || (params.get('login') !== '1' && !message)) return;
     requestLogin({
-      message: params.get('error') === 'email_not_verified' ? OAUTH_ERROR : undefined,
+      message,
       returnTo: safeLoginReturnTo(params.get('returnTo') ?? readLoginReturnTo()),
     });
     const next = new URLSearchParams(params.toString());

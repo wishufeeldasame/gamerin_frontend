@@ -19,6 +19,9 @@ describe('로그인 복귀 경로', () => {
   it('과거 홈 복귀 값만 루트로 정규화한다', () => {
     expect(safeLoginReturnTo('/home?tab=following#feed')).toBe('/?tab=following#feed');
   });
+  it.each(['email_not_verified', 'account_withdrawn'])('OAuth 오류 %s를 복귀값에서 제거한다', (error) => {
+    expect(safeLoginReturnTo(`/?login=1&error=${error}`)).toBe('/');
+  });
   it('OAuth 복귀값을 안전하게 보관하고 제거한다', () => {
     rememberLoginReturnTo('/mentoring?programId=abc');
     expect(readLoginReturnTo()).toBe('/mentoring?programId=abc');
