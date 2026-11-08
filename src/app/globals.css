@@ -151,6 +151,18 @@
   @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-icon-secondary transition hover:bg-subtle hover:text-icon-primary disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus;
 }
 
+@utility modal-overlay {
+  @apply fixed inset-0 flex items-end justify-center bg-black/60 lg:items-center lg:p-5;
+}
+
+@utility modal-panel {
+  @apply max-h-[90dvh] w-full rounded-t-[20px] border border-line-card bg-surface text-fg-primary shadow-2xl lg:max-h-[calc(100dvh-2.5rem)] lg:rounded-card;
+}
+
+@utility modal-handle {
+  @apply mx-auto mt-3 mb-1 h-1 w-10 shrink-0 rounded-full bg-line-strong lg:hidden;
+}
+
 /* iOS Safari는 16px 미만 입력창에 포커스하면 화면을 확대한다. 모바일에서만 16px로 올린다. */
 @media (max-width: 47.999rem) {
   input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='file']),

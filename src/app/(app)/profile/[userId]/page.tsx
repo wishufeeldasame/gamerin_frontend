@@ -1613,6 +1613,9 @@ export default function ProfilePage() {
 
       {isOwnProfile && showFetchStatsModal ? (
         <FetchGameStatsModal
+          connectedGames={Object.entries(profile?.gameStats ?? {})
+            .filter(([, stats]) => isConnectedGameStats(stats))
+            .map(([game]) => game.toUpperCase() === 'RIOT' ? 'LOL' : game.toUpperCase())}
           onClose={() => setShowFetchStatsModal(false)}
           onConnected={handleGameConnected}
         />
