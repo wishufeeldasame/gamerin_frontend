@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createComment, fetchPostComments, fetchPostDetailByNumber, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
+import { createComment, fetchPostComments, fetchPostDetailByNumber, fetchUserRecommendations, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -12,6 +12,26 @@ vi.mock('@/lib/api-base', () => ({
 }));
 
 describe('feed-api 이미지 주소', () => {
+  it('추천 친구는 인증 전용 배열 응답을 받고 이미지 주소를 정규화한다', async () => {
+    const users = [
+      { userId: 'a', profileImageUrl: '/uploads/profile.png', mutualCount: 2, winRate: 58.5 },
+      { userId: 'b', profileImageUrl: null, representativeTier: null, winRate: null },
+    ];
+    apiRequest.mockResolvedValueOnce(users);
+    const controller = new AbortController();
+    await expect(fetchUserRecommendations({ signal: controller.signal })).resolves.toEqual([
+      { ...users[0], profileImageUrl: 'http://api.test/uploads/profile.png' },
+      users[1],
+    ]);
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/users/me/recommendations?limit=5',
+      expect.objectContaining({ auth: 'required' }), { signal: controller.signal });
+  });
+
+  it('추천 후보가 없으면 빈 배열을 반환한다', async () => {
+    apiRequest.mockResolvedValueOnce([]);
+    await expect(fetchUserRecommendations()).resolves.toEqual([]);
+  });
+
   it('상대경로는 API 주소로 바꾸고 빈 값은 null, 원본 media URL은 정규화할 수 없을 때 그대로 둔다', () => {
     const post = normalizePostRecord({
       authorProfileImageUrl: 'uploads/p.png',

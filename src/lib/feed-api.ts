@@ -131,6 +131,17 @@ export interface FollowUserRecord {
   followedAt: string;
 }
 
+export interface UserRecommendation {
+  userId: string;
+  handle: string;
+  nickname: string;
+  profileImageUrl: string | null;
+  membershipBadge: boolean;
+  mutualCount: number;
+  representativeTier: RepresentativeTier | null;
+  winRate: number | null;
+}
+
 export interface ProfileMediaItem {
   mediaId: string;
   postId: string;
@@ -573,6 +584,13 @@ export async function uploadProfileImage(target: ProfileImageUploadTarget, file:
   });
 
   return normalizeProfileImageUpload(response);
+}
+
+export async function fetchUserRecommendations(options: FeedRequestOptions = {}) {
+  const users = await apiRequest<UserRecommendation[]>('/api/v1/users/me/recommendations?limit=5', {
+    signal: options.signal,
+  });
+  return users.map((user) => ({ ...user, profileImageUrl: toAbsoluteAssetUrl(user.profileImageUrl) }));
 }
 
 export async function followUser(handle: string) {

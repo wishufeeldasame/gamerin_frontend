@@ -167,7 +167,7 @@ CSS 변수 이름은 코드에 반영할 때 쓸 제안이다(Figma 변수의 We
 | Home · Mobile · Light | 390×844 | Header 56, 피드 탭, 작성기, 카드, 하단 탭바 5칸 |
 
 - 화면 구조는 `src/app/(app)/layout.tsx`, `src/app/(app)/home/page.tsx`, `Sidebar.tsx`, `Header.tsx`, `RightSidebar.tsx`를 따랐다.
-- 홈과 프로필은 xl(1280px) 이상에서 시안의 추천 친구 카드(`SuggestedFriendsCard`)를 표시한다. 시안의 세 계정에 `예시`를 표기하고 팔로우 버튼은 비활성화한다.
+- 홈과 프로필은 xl(1280px) 이상에서 추천 친구 카드(`SuggestedFriendsCard`)를 표시한다. `feat/friend-recommendations`에서 예시 계정·비활성 버튼을 제거하고 인증 전용 추천 API(백엔드 #192, `GET /api/v1/users/me/recommendations?limit=5`)에 연결했다. 닉네임·핸들·이미지·멤버십·대표 티어 엠블럼·저장 승률·공통 연결 수를 표시하고, 팔로우 성공 시 해당 후보를 제거한다. null 통계는 숨기며 로딩·빈 목록·오류·재시도를 제공한다. 비로그인과 인증 복원 중에는 카드를 렌더하지 않는다. 계정 전환은 사용자 ID key로 목록을 초기화하고 이전 조회를 취소한다. 선행 API 배포와 로그인 실서버 검증은 별도다.
 - **정정**: Figma 화면의 피드 탭을 `전체`/`팔로잉`으로 넣었지만, 실제 코드의 탭 이름은 `추천`/`팔로잉`이다(`src/app/(app)/home/page.tsx:171`). Figma 화면은 아직 고치지 않았다(호출 한도). 이후 시안(mockups.md)은 `추천`으로 맞췄다.
 - 시안 C부터는 사용자 요청에 따라 헤더 오른쪽의 메시지·아바타를 빼고 알림만 둔다(mockups.md 시안 C).
 
