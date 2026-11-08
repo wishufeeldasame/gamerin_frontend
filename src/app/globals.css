@@ -257,8 +257,10 @@ body {
 @media (max-width: 47.999rem) {
   body[data-chat-open] {
     --tab-bar-height: 0px;
+    --app-header-height: 0px;
   }
 
+  body[data-chat-open] [data-mobile-top-bar],
   body[data-chat-open] [data-mobile-tab-bar] {
     display: none;
   }

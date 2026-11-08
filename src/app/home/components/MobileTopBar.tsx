@@ -70,7 +70,7 @@ export function MobileTopBar({ unreadCount }: { unreadCount: number }) {
   }, searchOpen);
 
   return (
-    <header data-view-occluder="top" className="fixed inset-x-0 top-0 z-40 bg-canvas pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] lg:hidden">
+    <header data-mobile-top-bar data-view-occluder="top" className="fixed inset-x-0 top-0 z-40 bg-canvas pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] pt-[env(safe-area-inset-top)] lg:hidden">
       <div className="flex h-14 items-center gap-1 px-4">
         <Link href="/" className="mr-auto text-title text-fg-primary">
           Gamer<span className="text-fg-brand">IN</span>
