@@ -72,13 +72,13 @@ export function RepresentativeGameSetting() {
   ];
 
   return (
-    <div className="border-t border-zinc-200 pt-6">
-      <h3 className="section-title mb-2">대표 게임</h3>
-      <p className="mb-4 text-sm text-zinc-600">
+    <div className="border-t border-line pt-6">
+      <h3 className="mb-2 text-heading text-fg-primary">대표 게임</h3>
+      <p className="mb-4 text-body text-fg-secondary">
         고른 게임의 티어 엠블럼이 닉네임 옆에 표시됩니다. 게임 전적은 프로필에서 연동할 수 있습니다.
       </p>
       {loadFailed ? (
-        <p role="alert" className="mb-3 text-sm text-red-600 dark:text-red-300">
+        <p role="alert" className="mb-3 text-body text-fg-danger">
           연동한 게임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
       ) : null}
@@ -87,8 +87,8 @@ export function RepresentativeGameSetting() {
         {options.map((option) => (
           <label
             key={option.value ?? 'none'}
-            className={`flex h-11 items-center gap-3 rounded-xl border border-zinc-200 px-4 text-sm font-semibold dark:border-zinc-700 ${
-              option.disabled ? 'cursor-not-allowed text-zinc-400' : 'cursor-pointer text-black dark:text-zinc-100'
+            className={`flex h-11 items-center gap-3 rounded-control border border-line-card px-4 text-label ${
+              option.disabled ? 'cursor-not-allowed text-fg-tertiary' : 'cursor-pointer text-fg-primary'
             }`}
           >
             <input
