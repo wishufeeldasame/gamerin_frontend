@@ -34,6 +34,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const [sent, setSent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [recipientError, setRecipientError] = useState('');
 
   useEffect(() => {
     if (!user?.id) { setLoading(false); setRecipients([]); return; }
@@ -42,14 +43,14 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
     const timer = window.setTimeout(async () => {
       try {
         setLoading(true);
-        setErrorMessage('');
+        setRecipientError('');
         const next = await searchMessageRecipients(query, 20);
         if (!cancelled) {
           setRecipients(next);
         }
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : '수신자 검색에 실패했습니다.');
+          setRecipientError(error instanceof Error ? error.message : '수신자 검색에 실패했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -80,22 +81,24 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const handleCopyLink = async () => {
     if (sending) return;
     const generation = getAuthGeneration();
-    let copiedSuccessfully = false;
-
+    setSending(true);
+    setErrorMessage('');
     try {
-      setSending(true);
-      setErrorMessage('');
-      if (!navigator.clipboard?.writeText) throw new Error('주소를 선택해서 직접 복사해 주세요.');
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
       await navigator.clipboard.writeText(buildPostUrl(post.postNumber));
-      copiedSuccessfully = true;
       setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setErrorMessage('링크를 자동으로 복사하지 못했습니다. 주소를 선택해서 직접 복사해 주세요.');
+    }
+    try {
+      // 회원의 공유 의도 기록은 클립보드 권한과 무관하다.
       if (user && isCurrentAuthGeneration(generation)) {
         const response = await sharePost(post.postId, 'COPY_LINK');
         updateShareCount(response.shares);
       }
-      window.setTimeout(() => setCopied(false), 1200);
     } catch {
-      setErrorMessage(copiedSuccessfully ? '링크는 복사했지만 공유 수를 갱신하지 못했습니다.' : '링크를 자동으로 복사하지 못했습니다. 주소를 선택해서 직접 복사해 주세요.');
+      setErrorMessage((previous) => previous || '공유 수를 갱신하지 못했습니다.');
     } finally {
       setSending(false);
     }
@@ -270,9 +273,9 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
 
-          {errorMessage ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-              {errorMessage}
+          {errorMessage || recipientError ? (
+            <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+              {errorMessage || recipientError}
             </div>
           ) : null}
         </div>

@@ -93,6 +93,20 @@ describe('게스트 조회와 회원 행동 경계', () => {
     expect(screen.queryByRole('button', { name: '복사 완료' })).not.toBeInTheDocument(); expect(api.sharePost).not.toHaveBeenCalled();
   });
 
+  it('회원은 복사 권한 거부에도 공유를 기록하고 수신자 검색 후에도 복사 오류를 유지한다', async () => {
+    auth.user = { id: 'member', nickname: 'member', handle: 'member' };
+    vi.mocked(navigator.clipboard.writeText).mockRejectedValueOnce(new Error('permission denied'));
+    api.sharePost.mockResolvedValueOnce({ shares: 3 });
+    messageApi.searchMessageRecipients.mockResolvedValueOnce([]);
+    const onShared = vi.fn();
+    render(<SharePostModal post={post} onClose={vi.fn()} onShared={onShared} />);
+    fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
+    await waitFor(() => expect(onShared).toHaveBeenCalledWith({ postId: post.postId, shares: 3 }));
+    await waitFor(() => expect(messageApi.searchMessageRecipients).toHaveBeenCalled());
+    expect(screen.getByRole('alert')).toHaveTextContent('주소를 선택해서 직접 복사');
+    expect(screen.queryByRole('button', { name: '복사 완료' })).not.toBeInTheDocument();
+  });
+
   it('복사 대기 중 계정이 바뀌면 새 계정으로 공유 수를 쓰지 않는다', async () => {
     auth.user = { id: 'member', nickname: 'member', handle: 'member' };
     setAccessToken('member-token');
