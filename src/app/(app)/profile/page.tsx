@@ -12,7 +12,7 @@ export default function ProfileRedirectPage() {
     if (!isAuthReady) return;
 
     if (!user) {
-      router.replace('/login');
+      router.replace('/?login=1');
       return;
     }
 

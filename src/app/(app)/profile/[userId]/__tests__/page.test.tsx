@@ -1,3 +1,5 @@
+import { setAccessToken } from '@/lib/auth-store';
+import type { AuthUser } from '@/lib/auth-api';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +22,7 @@ const auth = vi.hoisted(() => ({
     nickname: 'viewer',
     gameTier: '',
     handle: 'viewer',
-  },
+  } as AuthUser | null,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -144,11 +146,13 @@ const post: PostRecord = {
 };
 
 function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((_, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return { promise, reject };
+  return { promise, resolve, reject };
 }
 
 function readPostState() {
@@ -157,6 +161,7 @@ function readPostState() {
 
 describe('ProfilePage', () => {
   beforeEach(() => {
+    auth.user = { id: 'viewer-1', name: 'viewer', nickname: 'viewer', gameTier: '', handle: 'viewer' };
     window.localStorage.clear();
     api.fetchMyProfile.mockReset();
     api.fetchUserMedia.mockReset();
@@ -177,6 +182,27 @@ describe('ProfilePage', () => {
       nextCursor: null,
       hasNext: false,
     });
+  });
+
+  it('프로필과 미디어 사이에 인증 세대가 바뀌면 이전 계정 정보를 사용자 캐시에 쓰지 않는다', async () => {
+    auth.user = { id: profile.id, name: 'author', nickname: 'author', handle: 'author', gameTier: '' };
+    api.fetchMyProfile.mockResolvedValue(profile);
+    const media = deferred<{ items: []; nextCursor: null; hasNext: boolean }>();
+    api.fetchUserMedia.mockReturnValueOnce(media.promise);
+    render(<ProfilePage />);
+    await waitFor(() => expect(api.fetchUserMedia).toHaveBeenCalled());
+    setAccessToken('different-account-token');
+    await act(async () => { media.resolve({ items: [], nextCursor: null, hasNext: false }); await media.promise; });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('게스트도 타인 프로필과 게시물을 보며 내 프로필 API를 호출하지 않는다', async () => {
+    auth.user = null;
+    render(<ProfilePage />);
+    await screen.findByTestId('post-post-1');
+    expect(api.fetchUserProfile).toHaveBeenCalledWith('author');
+    expect(api.fetchMyProfile).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('button', { name: '팔로우' }).find((button) => !button.hasAttribute('disabled'))).toBeInTheDocument();
   });
 
   it('ignores legacy local privacy settings and keeps profile content public', async () => {
@@ -304,7 +330,7 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     expect(await screen.findByText('사용자를 찾을 수 없습니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/');
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {

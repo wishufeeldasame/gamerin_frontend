@@ -90,7 +90,7 @@ export function AdminLoginForm() {
           <button type="submit" disabled={isSubmitting || isLoggingOut} className="flex h-11 w-full items-center justify-center rounded-2xl bg-[#315ef5] px-4 text-sm font-semibold text-white transition hover:bg-[#294fd5] disabled:cursor-wait disabled:bg-[#98a2b3]">
             {isLoggingOut ? '이전 세션 정리 중...' : isSubmitting ? '로그인 중...' : '로그인'}
           </button>
-          <Link href="/login" className="flex h-11 w-full items-center justify-center rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb]">GamerIN 서비스로 이동</Link>
+          <Link href="/?login=1" className="flex h-11 w-full items-center justify-center rounded-2xl border border-[#d0d5dd] bg-white px-[17px] text-sm font-semibold text-[#344054] transition hover:bg-[#f9fafb]">GamerIN 서비스로 이동</Link>
         </div>
       </form>
       {toast ? <AdminToast key={toast.id} variant={toast.variant} title={toast.title} description={toast.description} onDismiss={() => setToast(null)} /> : null}

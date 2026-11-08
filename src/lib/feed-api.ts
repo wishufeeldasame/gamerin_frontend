@@ -260,8 +260,8 @@ const FEED_CLIENT: ApiClientConfig = {
   ),
 };
 
-function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  return sendApiRequest<T>(path, FEED_CLIENT, options);
+function apiRequest<T>(path: string, options: ApiRequestOptions = {}, auth: ApiClientConfig['auth'] = 'required'): Promise<T> {
+  return sendApiRequest<T>(path, { ...FEED_CLIENT, auth }, options);
 }
 
 export function formatRelativeTime(createdAt: string) {
@@ -320,7 +320,7 @@ export async function fetchFeed(
 
   const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`, {
     signal: options.signal,
-  });
+  }, tab === 'all' ? 'optional' : 'required');
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
@@ -384,7 +384,7 @@ export function getPostHref(postNumber: number, search = '') {
 export async function fetchPostDetailByNumber(postNumber: number, options: FeedRequestOptions = {}) {
   const post = await apiRequest<PostRecord>(`/api/v1/posts/by-number/${postNumber}`, {
     signal: options.signal,
-  });
+  }, 'optional');
   return normalizePostRecord(post);
 }
 
@@ -533,7 +533,7 @@ export async function createComment(postId: string, content: string) {
 export async function fetchPostComments(postId: string, options: FeedRequestOptions = {}) {
   const comments = await apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
     signal: options.signal,
-  });
+  }, 'optional');
   return Array.isArray(comments) ? comments.map(normalizeComment) : [];
 }
 
@@ -549,7 +549,7 @@ export async function fetchMyProfile() {
 }
 
 export async function fetchUserProfile(handle: string) {
-  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${encodeURIComponent(handle)}`);
+  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${encodeURIComponent(handle)}`, {}, 'optional');
   return normalizeUserProfile(profile);
 }
 
@@ -631,7 +631,7 @@ export async function fetchUserPosts(
 
   const page = await apiRequest<CursorPage<PostRecord>>(
     `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`,
-    { signal: options.signal },
+    { signal: options.signal }, 'optional',
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }
@@ -646,7 +646,7 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   }
 
   return apiRequest<CursorPage<ProfileMediaItem>>(
-    `/api/v1/users/${encodeURIComponent(handle)}/media?${search.toString()}`
+    `/api/v1/users/${encodeURIComponent(handle)}/media?${search.toString()}`, {}, 'optional'
   );
 }
 

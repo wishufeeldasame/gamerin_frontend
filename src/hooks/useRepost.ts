@@ -1,5 +1,7 @@
 'use client';
 
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type PostRecord,
@@ -13,6 +15,7 @@ interface UseRepostOptions {
 }
 
 export function useRepost(post: PostRecord, onChange?: UseRepostOptions['onChange']) {
+  const requireAuth = useRequireAuth();
   const [repostState, setRepostState] = useState(() => ({
     isReposted: post.isReposted,
     repostCount: post.repostCount,
@@ -29,6 +32,7 @@ export function useRepost(post: PostRecord, onChange?: UseRepostOptions['onChang
   }, [post.isReposted, post.repostCount]);
 
   const toggleRepost = useCallback(async () => {
+    if (!requireAuth('반응을 남기려면 로그인이 필요해요.')) return;
     if (requestInFlightRef.current) {
       return;
     }
@@ -75,7 +79,7 @@ export function useRepost(post: PostRecord, onChange?: UseRepostOptions['onChang
       requestInFlightRef.current = false;
       setIsLoading(false);
     }
-  }, [onChange, post, repostState]);
+  }, [onChange, post, repostState, requireAuth]);
 
   return {
     ...repostState,

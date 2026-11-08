@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
+import { clearLoginReturnTo, readLoginReturnTo } from '@/lib/login-prompt';
 import { useAuth } from '@/app/context/AuthContext';
 import { SignupCompletedError, completeSocialSignup } from '@/lib/auth-api';
 import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
@@ -62,7 +63,9 @@ export default function SocialCompletePage() {
           ...toSignupConsentPayload(consent),
         }),
       );
-      router.replace('/home');
+      const returnTo = readLoginReturnTo();
+      clearLoginReturnTo();
+      router.replace(returnTo);
     } catch (err) {
       // 가입 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
       if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -117,7 +120,7 @@ export default function SocialCompletePage() {
 
         {accountCreated ? (
           <Link
-            href="/login"
+            href="/?login=1"
             className="flex h-12 w-full items-center justify-center rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
           >
             로그인 화면으로 이동

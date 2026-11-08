@@ -1,5 +1,8 @@
 'use client';
 
+import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
+import { useAuth } from '@/app/context/AuthContext';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { Check, Copy, Loader2, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PostRecord, getInitials, getPostHref, sharePost } from '@/lib/feed-api';
@@ -20,6 +23,8 @@ function buildPostUrl(postNumber: number) {
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
   useEscapeKey(onClose);
+  const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
@@ -31,6 +36,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const [errorMessage, setErrorMessage] = useState('');
 
   useEffect(() => {
+    if (!user?.id) { setLoading(false); setRecipients([]); return; }
     let cancelled = false;
 
     const timer = window.setTimeout(async () => {
@@ -56,13 +62,13 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, user?.id]);
 
   const selectedRecipients = useMemo(
     () => recipients.filter((recipient) => selectedIds.includes(recipient.id)),
     [recipients, selectedIds]
   );
-  const canSend = selectedIds.length > 0 && !sending && !sent;
+  const canSend = Boolean(user) && selectedIds.length > 0 && !sending && !sent;
 
   const updateShareCount = (shares: number) => {
     onShared?.({
@@ -73,21 +79,23 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
   const handleCopyLink = async () => {
     if (sending) return;
+    const generation = getAuthGeneration();
+    let copiedSuccessfully = false;
 
     try {
       setSending(true);
       setErrorMessage('');
-      const response = await sharePost(post.postId, 'COPY_LINK');
-
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(buildPostUrl(post.postNumber)).catch(() => undefined);
-      }
-
+      if (!navigator.clipboard?.writeText) throw new Error('주소를 선택해서 직접 복사해 주세요.');
+      await navigator.clipboard.writeText(buildPostUrl(post.postNumber));
+      copiedSuccessfully = true;
       setCopied(true);
-      updateShareCount(response.shares);
+      if (user && isCurrentAuthGeneration(generation)) {
+        const response = await sharePost(post.postId, 'COPY_LINK');
+        updateShareCount(response.shares);
+      }
       window.setTimeout(() => setCopied(false), 1200);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '게시글 링크 복사에 실패했습니다.');
+    } catch {
+      setErrorMessage(copiedSuccessfully ? '링크는 복사했지만 공유 수를 갱신하지 못했습니다.' : '링크를 자동으로 복사하지 못했습니다. 주소를 선택해서 직접 복사해 주세요.');
     } finally {
       setSending(false);
     }
@@ -102,7 +110,9 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   };
 
   const handleSend = async () => {
+    if (!requireAuth('메시지로 보내려면 로그인이 필요해요.')) return;
     if (!canSend) return;
+    const generation = getAuthGeneration();
 
     try {
       setSending(true);
@@ -113,6 +123,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
         recipientIds: selectedIds,
         content: message,
       });
+      if (!isCurrentAuthGeneration(generation)) return;
       const response = await sharePost(post.postId, 'OTHER');
 
       setSent(true);
@@ -124,6 +135,23 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       setSending(false);
     }
   };
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <section role="dialog" aria-modal="true" aria-labelledby="guest-share-title" className="w-full max-w-lg rounded-card border border-line bg-surface p-5 text-fg-primary">
+          <div className="flex items-center justify-between">
+            <h2 id="guest-share-title" className="text-title">게시글 공유</h2>
+            <button type="button" className="btn-icon" aria-label="공유 닫기" onClick={onClose}><X size={20} /></button>
+          </div>
+          <input readOnly aria-label="게시글 링크" value={buildPostUrl(post.postNumber)} className="my-4 w-full rounded-control border border-line !bg-subtle p-3 text-label" />
+          <button type="button" className="btn-primary w-full" disabled={sending} onClick={() => void handleCopyLink()}>{copied ? '복사 완료' : '링크 복사'}</button>
+          {errorMessage ? <p role="alert" className="mt-3 text-label text-fg-danger">{errorMessage}</p> : null}
+          <button type="button" className="btn-secondary mt-3 w-full" onClick={() => requireAuth('메시지로 보내려면 로그인이 필요해요.')}>메시지로 보내기</button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">

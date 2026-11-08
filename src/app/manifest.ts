@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'GamerIN',
     description: '실력 인증부터 멘토링까지, 게이머들의 이력서이자 커뮤니티',
     lang: 'ko',
-    start_url: '/home',
+    start_url: '/',
     scope: '/',
     display: 'standalone',
     // 다크가 기본이라 실행 직후 흰 화면이 번쩍이지 않게 다크 바탕을 쓴다(10-3).

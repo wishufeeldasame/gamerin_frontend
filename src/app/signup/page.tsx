@@ -2,22 +2,19 @@
 
 import { useToast } from '@/app/context/ToastContext';
 
-import { ChevronDown, Eye, EyeOff, X } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { motion } from 'framer-motion';
 import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   EmailVerificationExpiredError,
   confirmSignupEmailVerification,
-  loginWithPassword,
   requestSignupEmailVerification,
   signUpWithPassword,
 } from '@/lib/auth-api';
-import { getApiBaseUrl } from '@/lib/api-base';
+import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
+import { readLoginReturnTo, requestLogin } from '@/lib/login-prompt';
 import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
 import {
   HANDLE_MAX_LENGTH,
@@ -33,26 +30,15 @@ import {
 // 계약이 생기면 true로 바꾸고 회원가입 요청 본문에 추가한다.
 const BIRTH_DATE_ENABLED = false;
 
-const OAUTH_ERROR_MESSAGES: Record<string, string> = {
-  email_not_verified: 'Google 계정의 이메일이 인증되지 않아 계속할 수 없습니다. Google에서 이메일을 인증한 뒤 다시 시도해 주세요.',
-};
-
 const formatRemaining = (seconds: number) => `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 
-export default function LoginPage() {
+export default function SignupPage() {
   const toast = useToast();
   const router = useRouter();
-  const { user, isAuthReady, isLoggingOut, login } = useAuth();
+  const { user, isAuthReady } = useAuth();
 
-  const [showIdLogin, setShowIdLogin] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showSignupModal, setShowSignupModal] = useState(false);
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
 
-  const [loginHandle, setLoginHandle] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-  const [loginLoading, setLoginLoading] = useState(false);
 
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
@@ -64,7 +50,6 @@ export default function LoginPage() {
   const [signupPasswordConfirm, setSignupPasswordConfirm] = useState('');
   const [signupConsent, setSignupConsent] = useState(EMPTY_SIGNUP_CONSENT);
   const [signupPending, setSignupPending] = useState(false);
-  const [oauthError, setOauthError] = useState('');
 
   // 인증번호를 보낸 이메일과 만료·재발송 가능 시각(ms). 이메일을 고치면 처음부터 다시 인증한다.
   const [emailCode, setEmailCode] = useState<{ email: string; expiresAt: number; resendAt: number } | null>(null);
@@ -75,6 +60,11 @@ export default function LoginPage() {
   const [now, setNow] = useState(0);
   // 이메일 수정·모달 닫기 뒤 도착한 이전 요청의 응답을 버린다.
   const verificationRunRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const nameError = validateNickname(signupName);
   const emailError = validateEmail(signupEmail);
@@ -99,21 +89,6 @@ export default function LoginPage() {
     setEmailVerificationToken('');
     setVerificationError('');
     setVerificationPending(false);
-  };
-
-  const resetSignup = () => {
-    resetEmailVerification();
-    setShowSignupModal(false);
-    setSignupStep(1);
-    setSignupName('');
-    setSignupEmail('');
-    setBirthMonth('');
-    setBirthDay('');
-    setBirthYear('');
-    setSignupId('');
-    setSignupPassword('');
-    setSignupPasswordConfirm('');
-    setSignupConsent(EMPTY_SIGNUP_CONSENT);
   };
 
   const handleSendVerificationCode = async () => {
@@ -186,9 +161,9 @@ export default function LoginPage() {
         ...toSignupConsentPayload(signupConsent),
       });
 
-      resetSignup();
-      setShowIdLogin(true);
-      setLoginHandle(signupId.trim());
+      if (!mountedRef.current) return;
+      router.replace('/');
+      requestLogin({ initialHandle: signupId.trim(), returnTo: readLoginReturnTo(), message: '가입이 완료되었습니다. 로그인해 주세요.' });
     } catch (error) {
       if (error instanceof EmailVerificationExpiredError) {
         resetEmailVerification();
@@ -202,227 +177,20 @@ export default function LoginPage() {
     }
   };
 
-  const handleLocalLogin = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (loginLoading || isLoggingOut) return;
-    if (!loginHandle.trim() || !loginPassword.trim()) {
-      setLoginError('아이디와 비밀번호를 입력해 주세요.');
-      return;
-    }
-
-    setLoginError('');
-    setLoginLoading(true);
-
-    try {
-      login(await loginWithPassword(loginHandle.trim(), loginPassword));
-      router.push('/home');
-    } catch (error) {
-      // 로그인 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      setLoginError(getPublicRequestErrorMessage(error, '로그인에 실패했습니다.'));
-    } finally {
-      setLoginLoading(false);
-    }
-  };
-
-  const handleGoogleLogin = () => {
-    window.location.href = `${getApiBaseUrl()}/oauth2/authorization/google`;
-  };
-
   useEffect(() => {
     if (!emailCode || isEmailVerified) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(timer);
   }, [emailCode, isEmailVerified]);
 
-  // OAuth 처리 실패 시 백엔드가 /login?error=<code>로 돌려보낸다.
   useEffect(() => {
-    const code = new URLSearchParams(window.location.search).get('error');
-    // 상속 속성(__proto__ 등)이 조회되지 않도록 자체 속성만 쓴다.
-    if (code && Object.prototype.hasOwnProperty.call(OAUTH_ERROR_MESSAGES, code)) setOauthError(OAUTH_ERROR_MESSAGES[code]);
-  }, []);
+    if (isAuthReady && user) router.replace(readLoginReturnTo());
+  }, [isAuthReady, user, router]);
 
-  useEffect(() => {
-    if (!isAuthReady || !user) return;
-    router.replace('/home');
-  }, [isAuthReady, router, user]);
-
-  if (isAuthReady && user) {
-    return null;
-  }
-
+  if (isAuthReady && user) return null;
   return (
-    <main className="flex min-h-screen bg-background font-sans text-black">
-      {/* 아이디·비밀번호 찾기(AuthPageShell)와 같은 왼쪽 로고 패널 */}
-      <section className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center dark:border-line dark:bg-surface">
-          <div className="relative flex h-80 w-80 items-center justify-center">
-            <Image
-              src="/logo.png"
-              alt="GamerIN Logo"
-              width={500}
-              height={500}
-              className="object-contain drop-shadow-xl"
-              priority
-            />
-          </div>
-      </section>
-
-      <div className="flex flex-1 flex-col justify-center px-5 py-8 sm:px-8 lg:p-16 xl:p-24">
-        <section className="mx-auto w-full max-w-[420px] space-y-7">
-          <div className="relative mx-auto flex h-36 w-36 items-center justify-center md:hidden">
-            <Image src="/logo.png" alt="GamerIN Logo" width={300} height={300} className="object-contain drop-shadow-xl" priority />
-          </div>
-          <div className="space-y-2 text-center lg:text-left">
-            <p className="text-sm font-black uppercase tracking-widest text-zinc-400">GamerIN</p>
-            <h1 className="text-2xl font-black tracking-tight text-black sm:text-3xl">GamerIN에 가입하기</h1>
-          </div>
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-amber-900 lg:text-left dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            GamerIN은 현재 개발 단계입니다. 이용 중 오류나 데이터 변경이 발생할 수 있습니다.
-          </div>
-
-          {oauthError ? (
-            <p
-              role="alert"
-              className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-center text-sm font-semibold leading-6 text-red-700 lg:text-left dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
-            >
-              {oauthError}
-            </p>
-          ) : null}
-
-          <div className="flex flex-col gap-4">
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              className="group flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white transition-all hover:border-zinc-800 hover:bg-zinc-50"
-            >
-              <Image src="/google.png" alt="Google" width={20} height={20} />
-              <span className="text-base font-bold text-zinc-900">Google로 계속하기</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setShowIdLogin((current) => !current)}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-zinc-300 bg-white transition-all hover:border-zinc-800"
-            >
-              <span className="text-base font-bold text-zinc-900">
-                {showIdLogin ? '닫기' : '아이디로 로그인'}
-              </span>
-              <ChevronDown
-                size={18}
-                className={`text-zinc-500 transition-transform duration-300 ${showIdLogin ? 'rotate-180' : ''}`}
-              />
-            </button>
-
-            {showIdLogin ? (
-              <motion.form
-                onSubmit={handleLocalLogin}
-                noValidate
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="mt-2 space-y-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-5 shadow-sm sm:p-6"
-              >
-                <input
-                  type="text"
-                  name="username"
-                  autoComplete="username"
-                  value={loginHandle}
-                  onChange={(event) => setLoginHandle(event.target.value)}
-                  placeholder="아이디"
-                  className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-black outline-none transition-colors focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                />
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    name="password"
-                    autoComplete="current-password"
-                    value={loginPassword}
-                    onChange={(event) => setLoginPassword(event.target.value)}
-                    placeholder="비밀번호"
-                    className="h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 pr-12 text-black outline-none transition-colors focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((current) => !current)}
-                    className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-600"
-                    aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
-                  >
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {loginError ? <p className="text-sm font-semibold text-red-500 dark:text-red-400">{loginError}</p> : null}
-                <button
-                  type="submit"
-                  disabled={loginLoading || isLoggingOut}
-                  className="h-12 w-full rounded-xl bg-black text-base font-bold text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-70"
-                >
-                  {isLoggingOut ? '이전 세션 정리 중...' : loginLoading ? '로그인 중...' : '로그인'}
-                </button>
-              </motion.form>
-            ) : null}
-          </div>
-
-          {/* 줄바꿈 시 구분선이 줄 끝에 남지 않도록 계정/약관 링크를 묶어서 내린다 */}
-          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 lg:justify-start">
-            <div className="flex gap-3">
-              <Link
-                href="/find-id"
-                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-              >
-                아이디 찾기
-              </Link>
-              <div className="h-4 w-px self-center bg-zinc-200" />
-              <Link
-                href="/auth/forgot-password"
-                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-              >
-                비밀번호 찾기
-              </Link>
-            </div>
-            <div className="flex gap-3">
-              <Link
-                href="/terms"
-                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-              >
-                이용약관
-              </Link>
-              <div className="h-4 w-px self-center bg-zinc-200" />
-              <Link
-                href="/privacy"
-                className="whitespace-nowrap text-sm font-semibold text-zinc-500 transition-colors hover:text-black"
-              >
-                개인정보 처리방침
-              </Link>
-            </div>
-          </div>
-
-          <div className="border-t border-zinc-100 pt-7 text-center lg:text-left">
-            <p className="text-base font-medium text-zinc-600">
-              아직 계정이 없으신가요?
-              <button
-                type="button"
-                onClick={() => setShowSignupModal(true)}
-                className="ml-2 font-extrabold text-black underline-offset-4 hover:underline"
-              >
-                회원가입
-              </button>
-            </p>
-          </div>
-        </section>
-      </div>
-
-      {showSignupModal ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-6">
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
-            <button
-              type="button"
-              onClick={resetSignup}
-              className="mb-6 flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
-              aria-label="회원가입 닫기"
-            >
-              <X size={22} />
-            </button>
-
+    <AuthPageShell title="회원가입" description="이메일을 인증하고 GamerIN 계정을 만들어 주세요.">
+      <div>
             {signupStep === 1 ? (
               <form onSubmit={handleNextStep} noValidate>
                 <h2 className="mb-8 text-3xl font-extrabold text-black">계정 만들기</h2>
@@ -671,9 +439,8 @@ export default function LoginPage() {
                 </button>
               </form>
             ) : null}
-          </div>
-        </div>
-      ) : null}
-    </main>
+      </div>
+      <Link href="/?login=1" className="mt-6 inline-block text-label text-fg-brand">로그인</Link>
+    </AuthPageShell>
   );
 }

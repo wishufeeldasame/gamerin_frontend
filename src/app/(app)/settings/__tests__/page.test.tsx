@@ -107,7 +107,7 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '계정 삭제' }));
     fireEvent.click(await screen.findByRole('button', { name: '탈퇴하기' }));
 
-    await waitFor(() => expect(auth.logout).toHaveBeenCalledWith({ redirectTo: '/login' }));
+    await waitFor(() => expect(auth.logout).toHaveBeenCalledWith({ redirectTo: '/?login=1' }));
     expect(account.deleteMyAccount).toHaveBeenCalledTimes(1);
   });
 

@@ -9,6 +9,7 @@ import { useRouter } from 'next/navigation';
 import { Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share } from 'lucide-react';
 import type { MouseEvent } from 'react';
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   PostMedia,
@@ -153,6 +154,7 @@ export function Post({
     return () => { shareLifetime.active = false; };
   }, [shareLifetime]);
   const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const router = useRouter();
   const initials = getInitials(post.author);
   const hasMedia = post.media.length > 0;
@@ -208,6 +210,7 @@ export function Post({
     nextBookmarked: boolean,
     options: { skipRequest?: boolean } = {},
   ) => {
+    if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return false;
     if (bookmarking) {
       return false;
     }
@@ -355,6 +358,7 @@ export function Post({
                   <button
                     type="button"
                     onClick={() => {
+                      if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                       closeMenu();
                       setReportOpen(true);
                     }}
@@ -420,7 +424,7 @@ export function Post({
           <div className="flex items-center min-[400px]:gap-1 md:gap-2">
           <button
             type="button"
-            onClick={() => onToggleLike?.(post)}
+            onClick={() => { if (requireAuth('좋아요를 남기려면 로그인이 필요해요.')) onToggleLike?.(post); }}
             aria-label={`좋아요 ${post.likes}개`}
             aria-pressed={post.likedByMe}
             disabled={likeLoading}
@@ -466,7 +470,7 @@ export function Post({
           <div className="flex items-center">
           <button
             type="button"
-            onClick={() => { closeAll(); setCollectionModalOpen(true); }}
+            onClick={() => { if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return; closeAll(); setCollectionModalOpen(true); }}
             aria-haspopup="dialog"
             disabled={bookmarking}
             className={`flex items-center transition-colors ${

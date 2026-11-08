@@ -510,3 +510,5 @@ describe('BookmarksPage state synchronization', () => {
     expect(screen.queryByText(/0개/)).not.toBeInTheDocument();
   });
 });
+
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'viewer-1', handle: 'viewer' }, isAuthReady: true }) }));

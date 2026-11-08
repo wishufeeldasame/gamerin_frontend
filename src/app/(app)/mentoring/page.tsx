@@ -21,6 +21,9 @@ import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTie
 import type { RepresentativeTier } from '@/lib/representative-tier';
 import { ProgramListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { ChangeEvent, FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { currentPageReturnTo, requestLogin } from '@/lib/login-prompt';
 import { useAuth } from '@/app/context/AuthContext';
 import { ReportContentModal } from '@/app/home/components/Report';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
@@ -260,6 +263,9 @@ export default function MentoringPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, logout, isAuthReady } = useAuth();
+  const requireAuth = useRequireAuth();
+  const replace = router.replace;
+  const searchString = searchParams.toString();
   const currentUserId = user?.id ?? '';
   const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
   const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
@@ -393,6 +399,7 @@ export default function MentoringPage() {
   }, []);
 
   const showError = useCallback((error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') return;
     if (isMileageShortageError(error)) {
       setBannerType('mileage');
       setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해 주세요.');
@@ -561,13 +568,21 @@ export default function MentoringPage() {
     setHighlightedReviewId(null);
     setSelectedOwnedProgramId(null);
 
+    if (!currentUserId && (requestedReviewId || requestedMineTab || requestedApplicationId)) {
+      setActiveTab('find');
+      requestLogin({ returnTo: currentPageReturnTo(), message: '내 멘토링은 로그인 후 볼 수 있어요.' });
+      const next = new URLSearchParams(searchString);
+      for (const key of ['tab', 'applicationId', 'reviewId']) next.delete(key);
+      replace('/mentoring' + (next.size ? `?${next}` : ''), { scroll: false });
+      return;
+    }
     if (requestedReviewId) {
       setActiveTab('programs');
       return;
     }
 
     setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
-  }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
+  }, [requestedApplicationId, requestedMineTab, requestedReviewId, currentUserId, replace, searchString]);
 
   const loadGames = useCallback(async () => {
     const requestId = ++gamesRequestRef.current;
@@ -586,7 +601,7 @@ export default function MentoringPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthReady && currentUserId) {
+    if (isAuthReady) {
       void loadGames();
     }
   }, [currentUserId, isAuthReady, loadGames]);
@@ -736,6 +751,7 @@ export default function MentoringPage() {
   }, [highlightedApplicationId, highlightedReviewId]);
 
   const changeTab = (tab: MentoringTab) => {
+    if (tab !== 'find' && !requireAuth('멘토링 참여·등록은 로그인 후 이용할 수 있어요.', { returnTo: tab === 'mine' ? '/mentoring?tab=mine' : currentPageReturnTo() })) return;
     setActiveTab(tab);
     clearMessages();
   };
@@ -789,6 +805,7 @@ export default function MentoringPage() {
 
   const handleRegisterMentor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     setPendingAction('register-mentor');
     clearMessages();
 
@@ -805,6 +822,7 @@ export default function MentoringPage() {
   };
 
   const handleProgramFormChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (!requireAuth('프로그램을 등록하려면 로그인이 필요해요.')) return;
     const { name, value } = event.target;
     setProgramForm((current) => ({
       ...current,
@@ -818,6 +836,7 @@ export default function MentoringPage() {
 
   const handleSubmitProgram = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     setPendingAction('save-program');
     clearMessages();
 
@@ -893,13 +912,16 @@ export default function MentoringPage() {
 
   const handleApplyProgram = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     if (!selectedProgram) return;
+    const generation = getAuthGeneration();
 
     setPendingAction(`apply:${selectedProgram.id}`);
     clearMessages();
 
     try {
       const balance = await fetchMyMileageBalance();
+      assertCurrentAuthGeneration(generation);
       const currentBalance = balance.currentBalance ?? 0;
 
       if (currentBalance < selectedProgram.price) {
@@ -979,6 +1001,7 @@ export default function MentoringPage() {
 
   // 충전 후 원래 프로그램 상세로 돌아오게 한다. 신청은 사용자가 다시 확정한다.
   const goToMileageCharge = () => {
+    if (!requireAuth('마일리지를 충전하려면 로그인이 필요해요.', { returnTo: '/wallet' })) return;
     const returnTo = selectedProgram ? `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
     setShowMileageShortageModal(false);
     closeProgramDetail();
@@ -1024,6 +1047,7 @@ export default function MentoringPage() {
 
   const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
 
     if (!reviewTarget) {
       return;
@@ -1176,7 +1200,7 @@ export default function MentoringPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => logout({ redirectTo: '/login' })}
+                  onClick={() => logout({ redirectTo: '/?login=1' })}
                   className="btn-primary"
                 >
                   다시 로그인
@@ -1666,7 +1690,7 @@ export default function MentoringPage() {
                   <button
                     ref={programReportButtonRef}
                     type="button"
-                    onClick={() => setProgramReportOpen(true)}
+                    onClick={() => { if (requireAuth('신고하려면 로그인이 필요해요.')) setProgramReportOpen(true); }}
                     className="mt-5 inline-flex items-center gap-1.5 text-caption text-fg-secondary hover:text-fg-danger"
                   >
                     <Flag size={13} />
@@ -1708,7 +1732,7 @@ export default function MentoringPage() {
                       이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
                     </p>
                   </div>
-                ) : (
+                ) : !user ? <button type="button" className="btn-primary mt-5 w-full" onClick={() => requireAuth('멘토링을 신청하려면 로그인이 필요해요.', { returnTo: `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` })}>로그인하고 신청하기</button> : (
                   <form onSubmit={handleApplyProgram} className="mt-5">
                     <div className="mb-4 rounded-xl bg-brand-subtle p-4 text-caption text-fg-secondary">
                       신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.

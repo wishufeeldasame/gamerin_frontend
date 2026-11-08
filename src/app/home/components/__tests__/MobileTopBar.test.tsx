@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { installDialogMock } from '@/test/feedback';
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/home',
+  pathname: '/',
   push: vi.fn(),
 }));
 
@@ -17,7 +17,7 @@ import { MobileTopBar } from '../MobileTopBar';
 describe('MobileTopBar', () => {
   beforeEach(() => {
     installDialogMock();
-    mocks.pathname = '/home';
+    mocks.pathname = '/';
     mocks.push.mockReset();
   });
 
@@ -98,3 +98,5 @@ describe('MobileTopBar', () => {
     expect(screen.queryByRole('dialog', { name: '검색' })).not.toBeInTheDocument();
   });
 });
+
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'viewer-1', handle: 'viewer' }, isAuthReady: true }) }));

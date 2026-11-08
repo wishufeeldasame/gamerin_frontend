@@ -16,7 +16,7 @@ export default function PostPermalinkPage() {
   const goBack = () => {
     // 공유 링크로 바로 열었으면 돌아갈 기록이 없다(웹앱 독립 실행에는 브라우저 뒤로가기도 없다).
     if (canGoBack()) router.back();
-    else router.replace('/home');
+    else router.replace('/');
   };
 
   return (
@@ -34,7 +34,7 @@ export default function PostPermalinkPage() {
             onBack={goBack}
             initialScrollTarget={initialScrollTarget}
             initialCommentId={initialCommentId}
-            onPostDeleted={() => router.push('/home')}
+            onPostDeleted={() => router.push('/')}
           />
           )}
         </div>

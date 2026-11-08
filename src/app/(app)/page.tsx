@@ -1,5 +1,8 @@
 'use client';
 
+import { useAuth } from '@/app/context/AuthContext';
+import { requestLogin } from '@/lib/login-prompt';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { Suspense, useCallback, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare } from 'lucide-react';
@@ -25,8 +28,17 @@ type PostDetailTarget = 'post' | 'comments';
 
 function HomePageContent() {
   const router = useRouter();
+  const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const searchParams = useSearchParams();
-  const activeTab: FeedTab = searchParams.get('tab') === 'following' ? 'following' : 'all';
+  const requestedFollowing = searchParams.get('tab') === 'following';
+  const activeTab: FeedTab = user && requestedFollowing ? 'following' : 'all';
+  useEffect(() => {
+    if (!user && requestedFollowing) {
+      router.replace('/', { scroll: false });
+      requestLogin({ returnTo: '/?tab=following', message: '팔로잉 피드는 로그인 후 볼 수 있어요.' });
+    }
+  }, [user, requestedFollowing, router]);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
@@ -47,7 +59,7 @@ function HomePageContent() {
   } = useCursorList<PostRecord>({
     loadPage,
     getKey: (post) => post.postId,
-    queryKey: activeTab,
+    queryKey: `${activeTab}:${user?.id ?? 'guest'}`,
     initialErrorMessage: '피드를 불러오지 못했습니다.',
     loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
   });
@@ -66,6 +78,7 @@ function HomePageContent() {
   const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
 
   const handleTabChange = (tab: FeedTab) => {
+    if (tab === 'following' && !requireAuth('팔로잉 피드는 로그인 후 볼 수 있어요.', { returnTo: '/?tab=following' })) return;
     const params = new URLSearchParams(searchParams.toString());
     params.delete('target');
     if (tab === 'following') {
@@ -75,7 +88,7 @@ function HomePageContent() {
     }
 
     const nextSearch = params.toString();
-    router.push(`/home${nextSearch ? `?${nextSearch}` : ''}`, { scroll: false });
+    router.push(`/${nextSearch ? `?${nextSearch}` : ''}`, { scroll: false });
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
     window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
   };

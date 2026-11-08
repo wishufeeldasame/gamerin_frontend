@@ -122,7 +122,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
       test('사용자 화면 한국어 문구와 시간 요소가 넘치지 않는다', async ({ page }, info) => {
         await mockApp(page, theme);
-        await page.goto('/home');
+        await page.goto('/');
         await expect(page.getByText('한국어 화면 확인용 게시글')).toBeVisible();
         await expect(page.locator('time').filter({ hasText: '1분 전' }).first()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await expect(page.locator('time').filter({ hasText: '9월 29일' })).toHaveAttribute('datetime', '2026-09-29T06:05:00.000Z');

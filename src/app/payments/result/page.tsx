@@ -192,13 +192,13 @@ function PaymentResult() {
     case 'missing':
       tone = 'fail';
       title = '결제 정보를 찾을 수 없습니다';
-      actions = [{ href: '/home', label: '홈으로' }];
+      actions = [{ href: '/', label: '홈으로' }];
       break;
     case 'login':
       tone = 'lock';
       title = '로그인 후 결제 내역에서 결과를 확인해 주세요';
       description = '승인되지 않은 결제는 15분 후 자동으로 정리됩니다.';
-      actions = [{ href: '/login', label: '로그인' }];
+      actions = [{ href: '/?login=1', label: '로그인' }];
       break;
     case 'checking':
       if (error) {

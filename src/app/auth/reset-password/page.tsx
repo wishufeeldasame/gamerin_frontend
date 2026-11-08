@@ -38,7 +38,7 @@ function ResetPasswordPageContent() {
     if (!isSuccess) return;
 
     const timeoutId = window.setTimeout(() => {
-      router.replace('/login');
+      router.replace('/?login=1');
     }, 1200);
 
     return () => window.clearTimeout(timeoutId);
@@ -114,7 +114,7 @@ function ResetPasswordPageContent() {
             </p>
           </div>
           <button
-            onClick={() => router.replace('/login')}
+            onClick={() => router.replace('/?login=1')}
             className="w-full h-12 bg-black text-white rounded-xl font-black text-base hover:bg-zinc-800 transition-all"
           >
             로그인하러 가기

@@ -19,7 +19,7 @@ test.describe('isolated production Docker checks', () => {
       route.fulfill({ status: 401, json: { success: false, message: '로그인이 필요합니다.' } }),
     );
     await page.goto('/');
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test('optimizes normal images and rejects an unapproved remote origin', async ({ request }) => {

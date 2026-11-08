@@ -45,7 +45,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({
-    user: { id: auth.userId },
+    user: auth.userId ? { id: auth.userId } : null,
     logout: vi.fn(),
     isAuthReady: true,
   }),
@@ -148,6 +148,31 @@ describe('MentoringPage error handling', () => {
     mentoringApi.fetchMyMentorProfile.mockResolvedValue(null);
     mileageApi.fetchMyMileageBalance.mockResolvedValue({ currentBalance: 50000 });
     mileageApi.fetchMyMileageTransactions.mockResolvedValue(pageResponse([]));
+  });
+
+  it('게스트 프로그램 상세·게임·후기는 공개 조회하고 신청 전에 막는다', async () => {
+    auth.userId = '';
+    navigation.searchParams = new URLSearchParams('programId=program-1');
+    mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorId: 'mentor-2', mentorAbout: '' });
+    mentoringApi.fetchMentorProfile.mockResolvedValue({ ...mentorProfile, userId: 'mentor-2' });
+    mentoringApi.fetchMentorReviews.mockResolvedValue(pageResponse([]));
+    render(<MentoringPage />);
+    fireEvent.click(await screen.findByRole('button', { name: '로그인하고 신청하기' }));
+    expect(mentoringApi.fetchGames).toHaveBeenCalled();
+    expect(mentoringApi.fetchMentorReviews).toHaveBeenCalled();
+    expect(mileageApi.fetchMyMileageBalance).not.toHaveBeenCalled();
+    expect(mentoringApi.applyToMentoringProgram).not.toHaveBeenCalled();
+    expect(mentoringApi.fetchMyMentorProfile).not.toHaveBeenCalled();
+    expect(screen.queryByPlaceholderText('원하는 멘토링 방향이나 현재 고민을 적어 주세요.')).not.toBeInTheDocument();
+  });
+
+  it('게스트는 등록 탭을 누르더라도 등록 폼과 개인 조회를 열지 않는다', async () => {
+    auth.userId = '';
+    render(<MentoringPage />);
+    fireEvent.click(screen.getByRole('tab', { name: '멘토 되기' }));
+    expect(screen.queryByRole('button', { name: '멘토 등록' })).not.toBeInTheDocument();
+    expect(mentoringApi.fetchMyMentorProfile).not.toHaveBeenCalled();
+    expect(mentoringApi.registerMentor).not.toHaveBeenCalled();
   });
 
   it.each<[number, ApiFailureReason]>([
@@ -448,7 +473,7 @@ describe('MentoringPage game filter', () => {
     render(<MentoringPage />);
 
     expect(await screen.findByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '전체', exact: true })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '전체' })).toBeDisabled();
   });
 
   it('/games 실패 안내와 다시 시도는 프로그램 등록 폼에도 보인다', async () => {
@@ -526,12 +551,12 @@ describe('MentoringPage game filter', () => {
     // 첫 요청이 끝나기 전에 사용자 전환으로 두 번째 요청이 시작되어 성공한다.
     auth.userId = 'user-2';
     rerender(<MentoringPage />);
-    await waitFor(() => expect(screen.getByRole('button', { name: '전체', exact: true })).toBeEnabled());
+    await waitFor(() => expect(screen.getByRole('button', { name: '전체' })).toBeEnabled());
 
     await act(async () => {
       rejectFirst(new Error('late'));
     });
-    expect(screen.getByRole('button', { name: '전체', exact: true })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '전체' })).toBeEnabled();
     expect(screen.queryByText(/게임 목록을 불러오지 못했습니다/)).not.toBeInTheDocument();
   });
 
@@ -571,6 +596,7 @@ describe('MentoringPage game filter', () => {
 
     auth.userId = 'user-2';
     rerender(<MentoringPage />);
+    await user.click(await screen.findByRole('tab', { name: '멘토 되기' }));
 
     expect(await screen.findByText(/게임 목록을 불러오지 못했습니다/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '프로그램 등록' })).toBeDisabled();

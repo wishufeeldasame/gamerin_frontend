@@ -11,6 +11,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
@@ -82,6 +83,7 @@ export function PostDetail({
   const deletePostLockRef = useRef(false);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const router = useRouter();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
@@ -91,6 +93,8 @@ export function PostDetail({
   useLayoutEffect(() => {
     latestPostRef.current = post;
   }, [post]);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
   const [reportComment, setReportComment] = useState<CommentRecord | null>(null);
@@ -158,7 +162,7 @@ export function PostDetail({
       commentRequestGenerationRef.current += 1;
       submittingCommentRef.current = false;
     };
-  }, [postNumber]);
+  }, [postNumber, user?.id]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postNumber, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -206,12 +210,22 @@ export function PostDetail({
         setComments([]);
         // 댓글 API는 UUID를 쓰므로 상세를 먼저 받아 `detail.postId`로 조회한다
         const detail = await fetchPostDetailByNumber(postNumber, { signal: controller.signal });
-        const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
-        if (!cancelled) {
-          setPost(detail);
-          setComments(commentList);
-          latestPostRef.current = detail;
-          setBookmarked(detail.bookmarkedByMe);
+        if (cancelled) return;
+        setPost(detail);
+        latestPostRef.current = detail;
+        setBookmarked(detail.bookmarkedByMe);
+        setLoading(false);
+        setCommentsError(null);
+        setCommentsLoading(true);
+        try {
+          const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
+          if (!cancelled) setComments(commentList);
+        } catch (commentError) {
+          if (!cancelled && !(commentError instanceof DOMException && commentError.name === 'AbortError')) {
+            setCommentsError(commentError instanceof Error ? commentError.message : '댓글을 불러오지 못했습니다.');
+          }
+        } finally {
+          if (!cancelled) setCommentsLoading(false);
         }
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === 'AbortError') {
@@ -233,7 +247,7 @@ export function PostDetail({
       cancelled = true;
       controller.abort();
     };
-  }, [postNumber]);
+  }, [postNumber, user?.id]);
 
   const handleToggleLike = () => {
     const currentPost = latestPostRef.current;
@@ -241,6 +255,7 @@ export function PostDetail({
   };
 
   const handleToggleRepost = async () => {
+    if (!requireAuth('리포스트하려면 로그인이 필요해요.')) return;
     if (!post || isRepostLoading || post.mine) {
       return;
     }
@@ -299,6 +314,7 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
+    if (!requireAuth('댓글을 남기려면 로그인이 필요해요.')) return;
     if (!post || post.postNumber !== postNumber || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
@@ -383,6 +399,7 @@ export function PostDetail({
     nextBookmarked: boolean,
     options: { skipRequest?: boolean } = {},
   ) => {
+    if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return false;
     if (!post || bookmarking) {
       return false;
     }
@@ -431,6 +448,7 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
+    if (!requireAuth('게시글을 관리하려면 로그인이 필요해요.')) return;
     if (!post || post.postNumber !== postNumber || deletingPost || deletePostLockRef.current) {
       return;
     }
@@ -478,7 +496,7 @@ export function PostDetail({
         {header}
         <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
           <p className="text-body text-fg-danger">{error ?? '게시글을 찾을 수 없습니다.'}</p>
-          <Link href="/home" className={`btn-secondary ${FOCUS_RING}`}>
+          <Link href="/" className={`btn-secondary ${FOCUS_RING}`}>
             홈으로 돌아가기
           </Link>
         </div>
@@ -542,6 +560,7 @@ export function PostDetail({
                       type="button"
                       onClick={() => {
                         closeMenu();
+                        if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                         setReportPostOpen(true);
                       }}
                       className={MENU_DANGER_ITEM}
@@ -670,7 +689,7 @@ export function PostDetail({
           <div className="flex items-center">
             <button
               type="button"
-              onClick={() => { closeAll(); setCollectionModalOpen(true); }}
+              onClick={() => { if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return; closeAll(); setCollectionModalOpen(true); }}
               aria-haspopup="dialog"
               aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
               disabled={bookmarking}
@@ -698,6 +717,7 @@ export function PostDetail({
         aria-label="댓글"
         className="scroll-mt-24 rounded-card border border-line-card bg-surface px-4 pt-4 md:px-5 md:pt-5"
       >
+            {user ? (
             <div className="flex gap-3 pb-4">
               <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-caption text-fg-secondary">
                 {user?.profileImageUrl ? (
@@ -780,6 +800,9 @@ export function PostDetail({
                 </button>
               </form>
             </div>
+            ) : <button type="button" className="mb-4 min-h-11 w-full rounded-control border border-line bg-subtle px-3 text-left text-body text-fg-secondary focus-visible:outline-2 focus-visible:outline-line-focus" onClick={() => requireAuth('댓글을 남기려면 로그인이 필요해요.')}>로그인하고 댓글 남기기</button>}
+            {commentsLoading ? <p role="status" className="pb-4 text-label text-fg-secondary">댓글을 불러오는 중…</p> : null}
+            {commentsError ? <p role="alert" className="pb-4 text-label text-fg-danger">댓글을 불러오지 못했습니다. {commentsError}</p> : null}
 
             <div className="divide-y divide-line border-t border-line">
               {comments.length === 0 ? (
@@ -856,6 +879,7 @@ export function PostDetail({
                                 type="button"
                                 onClick={() => {
                                   setCommentMenuOpenId(null);
+                                  if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                                   setReportComment(comment);
                                 }}
                                 className={MENU_DANGER_ITEM}
@@ -884,7 +908,7 @@ export function PostDetail({
       </section>
       </div>
 
-      <RelatedHashtagPosts content={post.content} excludePostId={post.postId} />
+      {user ? <RelatedHashtagPosts content={post.content} excludePostId={post.postId} /> : null}
 
       {shareOpen ? (
         <SharePostModal

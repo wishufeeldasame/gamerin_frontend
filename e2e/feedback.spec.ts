@@ -134,7 +134,7 @@ for (const width of [390, 1280]) {
 
 test('카드 삭제: 초기 포커스·Tab 제한·Esc 취소·포커스 복귀와 확인 1회 요청', async ({ page }) => {
   const deletes = await mockApp(page);
-  await page.goto('/home');
+  await page.goto('/');
   const menu = page.getByRole('button', { name: '게시글 메뉴', exact: true });
   await menu.click();
   await page.getByRole('button', { name: '삭제', exact: true }).click();
@@ -196,7 +196,7 @@ for (const dark of [false, true]) {
       distinctLikeErrors: true,
     });
     if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'dark' })));
-    await page.goto('/home');
+    await page.goto('/');
     const likes = page.locator('article button').filter({ has: page.locator('svg.lucide-heart') });
     await expect(likes).toHaveCount(3);
     // Concurrent mock responses reproduce the overflow without moving focus into the toast.
@@ -224,7 +224,7 @@ for (const dark of [false, true]) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await mockApp(page);
     if (dark) await page.addInitScript(() => localStorage.setItem('gamerin_user_settings', JSON.stringify({ theme: 'dark' })));
-    await page.goto('/home');
+    await page.goto('/');
     await page.locator('article button').filter({ has: page.locator('svg.lucide-heart') }).click();
     const toast = page.getByRole('alert').filter({ hasText: '좋아요 처리 실패' });
     await expect(toast).toBeVisible();

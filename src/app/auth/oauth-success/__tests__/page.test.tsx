@@ -63,7 +63,7 @@ describe('OAuthSuccessPage', () => {
       await vi.advanceTimersByTimeAsync(3000);
     });
 
-    expect(router.replace).toHaveBeenCalledWith('/login');
+    expect(router.replace).toHaveBeenCalledWith('/?login=1');
   });
 
   it('cancels the login redirect when the failure screen unmounts', async () => {
@@ -139,7 +139,7 @@ describe('OAuthSuccessPage', () => {
 
     await waitFor(() => {
       expect(auth.login).toHaveBeenCalledWith(user);
-      expect(router.replace).toHaveBeenCalledWith('/home');
+      expect(router.replace).toHaveBeenCalledWith('/');
     });
   });
 });
