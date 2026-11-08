@@ -1,5 +1,13 @@
 # GamerIN Frontend
 
+## 추천 친구 연동 (백엔드 #192)
+
+홈·프로필의 `SuggestedFriendsCard`는 인증 복원 완료 후 `GET /api/v1/users/me/recommendations?limit=5`를 호출한다. 비로그인·로그아웃 진행·차단·세션 복원 장애 상태에서는 카드를 숨긴다. 기존 xl(1280px) 이상 오른쪽 열 배치를 유지한다.
+
+닉네임·핸들·프로필 이미지·멤버십·대표 티어 엠블럼·저장 승률·공통 연결 수를 표시한다. 이미지가 없으면 이니셜을 쓰고, null 티어·승률과 0인 공통 연결 수는 숨긴다. 승률 0%는 표시한다. 팔로우는 `POST /api/v1/users/{handle}/follow`이며 성공한 후보만 제거하고 자동 보충하지 않는다. 로딩·빈 목록·조회 오류 재시도·팔로우 실패 안내를 제공하며 중복 팔로우와 계정 전환 후 늦은 응답을 막는다.
+
+선행 배포: [추천 API PR #192](https://github.com/wishufeeldasame/gamerin_backend/pull/192). 프론트 자체의 DB·프록시 설정 변경은 없다. 검증은 `npm test -- --exclude '.claude/**'`, `npm run lint -- --ignore-pattern '.claude/**'`, `npx tsc --noEmit`, `npm run build`로 수행한다. 로그인 후 실서버·브라우저 연동은 별도 확인이 필요하다.
+
 ## 공개 탐색·로그인 모달 (#187)
 
 메인은 `/`이며 전체 피드·게시물/댓글·타인 프로필·멘토링을 로그인 없이 탐색한다. `/home`·`/login` 페이지는 제거했다. 회원 행동과 개인 URL은 공통 중앙 로그인 모달로 보호한다. 일반 가입은 `/signup`이며 OAuth·계정 복구를 유지한다. 로그인 성공은 개인화만 갱신하고 대기한 쓰기를 자동 실행하지 않는다.
