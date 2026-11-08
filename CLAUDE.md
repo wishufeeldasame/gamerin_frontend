@@ -67,20 +67,22 @@
 
 > 아래 경로는 현재 구현 탐색을 위한 참고다. 작업 전 실제 route와 component 위치를 다시 확인한다.
 
-- `src/app/(app)/layout.tsx`: 인증 준비 상태와 사용자를 확인하고 미로그인 시 `/login`으로 이동한다. Header와 Sidebar를 포함한 공통 셸이다.
-- `src/app/(app)/`: `home`, `messages`, `mentoring`, `bookmarks`, `posts/[postNumber]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
+- `src/app/(app)/layout.tsx`: 인증 복원 후 공개 경로(`/`, 게시물 상세, 타인 프로필, 멘토링)를 렌더한다. 보호 URL의 게스트는 개인 children/API를 렌더하지 않고 공통 중앙 로그인 모달을 연다. 세션 일시 장애·정지 상태를 정상 게스트와 구분한다. Sidebar·모바일 바를 포함한 공통 셸이다.
+- `src/app/(app)/page.tsx`: 실제 `/` 피드. `src/app/(app)/`: `messages`, `mentoring`, `bookmarks`, `posts/[postNumber]`, `profile`, `profile/[userId]`, `settings`, `search`, `hashtags/[name]` 화면이 있다.
 - route group 이름은 URL에 포함되지 않는다.
 - `src/app/home/components/`: 피드, 게시물, 프로필, 멘토링 및 공통 모달 등 기존 컴포넌트가 모여 있다. 디렉토리 이름만 보고 `/home/...` 라우트라고 가정하지 않는다.
 - `src/app/(admin)/admin/`: 관리자 화면과 `_components`, `_data`가 있다.
 - 관리자 로그인은 `/api/v1/auth/login`과 `/api/v1/auth/me`를 호출하고 role을 확인한다. `AdminRouteGuard`와 `src/lib/admin-auth.ts`를 함께 확인한다. 화면별 API 연동과 서버 인가를 따로 확인한다.
-- `src/app/auth/`, `src/app/login/` 및 계정 복구 화면을 함께 확인한다.
+- `src/app/auth/_components/LoginPromptProvider.tsx`는 공통 중앙 로그인 모달과 진입점을 관리한다. `/signup`의 일반 가입과 `src/app/auth/`의 소셜 가입·콜백·계정 복구도 함께 확인한다. `/login` 페이지는 없다.
 - `find-Password`처럼 대소문자가 포함된 실제 경로를 보존한다.
-- `/`는 클라이언트 페이지 `src/app/page.tsx`가 인증 준비 후 로그인 여부에 따라 `/home` 또는 `/login`으로 `router.replace`한다. `next.config.ts`에는 redirect가 없고 `/uploads/:path*`의 조건부 rewrite만 있다.
+- `/`는 `src/app/(app)/page.tsx`에서 공개 전체 피드를 렌더한다. `/home` 페이지·별칭·redirect는 없다. 과거 `/home`은 로그인 returnTo 값에서만 `/`로 정규화한다. `next.config.ts`에는 redirect가 없고 `/uploads/:path*`의 조건부 rewrite만 있다.
 - UI 변경은 모바일·데스크톱, 다크 모드, 로딩·에러·빈 상태, 키보드 접근성, 요청 중 중복 동작을 함께 확인한다.
 
 ## 인증과 상태
 
 ### 유지해야 하는 규칙
+
+- 공개 읽기는 `api-client`의 `auth: optional`, 정적 공개 응답은 `public`, 개인 조회·쓰기는 기본 `required`를 쓴다. 게스트 행동은 `useRequireAuth`로 편집·낙관적 변경·개인 조회 전에 차단한다. 로그인 성공 후 대기하던 쓰기를 자동 실행하지 않는다.
 
 - access token을 다시 localStorage나 URL에 영속 저장하지 않는다.
 - 프론트 인증 가드만으로 서버 인가가 보장된다고 가정하지 않는다.
@@ -88,7 +90,7 @@
 
 ### 현재 구현
 
-- `src/app/context/AuthContext.tsx`: `user`, `isAuthReady`, `isLoggingOut`, `login`, `updateUser`, `logout` 등 인증 상태와 동작을 제공한다.
+- `src/app/context/AuthContext.tsx`: `user`, `isAuthReady`, `isLoggingOut`, `isAccountBlocked`, `login`, `updateUser`, `logout` 등 인증 상태와 동작을 제공한다.
 - 저장된 사용자 정보가 있으면 refresh 후 `/api/v1/auth/me`로 계정 상태를 검증해 복원한다.
 - `src/lib/auth-store.ts`: access token은 메모리에 저장한다.
 - 과거 `gamerin_access_token` localStorage 항목은 제거한다.
@@ -98,7 +100,7 @@
 - refresh가 409(다른 탭이 같은 refresh 쿠키로 먼저 갱신함)를 받으면 `refreshAccessTokenResult()`가 `REFRESH_CONFLICT_RETRY_DELAYS_MS`(500ms·1s·2s) 간격으로 최대 3회 다시 보낸다. 합계는 서버 유예 시간(기본 30초)보다 짧게 유지하고, 대기 중 인증 세대가 바뀌면 다시 보내지 않는다. 429는 요청 한도를 소모하므로 자동 재시도하지 않는다.
 - 앱 시작 복원에서 세션이 끝나지 않은 실패(재시도 뒤에도 남은 409, 429, 5xx, 네트워크·형식 오류)는 `SessionRestoreUnavailableError`로 구분한다. `AuthContext`의 `isSessionUnavailable`이 true면 `/login`으로 보내지 않고 `SessionUnavailableNotice`에서 `retrySessionRestore()`로 다시 시도하게 한다. 401과 차단 계정만 세션을 종료한다.
 - 인증 세대 번호와 진행 중 refresh 요청 공유는 사용자 전환 후 오래된 응답이 인증을 되살리는 것을 막으므로 관련 변경 시 함께 검토한다.
-- `src/app/auth/oauth-success/page.tsx`는 HttpOnly refresh cookie로 access token을 발급받고 `/api/v1/auth/me`를 조회한 뒤 `/home`으로 이동한다.
+- `src/app/auth/oauth-success/page.tsx`는 HttpOnly refresh cookie로 access token을 발급받고 `/api/v1/auth/me`를 조회한 뒤 안전한 내부 returnTo 또는 `/`로 이동한다. 로그인만으로 대기한 쓰기를 재실행하지 않는다.
 - `(app)/layout.tsx`가 URL의 access token을 처리한다고 가정하지 않는다.
 
 ## API와 업로드

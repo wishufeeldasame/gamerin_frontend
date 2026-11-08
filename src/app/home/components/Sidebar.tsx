@@ -8,6 +8,8 @@ import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'framer-motion';
 import { Bell, Bookmark, BookOpen, Home, LogOut, MessageSquare, MoreHorizontal, Search, User, WalletCards } from 'lucide-react';
 import { getInitials } from '@/lib/feed-api';
+import { requestLogin } from '@/lib/login-prompt';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
@@ -19,7 +21,7 @@ import { NotificationPanel } from './NotificationPanel';
 import { SearchPanel } from './SearchPanel';
 
 const menuItems = [
-  { icon: Home, label: '홈', href: '/home' },
+  { icon: Home, label: '홈', href: '/' },
   { icon: Bookmark, label: '북마크', href: '/bookmarks' },
   { icon: MessageSquare, label: '메시지', href: '/messages' },
   { icon: BookOpen, label: '멘토링', href: '/mentoring' },
@@ -35,7 +37,7 @@ const PANEL_LEFT = `calc(max(0px, (100% - ${SHELL_MAX_WIDTH}px) / 2) + ${SIDEBAR
 function useMenuLinks() {
   const pathname = usePathname();
   const { user } = useAuth();
-  const profileHref = `/profile/${encodeURIComponent(user?.handle || user?.id || 'me')}`;
+  const profileHref = user ? `/profile/${encodeURIComponent(user.handle || user.id)}` : '/profile';
 
   return menuItems.map((item) => {
     const href = item.href === '/profile' ? profileHref : item.href;
@@ -124,7 +126,7 @@ function AccountCard() {
   const balance = useMileageBalance(user?.id, 'desktop');
   const menu = useShellPopup();
 
-  if (!user) return null;
+  if (!user) return <div className="rounded-card border border-line-card bg-surface p-3"><p className="mb-3 text-label text-fg-secondary">로그인하고 게이머들과 함께하세요.</p><button type="button" className="btn-primary w-full" onClick={() => requestLogin()}>로그인</button></div>;
 
   return (
     <div className="rounded-card border border-line-card bg-surface p-3">
@@ -203,6 +205,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
+  const requireAuth = useRequireAuth();
   const links = useMenuLinks();
   const search = useShellPopup();
   const notification = useShellPopup();
@@ -247,7 +250,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
       <button
         type="button"
         ref={popup.triggerRef}
-        onClick={popup.toggle}
+        onClick={() => { if (requireAuth(`${label} 기능은 로그인 후 이용할 수 있어요.`)) popup.toggle(); }}
         aria-expanded={popup.isOpen}
         aria-controls={popup.isOpen ? popup.id : undefined}
         className={navItemClass(active)}
@@ -261,7 +264,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
 
   return (
     <div className="flex h-full flex-col">
-      <Link href="/home" className="mb-4 flex h-10 items-center px-3.5 text-title text-fg-primary">
+      <Link href="/" className="mb-4 flex h-10 items-center px-3.5 text-title text-fg-primary">
         Gamer<span className="text-fg-brand">IN</span>
       </Link>
 

@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
       >
         <button
           type="button"
-          onClick={() => router.replace('/login')}
+          onClick={() => router.replace('/?login=1')}
           className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
         >
           로그인하러 가기
@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
           재설정 링크를 이메일로 안내해 드립니다.
         </>
       }
-      back={{ href: '/login', label: '로그인 페이지로 돌아가기' }}
+      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">

@@ -14,7 +14,7 @@ vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'viewer', handle: 'viewer', nickname: '테스터' }, logout: vi.fn() }),
 }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: api.push }), usePathname: () => '/home',
+  useRouter: () => ({ push: api.push }), usePathname: () => '/',
 }));
 vi.mock('@/hooks/useVisiblePolling', () => ({ useVisiblePolling: vi.fn() }));
 vi.mock('@/app/context/BookmarkCollectionContext', () => ({

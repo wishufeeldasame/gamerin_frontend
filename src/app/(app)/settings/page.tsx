@@ -82,7 +82,7 @@ export default function SettingsPage() {
     try {
       await deleteMyAccount();
       toast.success('계정이 삭제되었습니다.');
-      await logout({ redirectTo: '/login' });
+      await logout({ redirectTo: '/?login=1' });
     } catch (error) {
       if (error instanceof DOMException && error.name === 'AbortError') return;
       toast.error(error instanceof Error ? error.message : '계정을 삭제하지 못했습니다.');
@@ -155,7 +155,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="border-t border-zinc-200 pt-6">
-        <button type="button" onClick={() => void logout({ redirectTo: '/login' })} className="btn-secondary w-full sm:w-auto">
+        <button type="button" onClick={() => void logout({ redirectTo: '/?login=1' })} className="btn-secondary w-full sm:w-auto">
           <LogOut className="h-4 w-4" />
           로그아웃
         </button>

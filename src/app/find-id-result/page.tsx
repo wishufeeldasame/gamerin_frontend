@@ -42,11 +42,11 @@ function FindIdResultPageContent() {
       {/* 2. 오른쪽: 결과 표시 영역 */}
       <div className="flex-1 flex flex-col justify-center p-8 lg:p-16 xl:p-24 relative">
         
-        <Link href="/login" className="absolute top-10 left-10 flex items-center gap-2.5 text-zinc-600 hover:text-black transition-colors font-semibold group">
+        <Link href="/?login=1" className="absolute top-10 left-10 flex items-center gap-2.5 text-zinc-600 hover:text-black transition-colors font-semibold group">
           <div className="p-1.5 rounded-full border border-zinc-200 group-hover:border-black transition-colors">
             <ChevronLeft size={18} />
           </div>
-          <span className="text-base">로그인 페이지로 돌아가기</span>
+          <span className="text-base">로그인 창으로 돌아가기</span>
         </Link>
         
         <div className="w-full max-w-[420px] mx-auto space-y-10 pt-16 md:pt-0">
@@ -79,7 +79,7 @@ function FindIdResultPageContent() {
           </div>
 
           <Link
-            href="/login"
+            href="/?login=1"
             className="flex items-center justify-center w-full h-12 bg-black text-white rounded-xl font-black text-base hover:bg-zinc-800 transition-all active:scale-[0.98] no-underline"
           >
             로그인하러 가기

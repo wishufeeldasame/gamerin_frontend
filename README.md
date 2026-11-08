@@ -1,5 +1,13 @@
 # GamerIN Frontend
 
+## 공개 탐색·로그인 모달 (#187)
+
+메인은 `/`이며 전체 피드·게시물/댓글·타인 프로필·멘토링을 로그인 없이 탐색한다. `/home`·`/login` 페이지는 제거했다. 회원 행동과 개인 URL은 공통 중앙 로그인 모달로 보호한다. 일반 가입은 `/signup`이며 OAuth·계정 복구를 유지한다. 로그인 성공은 개인화만 갱신하고 대기한 쓰기를 자동 실행하지 않는다.
+
+선행 백엔드: [공개 조회 PR #191](https://github.com/wishufeeldasame/gamerin_backend/pull/191). [모달 명세·다크/라이트 1440·375·320 시안](docs/design-system-v2/login-modal.md).
+
+검증: `npm run lint -- src`, `npm test -- --dir src`, `npm run build`, `npx playwright test --list`. 브라우저 실행은 사용자 요청으로 생략한다.
+
 ## League of Legends 전적 연동
 
 내 프로필 → 전적 → 전적 추가 → League of Legends에서 한국 서버 Riot ID(`닉네임#태그`)를 입력한다.

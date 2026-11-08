@@ -29,11 +29,11 @@ test('같은 브라우저의 두 탭을 동시에 열 때 refresh 409를 받은 
     await routeRefresh(tab, replies, calls);
   }
 
-  await Promise.all(tabs.map((tab) => tab.goto('/home')));
+  await Promise.all(tabs.map((tab) => tab.goto('/')));
 
   for (const tab of tabs) {
     await expect(tab.getByText(auditPost.content.split(' ')[0]).first()).toBeVisible();
-    await expect(tab).toHaveURL(/\/home$/);
+    await expect(tab).toHaveURL(/\/$/);
   }
   expect(calls.count).toBe(3);
 });
@@ -46,11 +46,11 @@ test('refresh 429면 로그인 화면으로 보내지 않고, 자동 재시도 �
     { status: 200, json: refreshOk },
   ], calls);
 
-  await page.goto('/home');
+  await page.goto('/');
 
   await expect(page.getByRole('heading', { name: '로그인 상태를 확인하지 못했습니다' })).toBeVisible();
   await page.waitForTimeout(1_500);
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(/\/$/);
   expect(calls.count).toBe(1);
 
   await page.getByRole('button', { name: '다시 시도' }).click();
@@ -60,13 +60,15 @@ test('refresh 429면 로그인 화면으로 보내지 않고, 자동 재시도 �
   expect(calls.count).toBe(2);
 });
 
-test('refresh 401이면 세션을 끝내고 로그인 화면으로 보낸다', async ({ page }) => {
+test('refresh 401이면 세션을 끝내고 공개 탐색을 유지하며 회원 행동에서 로그인 모달을 연다', async ({ page }) => {
   const calls = { count: 0 };
   await installAuditFixture(page, 'light');
   await routeRefresh(page, [{ status: 401, json: { success: false, message: '인증이 필요합니다.' } }], calls);
 
-  await page.goto('/home');
+  await page.goto('/');
 
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/$/);
+  await page.getByRole('button', { name: '로그인', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: '다시 오신 걸 환영해요' })).toBeVisible();
   expect(calls.count).toBe(1);
 });

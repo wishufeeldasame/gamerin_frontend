@@ -628,12 +628,12 @@ describe('요청·응답 형식', () => {
     expect(init?.body).toBe(body);
   });
 
-  it('authRequired: false면 토큰이 없어도 미리 refresh하지 않고 보낸다', async () => {
+  it('optional이면 토큰이 없어도 미리 refresh하지 않고 보낸다', async () => {
     store.removeAccessToken();
     api.route('/api/v1/public', () => json(200, { data: 'ok' }));
 
     await expect(
-      client.apiRequest('/api/v1/public', { ...config, authRequired: false }),
+      client.apiRequest('/api/v1/public', { ...config, auth: 'optional' }),
     ).resolves.toBe('ok');
     expect(api.authorization(0)).toBeNull();
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
@@ -656,5 +656,43 @@ describe('toUploadErrorMessage', () => {
     expect(client.toUploadErrorMessage(rejected, 'fallback')).toBe(client.MODERATION_REJECTED_MESSAGE);
     expect(client.toUploadErrorMessage(new client.ApiError('서버 오류', 500), 'fallback')).toBe('서버 오류');
     expect(client.toUploadErrorMessage('unknown', 'fallback')).toBe('fallback');
+  });
+});
+
+
+describe('공개 조회 인증 정책', () => {
+  it.each([200, 401])('정상 게스트 optional GET의 %i 응답은 refresh·로그아웃을 만들지 않는다', async (status) => {
+    store.removeAccessToken();
+    localStorage.removeItem(store.AUTH_USER_KEY);
+    api.route('/api/v1/public', () => json(status, status === 200 ? { data: 'public' } : { message: 'not public' }));
+    const request = client.apiRequest('/api/v1/public', { ...config, auth: 'optional' });
+    if (status === 200) await expect(request).resolves.toBe('public');
+    else await expect(request).rejects.toMatchObject({ status: 401 });
+    expect(api.paths()).toEqual(['/api/v1/public']);
+    expect(api.authorization(0)).toBeNull();
+  });
+
+  it('public은 회원 토큰을 보내거나 refresh하지 않는다', async () => {
+    api.route('/api/v1/public', () => json(200, { data: 'public' }));
+    await expect(client.apiRequest('/api/v1/public', { ...config, auth: 'public' }, { headers: { Authorization: 'Bearer caller-token' } })).resolves.toBe('public');
+    expect(api.paths()).toEqual(['/api/v1/public']); expect(api.authorization(0)).toBeNull();
+    expect(store.getAccessToken()).toBe('token-a');
+  });
+
+  it('optional 회원 조회는 만료 Bearer가 익명 200이 되기 전에 갱신한다', async () => {
+    store.setAccessToken(`header.${btoa(JSON.stringify({ exp: Math.floor(Date.now() / 1000) - 1 }))}.signature`);
+    api.route('/api/v1/auth/refresh', () => json(200, { data: { accessToken: 'fresh-token', userId: 'user-a' } }));
+    api.route('/api/v1/public', () => json(200, { data: 'personalized' }));
+    await expect(client.apiRequest('/api/v1/public', { ...config, auth: 'optional' })).resolves.toBe('personalized');
+    expect(api.paths()).toEqual(['/api/v1/auth/refresh', '/api/v1/public']);
+    expect(api.authorization(1)).toBe('Bearer fresh-token');
+  });
+
+  it('optional의 정지 회원 403을 익명으로 재요청하지 않는다', async () => {
+    api.route('/api/v1/public', () => json(403, { message: '정지된 계정입니다.' }));
+    await expect(client.apiRequest('/api/v1/public', { ...config, auth: 'optional' })).rejects.toMatchObject({ status: 403, reason: 'blocked' });
+    expect(api.count('/api/v1/public')).toBe(1);
+    expect(api.count('/api/v1/auth/refresh')).toBe(0);
+    expect(store.getAccessToken()).toBeNull();
   });
 });

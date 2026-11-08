@@ -36,7 +36,9 @@ async function show(kind: 'card' | 'detail', record = post) {
 }
 
 beforeEach(() => {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
   vi.resetAllMocks();
+  vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined);
   api.fetchPostDetailByNumber.mockResolvedValue(post);
   api.fetchPostComments.mockResolvedValue([]);
   api.repostPost.mockResolvedValue({ postId: post.postId, isReposted: true, repostCount: 4 });
@@ -68,7 +70,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
     fireEvent.click(screen.getByRole('button', { name: '게시글 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
-    expect(api.sharePost).toHaveBeenCalledExactlyOnceWith(post.postId, 'COPY_LINK');
+    await waitFor(() => expect(api.sharePost).toHaveBeenCalledExactlyOnceWith(post.postId, 'COPY_LINK'));
     fireEvent.click(screen.getByRole('button', { name: '닫기' }));
     if (kind === 'card') {
       view.rerender(<Post post={{ ...post, likes: 3, likedByMe: true, comments: 7, bookmarkedByMe: true }} onShare={onUpdated} />);

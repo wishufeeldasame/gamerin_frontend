@@ -1,5 +1,8 @@
 'use client';
 
+import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
+import { useAuth } from '@/app/context/AuthContext';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { Check, Copy, Loader2, Search, Send, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { PostRecord, getInitials, getPostHref, sharePost } from '@/lib/feed-api';
@@ -20,6 +23,8 @@ function buildPostUrl(postNumber: number) {
 
 export function SharePostModal({ post, onClose, onShared }: SharePostModalProps) {
   useEscapeKey(onClose);
+  const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const [query, setQuery] = useState('');
   const [message, setMessage] = useState('');
   const [recipients, setRecipients] = useState<MessageRecipient[]>([]);
@@ -29,21 +34,23 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   const [sent, setSent] = useState(false);
   const [copied, setCopied] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [recipientError, setRecipientError] = useState('');
 
   useEffect(() => {
+    if (!user?.id) { setLoading(false); setRecipients([]); return; }
     let cancelled = false;
 
     const timer = window.setTimeout(async () => {
       try {
         setLoading(true);
-        setErrorMessage('');
+        setRecipientError('');
         const next = await searchMessageRecipients(query, 20);
         if (!cancelled) {
           setRecipients(next);
         }
       } catch (error) {
         if (!cancelled) {
-          setErrorMessage(error instanceof Error ? error.message : '수신자 검색에 실패했습니다.');
+          setRecipientError(error instanceof Error ? error.message : '수신자 검색에 실패했습니다.');
         }
       } finally {
         if (!cancelled) {
@@ -56,13 +63,13 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, user?.id]);
 
   const selectedRecipients = useMemo(
     () => recipients.filter((recipient) => selectedIds.includes(recipient.id)),
     [recipients, selectedIds]
   );
-  const canSend = selectedIds.length > 0 && !sending && !sent;
+  const canSend = Boolean(user) && selectedIds.length > 0 && !sending && !sent;
 
   const updateShareCount = (shares: number) => {
     onShared?.({
@@ -73,21 +80,25 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
 
   const handleCopyLink = async () => {
     if (sending) return;
-
+    const generation = getAuthGeneration();
+    setSending(true);
+    setErrorMessage('');
     try {
-      setSending(true);
-      setErrorMessage('');
-      const response = await sharePost(post.postId, 'COPY_LINK');
-
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(buildPostUrl(post.postNumber)).catch(() => undefined);
-      }
-
+      if (!navigator.clipboard?.writeText) throw new Error('Clipboard unavailable');
+      await navigator.clipboard.writeText(buildPostUrl(post.postNumber));
       setCopied(true);
-      updateShareCount(response.shares);
       window.setTimeout(() => setCopied(false), 1200);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '게시글 링크 복사에 실패했습니다.');
+    } catch {
+      setErrorMessage('링크를 자동으로 복사하지 못했습니다. 주소를 선택해서 직접 복사해 주세요.');
+    }
+    try {
+      // 회원의 공유 의도 기록은 클립보드 권한과 무관하다.
+      if (user && isCurrentAuthGeneration(generation)) {
+        const response = await sharePost(post.postId, 'COPY_LINK');
+        updateShareCount(response.shares);
+      }
+    } catch {
+      setErrorMessage((previous) => previous || '공유 수를 갱신하지 못했습니다.');
     } finally {
       setSending(false);
     }
@@ -102,7 +113,9 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
   };
 
   const handleSend = async () => {
+    if (!requireAuth('메시지로 보내려면 로그인이 필요해요.')) return;
     if (!canSend) return;
+    const generation = getAuthGeneration();
 
     try {
       setSending(true);
@@ -113,6 +126,7 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
         recipientIds: selectedIds,
         content: message,
       });
+      if (!isCurrentAuthGeneration(generation)) return;
       const response = await sharePost(post.postId, 'OTHER');
 
       setSent(true);
@@ -124,6 +138,23 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
       setSending(false);
     }
   };
+
+  if (!user) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+        <section role="dialog" aria-modal="true" aria-labelledby="guest-share-title" className="w-full max-w-lg rounded-card border border-line bg-surface p-5 text-fg-primary">
+          <div className="flex items-center justify-between">
+            <h2 id="guest-share-title" className="text-title">게시글 공유</h2>
+            <button type="button" className="btn-icon" aria-label="공유 닫기" onClick={onClose}><X size={20} /></button>
+          </div>
+          <input readOnly aria-label="게시글 링크" value={buildPostUrl(post.postNumber)} className="my-4 w-full rounded-control border border-line !bg-subtle p-3 text-label" />
+          <button type="button" className="btn-primary w-full" disabled={sending} onClick={() => void handleCopyLink()}>{copied ? '복사 완료' : '링크 복사'}</button>
+          {errorMessage ? <p role="alert" className="mt-3 text-label text-fg-danger">{errorMessage}</p> : null}
+          <button type="button" className="btn-secondary mt-3 w-full" onClick={() => requireAuth('메시지로 보내려면 로그인이 필요해요.')}>메시지로 보내기</button>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4 backdrop-blur-sm">
@@ -242,9 +273,9 @@ export function SharePostModal({ post, onClose, onShared }: SharePostModalProps)
             className="w-full resize-none rounded-2xl border border-zinc-100 bg-zinc-50 px-4 py-3 text-sm font-medium text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
           />
 
-          {errorMessage ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
-              {errorMessage}
+          {errorMessage || recipientError ? (
+            <div role="alert" className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+              {errorMessage || recipientError}
             </div>
           ) : null}
         </div>

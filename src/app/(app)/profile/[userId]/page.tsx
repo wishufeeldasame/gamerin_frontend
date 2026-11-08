@@ -24,6 +24,8 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { assertCurrentAuthGeneration, getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
@@ -417,6 +419,7 @@ export default function ProfilePage() {
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
+  const requireAuth = useRequireAuth();
   const routeUserId = typeof params.userId === 'string' ? decodeURIComponent(params.userId) : '';
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
   const tabsId = useId();
@@ -474,7 +477,7 @@ export default function ProfilePage() {
   } = useCursorList({
     loadPage: loadProfilePostPage,
     getKey: (post: PostRecord) => post.postId,
-    queryKey: profileHandle,
+    queryKey: `${profileHandle}:${currentUser?.id ?? 'guest'}`,
     enabled: Boolean(profileHandle),
     initialErrorMessage: '게시글을 불러오지 못했습니다.',
     loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
@@ -507,6 +510,8 @@ export default function ProfilePage() {
     let cancelled = false;
 
     const loadProfile = async () => {
+      if (!routeUserId && !currentUser?.id) return;
+      const viewerGeneration = getAuthGeneration();
       try {
         setLoading(true);
         setError(null);
@@ -523,7 +528,7 @@ export default function ProfilePage() {
           followsViewer,
         };
 
-        if (cancelled) {
+        if (cancelled || !isCurrentAuthGeneration(viewerGeneration)) {
           return;
         }
 
@@ -793,13 +798,16 @@ export default function ProfilePage() {
   };
 
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
+    if (!requireAuth('프로필을 수정하려면 로그인이 필요해요.')) return;
     if (!profile) return;
+    const generation = getAuthGeneration();
 
     const [profileImageUpload, coverImageUpload] = await Promise.all([
       userInfo.profileImageFile ? uploadProfileImage('PROFILE', userInfo.profileImageFile) : Promise.resolve(null),
       userInfo.coverImageFile ? uploadProfileImage('COVER', userInfo.coverImageFile) : Promise.resolve(null),
     ]);
 
+    assertCurrentAuthGeneration(generation);
     const updatePayload: UpdateMyProfilePayload = {
       nickname: userInfo.name,
       bio: userInfo.bio,
@@ -812,6 +820,7 @@ export default function ProfilePage() {
     }
 
     const updatedProfile = await updateMyProfile(updatePayload);
+    assertCurrentAuthGeneration(generation);
     const nextProfileImageUrl = profileImageUpload
       ? withImageCacheBust(profileImageUpload.imageUrl)
       : updatedProfile.profileImageUrl;
@@ -839,6 +848,7 @@ export default function ProfilePage() {
   };
 
   const handleToggleFollow = async () => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     if (!profile || followLoading) {
       return;
     }
@@ -875,6 +885,7 @@ export default function ProfilePage() {
   };
 
   const loadFollowList = async (type: FollowListType, cursor?: string | null) => {
+    if (!requireAuth('팔로우 목록은 로그인 후 볼 수 있어요.')) return;
     if (!profile) return;
 
     try {
@@ -903,6 +914,7 @@ export default function ProfilePage() {
   };
 
   const openFollowList = (type: FollowListType) => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     setFollowListType(type);
     void loadFollowList(type);
   };
@@ -916,6 +928,7 @@ export default function ProfilePage() {
   };
 
   const handleToggleFollowUser = async (target: FollowUserRecord) => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     if (followActionHandle || target.handle === currentUser?.handle) {
       return;
     }
@@ -1074,7 +1087,7 @@ export default function ProfilePage() {
   ));
   const mileageBalance = useMileageBalance(isOwnProfile && !loading ? currentUser?.id : undefined, 'mobile');
 
-  if (!currentUser || loading) {
+  if (loading) {
     return (
       <ProfileSkeleton />
     );
@@ -1085,7 +1098,7 @@ export default function ProfilePage() {
       <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
         <p className="text-body text-fg-danger">{error ?? '프로필을 찾을 수 없습니다.'}</p>
         <Link
-          href="/home"
+          href="/"
           className="btn-primary"
         >
           홈으로 돌아가기
@@ -1167,6 +1180,7 @@ export default function ProfilePage() {
                           type="button"
                           onClick={() => {
                             setProfileReportMenuOpen(false);
+                            if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                             setProfileReportOpen(true);
                           }}
                           className="flex w-full items-center gap-2 rounded-control px-3 py-2.5 text-left text-label text-fg-danger transition hover:bg-danger-subtle"
@@ -1186,7 +1200,7 @@ export default function ProfilePage() {
                   </div>
                   <button
                     type="button"
-                    onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
+                    onClick={() => { if (requireAuth('메시지를 보내려면 로그인이 필요해요.', { returnTo: `/messages?recipient=${encodeURIComponent(profile.handle)}` })) router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`); }}
                     title="메시지"
                     className="btn-secondary-square"
                     aria-label="메시지"
@@ -1696,8 +1710,8 @@ export default function ProfilePage() {
                 <div className="space-y-2">
                   {followUsers.map((followUserRecord) => {
                     const isMe =
-                      followUserRecord.handle === currentUser.handle ||
-                      followUserRecord.userId === currentUser.id;
+                      followUserRecord.handle === currentUser?.handle ||
+                      followUserRecord.userId === currentUser?.id;
 
                     return (
                       <div

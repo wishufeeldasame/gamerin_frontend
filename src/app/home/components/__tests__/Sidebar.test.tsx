@@ -3,7 +3,7 @@ import { render } from '@/test/renderWithPopup';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/home',
+  pathname: '/',
   push: vi.fn(),
   logout: vi.fn(),
   fetchMyMileageBalance: vi.fn(),
@@ -27,7 +27,7 @@ import { Sidebar } from '../Sidebar';
 
 describe('Sidebar (L2)', () => {
   beforeEach(() => {
-    mocks.pathname = '/home';
+    mocks.pathname = '/';
     mocks.push.mockReset();
     mocks.logout.mockReset();
     mocks.fetchMyMileageBalance.mockReset();

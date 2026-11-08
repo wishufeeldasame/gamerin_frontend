@@ -186,6 +186,6 @@ describe('PostDetail comment deep link', () => {
     render(<PostDetail postNumber={999} onBack={vi.fn()} />);
 
     expect(await screen.findByText('게시글을 찾을 수 없습니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/');
   });
 });

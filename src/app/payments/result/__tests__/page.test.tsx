@@ -117,7 +117,7 @@ describe('PaymentResultPage', () => {
     paymentApi.getPayment.mockRejectedValueOnce(Object.assign(new Error('권한이 없는 주문입니다.'), { status: 403 }));
     render(<PaymentResultPage />);
     expect(await screen.findByText('결제 정보를 찾을 수 없습니다')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로' })).toHaveAttribute('href', '/');
   });
 
   it('팝업 모드는 부모 창에 결과만 넘기고, 수신 확인을 받으면 닫으며 승인하지 않는다', () => {

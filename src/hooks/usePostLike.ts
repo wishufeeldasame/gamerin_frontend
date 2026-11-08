@@ -1,5 +1,7 @@
 'use client';
 
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useToast } from '@/app/context/ToastContext';
 import { likePost, unlikePost, type PostRecord } from '@/lib/feed-api';
@@ -10,6 +12,7 @@ export type ApplyLikeState = (postId: string, likedByMe: boolean) => void;
 
 export function usePostLike(applyLikeState: ApplyLikeState) {
   const toast = useToast();
+  const requireAuth = useRequireAuth();
   const inFlightPostIdsRef = useRef(new Set<string>());
   const mountedRef = useRef(true);
   const [likeLoadingByPostId, setLikeLoadingByPostId] = useState<Record<string, boolean>>({});
@@ -24,6 +27,7 @@ export function usePostLike(applyLikeState: ApplyLikeState) {
   }, []);
 
   const toggleLike = useCallback(async (post: LikeTarget) => {
+    if (!requireAuth('반응을 남기려면 로그인이 필요해요.')) return;
     if (inFlightPostIdsRef.current.has(post.postId)) return;
 
     const previousLikedByMe = post.likedByMe;
@@ -52,7 +56,7 @@ export function usePostLike(applyLikeState: ApplyLikeState) {
         });
       }
     }
-  }, [applyLikeState, toast]);
+  }, [applyLikeState, toast, requireAuth]);
 
   return {
     toggleLike,

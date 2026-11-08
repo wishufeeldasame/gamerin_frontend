@@ -5,6 +5,7 @@ import { useToast } from '@/app/context/ToastContext';
 import { ChangeEvent, useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Hash, ImagePlus, Upload, Video, X } from 'lucide-react';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import { getInitials } from '@/lib/feed-api';
 import type { PostDraft } from '@/hooks/usePendingPosts';
@@ -181,6 +182,7 @@ async function generateThumbnailOptions(file: File) {
 export function PostComposer({ onSubmit }: PostComposerProps) {
   const toast = useToast();
   const { user } = useAuth();
+  const requireAuth = useRequireAuth();
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const imageInputRef = useRef<HTMLInputElement | null>(null);
   const videoInputRef = useRef<HTMLInputElement | null>(null);
@@ -525,7 +527,8 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
     Boolean(content.trim() || imageFiles.length > 0 || videoFile);
 
   const handleSubmit = () => {
-    if (!user || !canSubmit) {
+    if (!requireAuth('게시글을 작성하려면 로그인이 필요해요.')) return;
+    if (!canSubmit) {
       return;
     }
 
@@ -540,6 +543,16 @@ export function PostComposer({ onSubmit }: PostComposerProps) {
   };
 
   const open = expanded || content.length > 0 || hasFiles || preparingImages;
+  if (!user) {
+    return (
+      <section className="rounded-card border border-line-card bg-surface p-3 md:p-4">
+        <button type="button" className="flex min-h-11 w-full items-center justify-between gap-3 text-left text-body text-fg-tertiary focus-visible:outline-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus" onClick={() => requireAuth('게시글을 작성하려면 로그인이 필요해요.')}>
+          <span>로그인 후 게시글을 작성할 수 있습니다.</span>
+          <span className="btn-primary shrink-0">게시</span>
+        </button>
+      </section>
+    );
+  }
 
   return (
     <section className="rounded-card border border-line-card bg-surface p-3 transition-colors focus-within:border-line-focus md:p-4">

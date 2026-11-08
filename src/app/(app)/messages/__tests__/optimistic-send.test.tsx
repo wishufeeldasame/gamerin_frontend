@@ -87,6 +87,9 @@ function sentClientMessageId(call = 0): string {
 async function renderPage() {
   const view = render(<MessagesPage />);
   const input = await screen.findByLabelText('상대님에게 메시지 보내기');
+  // 초기 이력 스켈레톤이 사라진 뒤 전송을 검증해 작업자 병렬 실행의 타이밍 영향을 없앤다.
+  await waitFor(() => expect(api.fetchConversationMessages).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByLabelText('메시지를 불러오는 중')).not.toBeInTheDocument());
   return { ...view, input };
 }
 

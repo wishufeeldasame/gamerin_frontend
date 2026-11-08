@@ -82,7 +82,7 @@ export default function HashtagPostsPage() {
   const goBack = () => {
     // 공유 링크로 바로 열었으면 돌아갈 기록이 없다(웹앱 독립 실행에는 브라우저 뒤로가기도 없다).
     if (canGoBack()) router.back();
-    else router.replace('/home');
+    else router.replace('/');
   };
 
   return (
@@ -106,7 +106,7 @@ export default function HashtagPostsPage() {
                 <Hash size={20} strokeWidth={1.67} aria-hidden="true" />
               </span>
               <p className="mt-4 text-body font-bold text-fg-primary">{error}</p>
-              <Link href="/home" className="btn-secondary mt-6">
+              <Link href="/" className="btn-secondary mt-6">
                 홈으로 돌아가기
               </Link>
             </div>

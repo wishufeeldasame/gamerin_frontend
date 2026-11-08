@@ -18,12 +18,16 @@ vi.mock('@/lib/auth-store', async (importOriginal) => ({
   waitForLogoutCompletion: vi.fn(async () => undefined),
 }));
 
-import LoginPage from '@/app/login/page';
+import SignupPage from '@/app/signup/page';
+import { LoginDialog } from '@/app/auth/_components/LoginPromptProvider';
+function LoginPage() { return <LoginDialog returnTo="/" onClose={() => {}} onNavigate={() => {}} onSuccess={auth.login} />; }
 import OAuthSuccessPage from '@/app/auth/oauth-success/page';
 import SocialCompletePage from '@/app/auth/social/complete/page';
 
 const jsdom = (globalThis as unknown as { jsdom: { reconfigure: (options: { url: string }) => void } }).jsdom;
 const API = 'https://api.gamerin.test';
+HTMLDialogElement.prototype.showModal = function () { this.setAttribute('open', ''); };
+HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); };
 const SIGNUP_ID_PLACEHOLDER = '아이디 (영문 소문자, 숫자, _ 사용 가능)';
 const SIGNUP_PW_PLACEHOLDER = '비밀번호 (8~20자, 영문·숫자·특수문자 포함)';
 
@@ -31,7 +35,6 @@ const codeSent = () => json(200, { success: true, data: { expiresInSeconds: 300,
 const codeConfirmed = () => json(200, { success: true, data: { verificationToken: 'verify-token', expiresInSeconds: 1800 } });
 
 function fillSignupStep1() {
-  fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
   fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
   fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo@gamerin.test' } });
 }
@@ -82,9 +85,8 @@ describe('인증 흐름 화면의 API 주소', () => {
     render(<LoginPage />);
     applyRequestTimeApi();
 
-    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
-    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo01' } });
-    fireEvent.change(screen.getByPlaceholderText('비밀번호'), { target: { value: 'pw' } });
+    fireEvent.change(screen.getByPlaceholderText('아이디를 입력해 주세요'), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호를 입력해 주세요'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
 
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(`${API}/api/v1/auth/login`, expect.anything()));
@@ -94,9 +96,8 @@ describe('인증 흐름 화면의 API 주소', () => {
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError('Failed to fetch'));
     render(<LoginPage />);
 
-    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
-    fireEvent.change(screen.getByPlaceholderText('아이디'), { target: { value: 'demo01' } });
-    fireEvent.change(screen.getByPlaceholderText('비밀번호'), { target: { value: 'pw' } });
+    fireEvent.change(screen.getByPlaceholderText('아이디를 입력해 주세요'), { target: { value: 'demo01' } });
+    fireEvent.change(screen.getByPlaceholderText('비밀번호를 입력해 주세요'), { target: { value: 'pw' } });
     fireEvent.click(screen.getByRole('button', { name: '로그인' }));
 
     expect(await screen.findByText('로그인에 실패했습니다.')).toBeInTheDocument();
@@ -104,7 +105,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('회원가입은 생년월일 없이 다음 단계로 가고 요청 시점의 API 주소로 보낸다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     applyRequestTimeApi();
 
     fillSignupStep1();
@@ -135,7 +136,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('필수 항목을 모두 체크하기 전에는 가입할 수 없다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
     fillSignupStep2();
     fireEvent.click(screen.getByLabelText('(필수) 개인정보 처리방침에 동의합니다'));
@@ -147,7 +148,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('회원가입 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
 
     vi.mocked(fetch).mockRejectedValueOnce(new TypeError('NetworkError when attempting to fetch resource.'));
@@ -159,7 +160,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('회원가입 거절은 한국어 fallback보다 서버 message를 우선 안내한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
 
     vi.mocked(fetch).mockResolvedValueOnce(json(409, { success: false, message: '이미 사용 중인 아이디입니다.' }));
@@ -170,7 +171,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('약관 개정 400은 재인증 흐름이 아닌 일반 오류로 서버 message를 안내한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
 
     vi.mocked(fetch).mockResolvedValueOnce(json(400, {
@@ -185,7 +186,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('가입이 이메일 인증 만료로 거절되면 1단계로 돌아가 재인증을 안내한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
 
     vi.mocked(fetch).mockResolvedValueOnce(json(400, {
@@ -202,7 +203,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('이메일 인증 전에는 다음 단계를 막고, 인증 후 이메일을 고치면 인증을 초기화한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     fillSignupStep1();
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
 
@@ -226,7 +227,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('인증번호 발송·확인 거절은 서버 message로 안내한다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     fillSignupStep1();
 
     vi.mocked(fetch).mockResolvedValueOnce(json(409, { success: false, message: '이미 사용 중인 이메일입니다.' }));
@@ -243,21 +244,6 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     expect(await screen.findByText('인증번호가 일치하지 않습니다. (남은 횟수: 4회)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
-  });
-
-  it('Google 이메일 미인증으로 돌아오면 로그인 화면에 오류를 안내한다', async () => {
-    jsdom.reconfigure({ url: 'http://localhost:3000/login?error=email_not_verified' });
-    render(<LoginPage />);
-
-    expect(await screen.findByRole('alert')).toHaveTextContent('Google 계정의 이메일이 인증되지 않아');
-  });
-
-  it('알 수 없는 OAuth 오류 코드(상속 속성 이름 포함)는 무시한다', async () => {
-    jsdom.reconfigure({ url: 'http://localhost:3000/login?error=__proto__' });
-    render(<LoginPage />);
-
-    expect(await screen.findByRole('button', { name: '회원가입' })).toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it('OAuth 성공 화면은 마운트 시점의 API 주소로 refresh한다', async () => {
@@ -297,10 +283,9 @@ describe('인증 흐름 화면의 API 주소', () => {
 
   it('로그인은 Enter(폼 제출)로 보내고 자동 완성 속성을 가진다', async () => {
     render(<LoginPage />);
-    fireEvent.click(screen.getByRole('button', { name: /아이디로 로그인/ }));
 
-    const handle = screen.getByPlaceholderText('아이디');
-    const password = screen.getByPlaceholderText('비밀번호');
+    const handle = screen.getByPlaceholderText('아이디를 입력해 주세요');
+    const password = screen.getByPlaceholderText('비밀번호를 입력해 주세요');
     expect(handle).toHaveAttribute('autocomplete', 'username');
     expect(password).toHaveAttribute('autocomplete', 'current-password');
 
@@ -312,8 +297,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('회원가입 1단계는 이름 길이와 이메일 형식을 안내하고 다음 단계를 막는다', () => {
-    render(<LoginPage />);
-    fireEvent.click(screen.getByRole('button', { name: '회원가입' }));
+    render(<SignupPage />);
 
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데' } });
     fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo' } });
@@ -325,7 +309,7 @@ describe('인증 흐름 화면의 API 주소', () => {
   });
 
   it('회원가입 2단계는 대문자 아이디와 약한 비밀번호를 안내하고 제출을 막는다', async () => {
-    render(<LoginPage />);
+    render(<SignupPage />);
     await openSignupStep2();
     vi.mocked(fetch).mockClear();
 
@@ -367,7 +351,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
     fireEvent.click(screen.getByRole('button', { name: '회원가입 완료' }));
 
-    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/home'));
+    await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
     expect(auth.login).toHaveBeenCalledWith(expect.objectContaining({
       id: 'user-id', handle: 'demo_01', role: 'USER', status: 'ACTIVE', gameTier: 'Unranked',
     }));
@@ -388,7 +372,7 @@ describe('인증 흐름 화면의 API 주소', () => {
 
     expect(await screen.findByText(/가입은 완료되었지만 로그인 확인에 실패했습니다/)).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: '회원가입 완료' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '로그인 화면으로 이동' })).toHaveAttribute('href', '/login');
+    expect(screen.getByRole('link', { name: '로그인 화면으로 이동' })).toHaveAttribute('href', '/?login=1');
     expect(auth.login).not.toHaveBeenCalled();
   });
 });

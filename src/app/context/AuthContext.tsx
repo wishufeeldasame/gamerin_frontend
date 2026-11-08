@@ -12,6 +12,7 @@ import {
 import { isPaymentResultRelay } from '@/lib/payment-device';
 import {
   AUTH_CLEARED_EVENT,
+  AUTH_BLOCKED_EVENT,
   AUTH_LOGOUT_STATE_EVENT,
   AUTH_REAUTH_REQUIRED_EVENT,
   AUTH_USER_KEY,
@@ -28,6 +29,7 @@ interface AuthContextType {
   user: User | null;
   isAuthReady: boolean;
   isLoggingOut: boolean;
+  isAccountBlocked: boolean;
   /** 저장된 세션을 일시 장애로 확인하지 못했다. user는 null이지만 세션은 유지되므로 로그인 화면으로 보내지 않는다. */
   isSessionUnavailable: boolean;
   /** 저장된 세션 확인을 다시 시도한다. 진행 중인 시도가 있으면 그 시도를 기다린다. */
@@ -57,6 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isSessionUnavailable, setIsSessionUnavailable] = useState(false);
+  const [isAccountBlocked, setIsAccountBlocked] = useState(false);
   const sessionRetryRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
@@ -69,10 +72,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
 
     setIsLoggingOut(isLogoutInProgress());
+    const handleBlocked = () => setIsAccountBlocked(true);
+    window.addEventListener(AUTH_BLOCKED_EVENT, handleBlocked);
     window.addEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
     window.addEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
     window.addEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
     return () => {
+      window.removeEventListener(AUTH_BLOCKED_EVENT, handleBlocked);
       window.removeEventListener(AUTH_CLEARED_EVENT, handleAuthCleared);
       window.removeEventListener(AUTH_REAUTH_REQUIRED_EVENT, handleAuthCleared);
       window.removeEventListener(AUTH_LOGOUT_STATE_EVENT, handleLogoutState);
@@ -82,6 +88,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((userData: User) => {
     const nextUser = normalizeStoredUser(userData);
     setUser(nextUser);
+    setIsAccountBlocked(false);
     setIsSessionUnavailable(false);
     window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
   }, []);
@@ -119,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsSessionUnavailable(false);
       // 차단 계정은 세션을 끝낸다. 세대가 바뀌므로 화면 사용자 상태는 여기서 직접 비운다.
       if (error instanceof BlockedAccountError) {
+        setIsAccountBlocked(true);
         await logoutAuthSession({ notify: false });
       }
       setUser(null);
@@ -222,10 +230,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = useCallback(async (options?: { redirectTo?: string | null }) => {
     setUser(null);
+    setIsAccountBlocked(false);
     setIsSessionUnavailable(false);
     await logoutAuthSession({ notify: false });
 
-    const redirectTo = options?.redirectTo === undefined ? '/login' : options.redirectTo;
+    const redirectTo = options?.redirectTo === undefined ? '/' : options.redirectTo;
     if (redirectTo) {
       router.replace(redirectTo);
     }
@@ -238,6 +247,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthReady,
         isLoggingOut,
         isSessionUnavailable,
+        isAccountBlocked,
         retrySessionRestore,
         login,
         updateUser,
