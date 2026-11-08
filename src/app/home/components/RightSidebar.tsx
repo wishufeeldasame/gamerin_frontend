@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export function RightSidebar() {
   return (
-    <footer className="space-x-3 px-6 text-xs font-bold text-zinc-400">
+    <footer className="space-x-3 px-6 text-xs font-bold text-fg-tertiary">
       <Link href="/terms" className="hover:underline">
         이용약관
       </Link>

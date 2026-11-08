@@ -4,6 +4,15 @@ import { ConfirmProvider } from '@/app/context/ConfirmContext';
 import { ToastProvider } from '@/app/context/ToastContext';
 import { installDialogMock } from '@/test/feedback';
 
+const router = vi.hoisted(() => ({
+  back: vi.fn(),
+  replace: vi.fn(),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+}));
+
 const auth = vi.hoisted(() => ({
   logout: vi.fn(),
   hasPassword: true as boolean | undefined,
@@ -34,6 +43,13 @@ vi.mock('@/lib/account-api', () => ({
   deleteMyAccount: account.deleteMyAccount,
 }));
 
+const saveThemeToServer = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/user-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/user-settings')>('@/lib/user-settings');
+  return { ...actual, saveThemeToServer };
+});
+
 // 대표 게임 섹션은 RepresentativeGameSetting.test.tsx에서 따로 검증한다.
 vi.mock('../RepresentativeGameSetting', () => ({ RepresentativeGameSetting: () => null }));
 
@@ -50,6 +66,9 @@ describe('SettingsPage', () => {
     auth.logout.mockReset();
     auth.changePassword.mockReset();
     account.deleteMyAccount.mockReset();
+    saveThemeToServer.mockReset();
+    router.back.mockReset();
+    router.replace.mockReset();
     installDialogMock();
     auth.hasPassword = true;
   });
@@ -75,15 +94,18 @@ describe('SettingsPage', () => {
     expect(screen.queryByRole('button', { name: '변경사항 저장' })).not.toBeInTheDocument();
   });
 
-  it('applies and stores a theme immediately', () => {
+  it('applies and stores a theme immediately', async () => {
+    saveThemeToServer.mockResolvedValue(undefined);
     renderSettings();
 
     fireEvent.click(screen.getByRole('button', { name: '테마' }));
-    fireEvent.click(screen.getByRole('button', { name: '라이트 모드' }));
+    fireEvent.click(screen.getByRole('button', { name: /라이트 모드/ }));
 
     expect(document.documentElement).not.toHaveClass('dark');
     expect(window.localStorage.getItem('gamerin_user_settings')).toBe('{"theme":"light"}');
-    expect(screen.getByRole('button', { name: '라이트 모드' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: /라이트 모드/ })).toHaveAttribute('aria-pressed', 'true');
+    // 서버 저장이 요청된다.
+    await waitFor(() => expect(saveThemeToServer).toHaveBeenCalledWith('light'));
     expect(screen.queryByText('변경사항이 저장되었습니다.')).not.toBeInTheDocument();
   });
 

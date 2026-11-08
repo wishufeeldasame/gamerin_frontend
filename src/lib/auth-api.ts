@@ -53,6 +53,8 @@ export interface AuthUser {
   representativeGame?: RepresentativeGame | null;
   /** 닉네임 옆에 표시할 대표 티어. 티어가 없으면 null. */
   representativeTier?: RepresentativeTier | null;
+  /** 서버에 저장된 테마. null이면 기기 설정 또는 기본 다크를 쓴다(F16). */
+  theme?: 'light' | 'dark' | null;
 }
 
 export const DEFAULT_GAME_TIER = 'Unranked';
@@ -94,7 +96,7 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier } =
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier, theme } =
     me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
@@ -114,6 +116,7 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     membershipBadge: membershipBadge === true,
     representativeGame: isRepresentativeGame(representativeGame) ? representativeGame : null,
     representativeTier: toRepresentativeTier(representativeTier),
+    theme: theme === 'LIGHT' ? 'light' : theme === 'DARK' ? 'dark' : base?.theme,
   };
 }
 

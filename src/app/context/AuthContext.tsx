@@ -22,6 +22,7 @@ import {
   isCurrentAuthGeneration,
   logoutAuthSession,
 } from '@/lib/auth-store';
+import { syncThemeFromServer } from '@/lib/user-settings';
 
 export type User = AuthUser;
 
@@ -91,6 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAccountBlocked(false);
     setIsSessionUnavailable(false);
     window.localStorage.setItem(AUTH_USER_KEY, JSON.stringify(nextUser));
+    // 서버 테마로 기기 캐시를 덮는다(F16).
+    syncThemeFromServer(nextUser.theme);
   }, []);
 
   // 저장된 사용자를 서버 값으로 확인해 화면 사용자 상태에 반영한다. 앱 시작과 재시도가 함께 쓴다.
