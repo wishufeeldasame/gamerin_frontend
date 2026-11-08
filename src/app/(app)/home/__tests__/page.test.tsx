@@ -56,6 +56,7 @@ vi.mock('@/app/home/components/RightSidebar', () => ({
 
 vi.mock('@/lib/feed-api', () => ({
   fetchFeed: api.fetchFeed,
+  fetchUserRecommendations: vi.fn().mockResolvedValue([]),
   likePost: api.likePost,
   unlikePost: api.unlikePost,
   updatePostLikeState: (post: PostRecord, likedByMe = !post.likedByMe) => ({
