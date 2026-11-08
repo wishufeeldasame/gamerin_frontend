@@ -16,6 +16,9 @@ for (const theme of ['light', 'dark'] as const) {
       await list.getByRole('button', { name: /대화상대/ }).click();
       await expect(chat.getByText('받은 메시지', { exact: true })).toBeVisible();
       await expect(chat.getByText('보낸 메시지', { exact: true })).toBeVisible();
+      const sentBubble = chat.getByText('보낸 메시지', { exact: true }).locator('..');
+      await expect(sentBubble).toHaveCSS('background-color', 'rgb(245, 185, 61)');
+      await expect(sentBubble).toHaveCSS('color', 'rgb(26, 20, 6)');
       await expect(chat.getByRole('button', { name: '메시지 전송' })).toBeDisabled();
       await chat.getByPlaceholder('메시지 입력').fill('메시지 작성');
       await expect(chat.getByRole('button', { name: '메시지 전송' })).toBeEnabled();

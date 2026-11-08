@@ -314,7 +314,7 @@ function SharedPostCard({
     <button
       type="button"
       onClick={() => onOpenPost(message.sharedPost!.postNumber)}
-      className="mt-2 block w-full overflow-hidden rounded-card border border-line bg-transparent p-3 text-left text-fg-primary transition hover:bg-subtle focus-visible:outline-2 focus-visible:outline-fg-brand"
+      className="mt-2 block w-full overflow-hidden rounded-card border border-line bg-surface p-3 text-left text-fg-primary transition hover:bg-subtle focus-visible:outline-2 focus-visible:outline-fg-brand"
     >
       <div>
         <p className="text-caption text-fg-brand">공유 게시글</p>
@@ -521,7 +521,7 @@ function MessageBubble({
           <div
             className={`min-w-0 whitespace-pre-wrap break-words rounded-card px-3.5 py-2.5 text-body max-md:select-none max-md:[-webkit-touch-callout:none] ${
               mine
-                ? 'bg-brand-subtle text-fg-primary'
+                ? 'bg-brand text-fg-on-brand'
                 : 'bg-subtle text-fg-primary'
             }`}
           >
@@ -577,7 +577,7 @@ function PendingMessageBubble({
     <div className="flex items-end justify-end gap-3" data-pending-message-id={pendingMessage.id}>
       <div className="flex min-w-0 max-w-[85%] flex-col items-end">
         <div
-          className={`min-w-0 whitespace-pre-wrap break-words rounded-card bg-brand-subtle px-3.5 py-2.5 text-body text-fg-primary ${
+          className={`min-w-0 whitespace-pre-wrap break-words rounded-card bg-brand px-3.5 py-2.5 text-body text-fg-on-brand ${
             failed ? 'ring-1 ring-line-danger' : ''
           }`}
         >
