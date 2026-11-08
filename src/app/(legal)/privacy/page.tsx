@@ -264,7 +264,6 @@ export default function PrivacyPage() {
             ['message_stream_token', '쿠키(HttpOnly)', 'DM 실시간 수신 인증', '60초'],
             ['gamerin_user', '브라우저 저장소', '로그인 사용자 정보 표시', '로그아웃 시까지'],
             ['gamerin_user_settings', '브라우저 저장소', '화면 설정', '삭제 시까지'],
-            ['gamerin_connected_accounts', '브라우저 저장소', '프로필 연결 계정 표시', '삭제 시까지'],
             ['gamerin_auth_sync', '브라우저 저장소', '탭 간 로그아웃 동기화', '삭제 시까지'],
             [
               'gamerin_auth_reauthentication_required, gamerin_payment_return_to',

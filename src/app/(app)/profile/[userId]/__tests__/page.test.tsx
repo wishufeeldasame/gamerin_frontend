@@ -184,6 +184,25 @@ describe('ProfilePage', () => {
     });
   });
 
+  it('내 미디어 탭은 별도 채널 연결 없이 서버 프로필 웹사이트 링크를 유지한다', async () => {
+    auth.user = { ...auth.user!, id: profile.id, handle: profile.handle };
+    api.fetchMyProfile.mockResolvedValue({ ...profile, website: 'https://example.com/channel' });
+    window.localStorage.setItem('gamerin_connected_accounts', JSON.stringify({
+      youtube: { id: 'youtube', label: 'YouTube', handle: '@old', url: 'https://www.youtube.com/@old' },
+    }));
+    render(<ProfilePage />);
+
+    const website = await screen.findByRole('link', { name: 'example.com/channel' });
+    expect(website).toHaveAttribute('href', 'https://example.com/channel');
+    expect(website).toHaveAttribute('target', '_blank');
+    fireEvent.click(screen.getByRole('tab', { name: '미디어' }));
+    expect(screen.getByRole('tabpanel', { name: '미디어' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '연결된 계정' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /채널 ID/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '@old' })).not.toBeInTheDocument();
+    expect(website).toBeInTheDocument();
+  });
+
   it('프로필과 미디어 사이에 인증 세대가 바뀌면 이전 계정 정보를 사용자 캐시에 쓰지 않는다', async () => {
     auth.user = { id: profile.id, name: 'author', nickname: 'author', handle: 'author', gameTier: '' };
     api.fetchMyProfile.mockResolvedValue(profile);
