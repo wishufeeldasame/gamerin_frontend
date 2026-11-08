@@ -55,9 +55,9 @@ function MyReportsList() {
   }, [currentPage, revision]);
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
-      <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-5 py-4 dark:border-zinc-700">
-        <h2 className="font-semibold text-zinc-900 dark:text-zinc-100">접수 내역</h2>
+    <section className="overflow-hidden rounded-card border border-line-card bg-surface">
+      <div className="flex items-center justify-between gap-3 border-b border-line px-5 py-4">
+        <h2 className="font-semibold text-fg-primary">접수 내역</h2>
         <button type="button" disabled={loading} onClick={() => setRevision((current) => current + 1)} className="btn-secondary">새로고침</button>
       </div>
       {loading ? <AdminStatePanel state="loading" title="내 신고를 불러오는 중입니다." /> : error ? (
@@ -65,10 +65,10 @@ function MyReportsList() {
       ) : result && result.content.length > 0 ? (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] border-collapse text-left text-sm">
-            <thead><tr className="border-b border-zinc-200 bg-zinc-50 text-zinc-600 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"><th className="px-5 py-3">신고 코드</th><th className="px-3">대상 유형</th><th className="px-3">신고 사유</th><th className="px-3">상태</th><th className="px-3">접수 시각</th><th className="px-5">신고 내용</th></tr></thead>
+            <thead><tr className="border-b border-line bg-subtle text-fg-secondary"><th className="px-5 py-3">신고 코드</th><th className="px-3">대상 유형</th><th className="px-3">신고 사유</th><th className="px-3">상태</th><th className="px-3">접수 시각</th><th className="px-5">신고 내용</th></tr></thead>
             <tbody>{result.content.map((report) => (
               <Fragment key={report.id}>
-                <tr className="border-b border-zinc-100 text-zinc-800 dark:border-zinc-800 dark:text-zinc-200">
+                <tr className="border-b border-line text-fg-primary">
                   <td className="px-5 py-4 font-mono font-semibold">{report.reportCode}</td>
                   <td className="px-3">{targetLabels[report.targetType]}</td>
                   <td className="px-3">{report.reasonLabel}</td>
@@ -81,15 +81,15 @@ function MyReportsList() {
                       aria-expanded={expandedId === report.id}
                       aria-controls={`report-details-${report.id}`}
                       onClick={() => setExpandedId((current) => current === report.id ? null : report.id)}
-                      className="whitespace-nowrap font-bold text-black underline-offset-2 hover:underline dark:text-zinc-100"
+                      className="whitespace-nowrap font-bold text-fg-primary underline-offset-2 hover:underline"
                     >
                       내용 {expandedId === report.id ? '접기' : '보기'}
                     </button>
                   </td>
                 </tr>
                 {expandedId === report.id ? (
-                  <tr id={`report-details-${report.id}`}><td colSpan={6} className="border-b border-zinc-200 bg-zinc-50 px-5 py-5 dark:border-zinc-700 dark:bg-zinc-800">
-                    <dl className="space-y-4 text-zinc-700 dark:text-zinc-200">
+                  <tr id={`report-details-${report.id}`}><td colSpan={6} className="border-b border-line bg-subtle px-5 py-5">
+                    <dl className="space-y-4 text-fg-secondary">
                       <div><dt className="mb-1 font-semibold">신고 내용</dt><dd className="whitespace-pre-wrap break-words">{report.details?.trim() ? report.details : '정보 없음'}</dd></div>
                       <div><dt className="mb-1 font-semibold">접수 당시 대상 내용</dt><dd className="whitespace-pre-wrap break-words">{report.targetSnippet?.trim() ? report.targetSnippet : '정보 없음'}</dd></div>
                     </dl>
@@ -102,13 +102,13 @@ function MyReportsList() {
       ) : (
         <div className="px-5 py-14 text-center">
           <p className="section-title">접수한 신고가 없습니다.</p>
-          <p className="mt-1 text-sm font-medium text-zinc-500">신고를 접수하면 이곳에서 처리 상태를 확인할 수 있습니다.</p>
+          <p className="mt-1 text-sm font-medium text-fg-secondary">신고를 접수하면 이곳에서 처리 상태를 확인할 수 있습니다.</p>
         </div>
       )}
       {/* 한 페이지뿐이면 페이지 이동을 보여 주지 않는다. */}
       {!loading && !error && result && result.totalPages > 1 ? (
-        <div className="flex items-center justify-between gap-3 border-t border-zinc-200 px-5 py-3 dark:border-zinc-700">
-          <span className="text-sm font-medium text-zinc-500">전체 {result.totalElements}건 · {result.number + 1}/{result.totalPages}쪽</span>
+        <div className="flex items-center justify-between gap-3 border-t border-line px-5 py-3">
+          <span className="text-sm font-medium text-fg-secondary">전체 {result.totalElements}건 · {result.number + 1}/{result.totalPages}쪽</span>
           <div className="flex gap-2">
             <button type="button" disabled={result.number <= 0} onClick={() => setCurrentPage(result.number - 1)} className="btn-secondary">이전</button>
             <button type="button" disabled={result.number + 1 >= result.totalPages} onClick={() => setCurrentPage(result.number + 1)} className="btn-secondary">다음</button>
