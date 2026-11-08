@@ -34,7 +34,13 @@ const SIGNUP_PW_PLACEHOLDER = '비밀번호 (8~20자, 영문·숫자·특수문�
 const codeSent = () => json(200, { success: true, data: { expiresInSeconds: 300, resendCooldownSeconds: 60 } });
 const codeConfirmed = () => json(200, { success: true, data: { verificationToken: 'verify-token', expiresInSeconds: 1800 } });
 
-function fillSignupStep1() {
+function acceptSignupConsent() {
+  fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
+  fireEvent.click(screen.getByRole('button', { name: '다음' }));
+}
+
+function fillSignupEmailFields() {
+  acceptSignupConsent();
   fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데모' } });
   fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo@gamerin.test' } });
 }
@@ -49,16 +55,15 @@ async function verifySignupEmail() {
 }
 
 async function openSignupStep2() {
-  fillSignupStep1();
+  fillSignupEmailFields();
   await verifySignupEmail();
-  fireEvent.click(screen.getByRole('button', { name: '다음' }));
 }
 
 function fillSignupStep2() {
   fireEvent.change(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER), { target: { value: 'demo01' } });
   fireEvent.change(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER), { target: { value: 'abcd123!' } });
   fireEvent.change(screen.getByPlaceholderText('비밀번호 확인'), { target: { value: 'abcd123!' } });
-  fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
+
 }
 
 const requestBody = (path: string) =>
@@ -108,10 +113,9 @@ describe('인증 흐름 화면의 API 주소', () => {
     render(<SignupPage />);
     applyRequestTimeApi();
 
-    fillSignupStep1();
+    fillSignupEmailFields();
     expect(screen.queryByText('생년월일')).not.toBeInTheDocument();
     await verifySignupEmail();
-    fireEvent.click(screen.getByRole('button', { name: '다음' }));
 
     fillSignupStep2();
     fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
@@ -135,16 +139,36 @@ describe('인증 흐름 화면의 API 주소', () => {
     });
   });
 
-  it('필수 항목을 모두 체크하기 전에는 가입할 수 없다', async () => {
+  it('첫 화면은 약관만 보여 주고 필수 동의 전에는 계정 입력 단계로 진행하지 못한다', () => {
+    render(<SignupPage />);
+    expect(screen.queryByPlaceholderText('닉네임')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText('필수 항목 전체 동의'));
+    fireEvent.click(screen.getByLabelText('(필수) 개인정보 처리방침에 동의합니다'));
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByLabelText('필수 항목 전체 동의')).not.toBeChecked();
+    expect(screen.getByRole('link', { name: '처리방침 보기' })).toHaveAttribute('href', '/privacy');
+    fireEvent.submit(screen.getByRole('button', { name: '다음' }).closest('form')!);
+    expect(screen.queryByPlaceholderText('닉네임')).not.toBeInTheDocument();
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('약관으로 돌아갔다 와도 계정 정보·이메일 인증·동의를 유지한다', async () => {
     render(<SignupPage />);
     await openSignupStep2();
     fillSignupStep2();
+    fireEvent.click(screen.getByRole('button', { name: '이전' }));
+    expect(screen.getByLabelText('필수 항목 전체 동의')).toBeChecked();
     fireEvent.click(screen.getByLabelText('(필수) 개인정보 처리방침에 동의합니다'));
-
-    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
-    expect(screen.getByText('필수 항목에 모두 동의해야 가입할 수 있습니다.')).toBeInTheDocument();
-    expect(screen.getByLabelText('필수 항목 전체 동의')).not.toBeChecked();
-    expect(screen.getByRole('link', { name: '처리방침 보기' })).toHaveAttribute('href', '/privacy');
+    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    fireEvent.click(screen.getByLabelText('(필수) 개인정보 처리방침에 동의합니다'));
+    fireEvent.click(screen.getByRole('button', { name: '다음' }));
+    expect(screen.getByPlaceholderText('닉네임')).toHaveValue('데모');
+    expect(screen.getByPlaceholderText('이메일')).toHaveValue('demo@gamerin.test');
+    expect(screen.getByPlaceholderText(SIGNUP_ID_PLACEHOLDER)).toHaveValue('demo01');
+    expect(screen.getByPlaceholderText(SIGNUP_PW_PLACEHOLDER)).toHaveValue('abcd123!');
+    expect(screen.getByText('이메일 인증이 완료되었습니다.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeEnabled();
   });
 
   it('회원가입 네트워크 TypeError는 영어 원문 대신 한국어 오류를 안내한다', async () => {
@@ -182,10 +206,10 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByRole('button', { name: '가입 완료' }));
 
     expect(await screen.findByText('약관이 개정되었습니다. 페이지를 새로고침한 뒤 다시 동의해 주세요.')).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText('이메일')).not.toBeInTheDocument();
+    expect(screen.getByPlaceholderText('이메일')).toHaveValue('demo@gamerin.test');
   });
 
-  it('가입이 이메일 인증 만료로 거절되면 1단계로 돌아가 재인증을 안내한다', async () => {
+  it('가입이 이메일 인증 만료로 거절되면 계정 정보를 유지하고 같은 화면에서 재인증을 안내한다', async () => {
     render(<SignupPage />);
     await openSignupStep2();
 
@@ -199,13 +223,14 @@ describe('인증 흐름 화면의 API 주소', () => {
     expect(await screen.findByText(/이메일 인증을 다시 진행해 주세요/)).toBeInTheDocument();
     expect(screen.getByPlaceholderText('이메일')).toHaveValue('demo@gamerin.test');
     expect(screen.getByRole('button', { name: '인증번호 받기' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
   });
 
-  it('이메일 인증 전에는 다음 단계를 막고, 인증 후 이메일을 고치면 인증을 초기화한다', async () => {
+  it('이메일 인증 전에는 가입을 막고, 인증 후 이메일을 고치면 인증을 초기화한다', async () => {
     render(<SignupPage />);
-    fillSignupStep1();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    fillSignupEmailFields();
+    fillSignupStep2();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
 
     vi.mocked(fetch).mockResolvedValueOnce(codeSent());
     fireEvent.click(screen.getByRole('button', { name: '인증번호 받기' }));
@@ -218,17 +243,17 @@ describe('인증 흐름 화면의 API 주소', () => {
     expect(screen.getByLabelText('인증번호')).toHaveValue('123456');
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
     await screen.findByText('이메일 인증이 완료되었습니다.');
-    expect(screen.getByRole('button', { name: '다음' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeEnabled();
 
     fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'other@gamerin.test' } });
     expect(screen.queryByText('이메일 인증이 완료되었습니다.')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '인증번호 받기' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
   });
 
   it('인증번호 발송·확인 거절은 서버 message로 안내한다', async () => {
     render(<SignupPage />);
-    fillSignupStep1();
+    fillSignupEmailFields();
 
     vi.mocked(fetch).mockResolvedValueOnce(json(409, { success: false, message: '이미 사용 중인 이메일입니다.' }));
     fireEvent.click(screen.getByRole('button', { name: '인증번호 받기' }));
@@ -243,7 +268,7 @@ describe('인증 흐름 화면의 API 주소', () => {
     fireEvent.click(screen.getByRole('button', { name: '확인' }));
 
     expect(await screen.findByText('인증번호가 일치하지 않습니다. (남은 횟수: 4회)')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
   });
 
   it('OAuth 성공 화면은 마운트 시점의 API 주소로 refresh한다', async () => {
@@ -296,15 +321,16 @@ describe('인증 흐름 화면의 API 주소', () => {
     await waitFor(() => expect(fetch).toHaveBeenCalledWith(expect.stringContaining('/api/v1/auth/login'), expect.anything()));
   });
 
-  it('회원가입 1단계는 이름 길이와 이메일 형식을 안내하고 다음 단계를 막는다', () => {
+  it('계정 정보 화면은 이름 길이와 이메일 형식을 안내하고 가입을 막는다', () => {
     render(<SignupPage />);
+    acceptSignupConsent();
 
     fireEvent.change(screen.getByPlaceholderText('닉네임'), { target: { value: '데' } });
     fireEvent.change(screen.getByPlaceholderText('이메일'), { target: { value: 'demo' } });
 
     expect(screen.getByText('닉네임은 2~20자로 입력해 주세요.')).toBeInTheDocument();
     expect(screen.getByText('올바른 이메일 형식으로 입력해 주세요.')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '다음' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: '가입 완료' })).toBeDisabled();
     expect(screen.getByPlaceholderText('닉네임')).toHaveAttribute('maxlength', '20');
   });
 

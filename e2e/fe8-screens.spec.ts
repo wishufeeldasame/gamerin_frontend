@@ -5,6 +5,7 @@ import { auditPost, auditVisibleText, controlContrast, installAuditFixture, type
 type Screen = { name: string; path: string; anonymous?: boolean; mentor?: boolean; linkedStats?: boolean; attachments?: boolean; programState?: 'apply' | 'closed' | 'applied'; fixtureMode?: AuditMode; action?: (page: Page, theme: 'light' | 'dark') => Promise<void> };
 const click = (name: string) => async (page: Page) => { await page.getByRole('button', { name, exact: true }).click(); };
 const clickTab = (name: string) => async (page: Page) => { await page.getByRole('tab', { name, exact: true }).click(); };
+const acceptSignupConsent = async (page: Page) => { await page.getByLabel('필수 항목 전체 동의').check(); await click('다음')(page); };
 const verifySignupEmail = async (page: Page) => { await click('인증번호 받기')(page); await page.getByLabel('인증번호').fill('123456'); await click('확인')(page); await expect(page.getByText('이메일 인증이 완료되었습니다.')).toBeVisible(); };
 async function checkHover(control: Locator, theme: 'light' | 'dark', lightBackground: number[]) {
   await control.hover();
@@ -35,8 +36,8 @@ const screens: Screen[] = [
   { name: 'profile-stats', path: '/profile/viewer', action: clickTab('전적') },
   { name: 'profile-media', path: '/profile/viewer', action: clickTab('미디어') },
   { name: 'settings-account', path: '/settings' },
-  { name: 'settings-theme', path: '/settings', action: click('테마') },
-  { name: 'settings-tab-hover', path: '/settings', action: async (page, theme) => { const tab = page.getByRole('button', { name: '테마', exact: true }); await expect(tab).not.toHaveAttribute('aria-current', 'page'); await checkHover(tab, theme, [244, 244, 245]); } },
+  { name: 'settings-theme', path: '/settings', action: click('개인화') },
+  { name: 'settings-tab-hover', path: '/settings', action: async (page, theme) => { const tab = page.getByRole('button', { name: '개인화', exact: true }); await expect(tab).not.toHaveAttribute('aria-current', 'page'); await checkHover(tab, theme, [250, 250, 250]); } },
   { name: 'messages-list', path: '/messages' },
   { name: 'messages-card-hover', path: '/messages', action: async (page, theme) => { await checkHover(page.getByRole('button', { name: /대화상대/ }), theme, [244, 244, 245]); } },
   { name: 'messages-leave-hover', path: '/messages', action: async (page, theme) => { await page.getByRole('button', { name: /대화상대/ }).click(); await click('대화방 옵션')(page); await checkHover(page.getByRole('button', { name: '대화방 나가기', exact: true }), theme, [254, 242, 242]); } },
@@ -56,7 +57,7 @@ const screens: Screen[] = [
   { name: 'login', path: '/?login=1', anonymous: true },
   { name: 'login-form', path: '/?login=1', anonymous: true, action: async page => { await expect(page.getByRole('textbox', { name: '아이디', exact: true })).toBeVisible(); } },
   { name: 'signup-step1', path: '/signup', anonymous: true },
-  { name: 'signup-step2', path: '/signup', anonymous: true, action: async page => { await page.locator('input[name=nickname]').fill('테스터'); await page.locator('input[name=email]').fill('viewer@example.com'); await verifySignupEmail(page); await page.getByRole('button', { name: '다음', exact: true }).click(); } },
+  { name: 'signup-step2', path: '/signup', anonymous: true, action: acceptSignupConsent },
   { name: 'find-id', path: '/find-id', anonymous: true },
   { name: 'find-id-result', path: '/find-id-result?maskedHandle=vi***&createdAt=2026-10-01', anonymous: true },
   { name: 'forgot-password', path: '/auth/forgot-password', anonymous: true },
@@ -76,8 +77,8 @@ const screens: Screen[] = [
   { name: 'post-menu-cancel-hover', path: '/', action: async page => { await click('게시글 메뉴')(page); await page.getByRole('button', { name: '취소', exact: true }).hover(); } },
   { name: 'notifications-open', path: '/', action: click('알림') },
   { name: 'messages-new', path: '/messages', action: click('새 대화 시작') },
-  { name: 'signup-invalid', path: '/signup', anonymous: true, action: async page => { await page.locator('input[name="nickname"]').fill('A'); await page.locator('input[name="email"]').fill('bad'); } },
-  { name: 'signup-password-match', path: '/signup', anonymous: true, action: async page => { await page.locator('input[name="nickname"]').fill('테스터'); await page.locator('input[name="email"]').fill('viewer@example.com'); await verifySignupEmail(page); await click('다음')(page); await page.locator('input[name="username"]').fill('viewer'); await page.locator('input[name="new-password"]').fill('Password1!'); await page.locator('input[name="new-password-confirm"]').fill('Password1!'); } },
+  { name: 'signup-invalid', path: '/signup', anonymous: true, action: async page => { await acceptSignupConsent(page); await page.locator('input[name="nickname"]').fill('A'); await page.locator('input[name="email"]').fill('bad'); } },
+  { name: 'signup-password-match', path: '/signup', anonymous: true, action: async page => { await acceptSignupConsent(page); await page.locator('input[name="nickname"]').fill('테스터'); await page.locator('input[name="email"]').fill('viewer@example.com'); await verifySignupEmail(page); await page.locator('input[name="username"]').fill('viewer'); await page.locator('input[name="new-password"]').fill('Password1!'); await page.locator('input[name="new-password-confirm"]').fill('Password1!'); } },
   { name: 'forgot-password-success', path: '/auth/forgot-password', anonymous: true, action: async page => { await page.route('**/api/v1/auth/find-password', route => route.fulfill({ json: { success: true, data: null } })); await page.getByPlaceholder('아이디 입력').fill('viewer'); await click('비밀번호 재설정 메일 받기')(page); await expect(page.getByRole('heading', { name: '메일을 확인해 주세요' })).toBeVisible(); } },
   { name: 'reset-invalid', path: '/auth/reset-password?token=fixture', anonymous: true, action: async page => { await page.getByPlaceholder('새 비밀번호', { exact: true }).fill('short'); } },
   { name: 'login-focus', path: '/?login=1', anonymous: true, action: async page => { await page.locator('input[name="username"]').focus(); } },

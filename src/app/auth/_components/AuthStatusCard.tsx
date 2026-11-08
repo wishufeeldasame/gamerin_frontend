@@ -11,14 +11,14 @@ interface AuthStatusCardProps {
 // 화면 가운데에 놓는 상태 안내 카드(성공·유효하지 않은 링크 등).
 export function AuthStatusCard({ icon, title, description, children }: AuthStatusCardProps) {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-6 font-sans text-black">
-      <div className="w-full max-w-md space-y-6 rounded-[2rem] border border-zinc-200 bg-white p-8 text-center shadow-sm">
-        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-black shadow-xl">
+    <div className="flex min-h-dvh items-center justify-center bg-canvas p-5 font-sans text-fg-primary">
+      <div className="w-full max-w-[400px] space-y-6 rounded-card border border-line-card bg-surface p-6 text-center sm:p-8">
+        <div aria-hidden="true" className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-brand-subtle text-fg-brand">
           {icon}
         </div>
         <div className="space-y-2">
-          <h1 className="text-3xl font-black tracking-tighter text-black">{title}</h1>
-          <p className="text-base font-medium leading-relaxed text-zinc-600">{description}</p>
+          <h1 className="text-title text-fg-primary">{title}</h1>
+          <p className="break-words text-body text-fg-secondary">{description}</p>
         </div>
         {children}
       </div>

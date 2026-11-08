@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Check, EyeOff, Gamepad2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { useToast } from '@/app/context/ToastContext';
 import { fetchAuthUser } from '@/lib/auth-api';
@@ -72,8 +73,8 @@ export function RepresentativeGameSetting() {
   ];
 
   return (
-    <div className="border-t border-line pt-6">
-      <h3 className="mb-2 text-heading text-fg-primary">대표 게임</h3>
+    <section aria-labelledby="representative-game-heading" className="rounded-card bg-surface p-6">
+      <h2 id="representative-game-heading" className="mb-2 text-heading text-fg-primary">대표 게임</h2>
       <p className="mb-4 text-body text-fg-secondary">
         고른 게임의 티어 엠블럼이 닉네임 옆에 표시됩니다. 게임 전적은 프로필에서 연동할 수 있습니다.
       </p>
@@ -82,26 +83,39 @@ export function RepresentativeGameSetting() {
           연동한 게임 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.
         </p>
       ) : null}
-      <fieldset disabled={isSaving || (!connectedGames && !loadFailed)} aria-busy={isSaving} className="space-y-2">
+      <fieldset disabled={isSaving || (!connectedGames && !loadFailed)} aria-busy={isSaving || (!connectedGames && !loadFailed)} className="grid gap-3 sm:grid-cols-2 disabled:opacity-60">
         <legend className="sr-only">대표 게임 선택</legend>
         {options.map((option) => (
           <label
             key={option.value ?? 'none'}
-            className={`flex h-11 items-center gap-3 rounded-control border border-line-card px-4 text-label ${
-              option.disabled ? 'cursor-not-allowed text-fg-tertiary' : 'cursor-pointer text-fg-primary'
-            }`}
+            className={option.value === null ? 'sm:col-span-2' : undefined}
           >
             <input
               type="radio"
+              className="peer sr-only"
               name="representative-game"
+              aria-label={option.label}
               checked={selected === option.value}
               disabled={option.disabled}
               onChange={() => void handleChange(option.value)}
             />
-            {option.label}
+            <span className="flex min-h-16 items-center gap-3 rounded-control border border-line bg-surface px-4 py-3 text-fg-primary transition-colors peer-enabled:cursor-pointer peer-enabled:hover:border-fg-tertiary peer-checked:border-brand peer-checked:bg-brand-subtle peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-line-focus peer-disabled:cursor-not-allowed peer-disabled:text-fg-tertiary">
+              {option.value === null
+                ? <EyeOff className="h-5 w-5 shrink-0 text-fg-secondary" aria-hidden="true" />
+                : <Gamepad2 className="h-5 w-5 shrink-0 text-fg-secondary" aria-hidden="true" />}
+              <span className="min-w-0 flex-1">
+                <span className="block text-label">{option.value === null ? '표시 안 함' : REPRESENTATIVE_GAME_LABEL[option.value]}</span>
+                {option.disabled && <span className="mt-1 block text-caption text-fg-tertiary">연동 필요</span>}
+              </span>
+              <span aria-hidden="true" className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${
+                selected === option.value ? 'border-brand bg-brand text-fg-on-brand' : 'border-line'
+              }`}>
+                {selected === option.value && <Check className="h-3.5 w-3.5" strokeWidth={3} />}
+              </span>
+            </span>
           </label>
         ))}
       </fieldset>
-    </div>
+    </section>
   );
 }

@@ -265,7 +265,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
   return (
     <div className="flex h-full flex-col">
       <Link href="/" className="mb-4 flex h-10 items-center px-3.5 text-title text-fg-primary">
-        Gamer<span className="text-fg-brand">IN</span>
+        Gamer<span className="text-[#F8C24A]">IN</span>
       </Link>
 
       <nav aria-label="주요 메뉴" className="min-h-0 flex-1">

@@ -13,48 +13,51 @@ interface AuthPageShellProps {
   children: ReactNode;
 }
 
-const titleClassName = 'text-4xl font-black tracking-tighter text-black';
-const descriptionClassName = 'text-base font-medium leading-relaxed text-zinc-600';
+const titleClassName = 'text-display text-fg-primary';
+const descriptionClassName = 'text-body text-fg-secondary';
 
 // 좌측 로고 패널과 우측 폼 영역으로 나뉜 인증 화면의 공통 레이아웃.
 export function AuthPageShell({ title, description, icon, back, children }: AuthPageShellProps) {
   return (
-    <div className="flex min-h-screen bg-background font-sans text-black dark:[&_button:disabled]:!bg-surface-elevated dark:[&_button:disabled]:!text-zinc-400">
-      <div className="hidden border-r border-gray-100 bg-gray-50/50 p-12 md:flex md:flex-[0_0_45%] md:items-center md:justify-center dark:border-line dark:bg-surface">
-        <div className="relative flex h-80 w-80 items-center justify-center">
+    <div className="flex min-h-dvh bg-surface font-sans text-fg-primary">
+      <div className="hidden border-r border-line bg-canvas p-10 md:flex md:flex-[0_0_45%] md:items-center md:justify-center">
+        <div className="flex w-full max-w-80 flex-col items-center gap-6 text-center">
           <Image
             src="/logo.png"
             alt="GamerIN Logo"
-            width={600}
-            height={600}
-            className="object-contain drop-shadow-2xl"
+            width={224}
+            height={224}
+            className="h-auto w-full max-w-56 object-contain"
             priority
           />
+          <div className="space-y-2">
+            <p className="text-display text-fg-primary">GamerIN</p>
+            <p className="text-body text-fg-secondary">실력 인증부터 멘토링까지, 게이머들의 이력서이자 커뮤니티</p>
+          </div>
         </div>
       </div>
 
       <div
-        className={`${back ? 'relative ' : ''}flex flex-1 flex-col justify-center p-8 lg:p-16 xl:p-24`}
+        className="flex min-w-0 flex-1 flex-col px-5 py-8 sm:px-8 lg:p-16"
       >
         {back ? (
           <Link
             href={back.href}
-            className="group absolute left-10 top-10 flex items-center gap-2.5 font-semibold text-zinc-600 transition-colors hover:text-black"
+            className="mb-8 inline-flex min-h-11 w-fit items-center gap-2 rounded-control text-label text-fg-secondary transition-colors hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-line-focus"
           >
-            <div className="rounded-full border border-zinc-200 p-1.5 transition-colors group-hover:border-black">
-              <ChevronLeft size={18} />
-            </div>
-            <span className="text-base">{back.label}</span>
+            <ChevronLeft size={18} aria-hidden="true" />
+            <span>{back.label}</span>
           </Link>
         ) : null}
 
         <div
-          className={`mx-auto w-full max-w-[420px] ${back ? 'space-y-12 pt-16 md:pt-0' : 'space-y-8'}`}
+          className="mx-auto my-auto w-full max-w-[400px] space-y-6"
         >
           <div className="space-y-4">
+            <Image src="/logo.png" alt="" width={96} height={96} className="h-24 w-24 object-contain md:hidden" priority />
             {icon ? (
               <>
-                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-black text-white shadow-lg">
+                <div aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-subtle text-fg-brand">
                   {icon}
                 </div>
                 <div className="space-y-2">
