@@ -51,7 +51,7 @@ vi.mock('@/lib/user-settings', async () => {
 });
 
 // 대표 게임 섹션은 RepresentativeGameSetting.test.tsx에서 따로 검증한다.
-vi.mock('../RepresentativeGameSetting', () => ({ RepresentativeGameSetting: () => null }));
+vi.mock('../RepresentativeGameSetting', () => ({ RepresentativeGameSetting: () => <section aria-label="대표 게임" /> }));
 
 import SettingsPage from '../page';
 
@@ -94,11 +94,23 @@ describe('SettingsPage', () => {
     expect(screen.queryByRole('button', { name: '변경사항 저장' })).not.toBeInTheDocument();
   });
 
+  it('개인화 탭에서만 테마와 대표 게임을 보여준다', () => {
+    renderSettings();
+    expect(screen.queryByRole('region', { name: '대표 게임' })).not.toBeInTheDocument();
+    expect(screen.queryByText('테마 설정')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '개인화' }));
+
+    expect(screen.getByRole('region', { name: '대표 게임' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '테마 설정' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '계정 정보' })).not.toBeInTheDocument();
+  });
+
   it('applies and stores a theme immediately', async () => {
     saveThemeToServer.mockResolvedValue(undefined);
     renderSettings();
 
-    fireEvent.click(screen.getByRole('button', { name: '테마' }));
+    fireEvent.click(screen.getByRole('button', { name: '개인화' }));
     fireEvent.click(screen.getByRole('button', { name: /라이트 모드/ }));
 
     expect(document.documentElement).not.toHaveClass('dark');

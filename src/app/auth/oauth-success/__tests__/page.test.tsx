@@ -33,14 +33,14 @@ describe('OAuthSuccessPage', () => {
     vi.useRealTimers();
   });
 
-  it('applies the expected font class while processing the login', () => {
+  it('announces the pending login while the session request is unresolved', () => {
     authApi.completeOAuthSession.mockImplementation(() => new Promise(() => undefined));
 
     render(<OAuthSuccessPage />);
 
-    const heading = screen.getByRole('heading', { name: '로그인 처리 중' });
-    const oauthScreen = heading.parentElement?.parentElement;
-    expect(oauthScreen).toHaveClass('font-sans');
+    expect(screen.getByRole('heading', { name: '로그인 처리 중' })).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent('로그인 확인 중...');
+    expect(router.replace).not.toHaveBeenCalled();
   });
 
   it('keeps the failure UI and redirects to login after three seconds', async () => {
@@ -53,9 +53,9 @@ describe('OAuthSuccessPage', () => {
       await Promise.resolve();
     });
 
-    const errorHeading = screen.getByRole('heading', { name: '오류 발생' });
+    expect(screen.getByRole('heading', { name: '오류 발생' })).toBeInTheDocument();
     expect(screen.getByText('인증 세션 생성에 실패했습니다.')).toBeInTheDocument();
-    expect(errorHeading.previousElementSibling).toHaveClass('justify-center');
+    expect(screen.getByRole('alert')).toHaveTextContent('잠시 후 로그인 창으로 이동합니다...');
     expect(auth.login).not.toHaveBeenCalled();
     expect(router.replace).not.toHaveBeenCalled();
 

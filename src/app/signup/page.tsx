@@ -13,6 +13,7 @@ import {
   requestSignupEmailVerification,
   signUpWithPassword,
 } from '@/lib/auth-api';
+import { AuthTextField } from '@/app/auth/_components/AuthTextField';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { readLoginReturnTo, requestLogin } from '@/lib/login-prompt';
 import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
@@ -73,14 +74,12 @@ export default function SignupPage() {
   const isEmailVerified = Boolean(emailVerificationToken);
   const codeSecondsLeft = emailCode ? Math.max(0, Math.ceil((emailCode.expiresAt - now) / 1000)) : 0;
   const resendSecondsLeft = emailCode ? Math.max(0, Math.ceil((emailCode.resendAt - now) / 1000)) : 0;
-  const isStep1Valid = Boolean(
-    !nameError &&
-      !emailError &&
-      isEmailVerified &&
-      (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear))
+  const isStep1Valid = isSignupConsentComplete(signupConsent);
+  const isStep2Valid = Boolean(
+    isStep1Valid && !nameError && !emailError && isEmailVerified &&
+    (!BIRTH_DATE_ENABLED || (birthMonth && birthDay && birthYear)) &&
+    !handleError && !passwordError && signupPassword === signupPasswordConfirm
   );
-  const isStep2Valid =
-    !handleError && !passwordError && signupPassword === signupPasswordConfirm && isSignupConsentComplete(signupConsent);
 
   const resetEmailVerification = () => {
     verificationRunRef.current += 1;
@@ -167,7 +166,6 @@ export default function SignupPage() {
     } catch (error) {
       if (error instanceof EmailVerificationExpiredError) {
         resetEmailVerification();
-        setSignupStep(1);
         setVerificationError(error.message);
         return;
       }
@@ -189,35 +187,57 @@ export default function SignupPage() {
 
   if (isAuthReady && user) return null;
   return (
-    <AuthPageShell title="회원가입" description="이메일을 인증하고 GamerIN 계정을 만들어 주세요.">
+    <AuthPageShell
+      title="회원가입"
+      description={signupStep === 1 ? '서비스 이용을 위한 약관을 확인하고 동의해 주세요.' : '이메일을 인증하고 계정 정보를 입력해 주세요.'}
+    >
       <div>
-            {signupStep === 1 ? (
-              <form onSubmit={handleNextStep} noValidate>
-                <h2 className="mb-8 text-3xl font-extrabold text-black">계정 만들기</h2>
+        <p role="status" className="mb-4 text-label text-fg-secondary">
+          {signupStep} / 2 · {signupStep === 1 ? '약관 동의' : '계정 정보 입력'}
+        </p>
+        {signupStep === 1 ? (
+          <form onSubmit={handleNextStep}>
+            <SignupConsent value={signupConsent} onChange={setSignupConsent} />
+            <button type="submit" disabled={!isStep1Valid} className="btn-primary mt-6 h-12 w-full">
+              다음
+            </button>
+          </form>
+        ) : (
+              <form onSubmit={handleCompleteSignup} noValidate>
+                <h2 className="mb-6 text-title text-fg-primary">계정 정보 입력</h2>
                 <div className="mb-5">
+                  <label htmlFor="signup-nickname" className="mb-2 block text-label text-fg-primary">닉네임</label>
                   <div className="relative">
-                    <input
+                    <AuthTextField
                       type="text"
+                      id="signup-nickname"
+                      autoFocus
+                      invalid={Boolean(signupName && nameError)}
+                      aria-describedby={Boolean(signupName && nameError) ? "signup-nickname-error" : undefined}
                       name="nickname"
                       autoComplete="nickname"
                       value={signupName}
                       onChange={(event) => setSignupName(event.target.value)}
                       placeholder="닉네임"
                       maxLength={NICKNAME_MAX_LENGTH}
-                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                      className="pr-20"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-zinc-400">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-caption text-fg-secondary">
                       {signupName.length} / {NICKNAME_MAX_LENGTH}
                     </span>
                   </div>
                   {signupName && nameError ? (
-                    <p className="ml-2 mt-2 text-sm text-red-500">{nameError}</p>
+                    <p id="signup-nickname-error" className="ml-2 mt-2 text-caption text-fg-danger">{nameError}</p>
                   ) : null}
                 </div>
                 <div className="mb-8">
+                  <label htmlFor="signup-email" className="mb-2 block text-label text-fg-primary">이메일</label>
                   <div className="flex gap-2">
-                    <input
+                    <AuthTextField
                       type="email"
+                      id="signup-email"
+                      invalid={Boolean(signupEmail && emailError)}
+                      aria-describedby={Boolean(signupEmail && emailError) ? "signup-email-error" : undefined}
                       name="email"
                       autoComplete="email"
                       value={signupEmail}
@@ -226,25 +246,25 @@ export default function SignupPage() {
                         resetEmailVerification();
                       }}
                       placeholder="이메일"
-                      className="min-w-0 flex-1 rounded-xl border border-gray-300 px-4 py-4 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                      className="min-w-0 flex-1"
                     />
                     <button
                       type="button"
                       onClick={handleSendVerificationCode}
                       disabled={Boolean(emailError) || verificationPending || resendSecondsLeft > 0 || isEmailVerified}
-                      className="shrink-0 rounded-xl bg-black px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                      className="btn-secondary h-12 px-3"
                     >
                       {!emailCode ? '인증번호 받기' : resendSecondsLeft > 0 ? `재발송 (${resendSecondsLeft}초)` : '재발송'}
                     </button>
                   </div>
                   {signupEmail && emailError ? (
-                    <p className="ml-2 mt-2 text-sm text-red-500">{emailError}</p>
+                    <p id="signup-email-error" className="ml-2 mt-2 text-caption text-fg-danger">{emailError}</p>
                   ) : null}
                   {emailCode && !isEmailVerified ? (
                     <>
                       <div className="mt-3 flex gap-2">
                         <div className="relative min-w-0 flex-1">
-                          <input
+                          <AuthTextField
                             type="text"
                             name="email-verification-code"
                             inputMode="numeric"
@@ -259,9 +279,9 @@ export default function SignupPage() {
                             }}
                             placeholder="인증번호 6자리"
                             maxLength={6}
-                            className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-16 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                            className="pr-16"
                           />
-                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm tabular-nums text-red-500">
+                          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-caption tabular-nums text-fg-danger">
                             {formatRemaining(codeSecondsLeft)}
                           </span>
                         </div>
@@ -269,12 +289,12 @@ export default function SignupPage() {
                           type="button"
                           onClick={handleConfirmVerificationCode}
                           disabled={verificationCode.length !== 6 || verificationPending || codeSecondsLeft === 0}
-                          className="shrink-0 rounded-xl bg-black px-4 text-sm font-bold text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-gray-300"
+                          className="btn-secondary h-12 px-3"
                         >
                           확인
                         </button>
                       </div>
-                      <p className="ml-2 mt-2 text-sm text-gray-500 dark:text-zinc-400">
+                      <p className="ml-2 mt-2 text-caption text-fg-secondary">
                         {codeSecondsLeft > 0
                           ? `${emailCode.email}(으)로 보낸 인증번호를 입력해 주세요.`
                           : '인증번호가 만료되었습니다. 인증번호를 다시 받아 주세요.'}
@@ -282,23 +302,23 @@ export default function SignupPage() {
                     </>
                   ) : null}
                   {isEmailVerified ? (
-                    <p className="ml-2 mt-2 text-sm text-green-600 dark:text-green-400">이메일 인증이 완료되었습니다.</p>
+                    <p className="ml-2 mt-2 text-sm text-fg-secondary">이메일 인증이 완료되었습니다.</p>
                   ) : null}
                   {verificationError ? (
-                    <p role="alert" className="ml-2 mt-2 text-sm text-red-500">{verificationError}</p>
+                    <p role="alert" className="ml-2 mt-2 text-caption text-fg-danger">{verificationError}</p>
                   ) : null}
                 </div>
                 {BIRTH_DATE_ENABLED ? (
                 <div className="mb-3">
-                  <h3 className="mb-2 text-lg font-bold text-black">생년월일</h3>
-                  <p className="mb-5 text-sm leading-6 text-gray-500">
+                  <h3 className="mb-2 text-heading text-fg-primary">생년월일</h3>
+                  <p className="mb-5 text-body text-fg-secondary">
                     본인 확인 및 계정 보호를 위해 사용합니다.
                   </p>
                   <div className="grid grid-cols-3 gap-3">
                     <select
                       value={birthMonth}
                       onChange={(event) => setBirthMonth(event.target.value)}
-                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
+                      className="input-base h-12 min-w-0"
                     >
                       <option value="">월</option>
                       {Array.from({ length: 12 }, (_, index) => (
@@ -310,7 +330,7 @@ export default function SignupPage() {
                     <select
                       value={birthDay}
                       onChange={(event) => setBirthDay(event.target.value)}
-                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
+                      className="input-base h-12 min-w-0"
                     >
                       <option value="">일</option>
                       {Array.from({ length: 31 }, (_, index) => (
@@ -322,7 +342,7 @@ export default function SignupPage() {
                     <select
                       value={birthYear}
                       onChange={(event) => setBirthYear(event.target.value)}
-                      className="rounded-xl border border-gray-300 px-3 py-4 text-black outline-none focus:border-black"
+                      className="input-base h-12 min-w-0"
                     >
                       <option value="">연도</option>
                       {Array.from({ length: 100 }, (_, index) => {
@@ -337,87 +357,68 @@ export default function SignupPage() {
                   </div>
                 </div>
                 ) : null}
-                <button
-                  type="submit"
-                  disabled={!isStep1Valid}
-                  className={`mt-8 w-full rounded-xl py-3.5 text-base font-bold transition ${
-                    !isStep1Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
-                  }`}
-                >
-                  다음
-                </button>
-              </form>
-            ) : null}
-
-            {signupStep === 2 ? (
-              <form onSubmit={handleCompleteSignup} noValidate>
-                <h2 className="mb-4 text-2xl font-extrabold text-black sm:text-3xl">
-                  아이디와 비밀번호를 설정하세요.
-                </h2>
-                <p className="mb-10 text-base text-gray-600 dark:text-zinc-400">
-                  로그인에 사용할 아이디와 비밀번호를 입력해 주세요.
-                </p>
                 <div className="mb-5">
+                  <label htmlFor="signup-username" className="mb-2 block text-label text-fg-primary">아이디</label>
                   <div className="relative">
-                    <input
+                    <AuthTextField
                       type="text"
+                      id="signup-username"
+                      invalid={Boolean(signupId && handleError)}
+                      aria-describedby={Boolean(signupId && handleError) ? "signup-username-error" : undefined}
                       name="username"
                       autoComplete="username"
                       value={signupId}
                       onChange={(event) => setSignupId(event.target.value)}
                       placeholder="아이디 (영문 소문자, 숫자, _ 사용 가능)"
                       maxLength={HANDLE_MAX_LENGTH}
-                      className="w-full rounded-xl border border-gray-300 px-4 py-4 pr-20 text-black outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+                      className="pr-20"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-zinc-400">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-caption text-fg-secondary">
                       {signupId.length} / {HANDLE_MAX_LENGTH}
                     </span>
                   </div>
                   {signupId && handleError ? (
-                    <p className="ml-2 mt-2 text-sm text-red-500">{handleError}</p>
+                    <p id="signup-username-error" className="ml-2 mt-2 text-caption text-fg-danger">{handleError}</p>
                   ) : null}
                 </div>
                 <div className="mb-2">
-                  <input
+                  <label htmlFor="signup-new-password" className="mb-2 block text-label text-fg-primary">비밀번호</label>
+                  <AuthTextField
                     type="password"
+                    id="signup-new-password"
                     name="new-password"
                     autoComplete="new-password"
                     value={signupPassword}
                     onChange={(event) => setSignupPassword(event.target.value)}
                     placeholder="비밀번호 (8~20자, 영문·숫자·특수문자 포함)"
                     maxLength={PASSWORD_MAX_LENGTH}
-                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d] ${
-                      signupPassword.length > 0 && passwordError
-                        ? 'border-red-500'
-                        : 'border-gray-300 focus:border-black'
-                    }`}
+                    invalid={signupPassword.length > 0 && Boolean(passwordError)}
+                    aria-describedby={signupPassword && passwordError ? "signup-password-error" : undefined}
                   />
                 </div>
                 {signupPassword.length > 0 && passwordError ? (
-                  <p className="mb-5 ml-2 text-sm text-red-500">{passwordError}</p>
+                  <p id="signup-password-error" className="mb-5 ml-2 text-caption text-fg-danger">{passwordError}</p>
                 ) : null}
                 <div className="mb-2">
-                  <input
+                  <label htmlFor="signup-new-password-confirm" className="mb-2 block text-label text-fg-primary">비밀번호 확인</label>
+                  <AuthTextField
                     type="password"
+                    id="signup-new-password-confirm"
                     name="new-password-confirm"
                     autoComplete="new-password"
                     value={signupPasswordConfirm}
                     onChange={(event) => setSignupPasswordConfirm(event.target.value)}
                     placeholder="비밀번호 확인"
                     maxLength={PASSWORD_MAX_LENGTH}
-                    className={`w-full rounded-xl border px-4 py-4 text-black outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d] ${
-                      signupPasswordConfirm.length > 0
-                        ? signupPassword === signupPasswordConfirm
-                          ? 'border-gray-300 focus:border-black'
-                          : 'border-red-500'
-                        : 'border-gray-300 focus:border-black'
-                    }`}
+                    invalid={signupPasswordConfirm.length > 0 && signupPassword !== signupPasswordConfirm}
+                    aria-describedby={signupPasswordConfirm ? "signup-password-match" : undefined}
                   />
                 </div>
                 {signupPasswordConfirm.length > 0 ? (
                   <p
-                    className={`mb-8 ml-2 text-sm ${
-                      signupPassword === signupPasswordConfirm ? 'text-green-600 dark:text-green-400' : 'text-red-500'
+                    id="signup-password-match"
+                    className={`mb-8 ml-2 text-caption ${
+                      signupPassword === signupPasswordConfirm ? 'text-fg-secondary' : 'text-fg-danger'
                     }`}
                   >
                     {signupPassword === signupPasswordConfirm
@@ -425,20 +426,20 @@ export default function SignupPage() {
                       : '비밀번호가 일치하지 않습니다.'}
                   </p>
                 ) : null}
-                <div className="mt-4">
-                  <SignupConsent value={signupConsent} onChange={setSignupConsent} />
+                <div className="mt-6 flex gap-3">
+                  <button type="button" onClick={() => setSignupStep(1)} disabled={signupPending} className="btn-secondary h-12">
+                    이전
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!isStep2Valid || signupPending}
+                    className="btn-primary h-12 flex-1"
+                  >
+                    {signupPending ? '가입 중...' : '가입 완료'}
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  disabled={!isStep2Valid || signupPending}
-                  className={`mt-4 w-full rounded-xl py-3.5 text-base font-bold transition ${
-                    !isStep2Valid ? 'cursor-not-allowed bg-gray-300 text-white' : 'bg-black text-white hover:opacity-90'
-                  }`}
-                >
-                  가입 완료
-                </button>
               </form>
-            ) : null}
+        )}
       </div>
       <Link href="/?login=1" className="mt-6 inline-block text-label text-fg-brand">로그인</Link>
     </AuthPageShell>

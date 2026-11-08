@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, LogOut, Moon, Sun, Trash2, User } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -14,7 +14,7 @@ import { ThemeMode, loadUserSettings, saveUserSettings, saveThemeToServer } from
 import { canGoBack } from '@/lib/history-back';
 import { RepresentativeGameSetting } from './RepresentativeGameSetting';
 
-type SettingsSection = 'account' | 'appearance';
+type SettingsSection = 'account' | 'personalization';
 
 const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
 
@@ -107,8 +107,8 @@ export default function SettingsPage() {
   };
 
   const navItems = [
-    { id: 'account' as const, icon: User, label: '계정' },
-    { id: 'appearance' as const, icon: Moon, label: '테마' },
+    { id: 'account' as const, label: '계정' },
+    { id: 'personalization' as const, label: '개인화' },
   ];
 
   return (
@@ -129,17 +129,16 @@ export default function SettingsPage() {
         <h1 className="text-heading text-fg-primary">설정</h1>
       </header>
 
-      <div className="mx-4 max-w-[940px] pb-6 pt-1 md:mx-6 lg:pt-6">
+      <div className="mx-4 max-w-[640px] pb-6 pt-1 lg:ml-6 lg:mr-0 lg:pt-6">
         {/* 데스크톱 제목(F15). 모바일에서는 숨긴다. */}
-        <header className="mb-5 hidden lg:block">
+        <header className="mb-4 hidden lg:block">
           <h1 className="text-title text-fg-primary">설정</h1>
         </header>
 
-        <div className="grid gap-4 lg:grid-cols-4 lg:gap-6">
-          <div className="lg:col-span-1">
-            <nav aria-label="설정 메뉴" className="grid grid-cols-2 gap-1 rounded-control bg-subtle p-1 lg:sticky lg:top-28 lg:block lg:space-y-1 lg:bg-transparent lg:p-0">
+        <div>
+          <div className="mb-3 lg:mb-4">
+            <nav aria-label="설정 메뉴" className="flex gap-6 border-b border-line">
               {navItems.map((item) => {
-                const Icon = item.icon;
                 const active = activeSection === item.id;
 
                 return (
@@ -148,37 +147,25 @@ export default function SettingsPage() {
                     key={item.id}
                     aria-current={active ? 'page' : undefined}
                     onClick={() => setActiveSection(item.id)}
-                    className={`flex h-10 w-full items-center justify-center rounded-control px-4 text-label transition-colors lg:h-12 lg:justify-between ${FOCUS_RING} ${
+                    className={`-mb-px flex h-12 items-center border-b-2 text-body transition-colors ${FOCUS_RING} ${
                       active
-                        ? 'bg-fg-primary text-canvas lg:bg-transparent lg:text-fg-brand lg:shadow-[inset_3px_0_0_#f5b93d]'
-                        : 'text-fg-secondary hover:bg-subtle'
+                        ? 'border-brand text-fg-primary'
+                        : 'border-transparent text-fg-secondary hover:text-fg-primary'
                     }`}
                   >
-                    <span className="flex items-center gap-3">
-                      <Icon className="h-4 w-4 lg:h-5 lg:w-5" />
-                      <span className="font-semibold">{item.label}</span>
-                    </span>
-                    <ChevronRight className="hidden h-4 w-4 lg:block" />
+                    {item.label}
                   </button>
                 );
               })}
             </nav>
           </div>
 
-          <div className="lg:col-span-3">
-            <div className="rounded-card border border-line-card bg-surface p-4 lg:p-6">
+          <div>
+            <div>
               {activeSection === 'account' && (
-                <div className="space-y-6">
-                  <Link
-                    href="/reports/my"
-                    className={`flex h-12 items-center justify-between rounded-control px-4 text-label text-fg-primary transition hover:bg-subtle ${FOCUS_RING}`}
-                  >
-                    내 신고
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </Link>
-
-                  <div>
-                    <h3 className="mb-3 text-heading text-fg-primary">계정 정보</h3>
+                <div className="space-y-3 lg:space-y-4">
+                  <section aria-labelledby="account-heading" className="rounded-card bg-surface p-6">
+                    <h2 id="account-heading" className="mb-4 text-heading text-fg-primary">계정 정보</h2>
                     <div className="space-y-4">
                       <div>
                         <label htmlFor="account-handle" className="mb-2 block text-label text-fg-secondary">
@@ -191,19 +178,24 @@ export default function SettingsPage() {
                           readOnly
                           placeholder="아이디 정보가 없습니다"
                           aria-describedby="handle-description"
-                          className="input-base cursor-not-allowed opacity-60"
+                          className="input-base"
                         />
-                        <span id="handle-description" className="mt-1 block text-caption text-fg-tertiary">
+                        <span id="handle-description" className="sr-only">
                           아이디는 변경할 수 없습니다.
                         </span>
                       </div>
                     </div>
-                  </div>
+                    <Link
+                      href="/reports/my"
+                      className={`mt-3 flex min-h-[50px] items-center justify-between rounded-control border border-line px-3.5 text-body text-fg-primary transition hover:bg-subtle ${FOCUS_RING}`}
+                    >
+                      내 신고
+                      <ChevronRight className="h-4 w-4 text-fg-secondary" aria-hidden="true" />
+                    </Link>
+                  </section>
 
-                  <RepresentativeGameSetting />
-
-                  <div className="border-t border-line pt-6">
-                    <h3 className="mb-3 text-heading text-fg-primary">비밀번호 변경</h3>
+                  <section aria-labelledby="password-heading" className="rounded-card bg-surface p-6">
+                    <h2 id="password-heading" className="mb-4 text-heading text-fg-primary">비밀번호 변경</h2>
                     {user?.hasPassword === false ? (
                       <p className="text-body text-fg-secondary">소셜 로그인으로 가입한 계정은 비밀번호가 없어 변경할 수 없습니다.</p>
                     ) : (
@@ -217,59 +209,60 @@ export default function SettingsPage() {
                             <span className="mb-2 block text-label text-fg-secondary">{label}</span>
                             <input
                               type="password"
+                              autoComplete={key === 'current' ? 'current-password' : 'new-password'}
+                              placeholder={label}
                               value={passwordFields[key as keyof typeof passwordFields]}
                               onChange={(event) => setPasswordFields({ ...passwordFields, [key]: event.target.value })}
                               className="input-base"
                             />
                           </label>
                         ))}
-                        <button
-                          type="button"
-                          onClick={handlePasswordChange}
-                          disabled={isChangingPassword}
-                          className="btn-primary"
-                        >
-                          비밀번호 변경
-                        </button>
+                        <div className="flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handlePasswordChange}
+                            disabled={isChangingPassword}
+                            className="btn-primary"
+                          >
+                            비밀번호 변경
+                          </button>
+                        </div>
                       </div>
                     )}
-                  </div>
+                  </section>
 
-                  <div className="border-t border-line pt-6">
+                  <section aria-label="로그아웃" className="flex items-center justify-between gap-4 rounded-card bg-surface px-6 py-4">
+                    <p className="text-body text-fg-secondary">이 기기에서 로그아웃합니다.</p>
                     <button
                       type="button"
                       onClick={() => void logout({ redirectTo: '/?login=1' })}
-                      className="btn-secondary w-full sm:w-auto"
+                      className="btn-secondary"
                     >
-                      <LogOut className="h-4 w-4" />
                       로그아웃
                     </button>
-                  </div>
+                  </section>
 
-                  <div className="border-t border-line pt-6">
-                    <h3 className="mb-3 text-heading text-fg-danger">계정 삭제</h3>
-                    <div className="rounded-control border border-line p-4">
-                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <h4 className="mb-1 text-label text-fg-primary">계정 삭제</h4>
-                          <p className="text-body text-fg-secondary">
-                            계정과 작성한 게시글·댓글이 삭제되며 되돌릴 수 없습니다.
-                          </p>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={handleDeleteAccount}
-                          disabled={isDeletingAccount}
-                          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-control border border-red-200 bg-surface px-5 text-label text-fg-danger transition hover:border-red-400 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900 dark:bg-transparent dark:hover:bg-red-950/40"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          계정 삭제
-                        </button>
+                  <section aria-labelledby="danger-heading" className="rounded-card border border-line-danger bg-surface p-6">
+                    <h2 id="danger-heading" className="mb-4 text-heading text-fg-danger">위험 영역</h2>
+                    <div className="flex items-center justify-between gap-4">
+                      <div>
+                        <h3 className="mb-1 text-label text-fg-primary">계정 삭제</h3>
+                        <p className="text-caption text-fg-secondary">
+                          계정과 작성한 게시글·댓글이 삭제되며 되돌릴 수 없습니다.
+                        </p>
                       </div>
+                      <button
+                        type="button"
+                        onClick={handleDeleteAccount}
+                        disabled={isDeletingAccount}
+                        className={`inline-flex h-10 shrink-0 items-center justify-center rounded-control bg-danger-subtle px-4 text-label text-fg-danger transition hover:bg-danger-subtle/70 disabled:cursor-not-allowed disabled:opacity-60 ${FOCUS_RING}`}
+                      >
+                        계정 삭제
+                      </button>
                     </div>
-                  </div>
+                  </section>
 
-                  <div className="flex gap-4 border-t border-line pt-6 text-label text-fg-tertiary">
+                  <div className="flex gap-4 pt-2 text-label text-fg-tertiary">
                     <Link href="/terms" className="hover:underline">
                       이용약관
                     </Link>
@@ -280,10 +273,10 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {activeSection === 'appearance' && (
-                <div className="space-y-6">
-                  <div>
-                    <h3 className="mb-2 text-heading text-fg-primary">테마 설정</h3>
+              {activeSection === 'personalization' && (
+                <div className="space-y-3 lg:space-y-4">
+                  <section aria-labelledby="theme-heading" className="rounded-card bg-surface p-6">
+                    <h2 id="theme-heading" className="mb-2 text-heading text-fg-primary">테마 설정</h2>
                     <p className="mb-4 text-body text-fg-secondary">
                       선택한 테마는 모든 기기에 동일하게 적용됩니다.
                     </p>
@@ -322,7 +315,8 @@ export default function SettingsPage() {
                         </div>
                       </button>
                     </fieldset>
-                  </div>
+                  </section>
+                  <RepresentativeGameSetting />
                 </div>
               )}
             </div>

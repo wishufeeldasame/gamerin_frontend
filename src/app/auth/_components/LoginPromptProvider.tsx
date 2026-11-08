@@ -109,7 +109,7 @@ export function LoginDialog({ message, initialHandle, onClose, onNavigate, onSuc
     >
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
-          <span className="text-title">Gamer<span className="text-fg-brand">IN</span></span>
+          <span className="text-title">Gamer<span className="text-[#F8C24A]">IN</span></span>
           <button type="button" aria-label="로그인 닫기" onClick={onClose} className={`flex size-11 items-center justify-center rounded-control text-[28px] text-fg-secondary ${focusClass}`}>×</button>
         </div>
         <div>
