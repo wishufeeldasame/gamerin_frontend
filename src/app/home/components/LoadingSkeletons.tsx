@@ -32,11 +32,11 @@ export function ConversationListSkeleton({ count = 5 }: { count?: number }) {
     <Skeleton loading label="대화 목록을 불러오는 중">
       <div className="space-y-1">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="flex items-center gap-3 px-3 py-3">
-            <div className={`h-11 w-11 shrink-0 rounded-xl ${block}`} />
+          <div key={index} className="flex items-center gap-3 px-4 py-3">
+            <div className={`h-11 w-11 shrink-0 rounded-full ${block}`} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black">대화 상대 이름</p>
-              <p className="text-xs">마지막 메시지 미리보기가 들어갈 자리입니다.</p>
+              <p className="text-body font-medium">대화 상대 이름</p>
+              <p className="text-body">마지막 메시지 미리보기가 들어갈 자리입니다.</p>
             </div>
           </div>
         ))}
@@ -48,10 +48,10 @@ export function ConversationListSkeleton({ count = 5 }: { count?: number }) {
 export function MessageThreadSkeleton() {
   return (
     <Skeleton loading label="메시지를 불러오는 중">
-      <div className="space-y-6">
+      <div className="space-y-3">
         {[false, true, false].map((mine, index) => (
           <div key={index} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-            <p className="max-w-[60%] rounded-2xl px-4 py-3 text-sm">메시지 내용이 들어갈 자리입니다.</p>
+            <p className="max-w-[60%] rounded-card px-3.5 py-2.5 text-body">메시지 내용이 들어갈 자리입니다.</p>
           </div>
         ))}
       </div>
