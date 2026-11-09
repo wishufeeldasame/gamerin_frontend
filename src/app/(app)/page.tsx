@@ -132,7 +132,7 @@ function HomePageContent() {
   const handleRepostChanged = (updatedPost: PostRecord) => {
     setPosts((current) =>
       updatePostsRepostState(
-        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount, updatedPost.reposterInfo ?? null,
       )
     );
   };

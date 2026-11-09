@@ -184,6 +184,7 @@ describe('updatePostsRepostState', () => {
       savedCollectionIds: ['collection-latest'],
       likedByMe: true,
       likes: 14,
+      reposterInfo: { userId: 'viewer', nickname: '테스터', repostedAt: post.createdAt },
     };
     const staleCallbackPost = {
       ...post,
@@ -193,6 +194,7 @@ describe('updatePostsRepostState', () => {
       likes: 12,
       isReposted: false,
       repostCount: 4,
+      reposterInfo: null,
     };
 
     const [updated] = updatePostsRepostState(
@@ -200,8 +202,9 @@ describe('updatePostsRepostState', () => {
       staleCallbackPost.postId,
       staleCallbackPost.isReposted,
       staleCallbackPost.repostCount,
+      staleCallbackPost.reposterInfo,
     );
 
-    expect(updated).toEqual({ ...latestPost, isReposted: false, repostCount: 4 });
+    expect(updated).toEqual({ ...latestPost, isReposted: false, repostCount: 4, reposterInfo: null });
   });
 });

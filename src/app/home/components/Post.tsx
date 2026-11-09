@@ -30,6 +30,7 @@ import { RelativeTime } from './RelativeTime';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { PostImage } from './PostImage';
+import { FeedVideo } from './FeedVideo';
 import { MembershipBadge } from './MembershipBadge';
 import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 import { PostViewCount } from './PostViewCount';
@@ -60,13 +61,9 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
       return (
         <div className="pointer-events-none relative z-10 px-4 pb-3 md:px-5">
           <div className="pointer-events-auto overflow-hidden rounded-control bg-black" data-card-open-ignore="true">
-            <video
-              controls
-              playsInline
-              preload="metadata"
-              poster={item.thumbnailUrl ?? undefined}
+            <FeedVideo
+              media={item}
               className="aspect-video w-full bg-black object-contain"
-              src={item.mediaUrl}
             />
           </div>
         </div>
@@ -95,13 +92,9 @@ function MediaBlock({ media }: { media: PostMedia[] }) {
         <div key={item.mediaId} className="relative overflow-hidden rounded-control bg-subtle">
           {item.mediaType === 'VIDEO' ? (
             <div className="pointer-events-auto" data-card-open-ignore="true">
-              <video
-                controls
-                playsInline
-                preload="metadata"
-                poster={item.thumbnailUrl ?? undefined}
+              <FeedVideo
+                media={item}
                 className="h-52 w-full bg-black object-cover"
-                src={item.mediaUrl}
               />
             </div>
           ) : (
@@ -174,6 +167,7 @@ export function Post({
   const {
     isReposted,
     repostCount,
+    reposterInfo = post.reposterInfo,
     isLoading: isRepostLoading,
     error: repostError,
     toggleRepost,
@@ -298,14 +292,14 @@ export function Post({
             className="absolute inset-0 z-0 rounded-card focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-fg-brand dark:focus-visible:ring-line-focus"
           />
         ) : null}
-        {post.reposterInfo ? (
+        {reposterInfo ? (
           <div className="pointer-events-none relative z-10 flex items-center gap-2 px-4 pt-3 text-caption font-medium text-fg-tertiary md:px-5">
             <Repeat2 size={15} strokeWidth={1.67} className="text-fg-success" />
             <span className="flex min-w-0 items-center">
-              <span className="inline-flex shrink-0 items-center gap-1">{post.reposterInfo.nickname}<MembershipBadge active={post.reposterInfo.membershipBadge} /><RepresentativeTierBadge tier={post.reposterInfo.representativeTier} /></span>
+              <span className="inline-flex shrink-0 items-center gap-1">{reposterInfo.nickname}<MembershipBadge active={reposterInfo.membershipBadge} /><RepresentativeTierBadge tier={reposterInfo.representativeTier} /></span>
               <span className="truncate">
                 님이 리포스트했습니다{' · '}
-                <RelativeTime createdAt={post.reposterInfo.repostedAt} />
+                <RelativeTime createdAt={reposterInfo.repostedAt} />
               </span>
             </span>
           </div>

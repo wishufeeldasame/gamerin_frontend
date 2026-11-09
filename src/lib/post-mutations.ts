@@ -28,10 +28,11 @@ export function updatePostsRepostState(
   postId: string,
   isReposted: boolean,
   repostCount: number,
+  reposterInfo?: PostRecord['reposterInfo'],
 ): PostRecord[] {
   return posts.map((post) => (
     post.postId === postId
-      ? { ...post, isReposted, repostCount }
+      ? { ...post, isReposted, repostCount, ...(reposterInfo !== undefined ? { reposterInfo } : {}) }
       : post
   ));
 }
