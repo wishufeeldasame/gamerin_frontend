@@ -229,12 +229,11 @@ function HomePageContent() {
             </div>
           ) : (
             <div className="space-y-3">
-              {posts.map((post, index) => (
+              {posts.map((post) => (
                 <motion.div
                   key={post.postId}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.04 }}
                 >
                   <Post
                     post={post}
