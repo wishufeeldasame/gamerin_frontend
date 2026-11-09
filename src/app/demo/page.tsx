@@ -1,6 +1,12 @@
-import { redirect } from 'next/navigation';
+import type { Metadata } from 'next';
+import Exhibition from './_components/Exhibition';
+import './demo.css';
 
-// 전시 화면을 추가하기 전까지 기존 소개 경로를 유지한다.
+export const metadata: Metadata = {
+  title: 'GamerIN | 60초 전시',
+  description: '전적을 연결하고, 플레이를 나누고, 멘토와 함께 성장하는 60초 이야기.',
+};
+
 export default function DemoPage() {
-  redirect('/about');
+  return <Exhibition />;
 }
