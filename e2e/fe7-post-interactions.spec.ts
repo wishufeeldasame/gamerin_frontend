@@ -583,6 +583,7 @@ test('본문·빈 영역 클릭과 비디오 컨트롤을 오버레이와 분리
     for (const track of stream.getTracks()) track.stop();
     await new Promise<void>((resolve) => { element.onloadeddata = () => resolve(); });
   });
+  await video.evaluate((element: HTMLVideoElement) => element.pause());
   await video.focus();
   await expect(video).toBeFocused();
   await page.keyboard.press('Space');
@@ -593,10 +594,93 @@ test('본문·빈 영역 클릭과 비디오 컨트롤을 오버레이와 분리
   await article.locator('p').first().click({ position: { x: 12, y: 12 } });
   await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
   await page.goto('/');
-  const box = await page.locator('article').first().boundingBox();
-  await page.mouse.click(box!.x + box!.width - 12, box!.y + 100);
+  await page.locator('article').first().click({ position: { x: 12, y: 100 } });
   await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
 });
+
+for (const width of [390, 1440]) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`리포스트 표시자는 새로고침 없이 갱신된다: ${width}px ${theme}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await mockApp(page, theme);
+      await page.goto('/');
+      const article = page.locator('article').first();
+
+      await article.getByRole('button', { name: '리포스트', pressed: false }).click();
+
+      const reposted = article.getByRole('button', { name: '리포스트', pressed: true });
+      await expect(reposted).toHaveText('1');
+      await expect(article.getByText('테스터', { exact: true })).toBeVisible();
+      await expect(article.getByText(/님이 리포스트했습니다/)).toBeVisible();
+      await expect(reposted).toBeEnabled();
+      await reposted.click();
+      await expect(article.getByRole('button', { name: '리포스트', pressed: false })).toHaveText('0');
+      await expect(article.getByText(/님이 리포스트했습니다/)).toHaveCount(0);
+    });
+  }
+
+  test(`피드 영상은 보일 때 무음으로 한 개만 재생한다: ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await mockApp(page, 'light');
+    await page.goto('/');
+    const clip = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = 160;
+      canvas.height = 90;
+      const context = canvas.getContext('2d');
+      if (!context) throw new Error('Canvas context unavailable');
+      const stream = canvas.captureStream(30);
+      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      const chunks: BlobPart[] = [];
+      recorder.ondataavailable = (event) => chunks.push(event.data);
+      const stopped = new Promise<void>((resolve) => { recorder.onstop = () => resolve(); });
+      recorder.start();
+      for (let frame = 0; frame < 12; frame++) {
+        context.fillStyle = frame % 2 ? '#2165bd' : '#ffd500';
+        context.fillRect(0, 0, 160, 90);
+        await new Promise(requestAnimationFrame);
+      }
+      recorder.stop();
+      await stopped;
+      for (const track of stream.getTracks()) track.stop();
+      return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+    });
+    await page.addInitScript(() => {
+      document.addEventListener('loadedmetadata', (event) => {
+        // Loop the short local fixture so assertions observe playback, not its end.
+        if (event.target instanceof HTMLVideoElement) event.target.loop = true;
+      }, true);
+    });
+    const media = [1, 2, 3].map((id) => ({
+      mediaId: `autoplay-${id}`, mediaType: 'VIDEO', mediaUrl: 'http://127.0.0.1:3000/autoplay-test.webm',
+      thumbnailUrl: null, sortOrder: id,
+    }));
+    await page.route('**/autoplay-test.webm', (route) => route.fulfill({
+      contentType: 'video/webm', body: Buffer.from(clip),
+    }));
+    await page.route('**/api/v1/feed?**', (route) => route.fulfill({ json: { success: true, data: {
+      ...cursor, items: [
+        { ...post, media: media.slice(0, 1) },
+        { ...post, postId: 'post-2', postNumber: 2, media: media.slice(1) },
+      ],
+    } } }));
+    await page.goto('/');
+    const videos = page.locator('article video');
+    await expect(videos).toHaveCount(3);
+    await expect.poll(() => videos.nth(0).evaluate((video: HTMLVideoElement) => !video.paused && video.muted)).toBe(true);
+    const playing = () => videos.evaluateAll((elements) => elements.filter((el) => el instanceof HTMLVideoElement && !el.paused).length);
+    expect(await playing()).toBe(1);
+
+    await videos.nth(1).evaluate((video) => video.scrollIntoView({ block: 'center' }));
+
+    await expect.poll(() => videos.nth(1).evaluate((video: HTMLVideoElement) => !video.paused && video.muted)).toBe(true);
+    expect(await playing()).toBe(1);
+    await videos.nth(2).evaluate((video: HTMLVideoElement) => video.play());
+    await expect.poll(playing).toBe(1);
+    expect(await videos.nth(1).evaluate((video: HTMLVideoElement) => video.paused)).toBe(true);
+    await page.screenshot({ path: `/tmp/capstone-feed-video-${width}.png` });
+  });
+}
 
 test('댓글 성공 응답이 전송 중 변경한 좋아요·리포스트·북마크 상태를 보존한다', async ({ page }) => {
   await mockApp(page, 'light');

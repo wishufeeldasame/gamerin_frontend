@@ -344,6 +344,7 @@ function SearchPageContent() {
         updatedPost.postId,
         updatedPost.isReposted,
         updatedPost.repostCount,
+        updatedPost.reposterInfo ?? null,
       );
 
     setPosts(updateRepost);

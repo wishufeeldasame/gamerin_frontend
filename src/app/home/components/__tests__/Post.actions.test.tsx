@@ -10,7 +10,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/message-api', () => ({ searchMessageRecipients: vi.fn().mockResolvedValue([]), sharePostMessage: vi.fn() }));
-vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'viewer' } }) }));
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'viewer', handle: 'viewer', nickname: '테스터' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({
   ...(await original<typeof import('@/lib/feed-api')>()), ...api,
 }));
@@ -48,6 +48,41 @@ beforeEach(() => {
 });
 
 afterEach(() => { vi.useRealTimers(); });
+
+describe('card repost attribution', () => {
+  it('shows the viewer immediately and removes the attribution when their repost is cancelled', async () => {
+    let confirmRepost: (value: object) => void = () => {};
+    api.repostPost.mockReturnValue(new Promise((resolve) => { confirmRepost = resolve; }));
+    render(<Post post={post} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '리포스트' }));
+
+    expect(screen.getByText('테스터')).toBeInTheDocument();
+    expect(screen.getByText(/님이 리포스트했습니다/)).toBeInTheDocument();
+    await act(async () => {
+      confirmRepost({ isReposted: true, repostCount: 4, repostedAt: '2026-11-09T00:00:00Z' });
+    });
+    expect(document.querySelector('time')).toHaveAttribute('datetime', '2026-11-09T00:00:00.000Z');
+    fireEvent.click(screen.getByRole('button', { name: '리포스트' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '리포스트' })).not.toBeDisabled());
+    expect(screen.queryByText(/님이 리포스트했습니다/)).not.toBeInTheDocument();
+  });
+
+  it('restores the previous reposter attribution when the request fails', async () => {
+    api.repostPost.mockRejectedValue(new Error('리포스트 실패'));
+    render(<Post post={{
+      ...post,
+      reposterInfo: { userId: 'other', nickname: '다른 게이머', repostedAt: post.createdAt },
+    }} />);
+
+    fireEvent.click(screen.getByRole('button', { name: '리포스트' }));
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '리포스트' })).not.toBeDisabled());
+    expect(screen.getByText('다른 게이머')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '리포스트', pressed: false })).toBeInTheDocument();
+    expect(screen.queryByText('테스터')).not.toBeInTheDocument();
+  });
+});
 
 describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => {
   it('shows the abbreviated view count with the exact count for screen readers, and hides it when absent', async () => {

@@ -86,7 +86,7 @@ export default function ForgotPasswordPage() {
           재설정 링크를 이메일로 안내해 드립니다.
         </>
       }
-      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
+      back={{ href: '/', label: '홈으로 돌아가기' }}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">

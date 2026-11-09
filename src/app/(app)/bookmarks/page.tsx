@@ -262,6 +262,7 @@ export default function BookmarksPage() {
         updatedPost.postId,
         updatedPost.isReposted,
         updatedPost.repostCount,
+        updatedPost.reposterInfo ?? null,
       ),
     );
   };

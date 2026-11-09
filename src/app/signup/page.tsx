@@ -2,7 +2,6 @@
 
 import { useToast } from '@/app/context/ToastContext';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
@@ -441,7 +440,6 @@ export default function SignupPage() {
               </form>
         )}
       </div>
-      <Link href="/?login=1" className="mt-6 inline-block text-label text-fg-brand">로그인</Link>
     </AuthPageShell>
   );
 }

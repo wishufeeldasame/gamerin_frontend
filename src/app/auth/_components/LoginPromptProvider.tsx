@@ -67,6 +67,12 @@ export function LoginDialog({ message, initialHandle, onClose, onNavigate, onSuc
     };
   }, []);
 
+  const closeDialog = () => {
+    const dialog = dialogRef.current;
+    if (dialog?.open) dialog.close();
+    onClose();
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (submittingRef.current || isLoggingOut) return;
@@ -96,7 +102,7 @@ export function LoginDialog({ message, initialHandle, onClose, onNavigate, onSuc
   return (
     <dialog
       ref={dialogRef} aria-modal="true" aria-labelledby={`${id}-title`} aria-describedby={`${id}-description`}
-      onCancel={(event) => { event.preventDefault(); onClose(); }}
+      onCancel={(event) => { event.preventDefault(); closeDialog(); }}
       onKeyDown={(event) => {
         if (event.key === 'Escape') { event.stopPropagation(); return; }
         if (event.key !== 'Tab') return;
@@ -110,7 +116,7 @@ export function LoginDialog({ message, initialHandle, onClose, onNavigate, onSuc
       <div className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="text-title">Gamer<span className="text-[#F8C24A]">IN</span></span>
-          <button type="button" aria-label="로그인 닫기" onClick={onClose} className={`flex size-11 items-center justify-center rounded-control text-[28px] text-fg-secondary ${focusClass}`}>×</button>
+          <button type="button" aria-label="로그인 닫기" onClick={closeDialog} className={`flex size-11 items-center justify-center rounded-control text-[28px] text-fg-secondary ${focusClass}`}>×</button>
         </div>
         <div>
           <h2 id={`${id}-title`} className="text-title">다시 오신 걸 환영해요</h2>
