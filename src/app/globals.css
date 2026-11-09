@@ -48,6 +48,7 @@
 }
 
 @theme inline {
+  --font-sans: var(--font-noto-sans-kr), sans-serif;
   /* v2 radius/md. 기본 rounded-md/lg는 rounded-xl 등 ~200곳 사용 때문에 덮어쓰지 않는다. */
   --radius-control: 10px;
   /* v2 radius/lg. 카드·패널 묶음용. */

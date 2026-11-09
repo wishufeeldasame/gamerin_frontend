@@ -69,7 +69,7 @@ function MyReportsList() {
             <tbody>{result.content.map((report) => (
               <Fragment key={report.id}>
                 <tr className="border-b border-line text-fg-primary">
-                  <td className="px-5 py-4 font-mono font-semibold">{report.reportCode}</td>
+                  <td className="px-5 py-4 font-sans font-semibold">{report.reportCode}</td>
                   <td className="px-3">{targetLabels[report.targetType]}</td>
                   <td className="px-3">{report.reasonLabel}</td>
                   <td className="px-3"><AdminStatusBadge label={statusLabels[report.status]} tone={statusTones[report.status]} /></td>

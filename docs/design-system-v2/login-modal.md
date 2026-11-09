@@ -1,10 +1,12 @@
 # 공개 탐색 로그인 모달
 
-2026-11-07 · FE #187 / BE #189 · 디자인·프론트 구현 완료, PR 검토 대기.
+2026-11-07 작성 · 2026-11-08 갱신 · 기준: `feature/design-v2` `a69469d`.
+
+FE 이슈 #187은 [PR #194](https://github.com/wishufeeldasame/gamerin_frontend/pull/194)(구현 최종 `f3baf30`, 병합 `6a894b1`)로 완료했다. BE 이슈 #189의 [PR #191](https://github.com/wishufeeldasame/gamerin_backend/pull/191)도 병합했다. 후속 [PR #199](https://github.com/wishufeeldasame/gamerin_frontend/pull/199)(`3de177a`, 병합 `b0ac95f`)에서 계정 화면·가입 2단계·설정과 워드마크 IN 색상 `#F8C24A`를 정리했다. 병합과 운영 배포는 구분한다.
 
 [Figma 시안 6종](https://www.figma.com/design/e4aQUNEbh9n2aXiStJYniH?node-id=73-2)
 
-공개 피드·게시물·프로필·멘토링 조회는 로그인 없이 허용한다. 회원 전용 행동을 선택하면 현재 화면 위 중앙 모달을 연다. 모바일도 바텀 시트로 바꾸지 않는다. 프론트 #187에서 `/login`·`/home` 페이지를 제거하고 메인을 `/`로 통일했다. 회원가입은 `/signup`으로 분리했다. OAuth 콜백과 가입·계정 복구 페이지는 유지한다.
+공개 피드·게시물·프로필·멘토링 조회는 로그인 없이 허용한다. 회원 전용 행동을 선택하면 현재 화면 위 중앙 모달을 연다. 모바일도 바텀 시트로 바꾸지 않는다. 프론트 PR #194(이슈 #187)에서 `/login`·`/home` 페이지를 제거하고 메인을 `/`로 통일했다. 회원가입은 `/signup`으로 분리했다. OAuth 콜백과 가입·계정 복구 페이지는 유지한다.
 
 ## 구성과 토큰
 
@@ -33,3 +35,10 @@
 기존 전체 로그인 페이지 시안은 이전 기록으로 남긴다. 이 문서와 `login-modal/` 이미지가 로그인 UI의 최신 기준이다. 배경은 기존 홈 시안을 재사용한 예시다. 브라우저 조작 없이 Figma 렌더를 확인했다.
 
 - OAuth 이메일 미인증·탈퇴 계정 오류는 `/?login=1&error=...`의 중앙 모달에 안내한다. 삭제한 `/login`으로 이동하지 않는다.
+
+## 구현·검증 기록
+
+- 구현: `src/app/auth/_components/LoginPromptProvider.tsx`의 `LoginDialog`. 별도 로그인 페이지는 없고, Google·아이디 로그인과 가입·복구 링크를 제공한다.
+- PR #194 최종 후속 기록: 단위/컴포넌트 1,144개·lint·build 통과, Playwright 579개 수집. 사용자 요청으로 당시 브라우저/E2E 실행·Google 실로그인은 생략했다.
+- PR #199의 인증·설정 E2E는 최초 105개 중 99개 통과, 이전 설정 기대값 6개 수정 후 관련 8개 재검증 통과다. 실제 이메일·Google·iOS는 미검증이다.
+- 이번 갱신은 코드·커밋·GitHub PR 대조이며 브라우저 실행이나 Figma/PNG 재생성은 하지 않았다. 전체 상태는 [README 8-1·9절](README.md)을 따른다.
