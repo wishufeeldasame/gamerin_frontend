@@ -1,6 +1,8 @@
 'use client';
 
 import { formatRelativeTimeLabel } from '@/lib/time-format';
+import type { UploadPhase, UploadRecord } from '@/lib/upload-jobs';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 export type MessageRecipient = {
   id: string;
@@ -10,6 +12,7 @@ export type MessageRecipient = {
   online: boolean;
   profileImageUrl?: string | null;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 };
 
 export type SharedPostPreview = {
@@ -59,11 +62,15 @@ export type PendingChatAttachment = {
 
 // 서버 응답 전까지 보낸 사람 화면에만 보이는 임시 메시지. queued는 직렬 전송 대기, sending은 요청 중이다.
 export type PendingChatMessage = {
-  // 전송 요청의 clientMessageId(UUID). 재시도에도 그대로 써서 서버가 같은 메시지를 다시 저장하지 않는다.
+  // clientMessageId(UUID). 응답 유실 재시도는 유지하고, 비동기 FAILED의 명시적 새 시도만 키를 교체한다.
   id: string;
   text: string;
   attachments: PendingChatAttachment[];
-  status: 'queued' | 'sending' | 'failed';
+  status: 'queued' | 'sending' | 'processing' | 'failed' | 'rejected' | 'invalid' | 'unavailable' | 'missing';
+  upload?: UploadRecord;
+  uploadPhase?: UploadPhase;
+  hasOriginal?: boolean;
+  recoverUpload?: boolean;
   errorMessage: string | null;
   // 제출 당시 인증 세대. 로그아웃·사용자 전환 뒤에는 다른 계정으로 보내지 않는다.
   authGeneration: number;

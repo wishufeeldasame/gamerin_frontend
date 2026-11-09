@@ -1,3 +1,4 @@
+import { assertUploadJob, type UploadJob } from '@/lib/upload-jobs';
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   ApiError,
@@ -11,6 +12,7 @@ import { toNumber } from '@/lib/coerce';
 import { formatRelativeTimeLabel } from '@/lib/time-format';
 import type { CursorPage } from '@/types/api';
 import type { BookmarkCollection } from '@/types/bookmark';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 export interface PostMedia {
   mediaId: string;
@@ -25,6 +27,7 @@ export interface ReposterInfo {
   userId: string;
   nickname: string;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   repostedAt: string;
 }
 
@@ -37,6 +40,7 @@ export interface PostRecord {
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
   authorMembershipBadge?: boolean;
+  authorRepresentativeTier?: RepresentativeTier | null;
   game?: string | null;
   content: string | null;
   media: PostMedia[];
@@ -45,6 +49,8 @@ export interface PostRecord {
   shares: number;
   isReposted: boolean;
   repostCount: number;
+  /** 조회수(백엔드 #183). 리포스트 카드는 원글 값이다. 없거나 형식이 틀리면 null이고 화면에 표시하지 않는다 */
+  viewCount?: number | null;
   reposterInfo?: ReposterInfo | null;
   likedByMe: boolean;
   bookmarkedByMe: boolean;
@@ -65,6 +71,7 @@ export interface CommentRecord {
   authorProfileImageUrl: string | null;
   authorVerifiedBadge: boolean;
   authorMembershipBadge?: boolean;
+  authorRepresentativeTier?: RepresentativeTier | null;
   content: string;
   createdAt: string;
   mine: boolean;
@@ -82,6 +89,7 @@ export interface UserProfile {
   gameStats: Record<string, unknown>;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   followersCount: number;
   followingCount: number;
   postCount: number;
@@ -119,8 +127,20 @@ export interface FollowUserRecord {
   profileImageUrl: string | null;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
   isFollowing: boolean;
   followedAt: string;
+}
+
+export interface UserRecommendation {
+  userId: string;
+  handle: string;
+  nickname: string;
+  profileImageUrl: string | null;
+  membershipBadge: boolean;
+  mutualCount: number;
+  representativeTier: RepresentativeTier | null;
+  winRate: number | null;
 }
 
 export interface ProfileMediaItem {
@@ -171,6 +191,10 @@ function normalizePostMedia(media: PostMedia): PostMedia {
   };
 }
 
+function toViewCount(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
 export function normalizePostRecord(post: PostRecord): PostRecord {
   return {
     ...post,
@@ -182,6 +206,7 @@ export function normalizePostRecord(post: PostRecord): PostRecord {
     shares: toNumber(post.shares),
     isReposted: Boolean(post.isReposted),
     repostCount: toNumber(post.repostCount),
+    viewCount: toViewCount(post.viewCount),
     reposterInfo: post.reposterInfo ?? null,
     likedByMe: Boolean(post.likedByMe),
     bookmarkedByMe: Boolean(post.bookmarkedByMe),
@@ -247,8 +272,8 @@ const FEED_CLIENT: ApiClientConfig = {
   ),
 };
 
-function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  return sendApiRequest<T>(path, FEED_CLIENT, options);
+function apiRequest<T>(path: string, options: ApiRequestOptions = {}, auth: ApiClientConfig['auth'] = 'required'): Promise<T> {
+  return sendApiRequest<T>(path, { ...FEED_CLIENT, auth }, options);
 }
 
 export function formatRelativeTime(createdAt: string) {
@@ -307,7 +332,7 @@ export async function fetchFeed(
 
   const page = await apiRequest<CursorPage<PostRecord>>(`/api/v1/feed?${search.toString()}`, {
     signal: options.signal,
-  });
+  }, tab === 'all' ? 'optional' : 'required');
   return normalizeCursorPage(page, normalizePostRecord);
 }
 
@@ -355,6 +380,18 @@ export async function createMultipartPost(formData: FormData): Promise<Multipart
   return { kind: 'post', post: normalizePostRecord(data as PostRecord) };
 }
 
+export async function createPostUpload(formData: FormData, clientRequestId: string): Promise<UploadJob> {
+  formData.set('asyncUpload', 'true');
+  formData.set('clientRequestId', clientRequestId);
+  const job = assertUploadJob(await apiRequest<UploadJob>('/api/v1/posts', { method: 'POST', body: formData }));
+  return { ...job, post: job.post ? normalizePostRecord(job.post) : null };
+}
+
+export async function fetchPostUploadJob(id: string, byClientId = false): Promise<UploadJob> {
+  const job = assertUploadJob(await apiRequest<UploadJob>(`/api/v1/posts/upload-jobs/${byClientId ? 'by-client-id/' : ''}${encodeURIComponent(id)}`));
+  return { ...job, post: job.post ? normalizePostRecord(job.post) : null };
+}
+
 export async function fetchPostVideoJob(jobId: string, options: FeedRequestOptions = {}) {
   const job = await apiRequest<PostVideoJob>(`/api/v1/posts/video-jobs/${encodeURIComponent(jobId)}`, {
     signal: options.signal,
@@ -371,7 +408,7 @@ export function getPostHref(postNumber: number, search = '') {
 export async function fetchPostDetailByNumber(postNumber: number, options: FeedRequestOptions = {}) {
   const post = await apiRequest<PostRecord>(`/api/v1/posts/by-number/${postNumber}`, {
     signal: options.signal,
-  });
+  }, 'optional');
   return normalizePostRecord(post);
 }
 
@@ -387,6 +424,15 @@ export async function updatePostContent(postId: string, content: string) {
 export async function deletePost(postId: string) {
   await apiRequest<null>(`/api/v1/posts/${postId}`, {
     method: 'DELETE',
+  });
+}
+
+/** 카드 노출 보고(#183). 서버가 같은 사용자·같은 글을 24시간에 1번만 센다. 한 번에 1~50개 */
+export async function recordPostViews(postIds: string[], options: ApiRequestOptions = {}) {
+  return apiRequest<{ counted: number }>('/api/v1/posts/views', {
+    ...options,
+    method: 'POST',
+    body: JSON.stringify({ postIds }),
   });
 }
 
@@ -496,17 +542,23 @@ export async function sharePost(postId: string, target: ShareTarget = 'COPY_LINK
   });
 }
 
+function normalizeComment(comment: CommentRecord): CommentRecord {
+  return { ...comment, authorProfileImageUrl: toAbsoluteAssetUrl(comment.authorProfileImageUrl) };
+}
+
 export async function createComment(postId: string, content: string) {
-  return apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
+  const comment = await apiRequest<CommentRecord>(`/api/v1/posts/${postId}/comments`, {
     method: 'POST',
     body: JSON.stringify({ content }),
   });
+  return normalizeComment(comment);
 }
 
 export async function fetchPostComments(postId: string, options: FeedRequestOptions = {}) {
-  return apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
+  const comments = await apiRequest<CommentRecord[]>(`/api/v1/posts/${postId}/comments`, {
     signal: options.signal,
-  });
+  }, 'optional');
+  return Array.isArray(comments) ? comments.map(normalizeComment) : [];
 }
 
 export async function deleteComment(postId: string, commentId: string) {
@@ -521,7 +573,7 @@ export async function fetchMyProfile() {
 }
 
 export async function fetchUserProfile(handle: string) {
-  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${encodeURIComponent(handle)}`);
+  const profile = await apiRequest<UserProfilePayload>(`/api/v1/users/${encodeURIComponent(handle)}`, {}, 'optional');
   return normalizeUserProfile(profile);
 }
 
@@ -545,6 +597,13 @@ export async function uploadProfileImage(target: ProfileImageUploadTarget, file:
   });
 
   return normalizeProfileImageUpload(response);
+}
+
+export async function fetchUserRecommendations(options: FeedRequestOptions = {}) {
+  const users = await apiRequest<UserRecommendation[]>('/api/v1/users/me/recommendations?limit=5', {
+    signal: options.signal,
+  });
+  return users.map((user) => ({ ...user, profileImageUrl: toAbsoluteAssetUrl(user.profileImageUrl) }));
 }
 
 export async function followUser(handle: string) {
@@ -603,7 +662,7 @@ export async function fetchUserPosts(
 
   const page = await apiRequest<CursorPage<PostRecord>>(
     `/api/v1/users/${encodeURIComponent(handle)}/posts?${search.toString()}`,
-    { signal: options.signal },
+    { signal: options.signal }, 'optional',
   );
   return normalizeCursorPage(page, normalizePostRecord);
 }
@@ -618,7 +677,7 @@ export async function fetchUserMedia(handle: string, cursor?: string | null, siz
   }
 
   return apiRequest<CursorPage<ProfileMediaItem>>(
-    `/api/v1/users/${encodeURIComponent(handle)}/media?${search.toString()}`
+    `/api/v1/users/${encodeURIComponent(handle)}/media?${search.toString()}`, {}, 'optional'
   );
 }
 

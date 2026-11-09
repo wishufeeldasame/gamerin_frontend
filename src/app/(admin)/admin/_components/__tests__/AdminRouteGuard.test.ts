@@ -165,3 +165,19 @@ describe('AdminRouteGuard component access control', () => {
     expect(navigation.router.replace).not.toHaveBeenCalled();
   });
 });
+
+describe('AdminRouteGuard theme', () => {
+  it('removes the dark class on mount and restores the stored theme on unmount', () => {
+    window.localStorage.setItem('gamerin_user_settings', '{"theme":"dark"}');
+    document.documentElement.classList.add('dark');
+
+    const { unmount } = renderGuard();
+    expect(document.documentElement).not.toHaveClass('dark');
+
+    unmount();
+    expect(document.documentElement).toHaveClass('dark');
+
+    window.localStorage.clear();
+    document.documentElement.classList.remove('dark');
+  });
+});

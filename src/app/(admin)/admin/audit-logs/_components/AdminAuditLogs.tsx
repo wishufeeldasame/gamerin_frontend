@@ -106,11 +106,11 @@ export function AdminAuditLogs() {
               <thead><tr className="h-[42px] border-b border-[#f2f4f7] bg-[#fcfcfd] text-left text-xs font-bold text-[#667085]"><th className="px-5">이력 ID</th><th>관리자</th><th>작업</th><th>대상</th><th>대상 ID</th><th>처리 내용</th><th>처리 시각</th></tr></thead>
               <tbody>{result.content.map((log) => (
                 <tr key={log.id} className="border-b border-[#f2f4f7] text-[13px] last:border-b-0">
-                  <td className="break-all px-5 py-4 font-mono text-xs text-[#344054]">{log.id}</td>
+                  <td className="break-all px-5 py-4 font-sans text-xs text-[#344054]">{log.id}</td>
                   <td className="pr-2"><button type="button" title={log.adminId} onClick={() => { setAdministrator({ id: log.adminId, nickname: log.adminNickname }); setCurrentPage(0); }} className="text-left font-semibold text-[#315ef5] hover:underline">{log.adminNickname}</button></td>
                   <td className="pr-2"><AdminStatusBadge label={actionLabels[log.actionType] ?? log.actionType} tone={actionTone(log.actionType)} /></td>
                   <td className="text-[#667085]">{log.targetType ? targetLabels[log.targetType] ?? log.targetType : '정보 없음'}</td>
-                  <td className="break-all pr-3 font-mono text-xs text-[#344054]">{log.targetId ?? '정보 없음'}</td>
+                  <td className="break-all pr-3 font-sans text-xs text-[#344054]">{log.targetId ?? '정보 없음'}</td>
                   <td className="whitespace-pre-wrap break-words pr-4 text-[#344054]">{log.details?.trim() ? log.details : '정보 없음'}</td>
                   <td className="pr-4 text-[#98a2b3]"><RelativeTime createdAt={log.createdAt} /></td>
                 </tr>

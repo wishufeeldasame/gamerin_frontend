@@ -1,15 +1,12 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ApiError, toUploadErrorMessage } from '@/lib/api-client';
-import {
-  type MultipartPostResult,
-  type PostRecord,
-  type PostVideoJob,
-  createJsonPost,
-  createMultipartPost,
-  fetchPostVideoJob,
-} from '@/lib/feed-api';
+import { toUploadErrorMessage } from '@/lib/api-client';
+import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
+import { type PostRecord, createJsonPost, createPostUpload, fetchPostUploadJob } from '@/lib/feed-api';
+import { createClientId } from '@/lib/message-store';
+import { loadUploadRecords, removeUploadRecord, saveUploadRecord, trackUpload, UploadJobError,
+  UPLOAD_POLL_INTERVAL_MS, type UploadPhase, type UploadRecord } from '@/lib/upload-jobs';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 
 export type PostDraft = {
@@ -25,60 +22,34 @@ export type PendingPostPreview = {
 };
 
 // 서버 응답 전까지 작성자 화면에만 보이는 임시 게시물. 서버 id가 없으므로 상호작용은 제공하지 않는다.
-// 영상은 파일 전송(sending)이 끝나도 서버 처리(processing)가 끝날 때까지 "업로드 중"으로 남는다.
 export type PendingPost = {
   id: string;
   draft: PostDraft;
   previews: PendingPostPreview[];
-  status: 'uploading' | 'failed';
-  phase: 'sending' | 'processing';
+  status: 'uploading' | 'failed' | 'rejected' | 'invalid' | 'unavailable' | 'missing';
+  phase: UploadPhase;
   errorMessage: string | null;
+  record?: UploadRecord;
+  hasOriginal: boolean;
 };
 
 type PendingPostsOptions = {
-  // 영상 게시물의 서버 처리가 끝났을 때 한 번 호출된다(완료 알림용).
+  userId?: string;
+  // 미디어 게시물의 서버 처리가 끝났을 때 한 번 호출된다(완료 알림용).
   onVideoProcessed?: (post: PostRecord | null) => void;
 };
 
-export const VIDEO_JOB_POLL_INTERVAL_MS = 3000;
-const VIDEO_PROCESSING_FAILED_MESSAGE = '동영상을 처리하지 못했습니다. 다시 시도해 주세요.';
+export const VIDEO_JOB_POLL_INTERVAL_MS = UPLOAD_POLL_INTERVAL_MS;
 
-function createPendingId() {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return `pending-${crypto.randomUUID()}`;
-  }
-
-  return `pending-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-async function sendPostDraft(draft: PostDraft): Promise<MultipartPostResult> {
-  if (draft.imageFiles.length === 0 && !draft.videoFile) {
-    return { kind: 'post', post: await createJsonPost({ content: draft.content }) };
-  }
-
+function toFormData(draft: PostDraft) {
   const formData = new FormData();
-  if (draft.content) {
-    formData.append('content', draft.content);
-  }
-
+  if (draft.content) formData.append('content', draft.content);
   draft.imageFiles.forEach((file) => formData.append('mediaFiles', file));
-
   if (draft.videoFile) {
     formData.append('mediaFiles', draft.videoFile);
-    if (draft.thumbnailFile) {
-      formData.append('thumbnailFile', draft.thumbnailFile);
-    }
+    if (draft.thumbnailFile) formData.append('thumbnailFile', draft.thumbnailFile);
   }
-
-  return createMultipartPost(formData);
-}
-
-// 네트워크 오류·응답 본문 수신 실패·서버 일시 오류·요청 제한은 처리 상태 확인을 잠시 뒤 다시 시도한다.
-// 실패로 표시하면 사용자가 재시도할 때 새로 업로드해 같은 영상이 두 번 게시될 수 있다.
-function isTransientPollError(error: unknown) {
-  return error instanceof ApiError && (
-    error.status === 0 || error.status === 429 || error.status >= 500 || error.reason === 'invalid-response'
-  );
+  return formData;
 }
 
 function revokePreviews(previews: PendingPostPreview[]) {
@@ -89,7 +60,7 @@ export function usePendingPosts(onCreated: (post: PostRecord) => void, options: 
   const [pendingPosts, setPendingPosts] = useState<PendingPost[]>([]);
   // 언마운트·응답 처리 시점에 렌더와 무관하게 최신 목록을 읽기 위해 state와 함께 갱신한다.
   const pendingRef = useRef<PendingPost[]>([]);
-  const disposedRef = useRef(false);
+  const sessionRef = useRef(0);
   const onCreatedRef = useRef(onCreated);
   onCreatedRef.current = onCreated;
   const onVideoProcessedRef = useRef(options.onVideoProcessed);
@@ -100,112 +71,96 @@ export function usePendingPosts(onCreated: (post: PostRecord) => void, options: 
     setPendingPosts(pendingRef.current);
   }, []);
 
-  useEffect(() => {
-    disposedRef.current = false;
-    return () => {
-      disposedRef.current = true;
-      pendingRef.current.forEach((item) => revokePreviews(item.previews));
-      pendingRef.current = [];
-    };
-  }, []);
-
   // 서버 처리 중에는 창을 닫아도 서버에서 계속 처리되므로 파일을 보내는 동안만 경고한다.
   useUnloadWarning(pendingPosts.some((item) => item.status === 'uploading' && item.phase === 'sending'));
 
-  const isActive = useCallback(
-    (pendingId: string) => !disposedRef.current && pendingRef.current.some((item) => item.id === pendingId),
-    []
-  );
-
-  const waitForVideoJob = useCallback(async (pendingId: string, initialJob: PostVideoJob) => {
-    let job = initialJob;
-    while (job.status === 'QUEUED' || job.status === 'PROCESSING') {
-      await new Promise((resolve) => setTimeout(resolve, VIDEO_JOB_POLL_INTERVAL_MS));
-      if (!isActive(pendingId)) return undefined;
-      try {
-        job = await fetchPostVideoJob(job.jobId);
-      } catch (error) {
-        if (isTransientPollError(error)) continue;
-        throw error;
-      }
-    }
-
-    if (job.status === 'FAILED') {
-      throw new Error(job.errorMessage || VIDEO_PROCESSING_FAILED_MESSAGE);
-    }
-    return job.post;
-  }, [isActive]);
-
-  const upload = useCallback(async (pendingId: string, draft: PostDraft) => {
+  const upload = useCallback(async (target: PendingPost, recover = false) => {
+    const session = sessionRef.current;
+    const generation = getAuthGeneration();
+    const active = () => sessionRef.current === session && isCurrentAuthGeneration(generation) &&
+      pendingRef.current.some((item) => item.id === target.id);
     try {
-      const result = await sendPostDraft(draft);
-      // 언마운트·삭제로 이미 정리됐으면 결과를 반영할 화면이 없다.
-      if (!isActive(pendingId)) return;
-
-      let createdPost: PostRecord | null;
-      if (result.kind === 'post') {
-        createdPost = result.post;
+      let post: PostRecord | null;
+      if (target.record) {
+        const job = await trackUpload(target.record, {
+          recover,
+          send: target.hasOriginal ? () => createPostUpload(toFormData(target.draft), target.id) : undefined,
+          fetchJob: fetchPostUploadJob,
+          active,
+          onPhase: (phase) => updatePendingPosts((items) => items.map((item) => item.id === target.id ? { ...item, phase } : item)),
+        });
+        post = job.post;
       } else {
-        updatePendingPosts((items) =>
-          items.map((item) => (item.id === pendingId ? { ...item, phase: 'processing' } : item))
-        );
-        const processedPost = await waitForVideoJob(pendingId, result.job);
-        if (processedPost === undefined || !isActive(pendingId)) return;
-        createdPost = processedPost;
+        post = await createJsonPost({ content: target.draft.content });
       }
-
-      const target = pendingRef.current.find((item) => item.id === pendingId);
-      if (target) revokePreviews(target.previews);
-      updatePendingPosts((items) => items.filter((item) => item.id !== pendingId));
+      if (!active()) return;
+      revokePreviews(target.previews);
+      updatePendingPosts((items) => items.filter((item) => item.id !== target.id));
       // 처리 완료 뒤 게시물이 숨김·삭제됐으면 피드에 넣을 게시물이 없다.
-      if (createdPost) onCreatedRef.current(createdPost);
-      if (result.kind === 'videoJob') onVideoProcessedRef.current?.(createdPost);
+      if (post) onCreatedRef.current(post);
+      if (target.record) onVideoProcessedRef.current?.(post);
     } catch (error) {
-      if (!isActive(pendingId)) return;
-      updatePendingPosts((items) =>
-        items.map((item) =>
-          item.id === pendingId
-            ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '게시글 작성에 실패했습니다.') }
-            : item
-        )
-      );
+      if (!active()) return;
+      updatePendingPosts((items) => items.map((item) => item.id === target.id ? {
+        ...item,
+        status: error instanceof UploadJobError ? error.kind : target.record ? 'unavailable' : 'failed',
+        errorMessage: toUploadErrorMessage(error, '게시글 작성에 실패했습니다.'),
+      } : item));
     }
-  }, [isActive, updatePendingPosts, waitForVideoJob]);
+  }, [updatePendingPosts]);
+
+  useEffect(() => {
+    sessionRef.current += 1;
+    const restored = options.userId ? loadUploadRecords(options.userId, 'post').map((record): PendingPost => ({
+      id: record.clientId, record, hasOriginal: false,
+      draft: { content: '', imageFiles: [], videoFile: null, thumbnailFile: null },
+      previews: [], status: 'uploading', phase: 'processing', errorMessage: null,
+    })) : [];
+    updatePendingPosts(() => restored);
+    restored.forEach((item) => void upload(item, true));
+    return () => {
+      sessionRef.current += 1;
+      pendingRef.current.forEach((item) => revokePreviews(item.previews));
+      pendingRef.current = [];
+    };
+  }, [options.userId, updatePendingPosts, upload]);
 
   const submit = useCallback((draft: PostDraft) => {
+    const id = createClientId();
+    const hasMedia = draft.imageFiles.length > 0 || !!draft.videoFile;
     const pendingPost: PendingPost = {
-      id: createPendingId(),
-      draft,
+      id, draft, hasOriginal: true,
+      ...(hasMedia ? { record: { userId: options.userId ?? '', kind: 'post' as const, clientId: id } } : {}),
       previews: [
         ...draft.imageFiles.map((file) => ({ type: 'image' as const, url: URL.createObjectURL(file) })),
         ...(draft.videoFile ? [{ type: 'video' as const, url: URL.createObjectURL(draft.videoFile) }] : []),
       ],
-      status: 'uploading',
-      phase: 'sending',
-      errorMessage: null,
+      status: 'uploading', phase: 'sending', errorMessage: null,
     };
-
     updatePendingPosts((items) => [pendingPost, ...items]);
-    void upload(pendingPost.id, draft);
-  }, [updatePendingPosts, upload]);
+    void upload(pendingPost);
+  }, [options.userId, updatePendingPosts, upload]);
 
   const retry = useCallback((pendingId: string) => {
     const target = pendingRef.current.find((item) => item.id === pendingId);
-    if (!target || target.status !== 'failed') return;
-
-    updatePendingPosts((items) =>
-      items.map((item) =>
-        item.id === pendingId ? { ...item, status: 'uploading', phase: 'sending', errorMessage: null } : item
-      )
-    );
-    void upload(pendingId, target.draft);
+    if (!target || target.status === 'uploading' || target.status === 'rejected' || target.status === 'invalid') return;
+    if (target.status === 'failed' && !target.hasOriginal) return;
+    let next = { ...target, status: 'uploading' as const, errorMessage: null };
+    if (target.status === 'failed' && target.record) {
+      removeUploadRecord(target.record);
+      const id = createClientId();
+      next = { ...next, id, record: { ...target.record, clientId: id, jobId: undefined }, phase: 'sending' };
+      saveUploadRecord(next.record!);
+    }
+    updatePendingPosts((items) => items.map((item) => item.id === pendingId ? next : item));
+    void upload(next, target.status !== 'failed');
   }, [updatePendingPosts, upload]);
 
   const discard = useCallback((pendingId: string) => {
     const target = pendingRef.current.find((item) => item.id === pendingId);
     if (!target) return;
-
     revokePreviews(target.previews);
+    if (target.record) removeUploadRecord(target.record);
     updatePendingPosts((items) => items.filter((item) => item.id !== pendingId));
   }, [updatePendingPosts]);
 

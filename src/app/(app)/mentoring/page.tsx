@@ -11,15 +11,19 @@ import {
   MessageCircle,
   Plus,
   Star,
-  UserPlus,
   Wallet,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 import { ProgramListSkeleton } from '@/app/home/components/LoadingSkeletons';
-import { ChangeEvent, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { ChangeEvent, FormEvent, type ReactNode, useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { currentPageReturnTo, requestLogin } from '@/lib/login-prompt';
 import { useAuth } from '@/app/context/AuthContext';
 import { ReportContentModal } from '@/app/home/components/Report';
 import { AUTH_REQUIRED_MESSAGE, isAuthError } from '@/lib/api-client';
@@ -56,6 +60,8 @@ import {
 } from '@/lib/mentoring-api';
 import { fetchMyMileageBalance } from '@/lib/mileage-api';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
+import { useMileageBalance } from '@/hooks/useMileageBalance';
+import { getInitials } from '@/lib/feed-api';
 
 import type { PageResponse } from '@/types/api';
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
@@ -74,6 +80,10 @@ type ProgramForm = {
 const GAMES_ERROR_MESSAGE = '게임 목록을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
 const REVIEW_ALREADY_COMPLETED_MESSAGE = '이미 리뷰 작성이 완료된 멘토링입니다.';
 const DEEP_LINK_HIGHLIGHT_DURATION = 2200;
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
+const PROGRAM_GRID = 'grid gap-3 xl:grid-cols-2 xl:gap-5';
+const DIALOG_BACKDROP = 'fixed inset-0 z-50 flex items-end justify-center bg-black/60 lg:items-center lg:p-5';
+const DIALOG_PANEL = 'relative max-h-[90dvh] w-full overflow-y-auto overscroll-contain rounded-t-[20px] border border-line-card bg-surface px-4 pt-8 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl lg:rounded-card lg:p-6';
 
 const defaultProgramForm: ProgramForm = {
   gameName: '',
@@ -159,11 +169,16 @@ function formatRatingValue(stats: { ratingAvg: number; reviewCount: number } | n
 }
 
 function formatRatingLabel(stats: { ratingAvg: number; reviewCount: number } | null | undefined) {
-  return stats && stats.reviewCount > 0 ? `평점 ${stats.ratingAvg.toFixed(1)}` : '리뷰 없음';
+  return stats && stats.reviewCount > 0 ? `★ ${stats.ratingAvg.toFixed(1)} · 리뷰 ${stats.reviewCount}` : '리뷰 없음';
 }
 
-function MembershipBadgeInline({ active }: { active?: boolean }) {
-  return active ? <span className="ml-0.5 inline-flex align-middle"><MembershipBadge active /></span> : null;
+function MembershipBadgeInline({ active, tier }: { active?: boolean; tier?: RepresentativeTier | null }) {
+  return active || tier ? (
+    <span className="ml-0.5 inline-flex items-center gap-0.5 align-middle">
+      <MembershipBadge active={active} />
+      <RepresentativeTierBadge tier={tier} />
+    </span>
+  ) : null;
 }
 
 function programMentorName(program: MentoringProgramResponse | MentoringProgramDetailResponse) {
@@ -243,16 +258,21 @@ function isDuplicateReviewError(error: unknown) {
 }
 
 export default function MentoringPage() {
+  const tabsId = useId();
   const closeProgramLockRef = useRef(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, logout, isAuthReady } = useAuth();
+  const requireAuth = useRequireAuth();
+  const replace = router.replace;
+  const searchString = searchParams.toString();
   const currentUserId = user?.id ?? '';
   const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
   const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
   const requestedMineTab = searchParams.get('tab') === 'mine';
   const requestedProgramId = searchParams.get('programId')?.trim() || null;
   const openedProgramIdRef = useRef<string | null>(null);
+  const programReportButtonRef = useRef<HTMLButtonElement>(null);
 
   const [activeTab, setActiveTab] = useState<MentoringTab>('find');
   const [games, setGames] = useState<GameResponse[]>([]);
@@ -268,7 +288,6 @@ export default function MentoringPage() {
 
   const [mentorProfile, setMentorProfile] = useState<MentorProfileResponse | null>(null);
   const [mentorProfileLoading, setMentorProfileLoading] = useState(false);
-  const [showMentorForm, setShowMentorForm] = useState(false);
   const [mentorAbout, setMentorAbout] = useState('');
 
   const [programForm, setProgramForm] = useState<ProgramForm>(defaultProgramForm);
@@ -283,7 +302,6 @@ export default function MentoringPage() {
   const [menteeApplications, setMenteeApplications] = useState<MentoringApplicationResponse[]>([]);
   const [mentorApplications, setMentorApplications] = useState<MentoringApplicationResponse[]>([]);
   const [applicationsLoaded, setApplicationsLoaded] = useState(false);
-  const [mileageBalance, setMileageBalance] = useState(0);
 
   const [reviewTarget, setReviewTarget] = useState<MentoringApplicationResponse | null>(null);
   const [reviewRating, setReviewRating] = useState(5);
@@ -305,14 +323,14 @@ export default function MentoringPage() {
 
   const gameLabel = (code: string) => games.find((game) => game.code === code)?.name ?? code;
   const gamesNotice = gamesError ? (
-    <p className="text-xs font-bold text-red-500">
+    <p className="text-caption text-fg-danger">
       {gamesError}{' '}
       <button type="button" onClick={() => void loadGames()} className="underline">
         다시 시도
       </button>
     </p>
   ) : gamesLoading ? (
-    <p className="text-xs font-bold text-zinc-400">게임 목록을 불러오는 중입니다.</p>
+    <p className="text-caption text-fg-secondary">게임 목록을 불러오는 중입니다.</p>
   ) : null;
   const programGameCode = programForm.gameName || games[0]?.code || '';
   const gamesReady = !gamesLoading && !gamesError && Boolean(programGameCode);
@@ -342,6 +360,7 @@ export default function MentoringPage() {
     return mentorStatsById[selectedProgram.mentorId] ?? null;
   }, [mentorStatsById, selectedProgram]);
 
+  const selectedProgramContent = splitProgramContent(selectedProgram?.content);
   const selectedOwnedProgram = useMemo(() => {
     if (!selectedOwnedProgramId) {
       return null;
@@ -380,6 +399,7 @@ export default function MentoringPage() {
   }, []);
 
   const showError = useCallback((error: unknown) => {
+    if (error instanceof DOMException && error.name === 'AbortError') return;
     if (isMileageShortageError(error)) {
       setBannerType('mileage');
       setAuthMessage('마일리지가 부족합니다. 충전 후 다시 멘토링을 신청해 주세요.');
@@ -399,6 +419,8 @@ export default function MentoringPage() {
     setAuthMessage('');
     setErrorMessage(error instanceof Error ? error.message : '요청 처리 중 문제가 발생했습니다.');
   }, []);
+
+  const mileageBalance = useMileageBalance(isAuthReady ? user?.id : undefined, undefined, activeTab === 'mine' ? showError : undefined);
 
   const loadPrograms = useCallback(async () => {
     setProgramsLoading(true);
@@ -541,33 +563,26 @@ export default function MentoringPage() {
     setApplicationsLoaded(true);
   }, [currentUserId, showError]);
 
-  const loadMileageData = useCallback(async () => {
-    if (!currentUserId) {
-      setMileageBalance(0);
-      return;
-    }
-
-    try {
-      const balance = await fetchMyMileageBalance();
-      setMileageBalance(balance.currentBalance ?? 0);
-    } catch (error) {
-      setMileageBalance(0);
-      showError(error);
-    }
-  }, [currentUserId, showError]);
-
   useEffect(() => {
     setHighlightedApplicationId(null);
     setHighlightedReviewId(null);
     setSelectedOwnedProgramId(null);
 
+    if (!currentUserId && (requestedReviewId || requestedMineTab || requestedApplicationId)) {
+      setActiveTab('find');
+      requestLogin({ returnTo: currentPageReturnTo(), message: '내 멘토링은 로그인 후 볼 수 있어요.' });
+      const next = new URLSearchParams(searchString);
+      for (const key of ['tab', 'applicationId', 'reviewId']) next.delete(key);
+      replace('/mentoring' + (next.size ? `?${next}` : ''), { scroll: false });
+      return;
+    }
     if (requestedReviewId) {
       setActiveTab('programs');
       return;
     }
 
     setActiveTab(requestedMineTab || requestedApplicationId ? 'mine' : 'find');
-  }, [requestedApplicationId, requestedMineTab, requestedReviewId]);
+  }, [requestedApplicationId, requestedMineTab, requestedReviewId, currentUserId, replace, searchString]);
 
   const loadGames = useCallback(async () => {
     const requestId = ++gamesRequestRef.current;
@@ -586,7 +601,7 @@ export default function MentoringPage() {
   }, []);
 
   useEffect(() => {
-    if (isAuthReady && currentUserId) {
+    if (isAuthReady) {
       void loadGames();
     }
   }, [currentUserId, isAuthReady, loadGames]);
@@ -610,12 +625,6 @@ export default function MentoringPage() {
 
     void loadApplications();
   }, [currentUserId, isAuthReady, loadApplications]);
-
-  useEffect(() => {
-    if (activeTab === 'mine' && isAuthReady && currentUserId) {
-      void loadMileageData();
-    }
-  }, [activeTab, currentUserId, isAuthReady, loadMileageData]);
 
   useEffect(() => {
     if (activeTab === 'programs' && isAuthReady && currentUserId) {
@@ -742,9 +751,9 @@ export default function MentoringPage() {
   }, [highlightedApplicationId, highlightedReviewId]);
 
   const changeTab = (tab: MentoringTab) => {
+    if (tab !== 'find' && !requireAuth('멘토링 참여·등록은 로그인 후 이용할 수 있어요.', { returnTo: tab === 'mine' ? '/mentoring?tab=mine' : currentPageReturnTo() })) return;
     setActiveTab(tab);
     clearMessages();
-    setShowMentorForm(false);
   };
 
   const closeProgramDetail = useCallback(() => {
@@ -796,13 +805,13 @@ export default function MentoringPage() {
 
   const handleRegisterMentor = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     setPendingAction('register-mentor');
     clearMessages();
 
     try {
       const profile = await registerMentor({ about: mentorAbout.trim() });
       setMentorProfile(profile);
-      setShowMentorForm(false);
       showNotice('멘토 등록을 요청했습니다. 관리자 승인 후 프로그램을 만들 수 있습니다.');
       await loadOwnedPrograms();
     } catch (error) {
@@ -813,6 +822,7 @@ export default function MentoringPage() {
   };
 
   const handleProgramFormChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    if (!requireAuth('프로그램을 등록하려면 로그인이 필요해요.')) return;
     const { name, value } = event.target;
     setProgramForm((current) => ({
       ...current,
@@ -826,6 +836,7 @@ export default function MentoringPage() {
 
   const handleSubmitProgram = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     setPendingAction('save-program');
     clearMessages();
 
@@ -901,15 +912,17 @@ export default function MentoringPage() {
 
   const handleApplyProgram = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
     if (!selectedProgram) return;
+    const generation = getAuthGeneration();
 
     setPendingAction(`apply:${selectedProgram.id}`);
     clearMessages();
 
     try {
       const balance = await fetchMyMileageBalance();
+      assertCurrentAuthGeneration(generation);
       const currentBalance = balance.currentBalance ?? 0;
-      setMileageBalance(currentBalance);
 
       if (currentBalance < selectedProgram.price) {
         setBannerType('mileage');
@@ -925,7 +938,7 @@ export default function MentoringPage() {
       });
       closeProgramDetail();
       showNotice('멘토링 요청이 접수되었습니다.');
-      await Promise.all([loadApplications(), loadMileageData()]);
+      await loadApplications();
       setActiveTab('mine');
     } catch (error) {
       showError(error);
@@ -978,7 +991,7 @@ export default function MentoringPage() {
         return;
       }
 
-      await Promise.all([loadApplications(), loadMileageData()]);
+      await loadApplications();
     } catch (error) {
       showError(error);
     } finally {
@@ -988,6 +1001,7 @@ export default function MentoringPage() {
 
   // 충전 후 원래 프로그램 상세로 돌아오게 한다. 신청은 사용자가 다시 확정한다.
   const goToMileageCharge = () => {
+    if (!requireAuth('마일리지를 충전하려면 로그인이 필요해요.', { returnTo: '/wallet' })) return;
     const returnTo = selectedProgram ? `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
     setShowMileageShortageModal(false);
     closeProgramDetail();
@@ -1017,9 +1031,15 @@ export default function MentoringPage() {
     setReviewContent('');
   };
 
+  const closeProgramReport = () => {
+    setProgramReportOpen(false);
+    programReportButtonRef.current?.focus();
+  };
+
   // 위에 떠 있는 모달부터 하나씩 닫는다.
   useEscapeKey(() => {
-    if (showMileageShortageModal) setShowMileageShortageModal(false);
+    if (programReportOpen) closeProgramReport();
+    else if (showMileageShortageModal) setShowMileageShortageModal(false);
     else if (reviewTarget) closeReviewModal();
     else if (selectedOwnedProgramId) setSelectedOwnedProgramId(null);
     else if (selectedProgram && !detailLoading) closeProgramDetail();
@@ -1027,6 +1047,7 @@ export default function MentoringPage() {
 
   const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
 
     if (!reviewTarget) {
       return;
@@ -1092,46 +1113,79 @@ export default function MentoringPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <main className="page-container">
-        <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-end md:justify-between">
+    <div className="px-4 pb-6 pt-2 md:px-6 lg:pt-6 xl:pr-0">
+      <div className="mx-auto max-w-[940px] xl:ml-0">
+        <header className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2 lg:items-center">
           <div>
-            <h1 className="page-title">멘토링</h1>
+            <h1 className="text-title text-fg-primary">멘토링</h1>
+            <p className="page-subtitle hidden lg:block">게임별 멘토에게 1:1로 배워 보세요.</p>
           </div>
+          <div className="flex items-center gap-2 rounded-control bg-surface px-3 py-2 text-label">
+            <Link href="/wallet" className={`rounded-sm text-fg-primary ${FOCUS_RING}`}>
+              <span className="sr-only lg:not-sr-only lg:mr-2 lg:text-caption lg:text-fg-secondary">내 마일리지</span>
+              {mileageBalance === null ? '—' : formatMileage(mileageBalance)}
+            </Link>
+            <button type="button" onClick={goToMileageCharge} className={`rounded-sm text-fg-brand ${FOCUS_RING}`}>충전</button>
+          </div>
+        </header>
 
-          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-zinc-200 bg-white p-1 sm:flex sm:gap-0">
-            {[
-              ['find', '멘토 찾기'],
-              ['mine', '내 멘토링'],
-              ['programs', '내 프로그램'],
-              ['become', '멘토 되기'],
-            ].map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => changeTab(id as MentoringTab)}
-                className={`whitespace-nowrap rounded-xl px-4 py-2 text-sm font-black ${
-                  activeTab === id ? 'bg-black text-white dark:bg-[#f5b93d] dark:text-black' : 'text-zinc-500'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+        <div
+          role="tablist"
+          aria-label="멘토링 메뉴"
+          className="mb-5 flex flex-wrap gap-x-4 border-b border-line sm:gap-x-6"
+          onKeyDown={(event) => {
+            const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+            const index = tabs.findIndex((tab) => tab === event.target);
+            if (index === -1) return;
+            let nextIndex: number;
+            switch (event.key) {
+              case 'ArrowLeft': nextIndex = (index + tabs.length - 1) % tabs.length; break;
+              case 'ArrowRight': nextIndex = (index + 1) % tabs.length; break;
+              case 'Home': nextIndex = 0; break;
+              case 'End': nextIndex = tabs.length - 1; break;
+              default: return;
+            }
+            event.preventDefault();
+            tabs[nextIndex].focus();
+          }}
+        >
+          {([
+            ['find', '멘토 찾기'],
+            ['mine', '내 멘토링'],
+            ['programs', '내 프로그램'],
+            ['become', '멘토 되기'],
+          ] as const).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              role="tab"
+              id={`${tabsId}-tab-${id}`}
+              aria-controls={`${tabsId}-panel-${id}`}
+              aria-selected={activeTab === id}
+              tabIndex={activeTab === id ? 0 : -1}
+              onFocus={() => { if (activeTab !== id) changeTab(id); }}
+              onClick={() => changeTab(id)}
+              className={`h-11 whitespace-nowrap border-b-2 text-label ${FOCUS_RING} ${
+                activeTab === id ? 'border-brand font-semibold text-fg-primary' : 'border-transparent text-fg-secondary hover:text-fg-primary'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
-        {notice ? <div role="status" className="mb-5 rounded-xl bg-black px-4 py-3 text-sm font-bold text-white">{notice}</div> : null}
+        {notice ? <div role="status" className="mb-5 rounded-xl bg-success-subtle px-4 py-3 text-body text-fg-primary">{notice}</div> : null}
 
         {authMessage ? (
-          <div className="mb-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-5 dark:border-yellow-900 dark:bg-yellow-950/40">
+          <div className="mb-5 rounded-2xl border border-line bg-brand-subtle p-4 sm:p-5">
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex gap-3">
-                <AlertCircle className="mt-0.5 shrink-0 text-yellow-700 dark:text-yellow-300" size={20} />
+                <AlertCircle className="mt-0.5 shrink-0 text-fg-brand" size={20} />
                 <div>
-                  <p className="font-black text-yellow-900 dark:text-yellow-200">
+                  <p className="font-semibold text-fg-brand">
                     {bannerType === 'mileage' ? '마일리지가 부족합니다' : '다시 로그인해 주세요'}
                   </p>
-                  <p className="mt-1 text-sm font-bold leading-6 text-yellow-800 dark:text-yellow-300">{authMessage}</p>
+                  <p className="mt-1 text-body leading-6 text-fg-secondary">{authMessage}</p>
                 </div>
               </div>
 
@@ -1146,7 +1200,7 @@ export default function MentoringPage() {
               ) : (
                 <button
                   type="button"
-                  onClick={() => logout({ redirectTo: '/login' })}
+                  onClick={() => logout({ redirectTo: '/?login=1' })}
                   className="btn-primary"
                 >
                   다시 로그인
@@ -1157,920 +1211,926 @@ export default function MentoringPage() {
         ) : null}
 
         {errorMessage ? (
-          <div className="mb-5 rounded-2xl border border-red-100 bg-red-50 px-5 py-3 text-sm font-black text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+          <div className="mb-5 rounded-2xl border border-line-danger bg-danger-subtle px-4 py-3 text-body text-fg-danger">
             {errorMessage}
           </div>
         ) : null}
 
-        {activeTab === 'find' ? (
-          <section>
-            <div>
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램 둘러보기</p>
-                  <h2 className="mt-1 text-2xl font-black text-black">멘토링 프로그램 탐색</h2>
-                  <p className="mt-2 text-sm font-bold text-zinc-500">
-                    게임별 프로그램을 찾고 상세 화면에서 바로 신청할 수 있습니다.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1 md:items-end">
-                  <select
-                    value={gameFilter}
-                    disabled={gamesLoading || Boolean(gamesError)}
-                    onChange={(event) => {
-                      setProgramPageNumber(0);
-                      setGameFilter(event.target.value);
-                    }}
-                    className="h-11 rounded-xl border border-zinc-200 px-3 text-sm font-black outline-none disabled:opacity-50"
-                  >
-                    <option value="">전체</option>
-                    {games.map((game) => (
-                      <option key={game.code} value={game.code}>
-                        {game.name}
-                      </option>
-                    ))}
-                  </select>
-                  {gamesNotice}
-                </div>
-              </div>
-
-              {programsLoading ? (
-                <ProgramListSkeleton />
-              ) : visiblePrograms.length > 0 ? (
-                <div className="grid gap-4">
-                  {visiblePrograms.map((program) => (
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-find`}
+          aria-labelledby={`${tabsId}-tab-find`}
+          hidden={activeTab !== 'find'}
+          tabIndex={0}
+          className={FOCUS_RING}
+        >
+          {activeTab === 'find' ? (
+            <section>
+              <div>
+                <h2 className="sr-only">멘토링 프로그램 탐색</h2>
+                <div role="group" aria-label="게임 필터" className="-mx-1 mb-4 flex gap-2 overflow-x-auto px-1 py-1">
+                  {[{ code: '', name: '전체' }, ...games].map(({ code, name }) => (
                     <button
-                      key={program.id}
+                      key={code}
                       type="button"
-                      onClick={() => openProgramDetail(program.id)}
-                      className="rounded-2xl border border-zinc-100 p-5 text-left transition hover:border-black"
+                      aria-pressed={gameFilter === code}
+                      disabled={gamesLoading || Boolean(gamesError)}
+                      onClick={() => {
+                        setProgramPageNumber(0);
+                        setGameFilter(code);
+                      }}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-3 py-2 text-label disabled:opacity-50 ${FOCUS_RING} ${
+                        gameFilter === code ? 'border-fg-brand bg-brand-subtle text-fg-brand' : 'border-transparent bg-subtle text-fg-secondary hover:text-fg-primary'
+                      }`}
                     >
-                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                        <div>
-                          <div className="mb-2 flex flex-wrap gap-2">
-                            <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">
-                              {gameLabel(program.gameName)}
-                            </span>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-black ${
-                                program.status === 'ACTIVE'
-                                  ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
-                                  : 'bg-zinc-100 text-zinc-500'
-                              }`}
-                            >
-                              {program.status === 'ACTIVE' ? '모집 중' : '마감'}
-                            </span>
-                          </div>
-                          <h3 className="text-xl font-black text-black">{program.title}</h3>
-                          <p className="mt-2 line-clamp-2 text-sm font-bold leading-6 text-zinc-500">
-                            {splitProgramContent(program.content).content}
-                          </p>
-                          <p className="mt-3 text-xs font-black text-zinc-400">
-                            멘토 {programMentorName(program)}<MembershipBadgeInline active={program.membershipBadge} /> · {formatRatingLabel(mentorStatsById[program.mentorId])}
-                          </p>
-                        </div>
-
-                        <div className="text-left md:text-right">
-                          <p className="text-xl font-black text-black">{formatMileage(program.price)}</p>
-                          <p className="mt-1 text-xs font-bold text-zinc-400">
-                            {program.availableTimeDesc || '시간 협의 가능'}
-                          </p>
-                        </div>
-                      </div>
+                      {name}
                     </button>
                   ))}
                 </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center">
-                  <p className="font-black text-black">등록된 프로그램이 없습니다.</p>
-                  {gameFilter && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setProgramPageNumber(0);
-                        setGameFilter('');
-                      }}
-                      className="mt-4 rounded-xl bg-black px-4 py-2 text-sm font-black text-white"
-                    >
-                      필터 초기화
-                    </button>
-                  )}
-                </div>
-              )}
+                {gamesNotice}
 
-              {totalPages > 1 ? (
-              <div className="mt-5 flex items-center justify-between">
-                <button
-                  type="button"
-                  onClick={() => setProgramPageNumber((page) => Math.max(page - 1, 0))}
-                  disabled={programPageNumber <= 0}
-                  className="btn-secondary"
-                >
-                  이전
-                </button>
-                <span className="text-sm font-black text-zinc-400">
-                  {programPageNumber + 1} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setProgramPageNumber((page) => Math.min(page + 1, totalPages - 1))}
-                  disabled={programPageNumber >= totalPages - 1}
-                  className="btn-secondary"
-                >
-                  다음
-                </button>
-              </div>
-              ) : null}
-            </div>
-          </section>
-        ) : null}
-
-        {activeTab === 'mine' ? (
-          <section className="space-y-6">
-            <section className="flex flex-col gap-5 rounded-2xl border border-zinc-100 bg-white p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">마일리지</p>
-                <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                  <h2 className="text-2xl font-black text-black">내 마일리지</h2>
-                  <strong className="text-2xl font-black text-black">{formatMileage(mileageBalance)}</strong>
-                </div>
-                <p className="mt-2 text-sm font-bold text-zinc-500">
-                  카카오페이 충전과 전체 거래 내역은 지갑에서 확인할 수 있습니다.
-                </p>
-              </div>
-              <div className="grid shrink-0 grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => router.push(`/wallet?returnTo=${encodeURIComponent('/mentoring?tab=mine')}`)}
-                  className="btn-primary"
-                >
-                  <Wallet size={16} />
-                  충전하기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => router.push('/wallet')}
-                  className="inline-flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-black text-black"
-                >
-                  전체 내역
-                </button>
-              </div>
-            </section>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <ApplicationList
-                title="내가 신청한 멘토링"
-                role="mentee"
-                applications={menteeApplications}
-                highlightedApplicationId={highlightedApplicationId}
-                pendingAction={pendingAction}
-                onChat={(application) => handleOpenChat(application, 'mentee')}
-                onCancel={(id) => runApplicationAction(id, 'cancel')}
-                onComplete={(id) => runApplicationAction(id, 'complete')}
-                onReview={(application) => openReviewModal(application)}
-                onReviewedClick={() => showNotice(REVIEW_ALREADY_COMPLETED_MESSAGE)}
-              />
-              <ApplicationList
-                title="받은 멘토링 요청"
-                role="mentor"
-                applications={mentorApplications}
-                highlightedApplicationId={highlightedApplicationId}
-                pendingAction={pendingAction}
-                onChat={(application) => handleOpenChat(application, 'mentor')}
-                onAccept={(id) => runApplicationAction(id, 'accept')}
-                onReject={(id) => runApplicationAction(id, 'reject')}
-                onStart={(id) => runApplicationAction(id, 'start')}
-                onFinish={(id) => runApplicationAction(id, 'finish')}
-              />
-            </div>
-
-          </section>
-        ) : null}
-
-        {activeTab === 'programs' ? (
-          <section>
-            {mentorProfileLoading ? (
-              <div className="flex h-64 items-center justify-center rounded-2xl bg-zinc-50">
-                <Loader2 className="animate-spin text-zinc-400" />
-              </div>
-            ) : mentorProfile ? (
-              <div className="space-y-6">
-                <div className="rounded-2xl border border-zinc-100 p-6">
-                  <h2 className="flex items-center gap-1 text-2xl font-black text-black">
-                    {mentorProfile.nickname}
-                    <MembershipBadge active={mentorProfile.membershipBadge} /> 멘토
-                  </h2>
-
-                  <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-                    <div className="rounded-xl bg-zinc-50 p-3">
-                      <p className="text-lg font-black text-black">{formatRatingValue(mentorProfile)}</p>
-                      <p className="text-xs font-bold text-zinc-400">평점</p>
-                    </div>
-                    <div className="rounded-xl bg-zinc-50 p-3">
-                      <p className="text-lg font-black text-black">{mentorProfile.reviewCount}</p>
-                      <p className="text-xs font-bold text-zinc-400">리뷰</p>
-                    </div>
-                    <div className="rounded-xl bg-zinc-50 p-3">
-                      <p className="text-lg font-black text-black">{mentorProfile.menteeCount}</p>
-                      <p className="text-xs font-bold text-zinc-400">신청한 멘티</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <section>
-                    <div className="mb-5">
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">프로그램</p>
-                      <h2 className="mt-1 text-2xl font-black text-black">내 프로그램</h2>
-                      <p className="mt-2 text-sm font-bold text-zinc-500">
-                        프로그램 이름을 선택하면 리뷰, 평점, 마감 설정을 볼 수 있습니다.
-                      </p>
-                    </div>
-
-                    {ownedPrograms.length > 0 ? (
-                      <div className="grid gap-4">
-                        {ownedPrograms.map((program) => {
-                          const isSelected = selectedOwnedProgram?.id === program.id;
-
-                          return (
-                            <button
-                              key={program.id}
-                              type="button"
-                              onClick={() => setSelectedOwnedProgramId(program.id)}
-                              className={`rounded-2xl border p-5 text-left transition ${
-                                isSelected
-                                  ? 'border-black bg-black text-white dark:border-[#f5b93d] dark:bg-[#f5b93d] dark:text-black'
-                                  : 'border-zinc-100 bg-white hover:border-black'
-                              }`}
-                            >
-                              <div className="flex items-center justify-between gap-4">
-                                <div>
-                                  <p
-                                    className={`text-xs font-black uppercase tracking-[0.18em] ${
-                                      isSelected ? 'text-white/70 dark:text-black/60' : 'text-zinc-400'
-                                    }`}
-                                  >
-                                    {gameLabel(program.gameName)}
-                                  </p>
-                                  <h3 className="mt-2 text-xl font-black">{program.title}</h3>
-                                </div>
-                                <span
-                                  className={`rounded-full px-3 py-1 text-xs font-black ${
-                                    isSelected
-                                      ? 'bg-white/15 text-white'
-                                      : program.status === 'ACTIVE'
-                                      ? 'bg-green-100 text-green-700 dark:bg-green-950 dark:text-green-300'
-                                        : 'bg-zinc-100 text-zinc-500'
-                                  }`}
-                                >
-                                  {program.status === 'ACTIVE' ? '운영 중' : '마감'}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    ) : (
-                      <div className="rounded-2xl border border-dashed border-zinc-200 bg-zinc-50 p-8 text-center">
-                        <p className="font-black text-black">아직 만든 프로그램이 없습니다.</p>
-                      </div>
-                    )}
-                  </section>
-                </div>
-              </div>
-            ) : (
-              <section className="rounded-2xl border border-zinc-100 p-8 text-center">
-                <button
-                  type="button"
-                  onClick={() => changeTab('become')}
-                  className="btn-primary mx-auto"
-                >
-                  <Plus size={17} />
-                  멘토 되기
-                </button>
-                <p className="mt-5 text-lg font-black text-black">멘토가 되어보세요!</p>
-              </section>
-            )}
-          </section>
-        ) : null}
-
-        {activeTab === 'become' ? (
-          <section>
-            {mentorProfileLoading ? (
-              <div className="flex h-64 items-center justify-center rounded-2xl bg-zinc-50">
-                <Loader2 className="animate-spin text-zinc-400" />
-              </div>
-            ) : mentorProfile && mentorProfile.status !== 'ACTIVE' ? (
-              <section role="status" className="rounded-2xl border border-zinc-100 p-8 text-center">
-                <h2 className="text-2xl font-black text-black">
-                  {mentorProfile.status === 'PENDING_APPROVAL' ? '멘토 승인 대기 중' : '멘토 등록이 반려되었습니다'}
-                </h2>
-                <p className="mt-4 text-sm font-bold leading-6 text-zinc-500">
-                  {mentorProfile.status === 'PENDING_APPROVAL'
-                    ? '관리자 승인이 완료되면 프로그램을 등록할 수 있습니다.'
-                    : '멘토 승인이 완료되지 않아 프로그램을 등록할 수 없습니다.'}
-                </p>
-              </section>
-            ) : mentorProfile ? (
-              <section className="rounded-2xl border border-zinc-100 p-6">
-                <form onSubmit={handleSubmitProgram}>
-                  <h2 className="text-2xl font-black text-black">프로그램 만들기</h2>
-
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="block space-y-2">
-                        <span className="text-sm font-black text-zinc-700">게임</span>
-                        <select
-                          name="gameName"
-                          value={programGameCode}
-                          disabled={gamesLoading || Boolean(gamesError)}
-                          onChange={handleProgramFormChange}
-                          className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm font-bold outline-none"
-                        >
-                          {games.map((game) => (
-                            <option key={game.code} value={game.code}>
-                              {game.name}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      {gamesNotice}
-                    </div>
-
-                    <label className="space-y-2">
-                      <span className="text-sm font-black text-zinc-700">가격</span>
-                      <input
-                        name="price"
-                        value={programForm.price}
-                        onChange={handleProgramFormChange}
-                        required
-                        inputMode="numeric"
-                        className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none"
+                {programsLoading ? (
+                  <ProgramListSkeleton count={4} />
+                ) : visiblePrograms.length > 0 ? (
+                  <div className={PROGRAM_GRID}>
+                    {visiblePrograms.map((program) => (
+                      <ProgramCard
+                        key={program.id}
+                        program={program}
+                        game={gameLabel(program.gameName)}
+                        rating={formatRatingLabel(mentorStatsById[program.mentorId])}
+                        onOpen={() => openProgramDetail(program.id)}
                       />
-                    </label>
-                  </div>
-
-                  <label className="mt-4 block space-y-2">
-                    <span className="text-sm font-black text-zinc-700">프로그램 제목</span>
-                    <input
-                      name="title"
-                      value={programForm.title}
-                      onChange={handleProgramFormChange}
-                      required
-                      className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none"
-                    />
-                  </label>
-
-                  <label className="mt-4 block space-y-2">
-                    <span className="text-sm font-black text-zinc-700">진행 방식</span>
-                    <input
-                      name="method"
-                      value={programForm.method}
-                      onChange={handleProgramFormChange}
-                      required
-                      className="h-12 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none"
-                    />
-                  </label>
-
-                  <label className="mt-4 block space-y-2">
-                    <span className="text-sm font-black text-zinc-700">상세 설명</span>
-                    <textarea
-                      name="content"
-                      value={programForm.content}
-                      onChange={handleProgramFormChange}
-                      required
-                      rows={5}
-                      className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none"
-                    />
-                  </label>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <input
-                      name="availableTimeDesc"
-                      value={programForm.availableTimeDesc}
-                      onChange={handleProgramFormChange}
-                      placeholder="가능한 시간대"
-                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                    />
-                    <input
-                      name="tags"
-                      value={programForm.tags}
-                      onChange={handleProgramFormChange}
-                      placeholder="태그, 쉼표로 구분"
-                      className="h-12 rounded-xl border border-zinc-200 px-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                    />
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={pendingAction === 'save-program' || !gamesReady}
-                    className="btn-primary mt-5 w-full"
-                  >
-                    <Plus size={17} />
-                    {pendingAction === 'save-program' ? '저장 중...' : '프로그램 등록'}
-                  </button>
-                </form>
-              </section>
-            ) : showMentorForm ? (
-              <section className="rounded-2xl border border-zinc-100 p-6">
-                <h2 className="text-2xl font-black text-black">멘토 등록 요청</h2>
-                <p className="mt-2 text-sm font-bold text-zinc-500">
-                  멘토 등록 후 멘토 프로필과 프로그램 작성 기능이 활성화됩니다.
-                </p>
-                <form onSubmit={handleRegisterMentor} className="mt-6">
-                  <textarea
-                    value={mentorAbout}
-                    onChange={(event) => setMentorAbout(event.target.value)}
-                    required
-                    rows={7}
-                    placeholder="멘토링 경험, 전문 분야, 멘티에게 전하고 싶은 메시지를 적어 주세요."
-                    className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                  />
-                  <button
-                    type="submit"
-                    disabled={pendingAction === 'register-mentor'}
-                    className="btn-primary mt-4 w-full"
-                  >
-                    <Plus size={17} />
-                    {pendingAction === 'register-mentor' ? '등록 중...' : '멘토 등록'}
-                  </button>
-                </form>
-              </section>
-            ) : (
-              <section className="rounded-2xl border border-zinc-100 p-8 text-center">
-                <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-[#f5c400] text-black">
-                  <UserPlus size={38} />
-                </div>
-                <h2 className="text-3xl font-black text-black">멘토가 되어보세요</h2>
-                <p className="mt-4 text-sm font-bold leading-6 text-zinc-500">
-                  멘토 등록 후 프로그램을 만들고 멘토링 요청을 받을 수 있습니다.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setShowMentorForm(true)}
-                  className="btn-primary mt-7"
-                >
-                  <Plus size={17} />
-                  멘토 등록하기
-                </button>
-              </section>
-            )}
-          </section>
-        ) : null}
-
-        {detailLoading || selectedProgram ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
-            onClick={() => {
-              if (!detailLoading) {
-                closeProgramDetail();
-              }
-            }}
-          >
-            <div
-              className="max-h-[calc(100dvh-2rem)] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              {detailLoading || !selectedProgram ? (
-                <div className="flex h-64 items-center justify-center">
-                  <Loader2 className="animate-spin text-zinc-400" />
-                </div>
-              ) : (
-                <div>
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                        {gameLabel(selectedProgram.gameName)}
-                      </p>
-                      <h2 className="mt-1 text-2xl font-black text-black">{selectedProgram.title}</h2>
-                      <p className="mt-2 text-sm font-bold text-zinc-500">
-                        멘토 {programMentorName(selectedProgram)} · {formatMileage(selectedProgram.price)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={closeProgramDetail}
-                      className="rounded-full bg-zinc-100 p-2 text-zinc-500"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-
-                  <div className="mt-5 rounded-2xl border border-zinc-100 p-6">
-                    <h3 className="flex items-center gap-1 text-2xl font-black text-black">
-                      {programMentorName(selectedProgram)}
-                      <MembershipBadge active={selectedProgram.membershipBadge} /> 멘토
-                    </h3>
-
-                    <div className="mt-5 grid grid-cols-3 gap-3 text-center">
-                      <div className="rounded-xl bg-zinc-50 p-3">
-                        <p className="text-lg font-black text-black">{formatRatingValue(selectedMentorStats)}</p>
-                        <p className="text-xs font-bold text-zinc-400">평점</p>
-                      </div>
-                      <div className="rounded-xl bg-zinc-50 p-3">
-                        <p className="text-lg font-black text-black">{selectedMentorStats?.reviewCount ?? 0}</p>
-                        <p className="text-xs font-bold text-zinc-400">리뷰</p>
-                      </div>
-                      <div className="rounded-xl bg-zinc-50 p-3">
-                        <p className="text-lg font-black text-black">{selectedMentorStats?.menteeCount ?? 0}</p>
-                        <p className="text-xs font-bold text-zinc-400">신청한 멘티</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-bold leading-6 text-zinc-600">
-                    <p className="font-black text-black">진행 방식</p>
-                    <p>{splitProgramContent(selectedProgram.content).method || '추후 협의'}</p>
-                    <p className="mt-4 font-black text-black">상세 설명</p>
-                    <p>{splitProgramContent(selectedProgram.content).content}</p>
-                  </div>
-
-                  <div className="mt-6">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
-                        <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
-                      </div>
-                      <span className="text-sm font-black text-zinc-400">총 {selectedProgramReviews.length}개</span>
-                    </div>
-
-                    {selectedProgramReviewsLoading ? (
-                      <div className="mt-5 flex h-40 items-center justify-center rounded-2xl bg-zinc-50">
-                        <Loader2 className="animate-spin text-zinc-400" />
-                      </div>
-                    ) : selectedProgramReviews.length > 0 ? (
-                      <div className="mt-5 space-y-3">
-                        {selectedProgramReviews.map((review) => (
-                          <article key={review.id} className="rounded-xl border border-zinc-100 p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
-                                <p className="mt-1 text-xs font-bold text-zinc-400">
-                                  {formatDateTime(review.createdAt)}
-                                </p>
-                              </div>
-                              <span className="rounded-full bg-yellow-50 px-3 py-1 text-xs font-black text-yellow-700">
-                                {review.rating.toFixed(1)}
-                              </span>
-                            </div>
-                            <p className="mt-3 text-sm font-medium leading-6 text-zinc-600">{review.content}</p>
-                          </article>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-5 rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
-                        아직 등록된 멘티 리뷰가 없습니다.
-                      </p>
-                    )}
-                  </div>
-
-                  {!currentUserOwnsProgram(selectedProgram.mentorId) ? (
-                    <button
-                      type="button"
-                      onClick={() => setProgramReportOpen(true)}
-                      className="mt-5 inline-flex items-center gap-1.5 text-xs font-black text-zinc-400 hover:text-red-500"
-                    >
-                      <Flag size={13} />
-                      프로그램 신고
-                    </button>
-                  ) : null}
-                  {programReportOpen ? (
-                    <ReportContentModal
-                      targetType="MENTORING"
-                      targetId={selectedProgram.id}
-                      title="멘토링 프로그램 신고"
-                      author={selectedProgram.mentorNickname}
-                      authorHandle=""
-                      content={selectedProgram.title}
-                      emptyContentLabel="제목 없음"
-                      onClose={() => setProgramReportOpen(false)}
-                    />
-                  ) : null}
-
-                  {currentUserOwnsProgram(selectedProgram.mentorId) ? (
-                    <p className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-black text-zinc-500">
-                      내가 등록한 프로그램입니다.
-                    </p>
-                  ) : selectedProgramApplication ? (
-                    <div className="mt-5 rounded-xl border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/40">
-                      <p className="text-sm font-black text-green-800 dark:text-green-200">이미 신청한 프로그램</p>
-                      <p className="mt-2 text-xs font-bold leading-5 text-green-700 dark:text-green-300">
-                        이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
-                      </p>
-                      <div className="mt-3 flex flex-wrap gap-2 text-xs font-black text-green-700 dark:text-green-300">
-                        <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
-                        <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
-                      </div>
-                    </div>
-                  ) : selectedProgram.status !== 'ACTIVE' ? (
-                    <div className="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-                      <p className="text-sm font-black text-zinc-700">마감된 프로그램</p>
-                      <p className="mt-2 text-xs font-bold leading-5 text-zinc-500">
-                        이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
-                      </p>
-                    </div>
-                  ) : (
-                    <form onSubmit={handleApplyProgram} className="mt-5">
-                      <div className="mb-4 rounded-xl bg-yellow-50 p-4 text-xs font-bold leading-5 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">
-                        신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.
-                      </div>
-
-                      <label className="block space-y-2">
-                        <span className="text-sm font-black text-zinc-700">멘토에게 보낼 메시지</span>
-                        <textarea
-                          value={applicationMessage}
-                          onChange={(event) => setApplicationMessage(event.target.value)}
-                          required
-                          rows={4}
-                          placeholder="원하는 멘토링 방향이나 현재 고민을 적어 주세요."
-                          className="w-full resize-none rounded-xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                        />
-                      </label>
-
-                      <button
-                        type="submit"
-                        disabled={pendingAction === `apply:${selectedProgram.id}`}
-                        className="btn-primary mt-4 w-full"
-                      >
-                        <CreditCard size={17} />
-                        {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
-                      </button>
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {showMileageShortageModal ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
-            onClick={() => setShowMileageShortageModal(false)}
-          >
-            <div
-              className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="mileage-shortage-title"
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-yellow-100 text-yellow-700">
-                    <AlertCircle size={22} />
-                  </div>
-                  <div>
-                    <p id="mileage-shortage-title" className="text-xl font-black text-black">
-                      마일리지가 부족합니다
-                    </p>
-                    <p className="mt-2 text-sm font-bold leading-6 text-zinc-500">
-                      현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 카카오페이로 충전 후 다시 신청해 주세요.
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowMileageShortageModal(false)}
-                  className="rounded-full bg-zinc-100 p-2 text-zinc-500"
-                  aria-label="닫기"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              {selectedProgram ? (
-                <div className="mt-5 rounded-2xl bg-zinc-50 p-4">
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">신청 금액</p>
-                  <p className="mt-1 text-2xl font-black text-black">{formatMileage(selectedProgram.price)}</p>
-                </div>
-              ) : null}
-
-              <div className="mt-6 flex flex-col gap-2 sm:flex-row">
-                <button
-                  type="button"
-                  onClick={() => setShowMileageShortageModal(false)}
-                  className="inline-flex h-12 flex-1 items-center justify-center rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-700"
-                >
-                  나중에 충전
-                </button>
-                <button
-                  type="button"
-                  onClick={goToMileageCharge}
-                  className="btn-primary flex-1"
-                >
-                  <Wallet size={16} />
-                  카카오페이로 충전
-                </button>
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {selectedOwnedProgram ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 py-8"
-            onClick={() => setSelectedOwnedProgramId(null)}
-          >
-            <div
-              className="max-h-[calc(100dvh-2rem)] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">
-                    {gameLabel(selectedOwnedProgram.gameName)}
-                  </p>
-                  <h2 className="mt-1 text-2xl font-black text-black">{selectedOwnedProgram.title}</h2>
-                  <p className="mt-2 text-sm font-bold text-zinc-500">{formatMileage(selectedOwnedProgram.price)}</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setSelectedOwnedProgramId(null)}
-                  className="rounded-full bg-zinc-100 p-2 text-zinc-500"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl bg-zinc-50 p-4">
-                  <p className="flex items-center gap-2 text-sm font-black text-black">
-                    <Star size={16} className="text-yellow-500" />
-                    평균 평점
-                  </p>
-                  <p className="mt-2 text-2xl font-black text-black">{formatRatingValue(mentorProfile)}</p>
-                </div>
-                <div className="rounded-xl bg-zinc-50 p-4">
-                  <p className="text-sm font-black text-black">리뷰 수</p>
-                  <p className="mt-2 text-2xl font-black text-black">{mentorProfile?.reviewCount ?? 0}</p>
-                </div>
-              </div>
-
-              <div className="mt-5 rounded-xl bg-zinc-50 p-4 text-sm font-bold leading-6 text-zinc-600">
-                <p className="font-black text-black">진행 방식</p>
-                <p>{splitProgramContent(selectedOwnedProgram.content).method || '추후 협의'}</p>
-                <p className="mt-4 font-black text-black">상세 설명</p>
-                <p>{splitProgramContent(selectedOwnedProgram.content).content}</p>
-              </div>
-
-              <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-zinc-100 p-4">
-                <div>
-                  <p className="text-sm font-black text-black">프로그램 마감</p>
-                  <p className="mt-1 text-xs font-bold text-zinc-400">
-                    더 이상 운영하지 않을 프로그램은 새 신청을 받지 않도록 마감할 수 있습니다.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleCloseProgram(selectedOwnedProgram)}
-                  disabled={
-                    selectedOwnedProgram.status !== 'ACTIVE' ||
-                    pendingAction === `close-program:${selectedOwnedProgram.id}`
-                  }
-                  className="rounded-lg bg-zinc-100 p-3 text-zinc-600 disabled:opacity-40"
-                  aria-label={selectedOwnedProgram.status === 'ACTIVE' ? '프로그램 마감' : '이미 마감된 프로그램'}
-                >
-                  <Clock3 size={16} />
-                </button>
-              </div>
-
-              <div className="mt-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
-                    <h3 className="mt-1 text-2xl font-black text-black">멘티 리뷰</h3>
-                  </div>
-                  <span className="text-sm font-black text-zinc-400">총 {mentorReviews.length.toLocaleString()}개</span>
-                </div>
-
-                {mentorReviewsLoading ? (
-                  <div className="mt-5 flex h-40 items-center justify-center rounded-2xl bg-zinc-50">
-                    <Loader2 className="animate-spin text-zinc-400" />
-                  </div>
-                ) : mentorReviews.length > 0 ? (
-                  <div className="mt-5 space-y-3">
-                    {mentorReviews.map((review) => (
-                      <article
-                        key={review.id}
-                        id={deepLinkElementId('review', review.id)}
-                        className={`rounded-xl border p-4 transition-colors ${
-                          highlightedReviewId === review.id
-                            ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
-                            : 'border-zinc-100 dark:border-line'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="flex items-center gap-1 font-black text-black">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /></p>
-                            <p className="mt-1 text-xs font-bold text-zinc-400">
-                              {formatDateTime(review.createdAt)}
-                            </p>
-                          </div>
-                          <span className="rounded-full bg-yellow-50 px-3 py-1 text-xs font-black text-yellow-700">
-                            {review.rating.toFixed(1)}
-                          </span>
-                        </div>
-                        <p className="mt-2 text-xs font-black text-zinc-400">{review.programTitle}</p>
-                        <p className="mt-3 text-sm font-medium leading-6 text-zinc-600">{review.content}</p>
-                      </article>
                     ))}
                   </div>
                 ) : (
-                  <p className="mt-5 rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
-                    아직 등록된 리뷰가 없습니다.
+                  <div className="rounded-card border border-dashed border-line bg-surface p-8 text-center">
+                    <p className="font-semibold text-fg-primary">등록된 프로그램이 없습니다.</p>
+                    {gameFilter && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProgramPageNumber(0);
+                          setGameFilter('');
+                        }}
+                        className="btn-secondary mt-4"
+                      >
+                        필터 초기화
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {totalPages > 1 ? (
+                <div className="mt-5 flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setProgramPageNumber((page) => Math.max(page - 1, 0))}
+                    disabled={programPageNumber <= 0}
+                    className="btn-secondary"
+                  >
+                    이전
+                  </button>
+                  <span className="text-label text-fg-tertiary">
+                    {programPageNumber + 1} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setProgramPageNumber((page) => Math.min(page + 1, totalPages - 1))}
+                    disabled={programPageNumber >= totalPages - 1}
+                    className="btn-secondary"
+                  >
+                    다음
+                  </button>
+                </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-mine`}
+          aria-labelledby={`${tabsId}-tab-mine`}
+          hidden={activeTab !== 'mine'}
+          tabIndex={0}
+          className={FOCUS_RING}
+        >
+          {activeTab === 'mine' ? (
+            <section className="space-y-6">
+              <div className={PROGRAM_GRID}>
+                <ApplicationList
+                  title="내가 신청한 멘토링"
+                  role="mentee"
+                  applications={menteeApplications}
+                  highlightedApplicationId={highlightedApplicationId}
+                  pendingAction={pendingAction}
+                  onChat={(application) => handleOpenChat(application, 'mentee')}
+                  onCancel={(id) => runApplicationAction(id, 'cancel')}
+                  onComplete={(id) => runApplicationAction(id, 'complete')}
+                  onReview={(application) => openReviewModal(application)}
+                  onReviewedClick={() => showNotice(REVIEW_ALREADY_COMPLETED_MESSAGE)}
+                />
+                <ApplicationList
+                  title="받은 멘토링 요청"
+                  role="mentor"
+                  applications={mentorApplications}
+                  highlightedApplicationId={highlightedApplicationId}
+                  pendingAction={pendingAction}
+                  onChat={(application) => handleOpenChat(application, 'mentor')}
+                  onAccept={(id) => runApplicationAction(id, 'accept')}
+                  onReject={(id) => runApplicationAction(id, 'reject')}
+                  onStart={(id) => runApplicationAction(id, 'start')}
+                  onFinish={(id) => runApplicationAction(id, 'finish')}
+                />
+              </div>
+
+            </section>
+          ) : null}
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-programs`}
+          aria-labelledby={`${tabsId}-tab-programs`}
+          hidden={activeTab !== 'programs'}
+          tabIndex={0}
+          className={FOCUS_RING}
+        >
+          {activeTab === 'programs' ? (
+            <section>
+              {mentorProfileLoading ? (
+                <div className="flex h-64 items-center justify-center rounded-2xl bg-subtle">
+                  <Loader2 className="animate-spin text-fg-tertiary" />
+                </div>
+              ) : mentorProfile ? (
+                <div className="space-y-6">
+                  <h2 className="flex flex-wrap items-center gap-1 text-heading text-fg-primary">
+                    {mentorProfile.nickname}<MembershipBadgeInline active={mentorProfile.membershipBadge} tier={mentorProfile.representativeTier} /> 멘토
+                  </h2>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                    {[
+                      ['평점', formatRatingValue(mentorProfile)],
+                      ['리뷰', mentorProfile.reviewCount],
+                      ['신청한 멘티', mentorProfile.menteeCount],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-card border border-line-card bg-surface p-4">
+                        <p className="text-caption text-fg-secondary">{label}</p>
+                        <p className="mt-1 text-heading text-fg-primary">{value}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <section>
+                      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+                        <h2 className="text-heading text-fg-primary">내 프로그램</h2>
+                        {mentorProfile.status === 'ACTIVE' ? (
+                          <button type="button" onClick={() => changeTab('become')} className="btn-primary">
+                            <Plus size={16} /> 프로그램 만들기
+                          </button>
+                        ) : null}
+                      </div>
+
+                      {ownedPrograms.length > 0 ? (
+                        <div className={PROGRAM_GRID}>
+                          {ownedPrograms.map((program) => (
+                            <ProgramCard
+                              key={program.id}
+                              program={program}
+                              game={gameLabel(program.gameName)}
+                              owned
+                              onOpen={() => setSelectedOwnedProgramId(program.id)}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="rounded-card border border-dashed border-line bg-surface p-8 text-center">
+                          <p className="font-semibold text-fg-primary">아직 만든 프로그램이 없습니다.</p>
+                        </div>
+                      )}
+                    </section>
+                  </div>
+                </div>
+              ) : (
+                <section className="rounded-card border border-line-card bg-surface p-6 sm:p-8 text-center">
+                  <button
+                    type="button"
+                    onClick={() => changeTab('become')}
+                    className="btn-primary mx-auto"
+                  >
+                    <Plus size={17} />
+                    멘토 되기
+                  </button>
+                  <p className="mt-5 text-lg font-semibold text-fg-primary">멘토가 되어보세요!</p>
+                </section>
+              )}
+            </section>
+          ) : null}
+        </div>
+
+        <div
+          role="tabpanel"
+          id={`${tabsId}-panel-become`}
+          aria-labelledby={`${tabsId}-tab-become`}
+          hidden={activeTab !== 'become'}
+          tabIndex={0}
+          className={FOCUS_RING}
+        >
+          {activeTab === 'become' ? (
+            <section>
+              {mentorProfileLoading ? (
+                <div className="flex h-64 items-center justify-center rounded-2xl bg-subtle">
+                  <Loader2 className="animate-spin text-fg-tertiary" />
+                </div>
+              ) : mentorProfile && mentorProfile.status !== 'ACTIVE' ? (
+                <section role="status" className="rounded-card border border-line-card bg-surface p-6 sm:p-8 text-center">
+                  <h2 className="text-title text-fg-primary">
+                    {mentorProfile.status === 'PENDING_APPROVAL' ? '멘토 승인 대기 중' : '멘토 등록이 반려되었습니다'}
+                  </h2>
+                  <p className="mt-4 text-body leading-6 text-fg-secondary">
+                    {mentorProfile.status === 'PENDING_APPROVAL'
+                      ? '관리자 승인이 완료되면 프로그램을 등록할 수 있습니다.'
+                      : '멘토 승인이 완료되지 않아 프로그램을 등록할 수 없습니다.'}
                   </p>
+                </section>
+              ) : mentorProfile ? (
+                <section className="rounded-card border border-line-card bg-surface p-4 sm:p-6">
+                  <form onSubmit={handleSubmitProgram}>
+                    <h2 className="text-title text-fg-primary">프로그램 만들기</h2>
+
+                    <div className="mt-6 grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="block space-y-2">
+                          <span className="text-label text-fg-secondary">게임</span>
+                          <select
+                            name="gameName"
+                            value={programGameCode}
+                            disabled={gamesLoading || Boolean(gamesError)}
+                            onChange={handleProgramFormChange}
+                            className="input-base"
+                          >
+                            {games.map((game) => (
+                              <option key={game.code} value={game.code}>
+                                {game.name}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        {gamesNotice}
+                      </div>
+
+                      <label className="space-y-2">
+                        <span className="text-label text-fg-secondary">가격</span>
+                        <input
+                          name="price"
+                          value={programForm.price}
+                          onChange={handleProgramFormChange}
+                          required
+                          inputMode="numeric"
+                          className="input-base"
+                        />
+                      </label>
+                    </div>
+
+                    <label className="mt-4 block space-y-2">
+                      <span className="text-label text-fg-secondary">프로그램 제목</span>
+                      <input
+                        name="title"
+                        value={programForm.title}
+                        onChange={handleProgramFormChange}
+                        required
+                        className="input-base"
+                      />
+                    </label>
+
+                    <label className="mt-4 block space-y-2">
+                      <span className="text-label text-fg-secondary">진행 방식</span>
+                      <input
+                        name="method"
+                        value={programForm.method}
+                        onChange={handleProgramFormChange}
+                        required
+                        className="input-base"
+                      />
+                    </label>
+
+                    <label className="mt-4 block space-y-2">
+                      <span className="text-label text-fg-secondary">상세 설명</span>
+                      <textarea
+                        name="content"
+                        value={programForm.content}
+                        onChange={handleProgramFormChange}
+                        required
+                        rows={5}
+                        className="input-base h-auto resize-y py-3"
+                      />
+                    </label>
+
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <input
+                        name="availableTimeDesc"
+                        value={programForm.availableTimeDesc}
+                        onChange={handleProgramFormChange}
+                        placeholder="가능한 시간대"
+                        aria-label="가능한 시간대"
+                        className="input-base"
+                      />
+                      <input
+                        name="tags"
+                        value={programForm.tags}
+                        onChange={handleProgramFormChange}
+                        placeholder="태그, 쉼표로 구분"
+                        aria-label="태그"
+                        className="input-base"
+                      />
+                    </div>
+
+                    <button
+                      type="submit"
+                      disabled={pendingAction === 'save-program' || !gamesReady}
+                      className="btn-primary mt-5 w-full"
+                    >
+                      <Plus size={17} />
+                      {pendingAction === 'save-program' ? '저장 중...' : '프로그램 등록'}
+                    </button>
+                  </form>
+                </section>
+              ) : (
+                <div className="space-y-5">
+                  <div className="rounded-card bg-brand-subtle p-5 lg:p-7">
+                    <h2 className="text-title text-fg-primary">멘토가 되어보세요</h2>
+                    <p className="mt-2 text-body text-fg-secondary">게임 실력과 경험을 나누고 마일리지로 정산받을 수 있어요. 관리자 승인 후 프로그램을 등록할 수 있습니다.</p>
+                  </div>
+                  <form onSubmit={handleRegisterMentor} className="rounded-card border border-line-card bg-surface p-4 sm:p-6">
+                    <h2 className="text-heading text-fg-primary">멘토 등록 요청</h2>
+                    <label className="mt-2 block space-y-2">
+                      <span className="text-label text-fg-secondary">자기소개</span>
+                      <textarea
+                        value={mentorAbout}
+                        onChange={(event) => setMentorAbout(event.target.value)}
+                        required
+                        rows={5}
+                        placeholder="멘토링 경험, 전문 분야, 멘티에게 전하고 싶은 메시지를 적어 주세요."
+                        className="input-base h-auto resize-y py-3"
+                      />
+                    </label>
+                    <div className="mt-4 flex justify-end">
+                      <button type="submit" disabled={pendingAction === 'register-mentor'} className="btn-primary">
+                        {pendingAction === 'register-mentor' ? '등록 중...' : '등록 요청'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              )}
+            </section>
+          ) : null}
+        </div>
+
+        {detailLoading || selectedProgram ? (
+          <MentoringDialog
+            label={selectedProgram?.title ?? '프로그램 상세'}
+            width="lg:max-w-[560px]"
+            onBackdropClick={detailLoading ? undefined : closeProgramDetail}
+            active={!showMileageShortageModal && !programReportOpen}
+          >
+            {detailLoading || !selectedProgram ? (
+              <div className="flex h-64 items-center justify-center">
+                <Loader2 className="animate-spin text-fg-tertiary" />
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="inline-block rounded-sm bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
+                      {gameLabel(selectedProgram.gameName)}
+                    </p>
+                    <h2 className="mt-3 break-words text-title text-fg-primary">{selectedProgram.title}</h2>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={closeProgramDetail}
+                    aria-label="프로그램 상세 닫기"
+                    className="btn-icon"
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+
+                <div className="mt-4">
+                  <p className="flex flex-wrap items-center gap-2 text-label text-fg-primary">
+                    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(programMentorName(selectedProgram))}</span>
+                    {programMentorName(selectedProgram)}
+                    <MembershipBadgeInline active={selectedProgram.membershipBadge} tier={selectedProgram.representativeTier} />
+                  </p>
+
+                  <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3">
+                    <div className="rounded-control bg-subtle p-3">
+                      <p className="text-lg font-semibold text-fg-primary">{formatRatingValue(selectedMentorStats)}</p>
+                      <p className="text-caption text-fg-secondary">평점</p>
+                    </div>
+                    <div className="rounded-control bg-subtle p-3">
+                      <p className="text-lg font-semibold text-fg-primary">{selectedMentorStats?.reviewCount ?? 0}</p>
+                      <p className="text-caption text-fg-secondary">리뷰</p>
+                    </div>
+                    <div className="rounded-control bg-subtle p-3">
+                      <p className="text-lg font-semibold text-fg-primary">{selectedMentorStats?.menteeCount ?? 0}</p>
+                      <p className="text-caption text-fg-secondary">신청한 멘티</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-5 break-words text-body text-fg-primary">
+                  <p className="mb-1 text-label text-fg-secondary">진행 방식</p>
+                  <p>{[selectedProgram.availableTimeDesc, selectedProgramContent.method].filter(Boolean).join(' · ') || '추후 협의'}</p>
+                  <p className="mt-4 mb-1 text-label text-fg-secondary">상세 설명</p>
+                  <p className="whitespace-pre-wrap">{selectedProgramContent.content}</p>
+                </div>
+
+                <div className="mt-6">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-label text-fg-secondary">멘티 리뷰</h3>
+                    </div>
+                    <span className="text-label text-fg-tertiary">총 {selectedProgramReviews.length}개</span>
+                  </div>
+
+                  {selectedProgramReviewsLoading ? (
+                    <div className="mt-5 flex h-40 items-center justify-center rounded-2xl bg-subtle">
+                      <Loader2 className="animate-spin text-fg-tertiary" />
+                    </div>
+                  ) : selectedProgramReviews.length > 0 ? (
+                    <div className="mt-5 space-y-3">
+                      {selectedProgramReviews.map((review) => (
+                        <article key={review.id} className="rounded-xl border border-line-card p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="flex items-center gap-1 font-semibold text-fg-primary">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
+                              <p className="mt-1 text-caption text-fg-secondary">
+                                {formatDateTime(review.createdAt)}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-brand-subtle px-3 py-1 text-caption text-fg-brand">
+                              {review.rating.toFixed(1)}
+                            </span>
+                          </div>
+                          <p className="mt-3 text-body leading-6 text-fg-secondary">{review.content}</p>
+                        </article>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-5 rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
+                      아직 등록된 멘티 리뷰가 없습니다.
+                    </p>
+                  )}
+                </div>
+
+                {!currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                  <button
+                    ref={programReportButtonRef}
+                    type="button"
+                    onClick={() => { if (requireAuth('신고하려면 로그인이 필요해요.')) setProgramReportOpen(true); }}
+                    className="mt-5 inline-flex items-center gap-1.5 text-caption text-fg-secondary hover:text-fg-danger"
+                  >
+                    <Flag size={13} />
+                    프로그램 신고
+                  </button>
+                ) : null}
+                {programReportOpen ? (
+                  <ReportContentModal
+                    targetType="MENTORING"
+                    targetId={selectedProgram.id}
+                    title="멘토링 프로그램 신고"
+                    author={selectedProgram.mentorNickname}
+                    authorHandle=""
+                    content={selectedProgram.title}
+                    emptyContentLabel="제목 없음"
+                    onClose={closeProgramReport}
+                  />
+                ) : null}
+
+                {currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                  <p className="mt-5 rounded-control bg-subtle p-4 text-label text-fg-secondary">
+                    내가 등록한 프로그램입니다.
+                  </p>
+                ) : selectedProgramApplication ? (
+                  <div className="mt-5 rounded-xl border border-line bg-success-subtle p-4">
+                    <p className="text-label text-fg-primary">이미 신청한 프로그램</p>
+                    <p className="mt-2 text-caption leading-5 text-fg-secondary">
+                      이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-caption text-fg-secondary">
+                      <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
+                      <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
+                    </div>
+                  </div>
+                ) : selectedProgram.status !== 'ACTIVE' ? (
+                  <div className="mt-5 rounded-xl border border-line bg-subtle p-4">
+                    <p className="text-label text-fg-secondary">마감된 프로그램</p>
+                    <p className="mt-2 text-caption leading-5 text-fg-secondary">
+                      이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
+                    </p>
+                  </div>
+                ) : !user ? <button type="button" className="btn-primary mt-5 w-full" onClick={() => requireAuth('멘토링을 신청하려면 로그인이 필요해요.', { returnTo: `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` })}>로그인하고 신청하기</button> : (
+                  <form onSubmit={handleApplyProgram} className="mt-5">
+                    <div className="mb-4 rounded-xl bg-brand-subtle p-4 text-caption text-fg-secondary">
+                      신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.
+                    </div>
+
+                    <label className="block space-y-2">
+                      <span className="text-label text-fg-secondary">멘토에게 보낼 메시지</span>
+                      <textarea
+                        value={applicationMessage}
+                        onChange={(event) => setApplicationMessage(event.target.value)}
+                        required
+                        rows={4}
+                        placeholder="원하는 멘토링 방향이나 현재 고민을 적어 주세요."
+                        className="input-base h-auto resize-y py-3"
+                      />
+                    </label>
+
+                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                      <div>
+                        <p className="text-caption text-fg-secondary">신청 금액</p>
+                        <p className="text-heading text-fg-primary">{formatMileage(selectedProgram.price)}</p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button type="button" onClick={closeProgramDetail} className="btn-secondary">취소</button>
+                        <button type="submit" disabled={pendingAction === `apply:${selectedProgram.id}`} className="btn-primary">
+                          {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
+                        </button>
+                      </div>
+                    </div>
+                  </form>
                 )}
               </div>
+            )}
+          </MentoringDialog>
+        ) : null}
+
+        {showMileageShortageModal ? (
+          <MentoringDialog label="마일리지가 부족합니다" width="lg:max-w-md" onBackdropClick={() => setShowMileageShortageModal(false)}>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-subtle text-fg-brand">
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <p id="mileage-shortage-title" className="text-heading text-fg-primary">
+                    마일리지가 부족합니다
+                  </p>
+                  <p className="mt-2 text-body leading-6 text-fg-secondary">
+                    현재 보유 마일리지로는 이 프로그램을 신청할 수 없습니다. 카카오페이로 충전 후 다시 신청해 주세요.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMileageShortageModal(false)}
+                className="btn-icon"
+                aria-label="닫기"
+              >
+                <X size={16} />
+              </button>
             </div>
-          </div>
+
+            {selectedProgram ? (
+              <div className="mt-5 rounded-2xl bg-subtle p-4">
+                <p className="text-caption text-fg-secondary">신청 금액</p>
+                <p className="mt-1 text-title text-fg-primary">{formatMileage(selectedProgram.price)}</p>
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowMileageShortageModal(false)}
+                className="btn-secondary flex-1"
+              >
+                나중에 충전
+              </button>
+              <button
+                type="button"
+                onClick={goToMileageCharge}
+                className="btn-primary flex-1"
+              >
+                <Wallet size={16} />
+                카카오페이로 충전
+              </button>
+            </div>
+          </MentoringDialog>
+        ) : null}
+
+        {selectedOwnedProgram ? (
+          <MentoringDialog label={selectedOwnedProgram.title} width="lg:max-w-[560px]" onBackdropClick={() => setSelectedOwnedProgramId(null)}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-caption text-fg-secondary">
+                  {gameLabel(selectedOwnedProgram.gameName)}
+                </p>
+                <h2 className="mt-1 text-title text-fg-primary">{selectedOwnedProgram.title}</h2>
+                <p className="mt-2 text-body text-fg-secondary">{formatMileage(selectedOwnedProgram.price)}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOwnedProgramId(null)}
+                aria-label="내 프로그램 상세 닫기"
+                className="btn-icon"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <div className="rounded-control bg-subtle p-4">
+                <p className="flex items-center gap-2 text-label text-fg-primary">
+                  <Star size={16} className="text-fg-brand" />
+                  평균 평점
+                </p>
+                <p className="mt-2 text-title text-fg-primary">{formatRatingValue(mentorProfile)}</p>
+              </div>
+              <div className="rounded-control bg-subtle p-4">
+                <p className="text-label text-fg-primary">리뷰 수</p>
+                <p className="mt-2 text-title text-fg-primary">{mentorProfile?.reviewCount ?? 0}</p>
+              </div>
+            </div>
+
+            <div className="mt-5 rounded-control bg-subtle p-4 text-body leading-6 text-fg-secondary">
+              <p className="font-semibold text-fg-primary">진행 방식</p>
+              <p>{splitProgramContent(selectedOwnedProgram.content).method || '추후 협의'}</p>
+              <p className="mt-4 font-semibold text-fg-primary">상세 설명</p>
+              <p>{splitProgramContent(selectedOwnedProgram.content).content}</p>
+            </div>
+
+            <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+              <div>
+                <p className="text-label text-fg-primary">프로그램 마감</p>
+                <p className="mt-1 text-caption text-fg-secondary">
+                  더 이상 운영하지 않을 프로그램은 새 신청을 받지 않도록 마감할 수 있습니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleCloseProgram(selectedOwnedProgram)}
+                disabled={
+                  selectedOwnedProgram.status !== 'ACTIVE' ||
+                  pendingAction === `close-program:${selectedOwnedProgram.id}`
+                }
+                className="rounded-lg bg-subtle p-3 text-fg-secondary disabled:opacity-40"
+                aria-label={selectedOwnedProgram.status === 'ACTIVE' ? '프로그램 마감' : '이미 마감된 프로그램'}
+              >
+                <Clock3 size={16} />
+              </button>
+            </div>
+
+            <div className="mt-6">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-caption text-fg-secondary">리뷰</p>
+                  <h3 className="mt-1 text-title text-fg-primary">멘티 리뷰</h3>
+                </div>
+                <span className="text-label text-fg-tertiary">총 {mentorReviews.length.toLocaleString()}개</span>
+              </div>
+
+              {mentorReviewsLoading ? (
+                <div className="mt-5 flex h-40 items-center justify-center rounded-2xl bg-subtle">
+                  <Loader2 className="animate-spin text-fg-tertiary" />
+                </div>
+              ) : mentorReviews.length > 0 ? (
+                <div className="mt-5 space-y-3">
+                  {mentorReviews.map((review) => (
+                    <article
+                      key={review.id}
+                      id={deepLinkElementId('review', review.id)}
+                      className={`rounded-xl border p-4 transition-colors ${
+                        highlightedReviewId === review.id
+                          ? 'border-fg-brand bg-brand-subtle ring-2 ring-line-focus'
+                          : 'border-line-card bg-surface'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="flex items-center gap-1 font-semibold text-fg-primary">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
+                          <p className="mt-1 text-caption text-fg-secondary">
+                            {formatDateTime(review.createdAt)}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-brand-subtle px-3 py-1 text-caption text-fg-brand">
+                          {review.rating.toFixed(1)}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-caption text-fg-secondary">{review.programTitle}</p>
+                      <p className="mt-3 text-body leading-6 text-fg-secondary">{review.content}</p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-5 rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
+                  아직 등록된 리뷰가 없습니다.
+                </p>
+              )}
+            </div>
+          </MentoringDialog>
         ) : null}
 
         {reviewTarget ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-            <div className="max-h-[90dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">리뷰</p>
-                  <h2 className="mt-1 text-2xl font-black text-black">리뷰 작성</h2>
-                  <p className="mt-2 text-sm font-bold text-zinc-500">
-                    {reviewTarget.programTitle}에 대한 평점과 리뷰를 남겨 주세요.
-                  </p>
+          <MentoringDialog label="리뷰 작성" width="lg:max-w-lg">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-caption text-fg-secondary">리뷰</p>
+                <h2 className="mt-1 text-title text-fg-primary">리뷰 작성</h2>
+                <p className="mt-2 text-body text-fg-secondary">
+                  {reviewTarget.programTitle}에 대한 평점과 리뷰를 남겨 주세요.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={closeReviewModal}
+                aria-label="리뷰 작성 닫기"
+                disabled={pendingAction === `review:${reviewTarget.id}`}
+                className="btn-icon"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitReview} className="mt-6">
+              <div>
+                <p className="text-label text-fg-secondary">평점</p>
+                <div
+                  role="radiogroup"
+                  aria-label="평점"
+                  className="mt-3 flex flex-wrap items-center gap-2"
+                  onKeyDown={(event) => {
+                    const radios = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]'));
+                    const index = radios.findIndex((radio) => radio === event.target);
+                    if (index === -1) return;
+                    let nextIndex: number;
+                    switch (event.key) {
+                      case 'ArrowLeft': case 'ArrowUp': nextIndex = (index + radios.length - 1) % radios.length; break;
+                      case 'ArrowRight': case 'ArrowDown': nextIndex = (index + 1) % radios.length; break;
+                      case 'Home': nextIndex = 0; break;
+                      case 'End': nextIndex = radios.length - 1; break;
+                      default: return;
+                    }
+                    event.preventDefault();
+                    setReviewRating(nextIndex + 1);
+                    radios[nextIndex].focus();
+                  }}
+                >
+                  {[1, 2, 3, 4, 5].map((value) => {
+                    const active = value <= reviewRating;
+
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        onClick={() => setReviewRating(value)}
+                        aria-label={`${value}점`}
+                        aria-checked={value === reviewRating}
+                        tabIndex={value === reviewRating ? 0 : -1}
+                        className={`rounded-full p-2 transition ${FOCUS_RING} ${
+                          active ? 'bg-brand-subtle text-fg-brand' : 'bg-subtle text-fg-tertiary'
+                        }`}
+                      >
+                        <Star size={18} fill={active ? 'currentColor' : 'none'} />
+                      </button>
+                    );
+                  })}
+                  <span className="ml-2 text-label text-fg-secondary">{reviewRating} / 5</span>
                 </div>
+              </div>
+
+              <label className="mt-6 block">
+                <span className="text-label text-fg-secondary">리뷰</span>
+                <textarea
+                  value={reviewContent}
+                  onChange={(event) => setReviewContent(event.target.value)}
+                  rows={5}
+                  maxLength={500}
+                  placeholder="멘토링이 어땠는지 자세히 적어 주세요."
+                  className="input-base mt-3 h-auto resize-y py-3"
+                />
+              </label>
+
+              <div className="mt-2 text-right text-caption text-fg-secondary">
+                {reviewContent.trim().length} / 500
+              </div>
+
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={closeReviewModal}
                   disabled={pendingAction === `review:${reviewTarget.id}`}
-                  className="rounded-full bg-zinc-100 p-2 text-zinc-500 disabled:opacity-50"
+                  className="btn-secondary"
                 >
-                  <X size={16} />
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={pendingAction === `review:${reviewTarget.id}`}
+                  className="btn-primary"
+                >
+                  {pendingAction === `review:${reviewTarget.id}` ? '등록 중...' : '리뷰 등록'}
                 </button>
               </div>
-
-              <form onSubmit={handleSubmitReview} className="mt-6">
-                <div>
-                  <p className="text-sm font-black text-zinc-700">평점</p>
-                  <div className="mt-3 flex items-center gap-2">
-                    {[1, 2, 3, 4, 5].map((value) => {
-                      const active = value <= reviewRating;
-
-                      return (
-                        <button
-                          key={value}
-                          type="button"
-                          onClick={() => setReviewRating(value)}
-                          className={`rounded-full p-2 transition ${
-                            active ? 'bg-yellow-100 text-yellow-500' : 'bg-zinc-100 text-zinc-400'
-                          }`}
-                        >
-                          <Star size={18} fill={active ? 'currentColor' : 'none'} />
-                        </button>
-                      );
-                    })}
-                    <span className="ml-2 text-sm font-black text-zinc-500">{reviewRating} / 5</span>
-                  </div>
-                </div>
-
-                <label className="mt-6 block">
-                  <span className="text-sm font-black text-zinc-700">리뷰</span>
-                  <textarea
-                    value={reviewContent}
-                    onChange={(event) => setReviewContent(event.target.value)}
-                    rows={5}
-                    maxLength={500}
-                    placeholder="멘토링이 어땠는지 자세히 적어 주세요."
-                    className="mt-3 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                  />
-                </label>
-
-                <div className="mt-2 text-right text-xs font-bold text-zinc-400">
-                  {reviewContent.trim().length} / 500
-                </div>
-
-                <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
-                  <button
-                    type="button"
-                    onClick={closeReviewModal}
-                    disabled={pendingAction === `review:${reviewTarget.id}`}
-                    className="rounded-xl border border-zinc-200 px-4 py-3 text-sm font-black text-zinc-600 disabled:opacity-50"
-                  >
-                    취소
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={pendingAction === `review:${reviewTarget.id}`}
-                    className="btn-primary"
-                  >
-                    {pendingAction === `review:${reviewTarget.id}` ? '등록 중...' : '리뷰 등록'}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+            </form>
+          </MentoringDialog>
         ) : null}
-      </main>
+      </div>
     </div>
+  );
+}
+
+function MentoringDialog({ label, width, onBackdropClick, active = true, children }: {
+  label: string;
+  width: string;
+  onBackdropClick?: () => void;
+  active?: boolean;
+  children: ReactNode;
+}) {
+  const panel = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const trigger = document.activeElement;
+    panel.current?.focus();
+    return () => {
+      if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
+    };
+  }, []);
+
+  return (
+    <div className={DIALOG_BACKDROP} onClick={onBackdropClick}>
+      <div
+        ref={panel}
+        role="dialog"
+        aria-modal={active || undefined}
+        aria-label={label}
+        tabIndex={-1}
+        className={`${DIALOG_PANEL} ${width}`}
+        onClick={(event) => event.stopPropagation()}
+        onKeyDown={(event) => {
+          if (!active || event.key !== 'Tab') return;
+          const controls = event.currentTarget.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled)',
+          );
+          const first = controls[0];
+          const last = controls[controls.length - 1];
+          const focused = document.activeElement;
+          if (!first || focused === event.currentTarget || focused === (event.shiftKey ? first : last)) {
+            event.preventDefault();
+            (event.shiftKey ? last : first)?.focus();
+          }
+        }}
+      >
+        <div aria-hidden="true" className="absolute left-1/2 top-2.5 h-1 w-10 -translate-x-1/2 rounded-full bg-line-strong lg:hidden" />
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function ProgramCard({ program, game, rating, owned, onOpen }: {
+  program: MentoringProgramResponse;
+  game: string;
+  rating?: string;
+  owned?: boolean;
+  onOpen: () => void;
+}) {
+  const mentor = programMentorName(program);
+  const { method, content } = splitProgramContent(program.content);
+  const description = [program.availableTimeDesc, method || content].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      type="button"
+      onClick={onOpen}
+      className={`flex min-w-0 flex-col rounded-card border border-line-card bg-surface p-4 text-left transition hover:border-line-strong sm:p-5 ${FOCUS_RING}`}
+    >
+      <span className="flex w-full flex-wrap items-baseline justify-between gap-2 text-caption text-fg-secondary">
+        <span className="rounded-sm bg-subtle px-2 py-0.5">{game}</span>
+        {rating ? <span>{rating}</span> : null}
+        {!owned && program.status !== 'ACTIVE' ? <span>마감</span> : null}
+      </span>
+      <span className="mt-3 block w-full break-words text-heading text-fg-primary">{program.title}</span>
+      <span className="mt-3 mb-3 line-clamp-2 break-words text-caption text-fg-secondary">{description || '시간 협의 가능'}</span>
+      <span className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-label text-fg-primary">
+        {owned ? (
+          <span className={program.status === 'ACTIVE' ? 'text-fg-brand' : 'text-fg-secondary'}>
+            {program.status === 'ACTIVE' ? '모집 중' : '마감'}
+          </span>
+        ) : (
+          <span className="flex min-w-0 items-center gap-2">
+            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(mentor)}</span>
+            <span className="min-w-0 break-words">{mentor}</span>
+            <MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} />
+          </span>
+        )}
+        <span className="shrink-0 tabular-nums">{formatMileage(program.price)}</span>
+      </span>
+    </button>
   );
 }
 
@@ -2106,9 +2166,9 @@ function ApplicationList({
   onReviewedClick?: (application: MentoringApplicationResponse) => void;
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-100 p-5">
-      <h2 className="text-2xl font-black text-black">{title}</h2>
-      <div className="mt-5 space-y-4">
+    <section className="min-w-0">
+      <h2 className="text-heading text-fg-primary">{title}</h2>
+      <div className="mt-3 space-y-3">
         {applications.length > 0 ? (
           applications.map((application) => (
             <ApplicationCard
@@ -2129,12 +2189,12 @@ function ApplicationList({
             />
           ))
         ) : (
-          <p className="rounded-xl bg-zinc-50 p-6 text-center text-sm font-bold text-zinc-400">
+          <p className="rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
             표시할 요청 내역이 없습니다.
           </p>
         )}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -2175,50 +2235,47 @@ function ApplicationCard({
   return (
     <article
       id={deepLinkElementId('application', application.id)}
-      className={`rounded-xl border p-4 transition-colors ${
+      className={`min-w-0 rounded-card border p-4 transition-colors sm:p-5 ${
         highlighted
-          ? 'border-yellow-400 bg-yellow-50 ring-2 ring-yellow-300 dark:border-yellow-500 dark:bg-yellow-500/10 dark:ring-yellow-500/60'
-          : 'border-zinc-100 dark:border-line'
+          ? 'border-fg-brand bg-brand-subtle ring-2 ring-line-focus'
+          : 'border-line-card bg-surface'
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h3 className="truncate font-black text-black">{application.programTitle}</h3>
-          <p className="mt-1 text-xs font-bold text-zinc-400">
-            멘토 {application.mentorNickname}<MembershipBadgeInline active={application.mentorMembershipBadge} /> · 멘티{' '}
-            {application.menteeNickname}<MembershipBadgeInline active={application.menteeMembershipBadge} />
-          </p>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-2">
+          <span className="rounded-sm bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
+            {statusLabel[application.status] ?? application.status}
+          </span>
+          <span className="break-words text-caption text-fg-secondary">
+            {role === 'mentor' ? '멘티' : '멘토'} {role === 'mentor' ? application.menteeNickname : application.mentorNickname}
+            <MembershipBadgeInline
+              active={role === 'mentor' ? application.menteeMembershipBadge : application.mentorMembershipBadge}
+              tier={role === 'mentor' ? application.menteeRepresentativeTier : application.mentorRepresentativeTier}
+            />
+          </span>
         </div>
-        <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black text-zinc-500">
-          {statusLabel[application.status] ?? application.status}
-        </span>
+        <span className="shrink-0 text-label text-fg-primary">{formatMileage(application.appliedMileage)}</span>
       </div>
-
-      <p className="mt-4 rounded-xl bg-zinc-50 p-4 text-sm font-medium leading-6 text-zinc-600">
-        {application.message}
-      </p>
-
-      <div className="mt-4 grid gap-2 text-xs font-bold text-zinc-500 sm:grid-cols-2">
-        <span>금액: {formatMileage(application.appliedMileage)}</span>
-        <span>결제: {paymentLabel[application.paymentStatus] ?? application.paymentStatus}</span>
-      </div>
+      <h3 className="mt-3 break-words text-heading text-fg-primary">{application.programTitle}</h3>
+      <p className="mt-2 whitespace-pre-wrap break-words text-body text-fg-secondary">{application.message}</p>
+      <p className="mt-2 text-caption text-fg-secondary">결제: {paymentLabel[application.paymentStatus] ?? application.paymentStatus}</p>
 
       {role === 'mentor' && application.feeRateBp != null && application.feeAmount != null ? (
-        <p className="mt-2 text-xs font-bold text-zinc-500">
+        <p className="mt-2 text-caption text-fg-secondary">
           {formatMileage(application.appliedMileage)} 중 수수료 {formatMileage(application.feeAmount)}({application.feeRateBp / 100}%) · 수령{' '}
           {formatMileage(application.payoutAmount ?? application.appliedMileage - application.feeAmount)}
         </p>
       ) : null}
       {role === 'mentor' && application.nonMemberNotice ? (
-        <p className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-zinc-500">
+        <p className="mt-2 flex flex-wrap items-center gap-2 text-caption text-fg-secondary">
           {application.feeNotice || '멤버십이면 수수료 5%'}
-          <Link href="/membership" className="font-black text-black underline underline-offset-2 dark:text-zinc-100">
+          <Link href="/membership" className="font-semibold text-fg-brand underline underline-offset-2">
             멤버십 보기
           </Link>
         </p>
       ) : null}
 
-      {guide ? <p className="mt-4 rounded-xl bg-yellow-50 p-3 text-xs font-bold text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200">{guide}</p> : null}
+      {guide ? <p className="mt-4 rounded-xl bg-brand-subtle p-3 text-caption text-fg-secondary">{guide}</p> : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
         <button
@@ -2226,7 +2283,7 @@ function ApplicationCard({
           onClick={onChat}
           disabled={actionPending || !chatEnabled}
           title={chatEnabled ? '채팅 시작' : '멘토가 신청을 수락한 뒤에만 채팅할 수 있습니다.'}
-          className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-600 disabled:cursor-not-allowed disabled:opacity-50"
+          className="btn-secondary"
         >
           <MessageCircle size={14} />
           채팅 시작
@@ -2238,7 +2295,7 @@ function ApplicationCard({
               type="button"
               onClick={onAccept}
               disabled={actionPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-blue-700"
+              className="btn-primary"
             >
               <Check size={14} />
               수락
@@ -2247,7 +2304,7 @@ function ApplicationCard({
               type="button"
               onClick={onReject}
               disabled={actionPending}
-              className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-red-700"
+              className="btn-secondary text-fg-danger"
             >
               <X size={14} />
               거절
@@ -2260,7 +2317,7 @@ function ApplicationCard({
             type="button"
             onClick={onCancel}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-red-700"
+            className="btn-secondary text-fg-danger"
           >
             <X size={14} />
             요청 취소
@@ -2272,7 +2329,7 @@ function ApplicationCard({
             type="button"
             onClick={onStart}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-black px-3 py-2 text-xs font-black text-white disabled:opacity-50"
+            className="btn-primary"
           >
             <Clock3 size={14} />
             시작
@@ -2284,7 +2341,7 @@ function ApplicationCard({
             type="button"
             onClick={onFinish}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-orange-700"
+            className="btn-primary"
           >
             <Check size={14} />
             종료 보고
@@ -2296,7 +2353,7 @@ function ApplicationCard({
             type="button"
             onClick={onComplete}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-green-500 px-3 py-2 text-xs font-black text-white disabled:opacity-50 dark:bg-green-700"
+            className="btn-primary"
           >
             <CreditCard size={14} />
             완료 확정
@@ -2307,7 +2364,7 @@ function ApplicationCard({
           <button
             type="button"
             onClick={() => setReportOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-red-500 dark:bg-zinc-800"
+            className="btn-secondary text-fg-danger"
           >
             <Flag size={14} />
             이의제기
@@ -2319,7 +2376,7 @@ function ApplicationCard({
             type="button"
             onClick={onReview}
             disabled={actionPending}
-            className="inline-flex items-center gap-2 rounded-lg bg-yellow-400 px-3 py-2 text-xs font-black text-black disabled:opacity-50 dark:!text-black"
+            className="btn-secondary"
           >
             <Star size={14} />
             리뷰 작성
@@ -2330,7 +2387,7 @@ function ApplicationCard({
           <button
             type="button"
             onClick={onReviewedClick}
-            className="inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-3 py-2 text-xs font-black text-zinc-500"
+            className="btn-secondary"
             title={REVIEW_ALREADY_COMPLETED_MESSAGE}
           >
             <Check size={14} />

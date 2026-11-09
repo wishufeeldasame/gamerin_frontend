@@ -8,6 +8,7 @@ const api = vi.hoisted(() => ({
   repostPost: vi.fn(), unrepostPost: vi.fn(), likePost: vi.fn(), unlikePost: vi.fn(),
   sharePost: vi.fn(),
 }));
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/lib/message-api', () => ({ searchMessageRecipients: vi.fn().mockResolvedValue([]), sharePostMessage: vi.fn() }));
 vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { handle: 'viewer' } }) }));
 vi.mock('@/lib/feed-api', async (original) => ({
@@ -35,7 +36,9 @@ async function show(kind: 'card' | 'detail', record = post) {
 }
 
 beforeEach(() => {
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
   vi.resetAllMocks();
+  vi.mocked(navigator.clipboard.writeText).mockResolvedValue(undefined);
   api.fetchPostDetailByNumber.mockResolvedValue(post);
   api.fetchPostComments.mockResolvedValue([]);
   api.repostPost.mockResolvedValue({ postId: post.postId, isReposted: true, repostCount: 4 });
@@ -47,6 +50,15 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => {
+  it('shows the abbreviated view count with the exact count for screen readers, and hides it when absent', async () => {
+    await show(kind, { ...post, viewCount: 12_345 });
+    expect(screen.getByText('1.2만')).toBeInTheDocument();
+    expect(screen.getByText('조회수 12,345회')).toHaveClass('sr-only');
+  });
+  it('hides the view count when the server sent none', async () => {
+    await show(kind, { ...post, viewCount: null });
+    expect(screen.queryByText(/조회수/)).not.toBeInTheDocument();
+  });
   it('merges a late share response after closing into the latest like state', async () => {
     let resolve!: (value: { postId: string; shares: number }) => void;
     const pending = new Promise<{ postId: string; shares: number }>((done) => { resolve = done; });
@@ -58,7 +70,7 @@ describe.each(['card', 'detail'] as const)('%s action accessibility', (kind) => 
     if (kind === 'detail') await screen.findByRole('textbox', { name: '댓글 입력' });
     fireEvent.click(screen.getByRole('button', { name: '게시글 공유' }));
     fireEvent.click(screen.getByRole('button', { name: '링크 복사' }));
-    expect(api.sharePost).toHaveBeenCalledExactlyOnceWith(post.postId, 'COPY_LINK');
+    await waitFor(() => expect(api.sharePost).toHaveBeenCalledExactlyOnceWith(post.postId, 'COPY_LINK'));
     fireEvent.click(screen.getByRole('button', { name: '닫기' }));
     if (kind === 'card') {
       view.rerender(<Post post={{ ...post, likes: 3, likedByMe: true, comments: 7, bookmarkedByMe: true }} onShare={onUpdated} />);

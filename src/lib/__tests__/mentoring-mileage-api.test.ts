@@ -52,7 +52,7 @@ describe('mentoring-api', () => {
     expect(store.getAccessToken()).toBe('token-a');
   });
 
-  it('authRequired: false 조회는 토큰이 없어도 미리 refresh하지 않고 보낸다', async () => {
+  it('optional 조회는 토큰이 없어도 미리 refresh하지 않고 보낸다', async () => {
     store.removeAccessToken();
     api.route(PROGRAMS, () => json(200, { success: true, data: page }));
 
@@ -61,7 +61,7 @@ describe('mentoring-api', () => {
     expect(api.count('/api/v1/auth/refresh')).toBe(0);
   });
 
-  it('authRequired: false 조회의 인증 거절은 기존 문구로 끝나고, 익명으로 세 번째 요청을 보내지 않는다', async () => {
+  it('optional 조회의 인증 거절은 기존 문구로 끝나고, 익명으로 세 번째 요청을 보내지 않는다', async () => {
     api.route(PROGRAMS, () => json(401, {}));
     api.route('/api/v1/auth/refresh', () => json(401, {}));
 
@@ -88,12 +88,13 @@ describe('mentoring-api', () => {
     expect(store.getAccessToken()).toBeNull();
   });
 
-  it('fetchGames는 /api/v1/games를 토큰과 함께 조회한다', async () => {
+  it('fetchGames는 정적 공개 코드이므로 토큰·refresh 없이 조회한다', async () => {
     const games = [{ code: 'LOL', name: 'League of Legends' }];
     api.route('/api/v1/games', () => json(200, { success: true, data: games }));
 
     await expect(mentoring.fetchGames()).resolves.toEqual(games);
-    expect(api.authorization(0)).toBe('Bearer token-a');
+    expect(api.authorization(0)).toBeNull();
+    expect(api.count('/api/v1/auth/refresh')).toBe(0);
   });
 
   it('404는 MentoringApiError로 구분한다', async () => {

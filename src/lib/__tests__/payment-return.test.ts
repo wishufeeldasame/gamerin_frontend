@@ -7,7 +7,7 @@ describe('safeReturnTo', () => {
     expect(safeReturnTo(value)).toBe(value);
   });
 
-  it.each([null, '', 'mentoring', '//evil.test', '/\\evil.test', 'https://evil.test/mentoring', '/home', '/mentoringx'])(
+  it.each([null, '', 'mentoring', '//evil.test', '/\\evil.test', 'https://evil.test/mentoring', '/', '/mentoringx'])(
     '그 밖의 값 %j는 무시한다',
     (value) => {
       expect(safeReturnTo(value)).toBeNull();

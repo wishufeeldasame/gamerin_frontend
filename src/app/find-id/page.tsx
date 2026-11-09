@@ -72,11 +72,15 @@ export default function FindIdPage() {
           등록된 정보로 아이디를 검색합니다.
         </>
       }
-      back={{ href: '/login', label: '로그인 페이지로 돌아가기' }}
+      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
+          <label htmlFor="find-id-email" className="block text-label text-fg-primary">이메일</label>
           <AuthTextField
+            id="find-id-email"
+            autoComplete="email"
+            aria-describedby={errorType !== 'none' ? 'find-id-error' : undefined}
             type="email"
             value={email}
             onChange={handleInputChange}
@@ -87,15 +91,15 @@ export default function FindIdPage() {
           />
 
           {errorType === 'invalid' && (
-            <div className="animate-in slide-in-from-top-1 fade-in flex items-center gap-1.5 px-2 text-red-500">
+            <div id="find-id-error" role="alert" className="flex items-start gap-1.5 text-fg-danger">
               <AlertCircle size={14} />
-              <span className="text-sm font-bold">올바른 이메일 형식을 입력해 주세요.</span>
+              <span className="text-label">올바른 이메일 형식을 입력해 주세요.</span>
             </div>
           )}
           {errorType === 'notFound' && (
-            <div className="animate-in slide-in-from-top-1 fade-in flex items-center gap-1.5 px-2 text-red-500">
+            <div id="find-id-error" role="alert" className="flex items-start gap-1.5 text-fg-danger">
               <AlertCircle size={14} />
-              <span className="text-sm font-bold">일치하는 정보가 없습니다. 다시 확인해 주세요.</span>
+              <span className="text-label">일치하는 정보가 없습니다. 다시 확인해 주세요.</span>
             </div>
           )}
         </div>
@@ -103,18 +107,18 @@ export default function FindIdPage() {
         <button
           type="submit"
           disabled={!email.trim()}
-          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all active:scale-[0.98] hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+          className="btn-primary h-12 w-full"
         >
           아이디 찾기
         </button>
       </form>
 
-      <div className="border-t border-zinc-100 pt-10 text-center">
-        <p className="text-base font-medium text-zinc-600">
+      <div className="border-t border-line pt-6 text-center">
+        <p className="text-body text-fg-secondary">
           비밀번호를 잊으셨나요?{' '}
           <Link
             href="/auth/forgot-password"
-            className="ml-1.5 font-black text-black underline-offset-4 hover:underline"
+            className="ml-1.5 text-label text-fg-brand underline-offset-4 hover:underline"
           >
             비밀번호 찾기
           </Link>

@@ -119,26 +119,26 @@ export function ReportContentModal({
 
   if (submitted) {
     return (
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+      <div className="modal-overlay z-[80]">
         <section
           role="dialog"
           aria-modal="true"
           aria-labelledby="report-success-title"
-          className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-2xl"
+          className="modal-panel overflow-y-auto p-6 text-center lg:max-w-sm"
         >
-          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-amber-50 text-[#f5b93d] dark:bg-amber-950">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-full bg-brand-subtle text-fg-brand">
             <CheckCircle2 size={22} />
           </div>
-          <h2 id="report-success-title" className="mt-4 text-xl font-black text-black">
+          <h2 id="report-success-title" className="mt-4 text-title text-fg-primary">
             신고가 접수되었습니다
           </h2>
-          <p className="mt-3 text-xs font-bold leading-5 text-zinc-500">
+          <p className="mt-3 text-label text-fg-secondary">
             운영 정책에 따라 신고 내용을 검토한 뒤 조치하겠습니다.
           </p>
           <button
             type="button"
             onClick={onClose}
-            className="mt-5 h-11 w-full rounded-xl bg-black text-sm font-black text-white transition hover:bg-zinc-800"
+            className="btn-primary mt-5 w-full"
           >
             확인
           </button>
@@ -148,57 +148,58 @@ export function ReportContentModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+    <div className="modal-overlay z-[80]">
       <section
         role="dialog"
         aria-modal="true"
         aria-labelledby="report-content-title"
-        className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="modal-panel flex flex-col overflow-hidden lg:max-w-[480px]"
       >
-        <header className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
-          <h2 id="report-content-title" className="text-xl font-black text-black">
+        <div aria-hidden="true" className="modal-handle" />
+        <header className="flex items-center justify-between gap-2 px-5 pt-4 lg:px-6 lg:pt-6">
+          <h2 id="report-content-title" className="text-title text-fg-primary">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="신고 모달 닫기"
-            className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
+            className="btn-icon"
           >
             <X size={18} />
           </button>
         </header>
 
-        <div className="max-h-[calc(100dvh-2rem-150px)] space-y-5 overflow-y-auto px-6 py-5">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-4 lg:px-6">
           <section>
-            <p className="mb-3 text-xs font-black text-zinc-400">신고 대상</p>
-            <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4">
+            <p className="mb-2 text-label text-fg-secondary">신고 대상</p>
+            <div className="rounded-control bg-subtle p-3">
               <div className="mb-3 flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-surface-elevated text-caption text-fg-secondary">
                   {getInitials(author)}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-black text-black">{author}</p>
-                  {authorHandle ? <p className="truncate text-xs font-bold text-zinc-400">@{authorHandle}</p> : null}
+                  <p className="truncate text-body text-fg-primary">{author}</p>
+                  {authorHandle ? <p className="truncate text-caption text-fg-tertiary">@{authorHandle}</p> : null}
                 </div>
               </div>
-              <p className="line-clamp-2 text-sm font-medium leading-6 text-zinc-700">
+              <p className="line-clamp-2 text-body text-fg-secondary">
                 {content || emptyContentLabel}
               </p>
             </div>
           </section>
 
           <section>
-            <p className="mb-3 text-sm font-black text-black">신고 사유를 선택해 주세요</p>
+            <p className="mb-3 text-label text-fg-primary">신고 사유를 선택해 주세요</p>
             <div className="space-y-2">
               {loadingReasons ? (
-                <p className="rounded-xl bg-zinc-50 px-4 py-4 text-center text-sm font-bold text-zinc-500">
+                <p role="status" className="rounded-control bg-subtle px-4 py-4 text-center text-label text-fg-secondary">
                   신고 사유를 불러오는 중입니다.
                 </p>
               ) : null}
 
               {reasonsError ? (
-                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200">
+                <div className="rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger">
                   <p role="alert">{reasonsError}</p>
                   <button
                     type="button"
@@ -218,28 +219,29 @@ export function ReportContentModal({
                     key={reason.code}
                     type="button"
                     onClick={() => setSelectedReason(reason.code)}
+                    aria-pressed={selected}
                     className={[
-                      'flex h-11 w-full items-center justify-between rounded-xl border px-4 text-left text-sm font-black transition',
+                      'flex min-h-11 w-full items-center justify-between gap-3 rounded-control border px-4 py-2 text-left text-label transition focus-visible:outline-2 focus-visible:outline-line-focus',
                       selected
-                        ? 'border-[#f5b93d] bg-amber-50 text-black dark:bg-amber-950 dark:!text-amber-200'
-                        : 'border-zinc-100 bg-white text-black hover:border-zinc-300',
+                        ? 'border-brand bg-brand-subtle text-fg-primary'
+                        : 'border-line bg-surface text-fg-primary hover:border-line-strong',
                     ].join(' ')}
                   >
                     <span>{reason.label}</span>
                     <span
                       className={[
                         'flex h-5 w-5 items-center justify-center rounded-full border',
-                        selected ? 'border-[#f5b93d] bg-[#f5b93d]' : 'border-zinc-300',
+                        selected ? 'border-brand bg-brand' : 'border-line-strong',
                       ].join(' ')}
                     >
-                      {selected ? <span className="h-2 w-2 rounded-full bg-white" /> : null}
+                      {selected ? <span className="h-2 w-2 rounded-full bg-fg-on-brand" /> : null}
                     </span>
                   </button>
                 );
               })}
 
               <div className="pt-2">
-                <label htmlFor="report-details" className="mb-2 block text-sm font-black text-black">
+                <label htmlFor="report-details" className="mb-2 block text-label text-fg-secondary">
                   상세 내용 {selectedReason === 'OTHER' ? '(필수)' : '(선택)'}
                 </label>
                 <textarea
@@ -250,9 +252,9 @@ export function ReportContentModal({
                   placeholder={selectedReason === 'OTHER' ? '기타 신고 사유를 자세히 입력해 주세요.' : '추가로 설명할 내용이 있다면 입력해 주세요.'}
                   aria-label="신고 상세 내용"
                   aria-required={selectedReason === 'OTHER'}
-                  className="min-h-28 w-full resize-none rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-medium leading-6 text-black outline-none transition placeholder:text-zinc-400 focus:border-[#f5b93d] dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
+                  className="input-base min-h-24 resize-none py-3"
                 />
-                <p className="mt-1 text-right text-xs font-bold text-zinc-400">
+                <p className="mt-1 text-right text-caption text-fg-tertiary">
                   {customReason.length} / {REPORT_DETAILS_MAX_LENGTH}
                 </p>
               </div>
@@ -262,18 +264,18 @@ export function ReportContentModal({
           {submitError ? (
             <p
               role="alert"
-              className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950 dark:text-red-200"
+              className="rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger"
             >
               {submitError}
             </p>
           ) : null}
         </div>
 
-        <footer className="flex gap-3 border-t border-zinc-100 px-6 py-4">
+        <footer className="flex gap-3 border-t border-line px-5 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] lg:px-6 lg:pb-6">
           <button
             type="button"
             onClick={onClose}
-            className="h-11 flex-1 rounded-xl border border-zinc-200 text-sm font-black text-black transition hover:border-zinc-400"
+            className="btn-secondary flex-1"
           >
             취소
           </button>
@@ -281,7 +283,7 @@ export function ReportContentModal({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit || loadingReasons || submitting}
-            className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-zinc-200 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+            className="btn-primary flex-1"
           >
             신고 접수
           </button>
@@ -289,15 +291,15 @@ export function ReportContentModal({
       </section>
 
       {confirmOpen ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/60 px-4">
           <section
             role="dialog"
             aria-modal="true"
             aria-labelledby="report-confirm-title"
-            className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            className="w-full max-w-md rounded-card border border-line bg-surface p-6 text-fg-primary shadow-2xl"
           >
             <div className="flex items-start justify-between gap-4">
-              <h2 id="report-confirm-title" className="text-xl font-black text-black">
+              <h2 id="report-confirm-title" className="text-title text-fg-primary">
                 신고하시겠습니까?
               </h2>
               <button
@@ -305,12 +307,12 @@ export function ReportContentModal({
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
                 aria-label="신고 확인 닫기"
-                className="rounded-xl p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
+                className="btn-icon shrink-0"
               >
                 <X size={18} />
               </button>
             </div>
-            <p className="mt-4 text-sm font-medium leading-6 text-zinc-500">
+            <p className="mt-4 text-body text-fg-secondary">
               신고 내용은 운영 정책에 따라 검토됩니다. 허위 신고를 반복할 경우 서비스 이용이 제한될 수 있습니다.
             </p>
             <div className="mt-6 flex gap-3">
@@ -318,7 +320,7 @@ export function ReportContentModal({
                 type="button"
                 onClick={() => setConfirmOpen(false)}
                 disabled={submitting}
-                className="h-11 flex-1 rounded-xl border border-zinc-200 text-sm font-black text-black transition hover:border-zinc-400 disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn-secondary flex-1"
               >
                 돌아가기
               </button>
@@ -326,7 +328,7 @@ export function ReportContentModal({
                 type="button"
                 onClick={() => void handleConfirm()}
                 disabled={submitting}
-                className="h-11 flex-1 rounded-xl bg-red-500 text-sm font-black text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+                className="btn-primary flex-1"
               >
                 {submitting ? '접수 중...' : '신고 접수'}
               </button>

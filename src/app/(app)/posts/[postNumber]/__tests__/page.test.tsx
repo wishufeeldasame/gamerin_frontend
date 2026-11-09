@@ -13,6 +13,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/app/home/components/PostDetail', () => ({
+  PostDetailHeader: () => <button type="button">뒤로 가기</button>,
   PostDetail: ({
     postNumber,
     initialCommentId,
@@ -62,5 +63,7 @@ describe('PostPermalinkPage comment deep link', () => {
 
     expect(screen.queryByTestId('post-detail')).not.toBeInTheDocument();
     expect(screen.getByRole('alert')).toHaveTextContent('게시글을 찾을 수 없습니다.');
+    // 모바일 앱 상단 바가 숨겨진 화면이라 뒤로 헤더가 있어야 한다.
+    expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeInTheDocument();
   });
 });

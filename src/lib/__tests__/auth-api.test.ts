@@ -46,6 +46,8 @@ describe('toAuthUser', () => {
       role: 'ROLE_ADMIN',
       status: 'ACTIVE',
       membershipBadge: false,
+      representativeGame: null,
+      representativeTier: null,
     });
   });
 
@@ -58,6 +60,30 @@ describe('toAuthUser', () => {
     expect(user).toMatchObject({ id: 'new-id', name: '저장이름', nickname: '새닉', gameTier: 'Gold', bio: '소개' });
     expect(user?.role).toBeUndefined();
     expect(user?.status).toBeUndefined();
+  });
+
+  it.each(['/uploads/profile.jpg', 'https://cdn.example.com/profile.jpg', null])(
+    '/me의 사진 %j를 저장 사진보다 우선한다', (profileImageUrl) => {
+      expect(auth.toAuthUser(
+        { userId: 'u', handle: 'h', nickname: 'n', profileImageUrl },
+        { profileImageUrl: '/uploads/old.jpg' },
+      )?.profileImageUrl).toBe(profileImageUrl);
+    },
+  );
+
+  it('구버전 서버가 사진 필드를 생략하면 저장 사진을 유지한다', () => {
+    expect(auth.toAuthUser(
+      { userId: 'u', handle: 'h', nickname: 'n' },
+      { profileImageUrl: '/uploads/old.jpg' },
+    )?.profileImageUrl).toBe('/uploads/old.jpg');
+  });
+
+  it('/me의 대표 게임·티어를 검증해 담는다', () => {
+    const tier = { game: 'LOL', tierLabel: 'GOLD I' };
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', representativeGame: 'LOL', representativeTier: tier }))
+      .toMatchObject({ representativeGame: 'LOL', representativeTier: tier });
+    expect(auth.toAuthUser({ userId: 'u', handle: 'h', nickname: 'n', representativeGame: 'X', representativeTier: {} }))
+      .toMatchObject({ representativeGame: null, representativeTier: null });
   });
 
   it('/me의 hasPassword를 반영하고, 없으면 저장된 값을 유지한다', () => {
@@ -77,6 +103,13 @@ describe('toAuthUser', () => {
 });
 
 describe('loginWithPassword', () => {
+  it.each(['/uploads/profile.jpg', null])('일반 로그인에서 /me의 사진 %j를 반영한다', async (profileImageUrl) => {
+    api.route('/api/v1/auth/login', loginOk);
+    api.route('/api/v1/auth/me', () => meOk({ profileImageUrl }));
+
+    await expect(auth.loginWithPassword('demo', 'pw')).resolves.toMatchObject({ profileImageUrl });
+  });
+
   it('로그인 뒤 /me로 사용자를 확정한다(로그인 응답의 사용자 정보는 쓰지 않는다)', async () => {
     api.route('/api/v1/auth/login', loginOk);
     api.route('/api/v1/auth/me', () => meOk());
@@ -96,6 +129,8 @@ describe('loginWithPassword', () => {
       role: 'USER',
       status: 'ACTIVE',
       membershipBadge: false,
+      representativeGame: null,
+      representativeTier: null,
     });
   });
 
@@ -223,6 +258,13 @@ describe('loginWithPassword', () => {
 });
 
 describe('completeOAuthSession', () => {
+  it.each(['/uploads/profile.jpg', null])('OAuth 로그인에서 /me의 사진 %j를 반영한다', async (profileImageUrl) => {
+    api.route('/api/v1/auth/refresh', refreshOk);
+    api.route('/api/v1/auth/me', () => meOk({ profileImageUrl }));
+
+    await expect(auth.completeOAuthSession()).resolves.toMatchObject({ profileImageUrl });
+  });
+
   it('refresh 쿠키로 토큰을 받고 /me로 사용자를 확정한다', async () => {
     api.route('/api/v1/auth/refresh', refreshOk);
     api.route('/api/v1/auth/me', () => meOk());
@@ -381,6 +423,21 @@ describe('completeOAuthSession 차단 계정', () => {
 });
 
 describe('confirmAuthSession', () => {
+  it.each(['logout', 'switch'])('사진을 포함한 오래된 /me 응답은 %s 후 버린다', async (action) => {
+    const pendingMe = deferred<Response>();
+    api.route('/api/v1/auth/me', () => pendingMe.promise);
+    const pending = auth.confirmAuthSession('token-a');
+    const rejected = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+    await flush();
+
+    if (action === 'logout') store.clearStoredAuth();
+    else store.setAccessToken('other-user-token');
+    pendingMe.resolve(meOk({ profileImageUrl: '/uploads/old-user.jpg' }));
+
+    await rejected;
+    expect(store.getAccessToken()).toBe(action === 'logout' ? null : 'other-user-token');
+  });
+
   it('토큰을 받는 사이 세대가 바뀌었으면 오래된 토큰을 저장하지 않고 AbortError로 끝난다', async () => {
     const generation = store.getAuthGeneration();
     store.setAccessToken('other-user-token');
@@ -408,7 +465,7 @@ describe('refreshAccessTokenResult의 거절 형태', () => {
 });
 
 describe('completeSocialSignup', () => {
-  const params = { signupToken: 'signup-token', handle: 'demo_01', nickname: '데모', agreedToTerms: true, agreedToPrivacy: true, agreedToAge14: true, termsVersion: '1.0', privacyVersion: '1.0' };
+  const params = { signupToken: 'signup-token', handle: 'demo_01', nickname: '데모', agreedToTerms: true, agreedToPrivacy: true, agreedToAge14: true, termsVersion: '1.0', privacyVersion: '1.1' };
   const signupOk = () =>
     json(200, { success: true, data: { userId: 'user-id', handle: 'signup-handle', nickname: '가입닉', accessToken: 'token-s' } });
 
@@ -479,6 +536,15 @@ describe('completeSocialSignup', () => {
 
 describe('restoreAuthUser', () => {
   const stored = { id: 'user-id', name: '저장이름', nickname: '옛닉', gameTier: 'Gold', bio: '소개' };
+
+  it.each(['/uploads/new.jpg', null])('세션 복원에서 서버 사진 %j로 저장 사진을 갱신한다', async (profileImageUrl) => {
+    api.route('/api/v1/auth/refresh', refreshOk);
+    api.route('/api/v1/auth/me', () => meOk({ profileImageUrl }));
+
+    await expect(auth.restoreAuthUser(
+      { ...stored, profileImageUrl: '/uploads/old.jpg' }, store.getAuthGeneration(),
+    )).resolves.toMatchObject({ profileImageUrl });
+  });
 
   it('refresh와 /me가 성공하면 서버 값으로 갱신하고 저장된 값은 보존한다', async () => {
     api.route('/api/v1/auth/refresh', refreshOk);
@@ -708,7 +774,7 @@ describe('가입 이메일 인증', () => {
     agreedToPrivacy: false,
     agreedToAge14: true,
     termsVersion: '1.0',
-    privacyVersion: '1.0',
+    privacyVersion: '1.1',
   };
 
   it('가입 요청에 이메일 인증 토큰과 약관 동의를 담는다', async () => {

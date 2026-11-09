@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useId, useRef, useState } from 'react';
-import { Folder, Plus, X } from 'lucide-react';
+import { Check, Folder, Plus, X } from 'lucide-react';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import type { BookmarkCollection } from '@/types/bookmark';
 
@@ -234,7 +234,7 @@ export default function SaveToCollectionModal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4"
+      className="modal-overlay z-[70]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -245,10 +245,11 @@ export default function SaveToCollectionModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-surface"
+        className="modal-panel flex flex-col overflow-hidden lg:max-w-[420px]"
       >
-        <header className="relative flex h-16 items-center border-b border-zinc-100 px-5 pr-14 md:px-6 dark:border-neutral-700">
-          <h2 id={titleId} className="text-xl font-black text-black dark:text-zinc-100">
+        <div aria-hidden="true" className="modal-handle" />
+        <header className="relative flex min-h-16 shrink-0 items-center px-5 pr-14 lg:px-6">
+          <h2 id={titleId} className="text-title text-fg-primary">
             모음집에 저장
           </h2>
           <button
@@ -263,11 +264,11 @@ export default function SaveToCollectionModal({
 
         <div className="min-h-0 flex-1 overflow-y-auto py-2">
           {loadingCollections ? (
-            <p className="px-5 py-10 text-center text-sm text-zinc-500">
+            <p role="status" className="px-5 py-10 text-center text-label text-fg-secondary">
               모음집을 불러오는 중...
             </p>
           ) : collections.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-zinc-500">
+            <p className="px-5 py-10 text-center text-label text-fg-secondary">
               아직 만든 모음집이 없습니다.
             </p>
           ) : (
@@ -276,9 +277,9 @@ export default function SaveToCollectionModal({
               return (
                 <label
                   key={collection.collectionId}
-                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                  className="flex cursor-pointer items-center gap-3 px-5 py-3 transition hover:bg-subtle"
                 >
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-md bg-zinc-100 dark:bg-surface-elevated">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-control bg-subtle">
                     {collection.coverImageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
@@ -287,10 +288,10 @@ export default function SaveToCollectionModal({
                         className="h-full w-full object-cover"
                       />
                     ) : (
-                      <Folder size={20} className="text-zinc-400" />
+                      <Folder size={20} className="text-icon-secondary" />
                     )}
                   </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                  <span className="min-w-0 flex-1 truncate text-body text-fg-primary">
                     {collection.name}
                   </span>
                   <input
@@ -300,21 +301,24 @@ export default function SaveToCollectionModal({
                     onChange={() => {
                       void handleCollectionChange(collection.collectionId, isChecked);
                     }}
-                    className="h-5 w-5 accent-[#f5b93d]"
+                    className="peer sr-only"
                   />
+                  <span aria-hidden="true" className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded border border-line-strong text-transparent peer-checked:border-brand peer-checked:bg-brand peer-checked:text-fg-on-brand peer-disabled:opacity-60 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-line-focus">
+                    <Check size={14} strokeWidth={3} />
+                  </span>
                 </label>
               );
             })
           )}
         </div>
 
-        <footer className="border-t border-zinc-200 p-4 dark:border-neutral-700">
+        <footer className="border-t border-line px-5 pt-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))] lg:px-6 lg:pb-6">
           {isPostBookmarked ? (
             <button
               type="button"
               onClick={() => void handleRemoveAllBookmarks()}
               disabled={loadingCollections || pendingCollectionId !== null}
-              className="mb-3 w-full rounded-md border border-red-100 px-4 py-2 text-sm font-bold text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-950/60 dark:hover:bg-red-950/30"
+              className="btn-secondary mb-3 w-full bg-danger-subtle text-fg-danger hover:bg-danger-subtle/70"
             >
               {pendingCollectionId === 'all' ? '해제 중...' : '전체 북마크 해제'}
             </button>
@@ -338,18 +342,19 @@ export default function SaveToCollectionModal({
                   disabled={pendingCollectionId !== null}
                   maxLength={40}
                   placeholder="모음집 이름"
-                  className="min-w-0 flex-1 rounded-md border border-zinc-300 bg-transparent px-3 text-sm text-zinc-950 outline-none focus:border-[#f5b93d] dark:border-neutral-600 dark:text-zinc-100 dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d]"
+                  aria-label="모음집 이름"
+                  className="input-base min-w-0 flex-1"
                 />
                 <button
                   type="button"
                   onClick={() => void handleCreateCollection()}
                   disabled={pendingCollectionId !== null}
-                  className="rounded-md bg-[#f5b93d] px-4 py-2 text-sm font-bold text-black transition hover:bg-[#f8c957] disabled:cursor-not-allowed disabled:opacity-60 dark:!text-black"
+                  className="btn-primary h-11"
                 >
                   {pendingCollectionId === 'new' ? '저장 중...' : '만들기'}
                 </button>
               </div>
-              {error && <p className="text-xs text-red-500">{error}</p>}
+              {error && <p role="alert" className="text-caption text-fg-danger">{error}</p>}
             </div>
           ) : (
             <button
@@ -359,13 +364,13 @@ export default function SaveToCollectionModal({
                 setIsCreating(true);
               }}
               disabled={pendingCollectionId !== null}
-              className="flex w-full items-center justify-center gap-2 py-1 text-sm font-bold text-zinc-900 transition hover:text-[#d99a18] disabled:cursor-not-allowed disabled:opacity-60 dark:text-zinc-100 dark:hover:text-[#f5b93d]"
+              className="btn-secondary w-full"
             >
               <Plus size={18} />
               새 모음집 만들기
             </button>
           )}
-          {!isCreating && error ? <p className="mt-2 text-xs text-red-500">{error}</p> : null}
+          {!isCreating && error ? <p role="alert" className="mt-2 text-caption text-fg-danger">{error}</p> : null}
         </footer>
       </section>
     </div>

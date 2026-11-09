@@ -1,5 +1,7 @@
-import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
+import { ApiError, AUTH_REQUIRED_MESSAGE, type ApiFailureReason, type ApiRequestOptions, type ApiClientConfig, apiRequest } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
+import { invalidateMileageAfter } from '@/lib/mileage-sync';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 const MENTORING_BASE = '/api/v1/mentoring';
 
@@ -24,6 +26,7 @@ export interface MentorProfileResponse {
   reviewCount: number;
   menteeCount: number;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface GameResponse {
@@ -46,6 +49,7 @@ export interface MentoringProgramResponse {
   createdAt: string;
   /** 멘토의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringProgramDetailResponse {
@@ -63,6 +67,7 @@ export interface MentoringProgramDetailResponse {
   createdAt: string;
   /** 멘토의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringApplicationResponse {
@@ -80,7 +85,9 @@ export interface MentoringApplicationResponse {
   createdAt: string;
   reviewed: boolean;
   mentorMembershipBadge?: boolean;
+  mentorRepresentativeTier?: RepresentativeTier | null;
   menteeMembershipBadge?: boolean;
+  menteeRepresentativeTier?: RepresentativeTier | null;
   /** 신청 시점에 저장된 정산 수수료율(bp). 멘토 관점 응답에만 있다. */
   feeRateBp?: number;
   feeAmount?: number;
@@ -92,7 +99,7 @@ export interface MentoringApplicationResponse {
 
 export interface MentoringReviewResponse {
   id: string;
-  applicationId: string;
+  applicationId?: string;
   programId: string;
   programTitle: string;
   menteeNickname: string;
@@ -101,6 +108,7 @@ export interface MentoringReviewResponse {
   createdAt: string;
   /** 리뷰 작성자(멘티)의 멤버십 배지 */
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface MentoringProgramRequest {
@@ -122,7 +130,7 @@ export interface MentoringProgramUpdateRequest {
 }
 
 type RequestOptions = ApiRequestOptions & {
-  authRequired?: boolean;
+  auth?: ApiClientConfig['auth'];
 };
 
 export class MentoringApiError extends ApiError {
@@ -136,15 +144,14 @@ export function isMentoringNotFoundError(error: unknown): error is MentoringApiE
   return error instanceof MentoringApiError && error.status === 404;
 }
 
-// authRequired: false는 미리 refresh하지 않고 토큰 없이도 보낸다는 뜻일 뿐, 서버가 공개로 허용한다는 뜻은 아니다.
-// backend SecurityConfig에서 /api/v1/mentoring/** 는 모두 인증이 필요하다.
+// 공개 읽기는 optional, 정적 게임 코드는 public, 나머지는 required다.
 function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { authRequired = true, ...fetchOptions } = options;
+  const { auth = 'required', ...fetchOptions } = options;
 
   return apiRequest<T>(
     path,
     {
-      authRequired,
+      auth,
       envelope: 'optional',
       toError: ({ reason, status, message }) => {
         const serverMessage = message?.trim() ? message : undefined;
@@ -154,7 +161,7 @@ function mentoringRequest<T>(path: string, options: RequestOptions = {}): Promis
 
         const fallback = reason === 'unauthenticated' || reason === 'blocked' || status === 401
           ? AUTH_REQUIRED_MESSAGE
-          : authRequired
+          : auth === 'required'
             ? '멘토링 요청 처리에 실패했습니다.'
             : '멘토링 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.';
         return new MentoringApiError(serverMessage ?? fallback, status, reason);
@@ -179,7 +186,7 @@ export function emptyPage<T>(page = 0, size = 10): PageResponse<T> {
 }
 
 export function fetchGames() {
-  return mentoringRequest<GameResponse[]>('/api/v1/games');
+  return mentoringRequest<GameResponse[]>('/api/v1/games', { auth: 'public' });
 }
 
 export function registerMentor(payload: { about: string }) {
@@ -191,7 +198,7 @@ export function registerMentor(payload: { about: string }) {
 
 export function fetchMentorProfile(mentorId: string) {
   return mentoringRequest<MentorProfileResponse>(`${MENTORING_BASE}/mentors/${mentorId}`, {
-    authRequired: false,
+    auth: 'optional',
   });
 }
 
@@ -222,13 +229,13 @@ export function fetchMentoringPrograms(params: {
 
   return mentoringRequest<PageResponse<MentoringProgramResponse>>(
     `${MENTORING_BASE}/programs?${search.toString()}`,
-    { authRequired: false }
+    { auth: 'optional' }
   );
 }
 
 export function fetchMentoringProgramDetail(programId: string) {
   return mentoringRequest<MentoringProgramDetailResponse>(`${MENTORING_BASE}/programs/${programId}`, {
-    authRequired: false,
+    auth: 'optional',
   });
 }
 
@@ -245,11 +252,12 @@ export async function deleteMentoringProgram(programId: string) {
   });
 }
 
+// 신청하면 마일리지가 차감되고(MentoringService.applyToProgram) 취소하면 환불된다.
 export function applyToMentoringProgram(payload: { programId: string; message: string }) {
-  return mentoringRequest<MentoringApplicationResponse>(`${MENTORING_BASE}/applications`, {
+  return invalidateMileageAfter(mentoringRequest<MentoringApplicationResponse>(`${MENTORING_BASE}/applications`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  });
+  }));
 }
 
 export function fetchMenteeApplications(page = 0, size = 10) {
@@ -279,10 +287,10 @@ export function rejectMentoringApplication(applicationId: string) {
 }
 
 export function cancelMentoringApplication(applicationId: string) {
-  return mentoringRequest<MentoringApplicationResponse>(
+  return invalidateMileageAfter(mentoringRequest<MentoringApplicationResponse>(
     `${MENTORING_BASE}/applications/${applicationId}/cancel`,
     { method: 'PATCH' }
-  );
+  ));
 }
 
 export function startMentoringApplication(applicationId: string) {
@@ -319,6 +327,7 @@ export function createMentoringReview(payload: {
 
 export function fetchMentorReviews(mentorId: string, page = 0, size = 10) {
   return mentoringRequest<PageResponse<MentoringReviewResponse>>(
-    `${MENTORING_BASE}/mentors/${mentorId}/reviews?page=${page}&size=${size}`
+    `${MENTORING_BASE}/mentors/${mentorId}/reviews?page=${page}&size=${size}`,
+    { auth: 'optional' },
   );
 }

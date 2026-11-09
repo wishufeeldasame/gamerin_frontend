@@ -192,13 +192,13 @@ function PaymentResult() {
     case 'missing':
       tone = 'fail';
       title = '결제 정보를 찾을 수 없습니다';
-      actions = [{ href: '/home', label: '홈으로' }];
+      actions = [{ href: '/', label: '홈으로' }];
       break;
     case 'login':
       tone = 'lock';
       title = '로그인 후 결제 내역에서 결과를 확인해 주세요';
       description = '승인되지 않은 결제는 15분 후 자동으로 정리됩니다.';
-      actions = [{ href: '/login', label: '로그인' }];
+      actions = [{ href: '/?login=1', label: '로그인' }];
       break;
     case 'checking':
       if (error) {
@@ -251,27 +251,29 @@ function PaymentResult() {
   const Icon = tone === 'success' ? CheckCircle2 : tone === 'fail' ? AlertCircle : tone === 'lock' ? Lock : Loader2;
 
   return (
-    <main className="grid min-h-screen place-items-center bg-background p-5 text-zinc-900 dark:text-zinc-100">
-      <section className="w-full max-w-[480px] space-y-4 rounded-2xl border border-zinc-100 bg-white p-7 dark:border-zinc-800 dark:bg-zinc-900">
-        <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">KAKAOPAY</span>
+    <main className="grid min-h-dvh place-items-center bg-canvas px-4 py-8 text-fg-primary">
+      <section className="w-full max-w-[440px] space-y-4 rounded-card bg-surface p-6 text-center sm:p-8">
+        <span className="inline-flex rounded-md bg-[#fee500] px-2.5 py-1 text-caption font-semibold text-[#191919]">KAKAOPAY</span>
+        <div className={`mx-auto grid size-16 place-items-center rounded-full ${tone === 'success' ? 'bg-success-subtle' : tone === 'fail' ? 'bg-danger-subtle' : 'bg-brand-subtle'}`}>
         <Icon
           aria-hidden="true"
           size={32}
           className={
             tone === 'success'
-              ? 'text-black dark:text-[#f5b93d]'
+              ? 'text-fg-success'
               : tone === 'fail'
-                ? 'text-red-500'
+                ? 'text-fg-danger'
                 : tone === 'lock'
-                  ? 'text-zinc-500'
-                  : 'animate-spin text-zinc-400'
+                  ? 'text-fg-brand'
+                  : 'motion-safe:animate-spin text-fg-brand'
           }
         />
+        </div>
         <div aria-live="polite">
-          <h1 ref={titleRef} tabIndex={-1} className="text-2xl font-black outline-none">{title}</h1>
-          {description ? <p className="mt-2 text-sm font-bold text-zinc-500">{description}</p> : null}
+          <h1 ref={titleRef} tabIndex={-1} className="text-title outline-none">{title}</h1>
+          {description ? <p className="mt-2 text-body text-fg-secondary">{description}</p> : null}
           {view.kind === 'payment' ? (
-            <p className="mt-2 text-sm text-zinc-500">
+            <p className="mt-2 text-label text-fg-secondary">
               {view.payment.itemName} · {(view.payment.amount ?? 0).toLocaleString('ko-KR')}원
             </p>
           ) : null}
@@ -284,8 +286,8 @@ function PaymentResult() {
                 href={action.href}
                 className={
                   index === 0
-                    ? 'grid h-12 place-items-center rounded-xl bg-black text-sm font-black text-white dark:bg-[#f5b93d] dark:text-black'
-                    : 'grid h-12 place-items-center rounded-xl border border-zinc-200 text-sm font-black dark:border-zinc-700'
+                    ? 'btn-primary h-12'
+                    : 'btn-secondary h-12'
                 }
               >
                 {action.label}

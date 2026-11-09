@@ -1,5 +1,11 @@
 import { getApiBaseUrl } from '@/lib/api-base';
 import { ApiError, apiRequest } from '@/lib/api-client';
+import {
+  type RepresentativeGame,
+  type RepresentativeTier,
+  isRepresentativeGame,
+  toRepresentativeTier,
+} from '@/lib/representative-tier';
 import { getPublicRequestErrorMessage, readPublicResponseErrorMessage } from '@/lib/public-request-error';
 import {
   BLOCKED_ACCOUNT_MESSAGE,
@@ -43,6 +49,12 @@ export interface AuthUser {
   hasPassword?: boolean;
   /** 현재 유효한 멤버십 여부(노란 체크 배지). */
   membershipBadge?: boolean;
+  /** 설정에서 고른 대표 게임(#179). 없으면 null. */
+  representativeGame?: RepresentativeGame | null;
+  /** 닉네임 옆에 표시할 대표 티어. 티어가 없으면 null. */
+  representativeTier?: RepresentativeTier | null;
+  /** 서버에 저장된 테마. null이면 기기 설정 또는 기본 다크를 쓴다(F16). */
+  theme?: 'light' | 'dark' | null;
 }
 
 export const DEFAULT_GAME_TIER = 'Unranked';
@@ -84,7 +96,8 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status, hasPassword, membershipBadge } = me as Record<string, unknown>;
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier, theme, profileImageUrl } =
+    me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
   }
@@ -97,10 +110,15 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     handle,
     nickname,
     name: base?.name || nickname,
+    // 구버전 서버가 필드를 생략하면 저장값을 유지하고, 명시적 null은 삭제로 반영한다. URL 정규화는 AuthContext가 맡는다.
+    profileImageUrl: typeof profileImageUrl === 'string' || profileImageUrl === null ? profileImageUrl : base?.profileImageUrl,
     role: typeof role === 'string' ? role : undefined,
     status: typeof status === 'string' ? status : undefined,
     hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
     membershipBadge: membershipBadge === true,
+    representativeGame: isRepresentativeGame(representativeGame) ? representativeGame : null,
+    representativeTier: toRepresentativeTier(representativeTier),
+    theme: theme === 'LIGHT' ? 'light' : theme === 'DARK' ? 'dark' : base?.theme,
   };
 }
 

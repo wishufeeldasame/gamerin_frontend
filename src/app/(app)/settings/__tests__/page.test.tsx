@@ -4,6 +4,15 @@ import { ConfirmProvider } from '@/app/context/ConfirmContext';
 import { ToastProvider } from '@/app/context/ToastContext';
 import { installDialogMock } from '@/test/feedback';
 
+const router = vi.hoisted(() => ({
+  back: vi.fn(),
+  replace: vi.fn(),
+}));
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => router,
+}));
+
 const auth = vi.hoisted(() => ({
   logout: vi.fn(),
   hasPassword: true as boolean | undefined,
@@ -34,6 +43,16 @@ vi.mock('@/lib/account-api', () => ({
   deleteMyAccount: account.deleteMyAccount,
 }));
 
+const saveThemeToServer = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/user-settings', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/user-settings')>('@/lib/user-settings');
+  return { ...actual, saveThemeToServer };
+});
+
+// 대표 게임 섹션은 RepresentativeGameSetting.test.tsx에서 따로 검증한다.
+vi.mock('../RepresentativeGameSetting', () => ({ RepresentativeGameSetting: () => <section aria-label="대표 게임" /> }));
+
 import SettingsPage from '../page';
 
 function renderSettings() {
@@ -47,6 +66,9 @@ describe('SettingsPage', () => {
     auth.logout.mockReset();
     auth.changePassword.mockReset();
     account.deleteMyAccount.mockReset();
+    saveThemeToServer.mockReset();
+    router.back.mockReset();
+    router.replace.mockReset();
     installDialogMock();
     auth.hasPassword = true;
   });
@@ -72,15 +94,30 @@ describe('SettingsPage', () => {
     expect(screen.queryByRole('button', { name: '변경사항 저장' })).not.toBeInTheDocument();
   });
 
-  it('applies and stores a theme immediately', () => {
+  it('개인화 탭에서만 테마와 대표 게임을 보여준다', () => {
+    renderSettings();
+    expect(screen.queryByRole('region', { name: '대표 게임' })).not.toBeInTheDocument();
+    expect(screen.queryByText('테마 설정')).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: '개인화' }));
+
+    expect(screen.getByRole('region', { name: '대표 게임' })).toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '테마 설정' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: '계정 정보' })).not.toBeInTheDocument();
+  });
+
+  it('applies and stores a theme immediately', async () => {
+    saveThemeToServer.mockResolvedValue(undefined);
     renderSettings();
 
-    fireEvent.click(screen.getByRole('button', { name: '테마' }));
-    fireEvent.click(screen.getByRole('button', { name: '다크 모드' }));
+    fireEvent.click(screen.getByRole('button', { name: '개인화' }));
+    fireEvent.click(screen.getByRole('button', { name: /라이트 모드/ }));
 
-    expect(document.documentElement).toHaveClass('dark');
-    expect(window.localStorage.getItem('gamerin_user_settings')).toBe('{"theme":"dark"}');
-    expect(screen.getByRole('button', { name: '다크 모드' })).toHaveAttribute('aria-pressed', 'true');
+    expect(document.documentElement).not.toHaveClass('dark');
+    expect(window.localStorage.getItem('gamerin_user_settings')).toBe('{"theme":"light"}');
+    expect(screen.getByRole('button', { name: /라이트 모드/ })).toHaveAttribute('aria-pressed', 'true');
+    // 서버 저장이 요청된다.
+    await waitFor(() => expect(saveThemeToServer).toHaveBeenCalledWith('light'));
     expect(screen.queryByText('변경사항이 저장되었습니다.')).not.toBeInTheDocument();
   });
 
@@ -104,7 +141,7 @@ describe('SettingsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: '계정 삭제' }));
     fireEvent.click(await screen.findByRole('button', { name: '탈퇴하기' }));
 
-    await waitFor(() => expect(auth.logout).toHaveBeenCalledWith({ redirectTo: '/login' }));
+    await waitFor(() => expect(auth.logout).toHaveBeenCalledWith({ redirectTo: '/?login=1' }));
     expect(account.deleteMyAccount).toHaveBeenCalledTimes(1);
   });
 

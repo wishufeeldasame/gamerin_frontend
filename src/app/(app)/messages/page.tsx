@@ -13,15 +13,16 @@ import {
   RotateCw,
   Search,
   Send,
-  ShieldCheck,
+  SquarePen,
   Trash2,
   Video,
   X,
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { useToast } from '@/app/context/ToastContext';
 import { getPostHref } from '@/lib/feed-api';
 import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
@@ -37,6 +38,8 @@ import {
   parseMessageRealtimeEvent,
   searchMessageRecipients,
   sendConversationMessage,
+  sendMessageUpload,
+  fetchMessageUploadJob,
 } from '@/lib/message-api';
 import {
   ChatAttachment,
@@ -54,11 +57,13 @@ import {
   shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
+import { loadUploadRecords, saveUploadRecord, removeUploadRecord, trackUpload, UploadJobError, UPLOAD_PHASE_LABELS } from '@/lib/upload-jobs';
 import { invalidateNotifications } from '@/lib/notification-sync';
 import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
 import { RelativeTime } from '@/app/home/components/RelativeTime';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 import { ConversationListSkeleton, MessageThreadSkeleton } from '@/app/home/components/LoadingSkeletons';
 
 const MESSAGE_PAGE_SIZE = 30;
@@ -103,7 +108,7 @@ function HighlightedText({ text, query }: { text: string; query: string }) {
     <>
       {parts.map((part, index) =>
         part.toLowerCase() === normalized.toLowerCase() ? (
-          <mark key={`${part}-${index}`} className="rounded bg-[#f5b93d]/40 px-0.5 text-inherit dark:bg-[#f5b93d] dark:text-[#1a1406]">
+          <mark key={`${part}-${index}`} className="rounded bg-brand px-0.5 text-fg-on-brand">
             {part}
           </mark>
         ) : (
@@ -152,37 +157,37 @@ function ConversationCard({
       type="button"
       onClick={onSelect}
       aria-current={active ? 'true' : undefined}
-      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors ${
+      className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-fg-brand ${
         active
-          ? 'bg-zinc-100 shadow-[inset_3px_0_0_#000] dark:bg-surface-elevated dark:shadow-[inset_3px_0_0_#f5b93d]'
-          : 'hover:bg-zinc-50 dark:hover:bg-surface-elevated'
+          ? 'bg-subtle'
+          : 'hover:bg-subtle'
       }`}
     >
       <UserAvatar
         name={conversation.recipient.name}
         imageUrl={conversation.recipient.profileImageUrl}
         sizes="44px"
-        className="h-11 w-11 shrink-0 rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200"
+        className="h-11 w-11 rounded-full bg-subtle text-label text-fg-secondary"
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black dark:text-zinc-100">
+          <p className="flex min-w-0 flex-wrap items-center gap-x-1 text-body font-medium text-fg-primary">
             <span className="truncate"><HighlightedText text={conversation.recipient.name} query={query} /></span>
-            <MembershipBadge active={conversation.recipient.membershipBadge} />
-            <span className="truncate text-xs font-bold text-zinc-400">
+            <MembershipBadge active={conversation.recipient.membershipBadge} /><RepresentativeTierBadge tier={conversation.recipient.representativeTier} />
+            <span className="truncate text-caption text-fg-tertiary">
               <HighlightedText text={conversation.recipient.handle} query={query} />
             </span>
           </p>
-          <span className="shrink-0 text-xs font-bold text-zinc-400">
+          <span className="shrink-0 text-caption text-fg-tertiary">
             <RelativeTime createdAt={conversation.updatedAt} />
           </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
-          <p className={`truncate text-sm ${conversation.unreadCount > 0 ? 'font-bold text-black dark:text-zinc-100' : 'font-medium text-zinc-500'}`}>
+          <p className={`truncate text-body ${conversation.unreadCount > 0 ? 'font-medium text-fg-primary' : 'text-fg-secondary'}`}>
             <HighlightedText text={getLastPreview(conversation)} query={query} />
           </p>
           {conversation.unreadCount > 0 ? (
-            <span className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-[#f5b93d] px-1.5 text-2xs font-black text-black">
+            <span aria-label={`읽지 않은 메시지 ${conversation.unreadCount}개`} className="flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-brand px-1.5 text-caption text-fg-on-brand">
               {conversation.unreadCount}
             </span>
           ) : null}
@@ -233,13 +238,13 @@ function NewChatPicker({
   }, [query]);
 
   return (
-    <div className="rounded-3xl border border-zinc-100 bg-zinc-50 p-3">
+    <div className="m-3 rounded-card bg-subtle p-3">
       <div className="mb-3 flex items-center justify-between px-2">
-        <p className="text-xs font-black uppercase tracking-widest text-zinc-400">새 대화</p>
+        <p className="text-label text-fg-secondary">새 대화</p>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-lg p-1 text-zinc-400 transition hover:bg-white hover:text-black dark:hover:bg-surface-elevated"
+          className="btn-icon"
           aria-label="새 대화 닫기"
         >
           <X size={16} />
@@ -247,22 +252,23 @@ function NewChatPicker({
       </div>
 
       <label className="relative mb-3 block">
-        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400" size={16} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary" size={16} />
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="이름 또는 핸들 검색"
-          className="h-11 w-full rounded-2xl border border-zinc-200 bg-white pl-10 pr-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
+          aria-label="이름 또는 핸들 검색"
+          className="input-base pl-10"
         />
       </label>
 
       {loading ? (
-        <div className="flex items-center justify-center py-6 text-sm font-bold text-zinc-400">
+        <div role="status" className="flex items-center justify-center py-6 text-label text-fg-tertiary">
           <Loader2 size={16} className="mr-2 animate-spin" />
           검색 중...
         </div>
       ) : errorMessage ? (
-        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+        <div role="alert" className="rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger">
           {errorMessage}
         </div>
       ) : recipients.length > 0 ? (
@@ -272,20 +278,20 @@ function NewChatPicker({
               key={recipient.id}
               type="button"
               onClick={() => onStart(recipient)}
-              className="flex w-full items-center gap-3 rounded-2xl bg-white p-3 text-left transition hover:bg-zinc-100"
+              className="flex w-full items-center gap-3 rounded-control p-3 text-left transition hover:bg-surface focus-visible:outline-2 focus-visible:outline-fg-brand"
             >
               <UserAvatar
                 name={recipient.name}
                 imageUrl={recipient.profileImageUrl}
                 sizes="40px"
-                className="h-10 w-10 rounded-xl bg-black text-xs font-black text-white dark:bg-avatar dark:text-zinc-200"
+                className="h-10 w-10 rounded-full bg-surface text-caption text-fg-secondary"
               />
               <span className="min-w-0">
-                <span className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                <span className="flex min-w-0 items-center gap-1 text-body font-medium text-fg-primary">
                   <span className="truncate">{recipient.name}</span>
-                  <MembershipBadge active={recipient.membershipBadge} />
+                  <MembershipBadge active={recipient.membershipBadge} /><RepresentativeTierBadge tier={recipient.representativeTier} />
                 </span>
-                <span className="block truncate text-xs font-bold text-zinc-400">
+                <span className="block truncate text-caption text-fg-tertiary">
                   {recipient.handle}
                 </span>
               </span>
@@ -293,7 +299,7 @@ function NewChatPicker({
           ))}
         </div>
       ) : (
-        <p className="px-2 py-3 text-sm font-bold text-zinc-400">검색 결과가 없습니다.</p>
+        <p role="status" className="px-2 py-3 text-body text-fg-tertiary">검색 결과가 없습니다.</p>
       )}
     </div>
   );
@@ -312,14 +318,13 @@ function SharedPostCard({
     <button
       type="button"
       onClick={() => onOpenPost(message.sharedPost!.postNumber)}
-      className="mt-3 block w-full overflow-hidden rounded-2xl border border-white/20 bg-white text-left text-black shadow-sm transition hover:border-black"
+      className="mt-2 block w-full overflow-hidden rounded-card border border-line bg-surface p-3 text-left text-fg-primary transition hover:bg-subtle focus-visible:outline-2 focus-visible:outline-fg-brand"
     >
-      <div className="border-b border-zinc-100 px-4 py-3">
-        <p className="text-xs font-black uppercase tracking-widest text-zinc-400">공유 게시글</p>
-        <p className="mt-1 text-sm font-black text-black">{message.sharedPost.author}</p>
-        <p className="text-xs font-bold text-zinc-400">@{message.sharedPost.authorHandle}</p>
+      <div>
+        <p className="text-caption text-fg-brand">공유 게시글</p>
+        <p className="mt-1 text-label text-fg-primary">{message.sharedPost.author} · @{message.sharedPost.authorHandle}</p>
       </div>
-      <p className="line-clamp-3 px-4 py-3 text-sm font-medium leading-6 text-zinc-700">
+      <p className="mt-1 line-clamp-3 text-body text-fg-secondary">
         {message.sharedPost.content}
       </p>
     </button>
@@ -337,7 +342,7 @@ function ImageLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      className="dm-image-lightbox fixed left-0 right-0 z-[200] flex flex-col items-center gap-3 bg-black/85 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -346,20 +351,20 @@ function ImageLightbox({
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+        className="z-10 flex h-11 w-11 shrink-0 self-end items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
         aria-label="이미지 닫기"
       >
         <X size={20} />
       </button>
-      <div className="max-h-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
+      <div className="min-h-0 w-full max-w-6xl flex-1" onClick={(event) => event.stopPropagation()}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image.url}
           alt={image.name}
-          className="max-h-[88dvh] w-auto max-w-full rounded-3xl object-contain shadow-2xl"
+          className="h-full w-full rounded-card object-contain"
         />
-        <p className="mt-3 text-center text-sm font-bold text-white/80">{image.name}</p>
       </div>
+      <p onClick={(event) => event.stopPropagation()} className="max-h-20 w-full shrink-0 overflow-auto break-all text-center text-label text-white/80">{image.name}</p>
     </div>
   );
 }
@@ -376,9 +381,9 @@ function AttachmentGrid({
   return (
     <div className="mt-3 grid gap-2">
       {attachments.map((attachment) => (
-        <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
+        <div key={attachment.id} className="overflow-hidden rounded-card bg-subtle">
           <MessageAttachmentMedia attachment={attachment} onOpenImage={onOpenImage} />
-          <p className="truncate bg-white/80 px-3 py-2 text-xs font-bold text-zinc-500 dark:bg-surface dark:text-zinc-400">{attachment.name}</p>
+          <p className="truncate px-3 py-2 text-caption text-fg-secondary">{attachment.name}</p>
         </div>
       ))}
     </div>
@@ -424,7 +429,7 @@ function MessageAttachmentMedia({
 
   if (failed) {
     return (
-      <div className="flex h-44 items-center justify-center bg-zinc-100 px-4 text-center text-sm font-bold text-zinc-500">
+      <div className="flex h-44 items-center justify-center bg-subtle px-4 text-center text-body text-fg-secondary">
         첨부를 불러올 수 없습니다.
       </div>
     );
@@ -432,7 +437,7 @@ function MessageAttachmentMedia({
 
   if (!objectUrl) {
     return (
-      <div className="flex h-44 items-center justify-center bg-zinc-100 text-zinc-400">
+      <div className="flex h-44 items-center justify-center bg-subtle text-fg-tertiary">
         <Loader2 size={22} className="animate-spin" />
       </div>
     );
@@ -458,8 +463,6 @@ function MessageAttachmentMedia({
 function MessageBubble({
   chatMessage,
   mine,
-  recipientName,
-  recipientImageUrl,
   isActionOpen,
   actionLoading,
   onToggleAction,
@@ -469,8 +472,6 @@ function MessageBubble({
 }: {
   chatMessage: ChatMessage;
   mine: boolean;
-  recipientName: string;
-  recipientImageUrl?: string | null;
   isActionOpen: boolean;
   actionLoading: boolean;
   onToggleAction: () => void;
@@ -495,16 +496,7 @@ function MessageBubble({
 
   return (
     <div className={`flex items-start gap-2 ${mine ? 'justify-end' : 'justify-start'}`}>
-      {!mine ? (
-        <UserAvatar
-          name={recipientName}
-          imageUrl={recipientImageUrl}
-          sizes="32px"
-          className="h-8 w-8 shrink-0 rounded-xl bg-zinc-200 text-2xs font-black text-black dark:bg-neutral-700"
-        />
-      ) : null}
-
-      <div className={`max-w-[76%] ${mine ? 'items-end' : 'items-start'}`}>
+      <div className={`min-w-0 max-w-[85%] ${mine ? 'items-end' : 'items-start'}`}>
         <div
           className={`group relative flex items-end gap-1 ${mine ? 'justify-end' : 'justify-start'}`}
           data-message-action-root="true"
@@ -517,12 +509,12 @@ function MessageBubble({
           }}
         >
           {mine && isActionOpen ? (
-            <div className="absolute bottom-1 right-full mr-3 flex h-10 items-center overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.12)]">
+            <div className="absolute bottom-1 right-full mr-3 flex h-10 items-center overflow-hidden rounded-control border border-line bg-surface shadow-lg">
               <button
                 type="button"
                 onClick={onDelete}
                 disabled={actionLoading}
-                className="flex h-full items-center justify-center px-4 text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                className="flex h-full items-center justify-center px-4 text-fg-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50"
                 aria-label="메시지 삭제"
               >
                 <Trash2 size={16} className="-translate-x-[1px] shrink-0" />
@@ -531,10 +523,10 @@ function MessageBubble({
           ) : null}
 
           <div
-            className={`rounded-2xl px-4 py-2.5 text-base font-medium leading-relaxed shadow-sm max-md:select-none max-md:[-webkit-touch-callout:none] ${
+            className={`min-w-0 whitespace-pre-wrap break-words rounded-card px-3.5 py-2.5 text-body max-md:select-none max-md:[-webkit-touch-callout:none] ${
               mine
-                ? 'rounded-br-none bg-black text-white dark:bg-[#f5b93d] dark:text-[#1a1406]'
-                : 'rounded-bl-none border border-zinc-100 bg-white text-zinc-800'
+                ? 'bg-brand text-fg-on-brand'
+                : 'bg-subtle text-fg-primary'
             }`}
           >
             {chatMessage.text ? <p>{chatMessage.text}</p> : null}
@@ -546,7 +538,7 @@ function MessageBubble({
             <button
               type="button"
               onClick={onToggleAction}
-              className={`mb-1 rounded-full p-2 text-zinc-400 transition hover:bg-white hover:text-zinc-600 focus-visible:opacity-100 dark:hover:bg-surface-elevated ${isActionOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+              className={`mb-1 rounded-full p-2 text-fg-tertiary transition hover:bg-surface hover:text-fg-secondary focus-visible:opacity-100 dark:hover:bg-surface-elevated ${isActionOpen ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
               aria-label="메시지 액션"
             >
               <Ellipsis size={16} />
@@ -555,7 +547,7 @@ function MessageBubble({
         </div>
 
         <div
-          className={`mt-1 flex items-center gap-1 text-2xs font-bold text-zinc-400 dark:text-zinc-400 ${
+          className={`mt-1 flex items-center gap-1 text-caption text-fg-tertiary ${
             mine ? 'justify-end' : 'justify-start'
           }`}
         >
@@ -582,22 +574,23 @@ function PendingMessageBubble({
   onDiscard: () => void;
   onOpenImage: (image: ExpandedImage) => void;
 }) {
-  const failed = pendingMessage.status === 'failed';
+  const failed = ['failed', 'rejected', 'invalid', 'unavailable', 'missing'].includes(pendingMessage.status);
+  const uncertain = pendingMessage.status === 'unavailable' || pendingMessage.status === 'missing';
   const hasVideo = pendingMessage.attachments.some((attachment) => attachment.type === 'video');
 
   return (
     <div className="flex items-end justify-end gap-3" data-pending-message-id={pendingMessage.id}>
-      <div className="flex max-w-[76%] flex-col items-end">
+      <div className="flex min-w-0 max-w-[85%] flex-col items-end">
         <div
-          className={`rounded-3xl rounded-br-none px-6 py-4 text-base font-medium leading-relaxed shadow-sm ${
-            failed ? 'bg-black/60 text-white ring-2 ring-red-400 dark:bg-[#b8892c] dark:text-[#1a1406]' : 'bg-black/70 text-white dark:bg-[#c99a35] dark:text-[#1a1406]'
+          className={`min-w-0 whitespace-pre-wrap break-words rounded-card bg-brand px-3.5 py-2.5 text-body text-fg-on-brand ${
+            failed ? 'ring-1 ring-line-danger' : ''
           }`}
         >
-          {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
+          {pendingMessage.text ? <p>{pendingMessage.text}</p> : pendingMessage.upload && !pendingMessage.hasOriginal ? <p>첨부 업로드 상태</p> : null}
           {pendingMessage.attachments.length > 0 ? (
             <div className="mt-3 grid gap-2">
               {pendingMessage.attachments.map((attachment) => (
-                <div key={attachment.id} className="overflow-hidden rounded-2xl bg-black/5">
+                <div key={attachment.id} className="overflow-hidden rounded-card bg-subtle">
                   {attachment.type === 'video' ? (
                     <video src={attachment.previewUrl} muted controls playsInline className="max-h-80 w-full bg-black object-contain" />
                   ) : (
@@ -618,30 +611,30 @@ function PendingMessageBubble({
         </div>
 
         {failed ? (
-          <div role="alert" className="mt-2 flex flex-wrap items-center justify-end gap-2 text-xs font-bold text-red-500 dark:text-red-300">
+          <div role="alert" className="mt-2 flex flex-wrap items-center justify-end gap-2 text-caption text-fg-danger">
             <CircleAlert size={13} className="shrink-0" />
-            <span>전송 실패 · {pendingMessage.errorMessage}</span>
-            <button
+            <span>{uncertain ? '상태 확인 필요' : pendingMessage.status === 'rejected' ? '검열 거부' : '전송 실패'} · {pendingMessage.errorMessage}</span>
+            {pendingMessage.status !== 'rejected' && pendingMessage.status !== 'invalid' && (uncertain || !pendingMessage.upload || pendingMessage.hasOriginal) ? <button
               type="button"
               onClick={onRetry}
-              className="inline-flex items-center gap-1 rounded-xl border border-red-200 bg-white px-2.5 py-1 font-black text-red-600 transition hover:border-red-400 dark:border-red-900 dark:text-red-300"
+              className="inline-flex items-center gap-1 rounded-control bg-danger-subtle px-2.5 py-1 text-label text-fg-danger focus-visible:outline-2 focus-visible:outline-line-danger"
             >
               <RotateCw size={12} />
-              재시도
-            </button>
+              {uncertain ? '상태 다시 확인' : '재시도'}
+            </button> : <span>내용·파일을 수정해 새로 보내 주세요.</span>}
             <button
               type="button"
               onClick={onDiscard}
-              className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-1 font-black text-zinc-500 transition hover:border-zinc-400 hover:text-black"
+              className="inline-flex items-center gap-1 rounded-control bg-subtle px-2.5 py-1 text-label text-fg-secondary transition hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-fg-brand"
             >
               <Trash2 size={12} />
-              삭제
+              {uncertain ? '추적 닫기' : '삭제'}
             </button>
           </div>
         ) : (
-          <div role="status" className="mt-2 flex items-center gap-1 text-2xs font-black text-zinc-400">
+          <div role="status" className="mt-2 flex items-center gap-1 text-caption text-fg-tertiary">
             <Loader2 size={12} className="animate-spin" />
-            <span>{hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
+            <span>{pendingMessage.upload ? UPLOAD_PHASE_LABELS[pendingMessage.uploadPhase ?? 'sending'] : hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
           </div>
         )}
       </div>
@@ -653,7 +646,7 @@ function StreamReplacedNotice({ className = '' }: { className?: string }) {
   return (
     <div
       role="status"
-      className={`rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold text-amber-700 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-300 ${className}`}
+      className={`m-3 rounded-control bg-brand-subtle px-4 py-3 text-label text-fg-brand ${className}`}
     >
       다른 탭이나 기기에서 메시지 화면을 열어 실시간 연결이 종료되었습니다. 새로고침하면 다시 연결됩니다.
     </div>
@@ -661,6 +654,7 @@ function StreamReplacedNotice({ className = '' }: { className?: string }) {
 }
 
 export default function MessagesPage() {
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthReady } = useAuth();
@@ -671,11 +665,13 @@ export default function MessagesPage() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const messageElementRefs = useRef(new Map<string, HTMLDivElement>());
   const handledMessageDeepLinkRef = useRef('');
+  const handledConversationDeepLinkRef = useRef('');
   const activeConversationIdRef = useRef('');
   const attachmentsRef = useRef<DraftAttachment[]>([]);
   // 전송 대기열이 렌더 전에도 최신 임시 메시지를 읽도록 state와 함께 갱신한다.
   const pendingRef = useRef<Record<string, PendingChatMessage[]>>({});
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const sendSessionRef = useRef(0);
   const messagesRef = useRef<Record<string, ChatMessage[]>>({});
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -700,7 +696,41 @@ export default function MessagesPage() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [viewport, setViewport] = useState<{ height: number; top: number; keyboard: boolean } | null>(null);
+  useEffect(() => {
+    const visual = window.visualViewport;
+    const layoutHeight = () => Math.max(document.documentElement.clientHeight, window.innerHeight, visual?.height ?? 0);
+    let unfocusedHeight = layoutHeight();
+    let width = window.innerWidth;
+    const update = () => {
+      const focused = Boolean(document.activeElement?.closest('[data-message-composer]'));
+      const height = visual?.height ?? window.innerHeight;
+      // 키보드가 열린 채 포커스가 이동해도 축소된 높이를 기준값으로 저장하지 않는다.
+      if (width !== window.innerWidth || (!focused && unfocusedHeight - height <= 150)) unfocusedHeight = layoutHeight();
+      width = window.innerWidth;
+      const next = {
+        height,
+        top: visual?.offsetTop ?? 0,
+        keyboard: focused && unfocusedHeight - height > 150,
+      };
+      setViewport(previous => previous?.height === next.height && previous.top === next.top && previous.keyboard === next.keyboard ? previous : next);
+    };
+    update();
+    visual?.addEventListener('resize', update);
+    visual?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', update);
+    return () => {
+      visual?.removeEventListener('resize', update);
+      visual?.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+      document.removeEventListener('focusin', update);
+      document.removeEventListener('focusout', update);
+    };
+  }, []);
   // 모바일에서 대화창을 열면 하단 탭바를 숨겨 대화 영역을 넓힌다(globals.css의 data-chat-open 규칙).
+  // v2는 상단 바도 숨기고 대화 헤더의 뒤로 버튼으로 목록에 돌아간다(F15).
   useEffect(() => {
     if (mobileView !== 'chat') return;
     document.body.dataset.chatOpen = 'true';
@@ -741,7 +771,7 @@ export default function MessagesPage() {
     ? `${latestServerMessageId}|${latestPendingMessage.id}:${latestPendingMessage.status}`
     : latestServerMessageId;
   useUnloadWarning(
-    Object.values(pendingByConversation).some((items) => items.some((item) => item.status !== 'failed'))
+    Object.values(pendingByConversation).some((items) => items.some((item) => item.status === 'queued' || item.status === 'sending'))
   );
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
@@ -829,6 +859,8 @@ export default function MessagesPage() {
       revokeAttachmentUrls(attachmentsRef.current);
       revokeAttachmentUrls(Object.values(pendingRef.current).flat().flatMap((item) => item.attachments));
       // 대기열에 남은 메시지가 화면을 떠난 뒤 전송되지 않도록 비운다.
+      sendSessionRef.current += 1;
+      sendQueueRef.current = Promise.resolve();
       pendingRef.current = {};
     };
   }, [revokeAttachmentUrls]);
@@ -1240,12 +1272,18 @@ export default function MessagesPage() {
   };
 
   useEffect(() => {
-    if (!requestedConversationId) return;
+    if (!requestedConversationId) {
+      handledConversationDeepLinkRef.current = '';
+      return;
+    }
+    const deepLink = `${requestedConversationId}:${requestedMessageId}`;
+    if (handledConversationDeepLinkRef.current === deepLink) return;
     if (!conversations.some((conversation) => conversation.id === requestedConversationId)) return;
 
+    handledConversationDeepLinkRef.current = deepLink;
     setActiveConversationId(requestedConversationId);
     setMobileView('chat');
-  }, [conversations, requestedConversationId]);
+  }, [conversations, requestedConversationId, requestedMessageId]);
 
   useEffect(() => {
     if (
@@ -1313,7 +1351,8 @@ export default function MessagesPage() {
   useEffect(() => {
     for (const [conversationId, items] of Object.entries(pendingRef.current)) {
       const visible = hideDeliveredPendingMessages(items, messagesByConversation[conversationId] ?? []);
-      const delivered = items.filter((item) => item.status === 'failed' && !visible.includes(item));
+      const delivered = items.filter((item) => ['failed', 'unavailable', 'missing'].includes(item.status) && !visible.includes(item));
+      delivered.forEach((item) => { if (item.upload) removeUploadRecord(item.upload); });
       if (delivered.length === 0) continue;
 
       revokeAttachmentUrls(delivered.flatMap((item) => item.attachments));
@@ -1323,63 +1362,95 @@ export default function MessagesPage() {
 
   const discardPendingMessages = (conversationId: string, pendingId?: string) => {
     const targets = (pendingRef.current[conversationId] ?? []).filter((item) => !pendingId || item.id === pendingId);
+    targets.forEach((item) => { if (item.upload) removeUploadRecord(item.upload); });
     revokeAttachmentUrls(targets.flatMap((item) => item.attachments));
     updatePendingMessages(conversationId, (items) => items.filter((item) => !targets.includes(item)));
   };
 
-  // 대기열로 한 번에 하나씩 보내 연속 전송해도 서버 저장 순서가 보낸 순서와 같도록 한다.
+  // 파일 접수까지만 직렬화하고 서버 처리는 별도로 추적해 다음 전송을 막지 않는다.
   const enqueuePendingMessage = (conversationId: string, pendingId: string) => {
+    const session = sendSessionRef.current;
     sendQueueRef.current = sendQueueRef.current.then(async () => {
       const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
-      // 대화방을 나가거나 화면을 떠나 임시 메시지가 사라졌으면 보내지 않는다.
-      if (!target || target.status !== 'queued') return;
+      if (!target || target.status !== 'queued' || session !== sendSessionRef.current) return;
+      const active = () => session === sendSessionRef.current && isCurrentAuthGeneration(target.authGeneration) &&
+        !!pendingRef.current[conversationId]?.some((item) => item.id === pendingId);
       if (!isCurrentAuthGeneration(target.authGeneration)) {
         discardPendingMessages(conversationId, pendingId);
         return;
       }
-
+      if (!active()) return;
       updatePendingMessages(conversationId, (items) =>
-        items.map((item) => (item.id === pendingId ? { ...item, status: 'sending' } : item))
-      );
-
-      try {
-        const sentMessage = await sendConversationMessage({
-          conversationId,
-          content: target.text,
-          attachments: target.attachments.map((attachment) => attachment.file),
-          clientMessageId: target.id,
-        });
-
-        if (!pendingRef.current[conversationId]?.some((item) => item.id === pendingId)) return;
-
-        revokeAttachmentUrls(target.attachments);
-        updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
-        setMessagesByConversation((current) => ({
-          ...current,
-          [conversationId]: mergeMessages(current[conversationId] ?? [], [sentMessage]),
-        }));
-        updateConversationPreviewWithMessage(conversationId, sentMessage);
-        void loadConversations({ silent: true });
-      } catch (error) {
-        // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
-        const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
-        if (
-          sendingItem &&
-          hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
-        ) {
-          discardPendingMessages(conversationId, pendingId);
-          return;
-        }
-        updatePendingMessages(conversationId, (items) =>
-          items.map((item) =>
-            item.id === pendingId
-              ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.') }
-              : item
-          )
-        );
-      }
+        items.map((item) => item.id === pendingId ? { ...item, status: 'sending' } : item));
+      let release!: () => void;
+      const accepted = new Promise<void>((resolve) => { release = resolve; });
+      const process = async () => {
+        try {
+          let sentMessage: ChatMessage | null;
+          if (target.upload) {
+            const job = await trackUpload(target.upload, {
+              recover: target.recoverUpload,
+              send: target.hasOriginal ? () => sendMessageUpload({ conversationId, content: target.text,
+                attachments: target.attachments.map((attachment) => attachment.file), clientMessageId: target.id }) : undefined,
+              fetchJob: fetchMessageUploadJob,
+              active,
+              onPhase: (phase) => {
+                updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId
+                  ? { ...item, status: phase === 'sending' ? 'sending' : 'processing', uploadPhase: phase } : item));
+                if (phase !== 'sending') release();
+              },
+            });
+            sentMessage = job.message;
+          } else {
+            sentMessage = await sendConversationMessage({ conversationId, content: target.text,
+              attachments: target.attachments.map((attachment) => attachment.file), clientMessageId: target.id });
+          }
+          if (!active()) return;
+          revokeAttachmentUrls(target.attachments);
+          updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
+          if (sentMessage) {
+            const deliveredMessage = sentMessage;
+            setMessagesByConversation((current) => ({ ...current,
+              [conversationId]: mergeMessages(current[conversationId] ?? [], [deliveredMessage]) }));
+            updateConversationPreviewWithMessage(conversationId, sentMessage);
+          }
+          if (target.upload) {
+            if (sentMessage) toast.success('첨부 업로드 완료', { placement: 'top' });
+            else toast.info('업로드 처리가 완료됐습니다. 삭제·숨김 또는 접근 권한 변경으로 메시지를 표시할 수 없습니다.');
+          }
+          void loadConversations({ silent: true });
+        } catch (error) {
+          if (!active()) return;
+          // SSE·폴링으로 먼저 전달됐다면 실패로 되돌리지 않는다.
+          if (hideDeliveredPendingMessages([target], messagesRef.current[conversationId] ?? []).length === 0) {
+            discardPendingMessages(conversationId, pendingId);
+            return;
+          }
+          updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId ? {
+            ...item, status: error instanceof UploadJobError ? error.kind : target.upload ? 'unavailable' : 'failed',
+            errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
+          } : item));
+        } finally { release(); }
+      };
+      void process();
+      await accepted;
     });
   };
+
+  const enqueueRef = useRef(enqueuePendingMessage);
+  enqueueRef.current = enqueuePendingMessage;
+  useEffect(() => {
+    if (!isAuthReady || !user?.id) return;
+    for (const record of loadUploadRecords(user.id, 'message')) {
+      if (pendingRef.current[record.conversationId!]?.some((item) => item.id === record.clientId)) continue;
+      updatePendingMessages(record.conversationId!, (items) => [...items, {
+        id: record.clientId, text: '', attachments: [], status: 'queued', errorMessage: null,
+        upload: record, hasOriginal: false, recoverUpload: true, uploadPhase: 'processing',
+        authGeneration: getAuthGeneration(),
+      }]);
+      enqueueRef.current(record.conversationId!, record.clientId);
+    }
+  }, [isAuthReady, user?.id, updatePendingMessages]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1402,6 +1473,12 @@ export default function MessagesPage() {
       authGeneration: getAuthGeneration(),
     };
 
+    if (attachments.length > 0 && user) {
+      pendingMessage.upload = { userId: user.id, kind: 'message', clientId: pendingMessage.id, conversationId };
+      pendingMessage.hasOriginal = true;
+      pendingMessage.uploadPhase = 'sending';
+      saveUploadRecord(pendingMessage.upload);
+    }
     updatePendingMessages(conversationId, (items) => [...items, pendingMessage]);
     setComposerError('');
     setMessage('');
@@ -1413,10 +1490,19 @@ export default function MessagesPage() {
   };
 
   const handleRetryPendingMessage = (conversationId: string, pendingId: string) => {
-    updatePendingMessages(conversationId, (items) =>
-      items.map((item) => (item.id === pendingId ? { ...item, status: 'queued', errorMessage: null } : item))
-    );
-    enqueuePendingMessage(conversationId, pendingId);
+    const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+    if (!target || !['failed', 'unavailable', 'missing'].includes(target.status)) return;
+    if (target.upload && target.status === 'failed' && !target.hasOriginal) return;
+    const next = { ...target, status: 'queued' as const, errorMessage: null, recoverUpload: true };
+    if (target.upload && target.status === 'failed') {
+      removeUploadRecord(target.upload);
+      next.id = createClientId();
+      next.upload = { ...target.upload, clientId: next.id, jobId: undefined };
+      next.recoverUpload = false;
+      saveUploadRecord(next.upload);
+    }
+    updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId ? next : item));
+    enqueuePendingMessage(conversationId, next.id);
   };
 
   const handleLoadOlderMessages = async () => {
@@ -1628,8 +1714,8 @@ export default function MessagesPage() {
 
   if (!isAuthReady) {
     return (
-      <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] items-center justify-center bg-white">
-        <div className="flex items-center gap-3 text-sm font-bold text-zinc-500">
+      <div className="flex h-[calc(100dvh-var(--app-header-height)-var(--tab-bar-height))] items-center justify-center bg-surface">
+        <div className="flex items-center gap-3 text-body text-fg-secondary">
           <Loader2 size={18} className="animate-spin" />
           메시지 화면을 불러오는 중...
         </div>
@@ -1637,19 +1723,36 @@ export default function MessagesPage() {
     );
   }
 
+  const orphanUploads = !loadingConversations ? Object.entries(pendingByConversation)
+    .filter(([id]) => !conversations.some((conversation) => conversation.id === id))
+    .flatMap(([id, items]) => items.map((item) => (
+      <div key={item.id} className="m-3 rounded-control border border-line p-3">
+        <p className="mb-2 text-caption text-fg-secondary">접근할 수 없는 대화의 업로드</p>
+        <PendingMessageBubble pendingMessage={item}
+          onRetry={() => handleRetryPendingMessage(id, item.id)}
+          onDiscard={() => discardPendingMessages(id, item.id)} onOpenImage={handleOpenImage} />
+      </div>
+    ))) : [];
+
   return (
-    <div className="flex h-[calc(100dvh-4rem-var(--tab-bar-height))] overflow-hidden bg-background">
+    <div
+      data-message-shell="true"
+      data-mobile-chat={mobileView === 'chat' ? '' : undefined}
+      data-keyboard-open={viewport?.keyboard ? '' : undefined}
+      style={viewport ? { '--dm-viewport-height': `${viewport.height}px`, '--dm-viewport-top': `${viewport.top}px` } as CSSProperties : undefined}
+      className="flex h-[calc(100dvh-var(--app-header-height)-var(--tab-bar-height))] overflow-hidden bg-canvas text-fg-primary md:bg-surface lg:my-5 lg:ml-6 lg:h-[calc(100dvh-40px)] lg:rounded-card lg:border lg:border-line-card [&_svg]:stroke-[1.67]">
       <section
-        className={`w-full flex-col border-r border-zinc-100 bg-white md:flex md:w-[380px] ${
+        aria-label="대화 목록"
+        className={`min-h-0 w-full shrink-0 flex-col md:flex md:w-[280px] md:border-r md:border-line xl:w-[340px] ${
           mobileView === 'chat' ? 'hidden' : 'flex'
         }`}
       >
-        <div className="px-4 pb-4 pt-6 md:px-8">
-          <div className="mb-6 flex items-center justify-between">
+        <div className="px-4 pb-2 pt-4">
+          <div className="mb-3 flex items-center justify-between">
             <div>
-              <h1 className="page-title">메시지</h1>
-              <div className="mt-1 flex items-center gap-2">
-                <p className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+              <h1 className="text-title">메시지</h1>
+              <div className="sr-only">
+                <p>
                   대화 {listedConversations.length}개
                 </p>
               </div>
@@ -1657,28 +1760,31 @@ export default function MessagesPage() {
             <button
               type="button"
               onClick={() => setShowNewChat((current) => !current)}
-              className="flex h-11 w-11 items-center justify-center rounded-2xl bg-black text-white shadow-lg transition hover:scale-105 dark:bg-surface-elevated dark:text-zinc-100 dark:shadow-none dark:ring-1 dark:ring-line"
+              className="btn-icon text-icon-primary"
               aria-label="새 대화 시작"
+              aria-expanded={showNewChat}
             >
-              <Plus size={20} />
+              <SquarePen size={20} />
             </button>
           </div>
 
           <label className="group relative block">
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 transition-colors group-focus-within:text-black"
+              className="absolute left-4 top-1/2 -translate-y-1/2 text-fg-tertiary transition-colors group-focus-within:text-fg-primary"
               size={18}
             />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="대화 또는 사용자 검색"
-              className="h-12 w-full rounded-2xl bg-zinc-50 pl-12 pr-4 text-sm font-bold text-black outline-none transition focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
+              aria-label="대화 또는 사용자 검색"
+              className="input-base h-10 border-transparent pl-11"
             />
           </label>
         </div>
 
-        <div ref={conversationListRef} className="flex-1 space-y-1 overflow-y-auto px-2 pb-4 md:px-4">
+        <div ref={conversationListRef} className="min-h-0 flex-1 overflow-y-auto pb-4">
+          {orphanUploads}
           {showNewChat ? (
             <NewChatPicker
               onStart={handleStartConversation}
@@ -1689,7 +1795,7 @@ export default function MessagesPage() {
           {streamReplaced ? <StreamReplacedNotice /> : null}
 
           {pageError ? (
-            <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+            <div role="alert" className="m-3 rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger">
               {pageError}
             </div>
           ) : null}
@@ -1711,29 +1817,31 @@ export default function MessagesPage() {
               {hasHiddenConversations ? <div ref={conversationSentinelRef} aria-hidden="true" className="h-px" /> : null}
             </>
           ) : (
-            <div className="rounded-3xl border border-dashed border-zinc-200 p-6 text-center">
-              <Inbox className="mx-auto mb-3 text-zinc-300" size={28} />
-              <p className="text-sm font-black text-zinc-500">시작된 대화가 없습니다.</p>
+            <div role="status" className="p-6 text-center">
+              <Inbox className="mx-auto mb-3 text-fg-tertiary" size={28} />
+              <p className="text-body text-fg-secondary">{query.trim() ? '검색 결과가 없습니다.' : '시작된 대화가 없습니다.'}</p>
             </div>
           )}
         </div>
       </section>
 
       <section
-        className={`min-w-0 flex-1 flex-col bg-[#fafafa] md:flex dark:bg-background ${
+        aria-label="메시지 대화"
+        className={`min-h-0 min-w-0 flex-1 flex-col md:flex ${
           mobileView === 'list' ? 'hidden md:flex' : 'flex'
         }`}
       >
         {/* 모바일 채팅 화면에서는 대화 목록 영역이 숨겨지므로 안내를 여기에도 둔다. */}
         {streamReplaced ? <StreamReplacedNotice className="md:hidden" /> : null}
+        {orphanUploads.length > 0 ? <div className="max-h-64 overflow-y-auto md:hidden">{orphanUploads}</div> : null}
         {activeConversation ? (
           <>
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-zinc-100 bg-white/88 px-4 py-3 backdrop-blur-md md:px-8 md:py-5 dark:bg-surface/95">
+            <div className="z-10 flex shrink-0 items-center justify-between border-b border-line px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:px-5 md:pt-3">
               <div className="flex min-w-0 items-center gap-3 md:gap-4">
                 <button
                   type="button"
                   onClick={() => setMobileView('list')}
-                  className="rounded-2xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black md:hidden dark:hover:bg-surface-elevated"
+                  className="btn-icon -ml-2 text-icon-primary md:hidden"
                   aria-label="대화 목록으로 돌아가기"
                 >
                   <ArrowLeft size={22} />
@@ -1742,26 +1850,22 @@ export default function MessagesPage() {
                   <UserAvatar
                     name={activeConversation.recipient.name}
                     imageUrl={activeConversation.recipient.profileImageUrl}
-                    sizes="48px"
-                    className="h-12 w-12 rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200 shadow-lg"
+                    sizes="36px"
+                    className="h-9 w-9 rounded-full bg-subtle text-caption text-fg-secondary"
                   />
-                  {activeConversation.recipient.online ? (
-                    <div className="absolute -bottom-1 -right-1 h-4 w-4 rounded-full border-4 border-white bg-green-500" />
-                  ) : null}
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="truncate text-lg font-black leading-none tracking-tight text-black">
+                    <p className="truncate text-body font-medium text-fg-primary">
                       {activeConversation.recipient.name}
                     </p>
-                    <ShieldCheck size={16} className="shrink-0 text-blue-500" />
+                    <MembershipBadge active={activeConversation.recipient.membershipBadge} />
+                    <RepresentativeTierBadge tier={activeConversation.recipient.representativeTier} />
                   </div>
                   <p
-                    className={`mt-1 text-xs font-black tracking-widest ${
-                      activeConversation.recipient.online ? 'text-green-600' : 'text-zinc-400'
-                    }`}
+                    className="mt-0.5 flex items-center gap-1.5 text-caption text-fg-tertiary"
                   >
-                    {activeConversation.recipient.online ? '접속 중' : activeConversation.recipient.handle}
+                    {activeConversation.recipient.online ? <><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-fg-success" />접속 중</> : activeConversation.recipient.handle}
                   </p>
                 </div>
               </div>
@@ -1770,18 +1874,19 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setHeaderMenuOpen((current) => !current)}
-                  className="rounded-2xl p-3 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
+                  className="btn-icon"
                   aria-label="대화방 옵션"
+                  aria-expanded={headerMenuOpen}
                 >
-                  <Ellipsis size={24} />
+                  <Ellipsis size={20} />
                 </button>
                 {headerMenuOpen ? (
-                  <div className="absolute right-0 top-full z-20 mt-3 w-52 rounded-2xl border border-zinc-100 bg-white p-2 shadow-2xl">
+                  <div className="absolute right-0 top-full z-20 mt-2 w-52 rounded-control border border-line bg-surface p-2 shadow-lg">
                     <button
                       type="button"
                       onClick={() => void handleLeaveActiveConversation()}
                       disabled={messageActionLoading}
-                      className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      className="flex w-full items-center gap-3 rounded-control px-4 py-3 text-left text-label text-fg-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Trash2 size={16} />
                       대화방 나가기
@@ -1791,10 +1896,10 @@ export default function MessagesPage() {
               </div>
             </div>
 
-            <div ref={messageScrollRef} className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div ref={messageScrollRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 md:p-5">
               {hasNextMessages ? <div ref={olderMessagesSentinelRef} aria-hidden="true" className="h-px" /> : null}
               {loadingOlderMessages ? (
-                <div role="status" className="mb-4 flex items-center justify-center gap-2 text-xs font-bold text-zinc-400">
+                <div role="status" className="mb-4 flex items-center justify-center gap-2 text-caption text-fg-tertiary">
                   <Loader2 size={14} className="animate-spin" />
                   이전 메시지 불러오는 중
                 </div>
@@ -1803,7 +1908,7 @@ export default function MessagesPage() {
               {loadingMessages && activeMessages.length === 0 ? (
                 <MessageThreadSkeleton />
               ) : activeMessages.length > 0 || activePendingMessages.length > 0 ? (
-                <div className="space-y-6">
+                <div className="mt-auto shrink-0 space-y-3">
                   {activeMessages.map((chatMessage, index) => {
                     return (
                       <Fragment key={chatMessage.id}>
@@ -1819,17 +1924,15 @@ export default function MessagesPage() {
                             }
                           }}
                           data-message-id={chatMessage.id}
-                          className={`rounded-3xl transition-[box-shadow,background-color] duration-500 ${
+                          className={`rounded-card transition-[box-shadow,background-color] duration-500 ${
                             highlightedMessageId === chatMessage.id
-                              ? 'bg-[#f5b93d]/15 shadow-[0_0_0_3px_rgba(245,185,61,0.55)]'
+                              ? 'bg-brand-subtle ring-2 ring-line-focus'
                               : ''
                           }`}
                         >
                           <MessageBubble
                             chatMessage={chatMessage}
                             mine={chatMessage.senderId === 'me'}
-                            recipientName={activeConversation.recipient.name}
-                            recipientImageUrl={activeConversation.recipient.profileImageUrl}
                             isActionOpen={messageActionId === chatMessage.id}
                             actionLoading={messageActionLoading}
                             onToggleAction={() =>
@@ -1856,9 +1959,9 @@ export default function MessagesPage() {
               ) : (
                 <div className="flex h-full items-center justify-center">
                   <div className="text-center">
-                    <MessageSquare className="mx-auto mb-4 text-zinc-300" size={42} />
-                    <p className="text-lg font-black text-black">대화를 시작해보세요.</p>
-                    <p className="mt-2 text-sm font-bold text-zinc-400">
+                    <MessageSquare className="mx-auto mb-4 text-fg-tertiary" size={42} />
+                    <p className="text-heading text-fg-primary">대화를 시작해보세요.</p>
+                    <p className="mt-2 text-body text-fg-tertiary">
                       아직 메시지가 없습니다. 첫 메시지를 보내보세요.
                     </p>
                   </div>
@@ -1867,16 +1970,16 @@ export default function MessagesPage() {
               <div ref={messageEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-zinc-100 bg-white p-3 md:p-6">
+            <form data-message-composer="true" onSubmit={handleSubmit} className="shrink-0 border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
               {composerError ? (
-                <div className="mx-auto mb-3 flex max-w-4xl items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <div role="alert" className="mb-3 flex items-center gap-2 rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger">
                   <CircleAlert size={16} className="shrink-0" />
                   <span>{composerError}</span>
                 </div>
               ) : null}
 
               {preparingImages ? (
-                <div role="status" className="mx-auto mb-3 max-w-4xl rounded-2xl bg-zinc-50 px-4 py-3 text-sm font-bold text-zinc-500 dark:bg-surface dark:text-zinc-400">
+                <div role="status" className="mb-3 rounded-control bg-subtle px-4 py-3 text-label text-fg-secondary">
                   이미지를 준비하고 있습니다...
                 </div>
               ) : null}
@@ -1885,7 +1988,7 @@ export default function MessagesPage() {
                 <div className="mx-auto mb-3 flex max-w-4xl flex-wrap gap-3">
                   {attachments.map((attachment) => (
                     <div key={attachment.id} className="relative">
-                      <div className="overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50 shadow-sm">
+                      <div className="overflow-hidden rounded-control bg-subtle">
                         {attachment.type === 'image' ? (
                           <button
                             type="button"
@@ -1901,7 +2004,7 @@ export default function MessagesPage() {
                             />
                           </button>
                         ) : (
-                          <div className="flex h-20 w-20 items-center justify-center bg-zinc-900 text-white">
+                          <div className="flex h-20 w-20 items-center justify-center bg-subtle text-icon-primary">
                             <Video size={22} />
                           </div>
                         )}
@@ -1918,7 +2021,7 @@ export default function MessagesPage() {
                             return current.filter((item) => item.id !== attachment.id);
                           })
                         }
-                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-zinc-900/92 text-white shadow-lg ring-2 ring-white/90 transition hover:bg-black"
+                        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-surface text-icon-primary ring-1 ring-line transition hover:bg-subtle"
                         aria-label="첨부 제거"
                       >
                         <Trash2 size={14} className="-translate-x-[1px] shrink-0" />
@@ -1930,7 +2033,7 @@ export default function MessagesPage() {
 
               <div
                 ref={attachmentMenuRef}
-                className="relative mx-auto flex max-w-4xl items-center gap-3 rounded-3xl bg-zinc-50 p-2 shadow-inner transition focus-within:bg-white focus-within:ring-2 focus-within:ring-black"
+                className="relative flex items-center gap-2"
               >
                 <input
                   ref={imageInputRef}
@@ -1950,17 +2053,18 @@ export default function MessagesPage() {
                 <button
                   type="button"
                   onClick={() => setAttachmentMenuOpen((current) => !current)}
-                  className="rounded-2xl p-4 text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-surface-elevated"
+                  className="btn-secondary-square text-icon-secondary"
                   aria-label="첨부 메뉴"
+                  aria-expanded={attachmentMenuOpen}
                 >
                   <Plus size={20} />
                 </button>
                 {attachmentMenuOpen ? (
-                  <div className="absolute bottom-full left-0 z-20 mb-3 rounded-2xl border border-zinc-100 bg-white p-2 shadow-2xl">
+                  <div className="absolute bottom-full left-0 z-20 mb-3 rounded-control border border-line bg-surface p-2 shadow-lg">
                     <button
                       type="button"
                       onClick={() => imageInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+                      className="flex w-44 items-center gap-3 rounded-control px-4 py-3 text-label text-fg-secondary transition hover:bg-subtle hover:text-fg-primary"
                     >
                       <ImagePlus size={18} />
                       사진 추가
@@ -1968,7 +2072,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={() => videoInputRef.current?.click()}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-700 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+                      className="flex w-44 items-center gap-3 rounded-control px-4 py-3 text-label text-fg-secondary transition hover:bg-subtle hover:text-fg-primary"
                     >
                       <Video size={18} />
                       동영상 추가
@@ -1976,7 +2080,7 @@ export default function MessagesPage() {
                     <button
                       type="button"
                       onClick={clearAttachments}
-                      className="flex w-44 items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black text-zinc-400 transition hover:bg-zinc-50 hover:text-black dark:hover:bg-surface-elevated"
+                      className="flex w-44 items-center gap-3 rounded-control px-4 py-3 text-label text-fg-tertiary transition hover:bg-subtle hover:text-fg-primary"
                     >
                       <X size={18} />
                       첨부 지우기
@@ -1987,15 +2091,16 @@ export default function MessagesPage() {
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   maxLength={MAX_MESSAGE_LENGTH}
+                  enterKeyHint="send"
                   placeholder="메시지 입력"
                   aria-label={`${activeConversation.recipient.name}님에게 메시지 보내기`}
-                  className="min-w-0 flex-1 bg-transparent px-2 text-base font-bold text-black outline-none placeholder:text-zinc-400 dark:placeholder:!text-zinc-400"
+                  className="input-base h-10 min-w-0 flex-1 border-transparent"
                 />
                 {/* 한도에 가까워질 때만 글자 수를 보여 입력칸을 넓게 쓴다. */}
                 {message.length >= MAX_MESSAGE_LENGTH * 0.9 ? (
                   <span
-                    className={`shrink-0 text-xs font-bold tabular-nums ${
-                      message.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-zinc-400'
+                    className={`shrink-0 text-caption tabular-nums ${
+                      message.length >= MAX_MESSAGE_LENGTH ? 'text-fg-danger' : 'text-fg-tertiary'
                     }`}
                   >
                     {message.length}/{MAX_MESSAGE_LENGTH}
@@ -2004,7 +2109,7 @@ export default function MessagesPage() {
                 <button
                   type="submit"
                   disabled={preparingImages || (!message.trim() && attachments.length === 0)}
-              className="flex min-h-12 min-w-12 items-center justify-center rounded-2xl bg-black p-4 text-white shadow-lg transition hover:scale-105 active:scale-95 disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-400 disabled:hover:scale-100 dark:bg-[#f5b93d] dark:text-[#1a1406] dark:shadow-none dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+                  className="btn-primary w-10 px-0"
                   aria-label="메시지 전송"
                 >
                   <Send size={20} />
@@ -2015,8 +2120,8 @@ export default function MessagesPage() {
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
-              <Inbox className="mx-auto mb-4 text-zinc-300" size={48} />
-              <p className="text-lg font-black text-black">대화를 선택해 주세요.</p>
+              <Inbox className="mx-auto mb-4 text-fg-tertiary" size={48} />
+              <p className="text-heading text-fg-primary">대화를 선택해 주세요.</p>
             </div>
           </div>
         )}

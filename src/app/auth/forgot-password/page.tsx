@@ -61,14 +61,14 @@ export default function ForgotPasswordPage() {
   if (isSuccess) {
     return (
       <AuthStatusCard
-        icon={<CheckCircle2 size={32} className="text-white" />}
+        icon={<CheckCircle2 size={32} aria-hidden="true" />}
         title="메일을 확인해 주세요"
         description={SUCCESS_MESSAGE}
       >
         <button
           type="button"
-          onClick={() => router.replace('/login')}
-          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
+          onClick={() => router.replace('/?login=1')}
+          className="btn-primary h-12 w-full"
         >
           로그인하러 가기
         </button>
@@ -86,11 +86,15 @@ export default function ForgotPasswordPage() {
           재설정 링크를 이메일로 안내해 드립니다.
         </>
       }
-      back={{ href: '/login', label: '로그인 페이지로 돌아가기' }}
+      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
+          <label htmlFor="forgot-password-handle" className="block text-label text-fg-primary">아이디</label>
           <AuthTextField
+            id="forgot-password-handle"
+            autoComplete="username"
+            aria-describedby={error ? 'forgot-password-error' : undefined}
             type="text"
             value={handle}
             onChange={(e) => {
@@ -103,9 +107,9 @@ export default function ForgotPasswordPage() {
           />
 
           {error && (
-            <div className="flex items-center gap-1.5 px-2 text-red-500">
+            <div id="forgot-password-error" role="alert" className="flex items-start gap-1.5 text-fg-danger">
               <AlertCircle size={14} />
-              <span className="text-sm font-bold">{error}</span>
+              <span className="text-label">{error}</span>
             </div>
           )}
         </div>
@@ -113,16 +117,16 @@ export default function ForgotPasswordPage() {
         <button
           type="submit"
           disabled={!normalizedHandle || isSubmitting}
-          className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+          className="btn-primary h-12 w-full"
         >
           {isSubmitting ? '전송 중...' : '비밀번호 재설정 메일 받기'}
         </button>
       </form>
 
-      <div className="border-t border-zinc-100 pt-10 text-center">
-        <p className="text-base font-medium text-zinc-600">
+      <div className="border-t border-line pt-6 text-center">
+        <p className="text-body text-fg-secondary">
           아이디를 잊으셨나요?{' '}
-          <Link href="/find-id" className="ml-1.5 font-black text-black underline-offset-4 hover:underline">
+          <Link href="/find-id" className="ml-1.5 text-label text-fg-brand underline-offset-4 hover:underline">
             아이디 찾기
           </Link>
         </p>

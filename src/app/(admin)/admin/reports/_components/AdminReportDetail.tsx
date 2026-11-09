@@ -208,7 +208,7 @@ function ReportDetailContent({ reportCode }: { reportCode: string }) {
     <div className="mx-auto grid w-full max-w-[1200px] min-w-0 grid-cols-1 items-start gap-6 p-4 sm:p-6 lg:p-8 xl:grid-cols-[minmax(0,1fr)_340px]">
       <div className="min-w-0 space-y-6">
         <section className={cardClass} aria-label="신고 기본 정보">
-          <div className="flex flex-wrap items-center gap-3"><h2 className="break-all font-mono font-bold text-[#315ef5]">{report.id}</h2><span className="rounded-full bg-[#eef3ff] px-3 py-1 text-xs font-semibold text-[#344054]">{report.status}</span></div>
+          <div className="flex flex-wrap items-center gap-3"><h2 className="break-all font-sans font-bold text-[#315ef5]">{report.id}</h2><span className="rounded-full bg-[#eef3ff] px-3 py-1 text-xs font-semibold text-[#344054]">{report.status}</span></div>
           <dl className="mt-4 grid grid-cols-1 gap-3 text-sm text-[#344054] sm:grid-cols-2">
             <div><dt className="text-xs text-[#667085]">신고 대상 유형</dt><dd>{report.targetType}</dd></div>
             <div><dt className="text-xs text-[#667085]">신고 사유</dt><dd>{report.reason}</dd></div>

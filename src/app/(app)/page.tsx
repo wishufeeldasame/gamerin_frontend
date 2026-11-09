@@ -1,0 +1,300 @@
+'use client';
+
+import { useAuth } from '@/app/context/AuthContext';
+import { requestLogin } from '@/lib/login-prompt';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
+import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { motion } from 'framer-motion';
+import { MessageSquare } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { PostComposer } from '@/app/home/components/PostComposer';
+import { PendingPostCard } from '@/app/home/components/PendingPostCard';
+import { Post } from '@/app/home/components/Post';
+import { RightSidebar } from '@/app/home/components/RightSidebar';
+import { SuggestedFriendsCard } from '@/app/home/components/SuggestedFriendsCard';
+import { useCursorList } from '@/hooks/useCursorList';
+import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
+import { usePostLike } from '@/hooks/usePostLike';
+import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
+import { type PostRecord, fetchFeed, getPostHref } from '@/lib/feed-api';
+import {
+  updatePostsBookmarkState,
+  updatePostsLikeState,
+  updatePostsRepostState,
+} from '@/lib/post-mutations';
+
+type FeedTab = 'all' | 'following';
+type PostDetailTarget = 'post' | 'comments';
+
+function HomePageContent() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const requireAuth = useRequireAuth();
+  const searchParams = useSearchParams();
+  const requestedFollowing = searchParams.get('tab') === 'following';
+  const activeTab: FeedTab = user && requestedFollowing ? 'following' : 'all';
+  useEffect(() => {
+    if (!user && requestedFollowing) {
+      router.replace('/', { scroll: false });
+      requestLogin({ returnTo: '/?tab=following', message: '팔로잉 피드는 로그인 후 볼 수 있어요.' });
+    }
+  }, [user, requestedFollowing, router]);
+  const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+
+  const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
+    fetchFeed(activeTab, cursor, 20, { signal })
+  ), [activeTab]);
+
+  const {
+    items: posts,
+    setItems: setPosts,
+    nextCursor,
+    hasNext,
+    loading,
+    loadingMore,
+    error,
+    loadMoreError,
+    reload,
+    loadMore,
+  } = useCursorList<PostRecord>({
+    loadPage,
+    getKey: (post) => post.postId,
+    queryKey: `${activeTab}:${user?.id ?? 'guest'}`,
+    initialErrorMessage: '피드를 불러오지 못했습니다.',
+    loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
+  });
+  const loadMoreRef = useRef(loadMore);
+  loadMoreRef.current = loadMore;
+  const loadMoreErrorRef = useRef(loadMoreError);
+  loadMoreErrorRef.current = loadMoreError;
+  const handleAutoLoadMore = useCallback(() => {
+    if (loadMoreErrorRef.current) return;
+    void loadMoreRef.current();
+  }, []);
+
+  const applyLikeState = useCallback((postId: string, likedByMe: boolean) => {
+    setPosts((current) => updatePostsLikeState(current, postId, likedByMe));
+  }, [setPosts]);
+  const { toggleLike: handleToggleLike, likeLoadingByPostId } = usePostLike(applyLikeState);
+
+  const handleTabChange = (tab: FeedTab) => {
+    if (tab === 'following' && !requireAuth('팔로잉 피드는 로그인 후 볼 수 있어요.', { returnTo: '/?tab=following' })) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('target');
+    if (tab === 'following') {
+      params.set('tab', 'following');
+    } else {
+      params.delete('tab');
+    }
+
+    const nextSearch = params.toString();
+    router.push(`/${nextSearch ? `?${nextSearch}` : ''}`, { scroll: false });
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+  };
+
+  // 첫 피드 응답을 기다리는 동안 업로드가 끝나면, 늦게 온 응답이 새 게시물을 덮어쓴다. 로딩 뒤 다시 앞에 넣는다.
+  const loadingRef = useRef(loading);
+  loadingRef.current = loading;
+  const createdWhileLoadingRef = useRef<PostRecord[]>([]);
+  const handleCreatedPost = useCallback((createdPost: PostRecord) => {
+    if (loadingRef.current) {
+      createdWhileLoadingRef.current = [
+        createdPost,
+        ...createdWhileLoadingRef.current.filter((item) => item.postId !== createdPost.postId),
+      ];
+    }
+    setPosts((current) => [createdPost, ...current.filter((item) => item.postId !== createdPost.postId)]);
+  }, [setPosts]);
+  useEffect(() => {
+    if (loading || createdWhileLoadingRef.current.length === 0) return;
+    const createdPosts = createdWhileLoadingRef.current;
+    createdWhileLoadingRef.current = [];
+    setPosts((current) => {
+      const missing = createdPosts.filter((created) => !current.some((item) => item.postId === created.postId));
+      return missing.length > 0 ? [...missing, ...current] : current;
+    });
+  }, [loading, setPosts]);
+  const {
+    pendingPosts,
+    submit: handleSubmitPost,
+    retry: handleRetryPost,
+    discard: handleDiscardPost,
+    subscribeCreated,
+  } = usePendingPostsContext();
+  useEffect(() => subscribeCreated(handleCreatedPost), [subscribeCreated, handleCreatedPost]);
+
+  const handlePostUpdated = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      current.map((item) => (item.postId === updatedPost.postId ? updatedPost : item))
+    );
+  };
+  const handleRepostChanged = (updatedPost: PostRecord) => {
+    setPosts((current) =>
+      updatePostsRepostState(
+        current, updatedPost.postId, updatedPost.isReposted, updatedPost.repostCount,
+      )
+    );
+  };
+
+
+  const handleBookmarkChanged = (updatedPost: PostRecord, bookmarked = updatedPost.bookmarkedByMe) => {
+    setPosts((current) => updatePostsBookmarkState(current, updatedPost.postId, bookmarked));
+  };
+
+  const handlePostDeleted = (postId: string) => {
+    setPosts((current) => current.filter((item) => item.postId !== postId));
+  };
+
+  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
+    const search = target === 'comments' ? '?target=comments' : '';
+    router.push(getPostHref(postNumber, search));
+  };
+
+  useEffect(() => {
+    const sentinel = loadMoreSentinelRef.current;
+    if (!sentinel || !hasNext || !nextCursor || loadMoreError) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          handleAutoLoadMore();
+        }
+      },
+      { rootMargin: '400px 0px' },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleAutoLoadMore, hasNext, loadMoreError, nextCursor]);
+
+  return (
+    <div className="mx-auto flex w-full max-w-6xl gap-8 md:px-8">
+      <main className="min-h-screen min-w-0 flex-1">
+        <div data-view-occluder="top" className="sticky top-[var(--app-header-height)] z-20 flex gap-7 border-b border-line bg-canvas px-4 md:px-0">
+          {[
+            { label: '추천', value: 'all' as const },
+            { label: '팔로잉', value: 'following' as const },
+          ].map((tab) => (
+            <button
+              key={tab.value}
+              onClick={() => handleTabChange(tab.value)}
+              aria-pressed={activeTab === tab.value}
+              className={`relative py-3.5 text-body transition-colors ${
+                activeTab === tab.value ? 'font-bold text-fg-primary' : 'text-fg-tertiary hover:text-fg-secondary'
+              }`}
+            >
+              {tab.label}
+              {activeTab === tab.value ? (
+                <motion.div layoutId="underline" className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />
+              ) : null}
+            </button>
+          ))}
+        </div>
+
+        <div className="space-y-3 px-4 py-3 md:px-0">
+          <PostComposer onSubmit={handleSubmitPost} />
+
+          {pendingPosts.length > 0 ? (
+            <div className="space-y-3">
+              {pendingPosts.map((pendingPost) => (
+                <PendingPostCard
+                  key={pendingPost.id}
+                  pendingPost={pendingPost}
+                  onRetry={handleRetryPost}
+                  onDiscard={handleDiscardPost}
+                />
+              ))}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <PostListSkeleton count={3} label="피드를 불러오는 중" />
+          ) : error ? (
+            <div role="alert" className="flex flex-col items-center rounded-card border border-line-card bg-surface px-6 py-14 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-subtle text-icon-secondary">
+                <MessageSquare size={20} strokeWidth={1.67} />
+              </span>
+              <p className="mt-4 text-body font-bold text-fg-primary">{error}</p>
+              <p className="mt-1 text-body text-fg-secondary">네트워크 상태를 확인한 뒤 다시 시도해 주세요.</p>
+              <button type="button" onClick={() => void reload()} className="btn-secondary mt-6">
+                다시 시도
+              </button>
+            </div>
+          ) : posts.length === 0 ? (
+            <div className="rounded-card border border-line-card bg-surface p-8 text-center text-body text-fg-tertiary">
+              아직 게시글이 없습니다.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {posts.map((post) => (
+                <motion.div
+                  key={post.postId}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <Post
+                    post={post}
+                    likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                    onToggleLike={handleToggleLike}
+                    onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                    onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
+                    onShare={handlePostUpdated}
+                    onRepostChange={handleRepostChanged}
+                    onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                    onBookmarkChange={handleBookmarkChanged}
+                  />
+                </motion.div>
+              ))}
+
+              {hasNext && nextCursor ? (
+                <div
+                  ref={loadMoreSentinelRef}
+                  data-testid="feed-load-more-sentinel"
+                  aria-hidden="true"
+                  className="h-px"
+                />
+              ) : null}
+
+              <div role="status" aria-live="polite" className="sr-only">
+                {loadingMore ? '게시글을 불러오는 중...' : null}
+              </div>
+              {loadingMore ? <PostListSkeleton count={1} /> : null}
+
+              {loadMoreError ? (
+                <div
+                  role="alert"
+                  className="flex items-center justify-between gap-3 rounded-card bg-danger-subtle px-4 py-3 text-label text-fg-danger"
+                >
+                  <span>{loadMoreError}</span>
+                  <button
+                    type="button"
+                    onClick={() => void loadMore()}
+                    className="btn-secondary h-8"
+                  >
+                    다시 시도
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </main>
+
+      <aside className="sticky top-[var(--app-header-height)] hidden h-[calc(100vh-var(--app-header-height))] w-80 shrink-0 space-y-6 py-6 xl:block">
+        <SuggestedFriendsCard />
+        <RightSidebar />
+      </aside>
+    </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={null}>
+      <HomePageContent />
+    </Suspense>
+  );
+}

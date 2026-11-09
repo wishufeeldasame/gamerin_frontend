@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  pathname: '/home',
+  pathname: '/',
   user: { id: 'user-1', handle: 'demo 01', nickname: '테스터' },
 }));
 
@@ -18,7 +18,7 @@ import { MobileTabBar } from '../Sidebar';
 
 describe('MobileTabBar', () => {
   beforeEach(() => {
-    mocks.pathname = '/home';
+    mocks.pathname = '/';
   });
 
   it('renders the same five menu links as the sidebar, with the profile link using the handle', () => {

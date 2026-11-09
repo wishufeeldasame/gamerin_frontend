@@ -7,6 +7,7 @@ const mileageApi = vi.hoisted(() => ({
   fetchMyMileageTransactions: vi.fn(),
 }));
 const search = vi.hoisted(() => ({ query: '' }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: vi.fn() }));
 const paymentApi = vi.hoisted(() => ({
   fetchMyPayments: vi.fn(),
   fetchPaymentProducts: vi.fn(),
@@ -14,11 +15,12 @@ const paymentApi = vi.hoisted(() => ({
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+  useRouter: () => navigation,
   useSearchParams: () => new URLSearchParams(search.query),
 }));
 vi.mock('@/app/context/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 vi.mock('@/lib/mileage-api', () => mileageApi);
+vi.mock('@/lib/history-back', () => ({ canGoBack: navigation.canGoBack }));
 vi.mock('@/lib/payment-api', () => paymentApi);
 
 import WalletPage from '../page';
@@ -34,6 +36,9 @@ const products = [5_000, 10_000, 30_000, 50_000].map((price) => ({
 
 describe('WalletPage', () => {
   beforeEach(() => {
+    navigation.back.mockReset();
+    navigation.push.mockReset();
+    navigation.replace.mockReset();
     mileageApi.fetchMyMileageBalance.mockReset().mockResolvedValue({ currentBalance: 12_500 });
     mileageApi.fetchMyMileageTransactions.mockReset().mockResolvedValue({
       content: [],
@@ -71,6 +76,22 @@ describe('WalletPage', () => {
 
     await user.click(screen.getByRole('button', { name: '카카오페이로 10,000원 결제' }));
     expect(screen.getByRole('dialog', { name: '카카오페이로 충전하기' })).toBeInTheDocument();
+  });
+
+  it.each([true, false])('모바일 뒤로는 이전 기록이 있으면 돌아가고 없으면 프로필로 이동한다 (%s)', async (canGoBack) => {
+    navigation.canGoBack.mockReturnValue(canGoBack);
+    const user = userEvent.setup();
+    render(<WalletPage />);
+    await screen.findByText('12,500 M');
+    await user.click(screen.getByRole('button', { name: '뒤로' }));
+
+    if (canGoBack) {
+      expect(navigation.back).toHaveBeenCalledOnce();
+      expect(navigation.replace).not.toHaveBeenCalled();
+    } else {
+      expect(navigation.back).not.toHaveBeenCalled();
+      expect(navigation.replace).toHaveBeenCalledWith('/profile');
+    }
   });
 
   it('returnTo 안내를 보여주고 외부 경로는 무시한다', async () => {

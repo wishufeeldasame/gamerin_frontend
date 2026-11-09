@@ -7,6 +7,7 @@ import { AlertCircle, CheckCircle2 } from 'lucide-react';
 import { AuthPageShell } from '@/app/auth/_components/AuthPageShell';
 import { EMPTY_SIGNUP_CONSENT, SignupConsent, isSignupConsentComplete, toSignupConsentPayload } from '@/app/auth/_components/SignupConsent';
 import { AuthTextField } from '@/app/auth/_components/AuthTextField';
+import { clearLoginReturnTo, readLoginReturnTo } from '@/lib/login-prompt';
 import { useAuth } from '@/app/context/AuthContext';
 import { SignupCompletedError, completeSocialSignup } from '@/lib/auth-api';
 import { getPublicRequestErrorMessage } from '@/lib/public-request-error';
@@ -62,7 +63,9 @@ export default function SocialCompletePage() {
           ...toSignupConsentPayload(consent),
         }),
       );
-      router.replace('/home');
+      const returnTo = readLoginReturnTo();
+      clearLoginReturnTo();
+      router.replace(returnTo);
     } catch (err) {
       // 가입 도중 로그아웃·사용자 전환이 있었으면 그 요청의 결과는 버린다.
       if (err instanceof DOMException && err.name === 'AbortError') return;
@@ -80,7 +83,9 @@ export default function SocialCompletePage() {
       icon={<CheckCircle2 size={28} />}
     >
       <div className="space-y-4">
+        <label htmlFor="social-handle" className="block text-label text-fg-primary">아이디</label>
         <AuthTextField
+          id="social-handle"
           value={handle}
           onChange={(event) => {
             setHandle(event.target.value);
@@ -93,7 +98,9 @@ export default function SocialCompletePage() {
           aria-label="아이디"
         />
 
+        <label htmlFor="social-nickname" className="block text-label text-fg-primary">닉네임</label>
         <AuthTextField
+          id="social-nickname"
           value={nickname}
           onChange={(event) => {
             setNickname(event.target.value);
@@ -109,16 +116,16 @@ export default function SocialCompletePage() {
         <SignupConsent value={consent} onChange={setConsent} />
 
         {error && (
-          <div className="flex items-center gap-1.5 px-2 text-red-500">
+          <div role="alert" className="flex items-start gap-1.5 text-fg-danger">
             <AlertCircle size={14} />
-            <span className="text-sm font-bold">{error}</span>
+            <span className="text-label">{error}</span>
           </div>
         )}
 
         {accountCreated ? (
           <Link
-            href="/login"
-            className="flex h-12 w-full items-center justify-center rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98]"
+            href="/?login=1"
+            className="btn-primary h-12 w-full"
           >
             로그인 화면으로 이동
           </Link>
@@ -127,7 +134,7 @@ export default function SocialCompletePage() {
             type="button"
             onClick={handleSubmit}
             disabled={loading || !isSignupConsentComplete(consent)}
-            className="h-12 w-full rounded-xl bg-black text-base font-black text-white transition-all hover:bg-zinc-800 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+            className="btn-primary h-12 w-full"
           >
             {loading ? '처리 중...' : '회원가입 완료'}
           </button>

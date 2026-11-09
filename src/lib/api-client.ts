@@ -1,3 +1,4 @@
+import { requestLogin } from '@/lib/login-prompt';
 import { getApiBaseUrl } from '@/lib/api-base';
 import {
   assertCurrentAuthGeneration,
@@ -6,6 +7,7 @@ import {
   getAuthGeneration,
   isCurrentAuthGeneration,
   isExpiredAuthGeneration,
+  notifyBlockedAccount,
   refreshAccessTokenResult,
 } from '@/lib/auth-store';
 import { BLOCKED_ACCOUNT_MESSAGE, isBlockedAccountResponse } from '@/lib/auth-session-policy';
@@ -63,8 +65,8 @@ export type ApiRequestOptions = Omit<RequestInit, 'headers'> & {
 export interface ApiClientConfig {
   /** 도메인 오류 타입과 기존 문구를 만든다. 세대가 현재일 때만 호출된다. */
   toError: (failure: ApiFailure) => Error;
-  /** false면 미리 refresh하지 않고 메모리의 토큰만 쓴다(없으면 토큰 없이 보낸다). 401 처리는 같다. */
-  authRequired?: boolean;
+  /** required: 기존 인증/refresh, optional: 회원 개인화 또는 익명 GET, public: 항상 익명. */
+  auth?: 'required' | 'optional' | 'public';
   /** 'optional'이면 envelope가 없는 원문 응답을 그대로 반환한다. */
   envelope?: 'required' | 'optional';
 }
@@ -98,10 +100,11 @@ function createAuthSession({ toError }: ApiClientConfig, signal?: AbortSignal | 
     assertCurrentAuthGeneration(generation);
   };
 
-  const endSession = (createError: () => Error): never => {
+  const endSession = (createError: () => Error, prompt = true): never => {
     if (!expireAuthSession(generation)) {
       ensureCurrent();
     }
+    if (prompt) requestLogin({ message: AUTH_REQUIRED_MESSAGE });
     throw createError();
   };
 
@@ -112,7 +115,7 @@ function createAuthSession({ toError }: ApiClientConfig, signal?: AbortSignal | 
       if (!isExpiredAuthGeneration(generation)) {
         ensureCurrent();
       }
-      return endSession(() => fail('blocked', result.httpStatus ?? 403, BLOCKED_ACCOUNT_MESSAGE));
+      return endSession(() => fail('blocked', result.httpStatus ?? 403, BLOCKED_ACCOUNT_MESSAGE), false);
     }
     ensureCurrent();
 
@@ -132,6 +135,16 @@ function createAuthSession({ toError }: ApiClientConfig, signal?: AbortSignal | 
   return { fail, ensureCurrent, endSession, refresh };
 }
 
+function isTokenExpiring(token: string) {
+  try {
+    const encoded = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(encoded));
+    return typeof payload.exp === 'number' && Number.isFinite(payload.exp) && payload.exp * 1000 <= Date.now() + 30_000;
+  } catch {
+    return false;
+  }
+}
+
 async function sendAuthorized(
   url: string,
   options: ApiRequestOptions,
@@ -143,9 +156,8 @@ async function sendAuthorized(
   const send = async (accessToken: string | null) => {
     const headers = new Headers(options.headers);
 
-    if (accessToken) {
-      headers.set('Authorization', `Bearer ${accessToken}`);
-    }
+    if (config.auth === 'public') headers.delete('Authorization');
+    else if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
 
     if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
       headers.set('Content-Type', 'application/json');
@@ -166,20 +178,26 @@ async function sendAuthorized(
     session.ensureCurrent();
 
     if (!response.ok && isBlockedAccountResponse(response.status, body as never)) {
-      session.endSession(() => session.fail('blocked', response.status, BLOCKED_ACCOUNT_MESSAGE));
+      notifyBlockedAccount();
+      session.endSession(() => session.fail('blocked', response.status, BLOCKED_ACCOUNT_MESSAGE), false);
     }
 
     return { response, body };
   };
 
-  let accessToken = getAccessToken();
-  if (!accessToken && config.authRequired !== false) {
+  const auth = config.auth ?? 'required';
+  let accessToken = auth === 'public' ? null : getAccessToken();
+  // 공개 API는 만료 Bearer도 익명 200으로 답하므로, 회원 조회는 보내기 전에 만료를 확인한다.
+  if (auth === 'optional' && accessToken && isTokenExpiring(accessToken)) {
+    accessToken = await session.refresh();
+  } else if (auth === 'required' && !accessToken) {
     accessToken = await session.refresh();
   }
 
+  const anonymousRead = auth === 'public' || (auth === 'optional' && !accessToken);
   let result = await send(accessToken);
 
-  if (result.response.status === 401) {
+  if (!anonymousRead && result.response.status === 401) {
     // 같은 세대의 다른 요청이 그사이 토큰을 갱신했으면 refresh를 다시 하지 않고 그 토큰으로 재시도한다.
     const currentToken = getAccessToken();
     result = await send(
@@ -187,7 +205,7 @@ async function sendAuthorized(
     );
   }
 
-  if (result.response.status === 401) {
+  if (!anonymousRead && result.response.status === 401) {
     session.endSession(() => session.fail('http', 401, messageOf(result.body)));
   }
 

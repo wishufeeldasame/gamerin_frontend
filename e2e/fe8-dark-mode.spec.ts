@@ -112,7 +112,7 @@ for (const width of [390, 1440]) {
   test.describe(`${width}px dark`, () => {
     test.use({ viewport: { width, height: 900 }, colorScheme: 'dark', timezoneId: 'Asia/Seoul' });
     test('home tabs, composer, notifications and menu', async ({ page }, info) => {
-      await mockApp(page, 'dark'); await page.goto('/home');
+      await mockApp(page, 'dark'); await page.goto('/');
       const active = page.getByRole('button', { name: '추천', exact: true });
       await expect(active).toHaveAttribute('aria-pressed', 'true');
       expect(await contrast(active)).toBeGreaterThanOrEqual(4.5);
@@ -149,7 +149,7 @@ for (const width of [390, 1440]) {
       expect(await contrast(page.getByRole('button', { name: '커버 이미지 초기화' }))).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByPlaceholder('닉네임을 입력하세요'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'edit-profile');
-      await page.goto('/profile/viewer'); await page.getByRole('button', { name: '전적', exact: true }).click();
+      await page.goto('/profile/viewer'); await page.getByRole('tab', { name: '전적', exact: true }).click();
       await page.getByRole('button', { name: '전적 추가', exact: true }).click();
       const game = page.getByRole('heading', { name: 'League of Legends', exact: true });
       await expect(game).toBeVisible(); await expect.poll(() => contrast(game)).toBeGreaterThanOrEqual(4.5);
@@ -181,7 +181,7 @@ for (const width of [390, 1440]) {
       await capture(page, info, 'report-error');
     });
     test('collection creation uses dark text on brand yellow', async ({ page }, info) => {
-      await mockApp(page, 'dark'); await page.goto('/home');
+      await mockApp(page, 'dark'); await page.goto('/');
       await page.getByRole('button', { name: '북마크 저장', exact: true }).click();
       await page.getByRole('button', { name: '새 모음집 만들기' }).click();
       expect(await contrast(page.getByRole('button', { name: '만들기', exact: true }))).toBeGreaterThanOrEqual(4.5);

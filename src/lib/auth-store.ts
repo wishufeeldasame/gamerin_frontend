@@ -43,6 +43,11 @@ export type RefreshResult =
 const LEGACY_ACCESS_TOKEN_KEY = 'gamerin_access_token';
 export const AUTH_USER_KEY = 'gamerin_user';
 export const AUTH_CLEARED_EVENT = 'gamerin_auth_cleared';
+export const AUTH_BLOCKED_EVENT = 'gamerin_auth_blocked';
+
+export function notifyBlockedAccount() {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event(AUTH_BLOCKED_EVENT));
+}
 export const AUTH_LOGOUT_STATE_EVENT = 'gamerin_auth_logout_state';
 export const AUTH_SYNC_KEY = 'gamerin_auth_sync';
 export const AUTH_REAUTH_REQUIRED_EVENT = 'gamerin_auth_reauthentication_required';
@@ -564,6 +569,7 @@ export async function refreshAccessTokenResult(
 
       const blocked = isBlockedAccountResponse(response.status, payload);
       if (response.status === 401 || blocked) {
+        if (blocked) notifyBlockedAccount();
         expireAuthSession(expectedGeneration);
         return blocked
           ? { status: 'rejected', blocked: true, httpStatus: response.status }

@@ -298,3 +298,27 @@ describe('SSE 연결 준비', () => {
     expect(api.count(STREAM_TOKEN)).toBe(0);
   });
 });
+
+
+describe('DM 비동기 첨부 업로드 API', () => {
+  it('비동기 접수 필드와 UUID를 보내고 job 상태를 반환한다', async () => {
+    const job = { jobId: 'j-1', status: 'QUEUED', errorCode: null, errorMessage: null, post: null, message: null };
+    api.route('/api/v1/messages/conversations/c-1/messages', () => json(202, { success: true, data: job }));
+    expect(await message.sendMessageUpload({ conversationId: 'c-1', content: ' hi ', clientMessageId: 'key-1',
+      attachments: [new File(['a'], 'a.png')] })).toEqual(job);
+    const form = api.init(0)?.body as FormData;
+    expect(form.get('asyncUpload')).toBe('true'); expect(form.get('clientMessageId')).toBe('key-1');
+    expect(form.get('content')).toBe('hi'); expect(form.getAll('attachments')).toHaveLength(1);
+    expect(new Headers(api.init(0)?.headers).has('Content-Type')).toBe(false);
+  });
+  it('작업 조회는 첨부 인증 URL을 보존하고 상대 자산 주소만 정규화한다', async () => {
+    api.route('/api/v1/messages/upload-jobs/by-client-id/key-1', () => json(200, { success: true, data: {
+      jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null,
+      message: { id: 'm-1', senderId: 'me', text: '', createdAt: '', read: false, deliveryStatus: 'sent', sharedPost: null,
+        clientMessageId: 'key-1', attachments: [{ id: 'a-1', name: 'a.png', type: 'image', url: '/api/v1/messages/attachments/a-1' }] },
+    } }));
+    const result = await message.fetchMessageUploadJob('key-1', true);
+    expect(result.message?.attachments[0].url).toBe('http://api.test/api/v1/messages/attachments/a-1');
+    expect(result.message?.clientMessageId).toBe('key-1');
+  });
+});

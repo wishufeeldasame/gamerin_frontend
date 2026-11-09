@@ -1,4 +1,6 @@
-import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { setAccessToken } from '@/lib/auth-store';
+import type { AuthUser } from '@/lib/auth-api';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { render } from '@/test/feedback';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PostRecord, UserProfile } from '@/lib/feed-api';
@@ -11,6 +13,7 @@ const api = vi.hoisted(() => ({
   likePost: vi.fn(),
   unlikePost: vi.fn(),
 }));
+const gameStats = vi.hoisted(() => ({ refreshValorantSummary: vi.fn() }));
 const auth = vi.hoisted(() => ({
   updateUser: vi.fn(),
   user: {
@@ -19,7 +22,7 @@ const auth = vi.hoisted(() => ({
     nickname: 'viewer',
     gameTier: '',
     handle: 'viewer',
-  },
+  } as AuthUser | null,
 }));
 
 vi.mock('next/navigation', () => ({
@@ -37,6 +40,10 @@ vi.mock('@/lib/feed-api', async (importOriginal) => ({
   fetchUserProfile: api.fetchUserProfile,
   likePost: api.likePost,
   unlikePost: api.unlikePost,
+}));
+vi.mock('@/lib/game-stats-api', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/game-stats-api')>()),
+  refreshValorantSummary: gameStats.refreshValorantSummary,
 }));
 vi.mock('@/app/home/components/FetchGameStatsModal', () => ({
   FetchGameStatsModal: () => null,
@@ -139,11 +146,13 @@ const post: PostRecord = {
 };
 
 function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void;
   let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((_, rejectPromise) => {
+  const promise = new Promise<T>((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
     reject = rejectPromise;
   });
-  return { promise, reject };
+  return { promise, resolve, reject };
 }
 
 function readPostState() {
@@ -152,6 +161,7 @@ function readPostState() {
 
 describe('ProfilePage', () => {
   beforeEach(() => {
+    auth.user = { id: 'viewer-1', name: 'viewer', nickname: 'viewer', gameTier: '', handle: 'viewer' };
     window.localStorage.clear();
     api.fetchMyProfile.mockReset();
     api.fetchUserMedia.mockReset();
@@ -174,6 +184,46 @@ describe('ProfilePage', () => {
     });
   });
 
+  it('내 미디어 탭은 별도 채널 연결 없이 서버 프로필 웹사이트 링크를 유지한다', async () => {
+    auth.user = { ...auth.user!, id: profile.id, handle: profile.handle };
+    api.fetchMyProfile.mockResolvedValue({ ...profile, website: 'https://example.com/channel' });
+    window.localStorage.setItem('gamerin_connected_accounts', JSON.stringify({
+      youtube: { id: 'youtube', label: 'YouTube', handle: '@old', url: 'https://www.youtube.com/@old' },
+    }));
+    render(<ProfilePage />);
+
+    const website = await screen.findByRole('link', { name: 'example.com/channel' });
+    expect(website).toHaveAttribute('href', 'https://example.com/channel');
+    expect(website).toHaveAttribute('target', '_blank');
+    fireEvent.click(screen.getByRole('tab', { name: '미디어' }));
+    expect(screen.getByRole('tabpanel', { name: '미디어' })).toBeVisible();
+    expect(screen.queryByRole('heading', { name: '연결된 계정' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: /채널 ID/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: '@old' })).not.toBeInTheDocument();
+    expect(website).toBeInTheDocument();
+  });
+
+  it('프로필과 미디어 사이에 인증 세대가 바뀌면 이전 계정 정보를 사용자 캐시에 쓰지 않는다', async () => {
+    auth.user = { id: profile.id, name: 'author', nickname: 'author', handle: 'author', gameTier: '' };
+    api.fetchMyProfile.mockResolvedValue(profile);
+    const media = deferred<{ items: []; nextCursor: null; hasNext: boolean }>();
+    api.fetchUserMedia.mockReturnValueOnce(media.promise);
+    render(<ProfilePage />);
+    await waitFor(() => expect(api.fetchUserMedia).toHaveBeenCalled());
+    setAccessToken('different-account-token');
+    await act(async () => { media.resolve({ items: [], nextCursor: null, hasNext: false }); await media.promise; });
+    expect(auth.updateUser).not.toHaveBeenCalled();
+  });
+
+  it('게스트도 타인 프로필과 게시물을 보며 내 프로필 API를 호출하지 않는다', async () => {
+    auth.user = null;
+    render(<ProfilePage />);
+    await screen.findByTestId('post-post-1');
+    expect(api.fetchUserProfile).toHaveBeenCalledWith('author');
+    expect(api.fetchMyProfile).not.toHaveBeenCalled();
+    expect(screen.getAllByRole('button', { name: '팔로우' }).find((button) => !button.hasAttribute('disabled'))).toBeInTheDocument();
+  });
+
   it('ignores legacy local privacy settings and keeps profile content public', async () => {
     window.localStorage.setItem(
       'gamerin_user_settings',
@@ -188,11 +238,39 @@ describe('ProfilePage', () => {
     render(<ProfilePage />);
 
     await screen.findByTestId('post-post-1');
-    const statsTab = screen.getByRole('button', { name: '전적' });
+    const statsTab = screen.getByRole('tab', { name: '전적' });
     expect(statsTab).toBeInTheDocument();
 
     fireEvent.click(statsTab);
-    expect(await screen.findByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+    expect(within(screen.getByRole('tabpanel', { name: '전적' })).getByRole('heading', { name: '인증된 전적' })).toBeInTheDocument();
+  });
+
+  it('방향키와 Home·End로 프로필 탭을 이동하고 패널을 전환한다', async () => {
+    render(<ProfilePage />);
+    const posts = await screen.findByRole('tab', { name: '게시글', selected: true });
+    const stats = screen.getByRole('tab', { name: '전적', selected: false });
+    const media = screen.getByRole('tab', { name: '미디어', selected: false });
+
+    expect(posts).toHaveAttribute('tabindex', '0');
+    expect(stats).toHaveAttribute('tabindex', '-1');
+    expect(document.getElementById(stats.getAttribute('aria-controls')!)).not.toBeVisible();
+    const summary = screen.getByRole('complementary', { name: '프로필 요약', hidden: true });
+
+    fireEvent.keyDown(posts, { key: 'ArrowRight' });
+    expect(stats).toHaveFocus();
+    expect(stats).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: '전적' })).toBeVisible();
+    expect(summary).toBeInTheDocument();
+
+    fireEvent.keyDown(stats, { key: 'End' });
+    expect(media).toHaveFocus();
+    expect(screen.getByRole('tabpanel', { name: '미디어' })).toBeVisible();
+    expect(summary).toBeInTheDocument();
+
+    fireEvent.keyDown(media, { key: 'Home' });
+    expect(posts).toHaveFocus();
+    fireEvent.keyDown(posts, { key: 'ArrowLeft' });
+    expect(media).toHaveFocus();
   });
 
   it.each([
@@ -213,13 +291,65 @@ describe('ProfilePage', () => {
     expect(document.querySelector('.bg-green-500')).not.toBeInTheDocument();
   });
 
+  it.each([false, true])('닉네임 옆에 대표 티어를 멤버십 여부(%s)와 독립적으로 표시한다', async (membershipBadge) => {
+    api.fetchUserProfile.mockResolvedValue({
+      ...profile,
+      membershipBadge,
+      representativeTier: { game: 'VALORANT', tierLabel: 'Ascendant 3' },
+    });
+    render(<ProfilePage />);
+
+    const header = within(await screen.findByRole('heading', { level: 1 }));
+    const tier = header.getByRole<HTMLImageElement>('img', { name: 'VALORANT Ascendant 3' });
+    expect(new URL(tier.src).pathname).toBe('/images/tiers/valorant/ascendant-3.png');
+    expect(header.queryAllByRole('img', { name: '멤버십 회원' })).toHaveLength(membershipBadge ? 1 : 0);
+  });
+
+  it('발로란트 전적을 현재·최고 티어와 경쟁전 지표로 표시한다', async () => {
+    api.fetchUserProfile.mockResolvedValue({
+      ...profile,
+      gameStats: {
+        VALORANT: {
+          connected: true, region: 'KR', platform: 'PC', tierLabel: 'Gold 2', peakTierLabel: 'Platinum 1', rr: 40,
+          kd: 1.2, acs: 215, headshotRate: 24, winRate: 60, matches: 10,
+        },
+      },
+    });
+
+    render(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('tab', { name: '전적' }));
+
+    expect(within(screen.getByRole('tabpanel', { name: '전적' })).getByText('Gold 2 40RR')).toBeInTheDocument();
+    for (const value of ['Platinum 1', '1.20', '215', '24%', '60%', '10']) {
+      expect(screen.getByText(value, { selector: 'dd' })).toBeInTheDocument();
+    }
+    expect(screen.getByText('경쟁전 KR')).toBeInTheDocument();
+  });
+
+  it('발로란트를 10분 안에 다시 새로고침하면 요청하지 않고 남은 시간을 안내한다', async () => {
+    const updatedAt = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const ownProfile = {
+      ...profile, id: 'viewer-1', handle: 'viewer',
+      gameStats: { VALORANT: { connected: true, tierLabel: 'Gold 2', matches: 3, updatedAt } },
+    };
+    api.fetchUserProfile.mockResolvedValue(ownProfile);
+    api.fetchMyProfile.mockResolvedValue(ownProfile);
+
+    render(<ProfilePage />);
+    fireEvent.click(await screen.findByRole('tab', { name: '전적' }));
+    fireEvent.click(await screen.findByRole('button', { name: /새로고침/ }));
+
+    expect(await screen.findByText(/10분마다 새로고침할 수 있습니다. 7분 뒤/)).toBeInTheDocument();
+    expect(gameStats.refreshValorantSummary).not.toHaveBeenCalled();
+  });
+
   it('shows the server error and a link back home when the profile does not exist', async () => {
     api.fetchUserProfile.mockRejectedValue(new Error('사용자를 찾을 수 없습니다.'));
 
     render(<ProfilePage />);
 
     expect(await screen.findByText('사용자를 찾을 수 없습니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/');
   });
 
   it('좋아요 실패 시 요청 중 변경된 북마크와 리포스트 상태를 유지한다', async () => {

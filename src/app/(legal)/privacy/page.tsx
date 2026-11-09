@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import {
   LEGAL_CONTACT_EMAIL,
-  LEGAL_EFFECTIVE_DATE,
+  PRIVACY_EFFECTIVE_DATE,
   LegalList,
   LegalNotice,
   LegalSection,
@@ -15,7 +15,7 @@ export default function PrivacyPage() {
   return (
     <>
       <header className="space-y-4">
-        <h1 className="text-3xl font-black tracking-tight text-black">개인정보 처리방침</h1>
+        <h1 className="text-display text-fg-primary">개인정보 처리방침</h1>
         <LegalNotice />
         <p>
           GamerIN은 졸업 캡스톤 프로젝트로 운영하는 비상업 서비스입니다. GamerIN 프로젝트 팀(이하 &quot;운영팀&quot;)은
@@ -28,7 +28,7 @@ export default function PrivacyPage() {
         <LegalList
           items={[
             '필수로 받는 정보는 이메일, 아이디(handle), 닉네임, 비밀번호입니다. Google 가입은 Google 계정 식별자, 이메일, 이름을 받습니다.',
-            <strong key="moderation" className="font-bold text-black">
+            <strong key="moderation" className="font-semibold text-fg-primary">
               게시글·댓글·DM의 내용과 첨부 이미지·영상 일부는 유해 콘텐츠 검사를 위해 저장 전에 미국의 OpenAI로
               전송됩니다.
             </strong>,
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="제2조 처리하는 개인정보의 항목">
-        <p className="font-bold text-black">1. 회원가입 시 (필수)</p>
+        <p className="font-semibold text-fg-primary">1. 회원가입 시 (필수)</p>
         <LegalTable
           headers={['구분', '항목']}
           rows={[
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
         />
         <p>프로필 사진은 Google에서 가져오지 않습니다.</p>
 
-        <p className="font-bold text-black">2. 서비스 이용 시 (선택, 이용자가 입력한 경우)</p>
+        <p className="font-semibold text-fg-primary">2. 서비스 이용 시 (선택, 이용자가 입력한 경우)</p>
         <LegalTable
           headers={['기능', '항목']}
           rows={[
@@ -77,27 +77,27 @@ export default function PrivacyPage() {
             ['활동', '좋아요, 리포스트, 공유, 북마크, 팔로우, 알림'],
             [
               '게임 계정 연결',
-              'Riot ID(닉네임#태그), PUUID, PUBG 플레이어명과 계정 ID, Rainbow Six Siege 플레이어명, 플랫폼, 티어, KDA, KD, 승률, 경기 수 등 전적',
+              'Riot ID(닉네임#태그), PUUID, PUBG 플레이어명과 계정 ID, Rainbow Six Siege 플레이어명, 발로란트 리전, 플랫폼, 티어(현재·최고), KDA, KD, 평균 전투 점수, 헤드샷 비율, 승률, 경기 수 등 전적',
             ],
             ['멘토링', '멘토 소개, 프로그램 내용과 가격, 신청 메시지, 평점과 후기, 신청·정산 내역'],
             ['신고', '신고 사유, 상세 내용, 신고 대상 내용 일부'],
           ]}
         />
 
-        <p className="font-bold text-black">3. 유료 서비스 이용 시</p>
+        <p className="font-semibold text-fg-primary">3. 유료 서비스 이용 시</p>
         <p>
           주문 번호, 상품명, 결제 금액, 결제 수단 유형, 결제 상태와 일시, 카카오페이 거래 식별자, 마일리지 잔액과 변동
           내역, 멤버십 기간. 결제는 카카오페이 시험 결제로만 동작하며 실제 대금이 청구되지 않습니다. 운영팀은 카드번호 등
           결제 수단 정보를 받지 않습니다.
         </p>
 
-        <p className="font-bold text-black">4. 서비스 이용 과정에서 자동으로 생성·수집</p>
+        <p className="font-semibold text-fg-primary">4. 서비스 이용 과정에서 자동으로 생성·수집</p>
         <p>
           IP 주소, 브라우저·기기 정보(User-Agent), 접속 일시, 요청 경로와 응답 상태, 마지막 로그인 일시, 로그인 세션 기록,
           이용 제재 기록.
         </p>
 
-        <p className="font-bold text-black">5. 민감정보와 고유식별정보</p>
+        <p className="font-semibold text-fg-primary">5. 민감정보와 고유식별정보</p>
         <p>
           운영팀은 민감정보와 주민등록번호 등 고유식별정보를 수집하지 않습니다. 게시글·DM 등 자유 입력란에 이런 정보를
           적지 마세요. 게시글에 적은 내용은 다른 사람이 볼 수 있습니다.
@@ -202,12 +202,12 @@ export default function PrivacyPage() {
           ]}
         />
         <p>
-          <strong className="font-bold text-black">거부 방법과 효과</strong>: 제13조 연락처로 거부를 요청할 수 있습니다.
+          <strong className="font-semibold text-fg-primary">거부 방법과 효과</strong>: 제13조 연락처로 거부를 요청할 수 있습니다.
           다만 해당 처리는 서비스 운영에 필수입니다. Oracle Cloud 보관을 거부하면 서비스를 이용할 수 없고, OpenAI 전송을
           거부하면 게시글·댓글·DM 작성이, Resend 전송을 거부하면 이메일 인증과 비밀번호 재설정이 제한됩니다.
         </p>
         <p>
-          <strong className="font-bold text-black">게임 전적 조회</strong>: 이용자가 게임 계정을 연결하면 입력한 게임 ID로
+          <strong className="font-semibold text-fg-primary">게임 전적 조회</strong>: 이용자가 게임 계정을 연결하면 입력한 게임 ID로
           아래 서비스에 전적을 조회합니다. 연결은 선택이며 언제든 해제할 수 있습니다. 연결하지 않아도 다른 기능은 이용할
           수 있습니다.
         </p>
@@ -217,6 +217,7 @@ export default function PrivacyPage() {
             ['Riot Games', 'Riot ID, PUUID', '국외'],
             ['PUBG Developer API(KRAFTON)', '플레이어명, 계정 ID', '국외'],
             ['r6data.com', '플레이어명', '국외'],
+            ['HenrikDev API(발로란트 비공식 API)', 'Riot ID, 리전, HenrikDev가 발급한 PUUID', '국외'],
           ]}
         />
       </LegalSection>
@@ -263,7 +264,6 @@ export default function PrivacyPage() {
             ['message_stream_token', '쿠키(HttpOnly)', 'DM 실시간 수신 인증', '60초'],
             ['gamerin_user', '브라우저 저장소', '로그인 사용자 정보 표시', '로그아웃 시까지'],
             ['gamerin_user_settings', '브라우저 저장소', '화면 설정', '삭제 시까지'],
-            ['gamerin_connected_accounts', '브라우저 저장소', '프로필 연결 계정 표시', '삭제 시까지'],
             ['gamerin_auth_sync', '브라우저 저장소', '탭 간 로그아웃 동기화', '삭제 시까지'],
             [
               'gamerin_auth_reauthentication_required, gamerin_payment_return_to',
@@ -274,7 +274,7 @@ export default function PrivacyPage() {
           ]}
         />
         <p>
-          <strong className="font-bold text-black">거부 방법</strong>: 브라우저 설정에서 쿠키와 사이트 데이터를 차단하거나
+          <strong className="font-semibold text-fg-primary">거부 방법</strong>: 브라우저 설정에서 쿠키와 사이트 데이터를 차단하거나
           삭제할 수 있습니다. Chrome은 설정 &gt; 개인정보 보호 및 보안 &gt; 서드파티 쿠키, Edge는 설정 &gt; 쿠키 및 사이트
           권한, Safari는 설정 &gt; 개인정보 보호에서 변경합니다. 차단하면 로그인과 DM 등 일부 기능을 이용할 수 없습니다.
         </p>
@@ -307,7 +307,7 @@ export default function PrivacyPage() {
           이 처리방침을 변경하면 시행 전에 서비스 공지 또는 이 화면으로 알립니다. 이용자의 권리에 중대한 영향을 주는 변경은
           개정 전 또는 개정 즉시 별도로 안내합니다. 이전 처리방침이 생기면 이 화면에서 확인할 수 있게 합니다.
         </p>
-        <LegalList items={[`버전: ${PRIVACY_VERSION}`, `공고일·시행일: ${LEGAL_EFFECTIVE_DATE}`]} />
+        <LegalList items={[`버전: ${PRIVACY_VERSION}`, `공고일·시행일: ${PRIVACY_EFFECTIVE_DATE}`]} />
       </LegalSection>
     </>
   );

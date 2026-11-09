@@ -9,9 +9,9 @@ const block = 'bg-zinc-200 dark:bg-zinc-800';
 export function PostListSkeleton({ count = 2, label = '게시물을 불러오는 중' }: { count?: number; label?: string }) {
   return (
     <Skeleton loading label={label}>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {Array.from({ length: count }, (_, index) => (
-          <article key={index} className="rounded-2xl border border-zinc-200 p-4 dark:border-zinc-800">
+          <article key={index} className="rounded-card border border-line-card bg-surface p-4 md:p-5">
             <div className="flex items-center gap-3">
               <div className={`h-10 w-10 rounded-full ${block}`} />
               <div>
@@ -32,11 +32,11 @@ export function ConversationListSkeleton({ count = 5 }: { count?: number }) {
     <Skeleton loading label="대화 목록을 불러오는 중">
       <div className="space-y-1">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="flex items-center gap-3 px-3 py-3">
-            <div className={`h-11 w-11 shrink-0 rounded-xl ${block}`} />
+          <div key={index} className="flex items-center gap-3 px-4 py-3">
+            <div className={`h-11 w-11 shrink-0 rounded-full ${block}`} />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-black">대화 상대 이름</p>
-              <p className="text-xs">마지막 메시지 미리보기가 들어갈 자리입니다.</p>
+              <p className="text-body font-medium">대화 상대 이름</p>
+              <p className="text-body">마지막 메시지 미리보기가 들어갈 자리입니다.</p>
             </div>
           </div>
         ))}
@@ -48,10 +48,10 @@ export function ConversationListSkeleton({ count = 5 }: { count?: number }) {
 export function MessageThreadSkeleton() {
   return (
     <Skeleton loading label="메시지를 불러오는 중">
-      <div className="space-y-6">
+      <div className="space-y-3">
         {[false, true, false].map((mine, index) => (
           <div key={index} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
-            <p className="max-w-[60%] rounded-2xl px-4 py-3 text-sm">메시지 내용이 들어갈 자리입니다.</p>
+            <p className="max-w-[60%] rounded-card px-3.5 py-2.5 text-body">메시지 내용이 들어갈 자리입니다.</p>
           </div>
         ))}
       </div>
@@ -62,13 +62,13 @@ export function MessageThreadSkeleton() {
 export function ProgramListSkeleton({ count = 3 }: { count?: number }) {
   return (
     <Skeleton loading label="프로그램을 불러오는 중">
-      <div className="grid gap-4">
+      <div className="grid gap-3 xl:grid-cols-2 xl:gap-5">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="rounded-2xl border border-zinc-100 p-5 dark:border-zinc-800">
-            <p className="mb-2 text-xs font-black">게임 이름</p>
-            <h3 className="text-xl font-black">프로그램 제목이 들어갈 자리</h3>
-            <p className="mt-2 text-sm leading-6">프로그램 소개가 들어갈 자리입니다. 프로그램 소개가 들어갈 자리입니다.</p>
-            <p className="mt-3 text-xs font-black">멘토 이름 · 평점</p>
+          <div key={index} className="min-w-0 rounded-card border border-line-card bg-surface p-4 sm:p-5">
+            <p className="text-caption">게임 이름</p>
+            <p className="mt-3 text-heading">프로그램 제목이 들어갈 자리</p>
+            <p className="mt-3 mb-3 text-caption">프로그램 소개가 들어갈 자리입니다.</p>
+            <p className="border-t border-line pt-3 text-label">멘토 이름 · 가격</p>
           </div>
         ))}
       </div>
@@ -76,14 +76,14 @@ export function ProgramListSkeleton({ count = 3 }: { count?: number }) {
   );
 }
 
-export function ChargeProductsSkeleton({ count = 6 }: { count?: number }) {
+export function ChargeProductsSkeleton({ count = 4 }: { count?: number }) {
   return (
     <Skeleton loading label="충전 금액을 불러오는 중">
-      <div className="mt-5 grid grid-cols-2 gap-2.5 lg:gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-2.5 xl:mt-4 xl:gap-3">
         {Array.from({ length: count }, (_, index) => (
-          <div key={index} className="flex min-h-16 flex-col justify-center rounded-xl border border-zinc-200 px-4 py-3 dark:border-neutral-700">
-            <strong className="text-lg font-black">10,000원</strong>
-            <span className="mt-0.5 text-xs font-bold">→ 10,000 M</span>
+          <div key={index} className="flex min-h-[72px] flex-col justify-center rounded-xl border border-line bg-subtle px-3 py-3 xl:px-4">
+            <strong className="text-heading">10,000원</strong>
+            <span className="mt-0.5 text-caption">→ 10,000 M</span>
           </div>
         ))}
       </div>
@@ -112,11 +112,11 @@ export function UserRowsSkeleton({ count = 4 }: { count?: number }) {
 export function ProfileSkeleton() {
   return (
     <Skeleton loading label="프로필을 불러오는 중">
-      <div className="page-container">
-        <div className={`h-56 w-full rounded-3xl ${block}`} />
-        <div className="-mt-12 px-6">
-          <div className={`h-28 w-28 rounded-3xl ${block}`} />
-          <h1 className="mt-4 text-3xl font-black">사용자 닉네임</h1>
+      <div className="px-4 pt-2 md:px-6 lg:pt-5 xl:max-w-[624px] xl:pr-0">
+        <div className={`h-32 w-full rounded-xl md:h-56 md:rounded-card ${block}`} />
+        <div className="-mt-9 md:-mt-11">
+          <div className={`relative ml-3 size-[72px] rounded-full border-4 border-canvas md:ml-4 md:size-[88px] ${block}`} />
+          <h1 className="mt-4 text-title">사용자 닉네임</h1>
           <p className="text-sm font-bold">@handle</p>
           <p className="mt-3 text-sm leading-6">자기소개가 들어갈 자리입니다. 자기소개가 들어갈 자리입니다.</p>
           <p className="mt-4 text-sm font-black">0 팔로워 0 팔로잉 0 게시물</p>

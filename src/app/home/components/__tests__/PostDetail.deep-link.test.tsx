@@ -9,6 +9,7 @@ const api = vi.hoisted(() => ({
   refreshCollections: vi.fn(),
 }));
 
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { handle: 'viewer' } }),
 }));
@@ -116,7 +117,7 @@ describe('PostDetail comment deep link', () => {
     render(<PostDetail postNumber={1} onBack={vi.fn()} />);
 
     expect(await screen.findByText(message)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: '돌아가기' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '뒤로 가기' })).toBeInTheDocument();
   });
 
   it('waits for the full comment list, then scrolls to and highlights the matching comment', async () => {
@@ -140,7 +141,7 @@ describe('PostDetail comment deep link', () => {
     expect(targetComment).not.toBeNull();
     await waitFor(() => expect(scrollIntoView).toHaveBeenCalledTimes(1));
     expect(scrollIntoView.mock.contexts[0]).toBe(targetComment);
-    expect(targetComment).toHaveClass('border-sky-300', 'bg-sky-50');
+    expect(targetComment).toHaveClass('bg-brand-subtle');
     expect(api.fetchPostComments).toHaveBeenCalledTimes(1);
   });
 
@@ -185,6 +186,6 @@ describe('PostDetail comment deep link', () => {
     render(<PostDetail postNumber={999} onBack={vi.fn()} />);
 
     expect(await screen.findByText('게시글을 찾을 수 없습니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/');
   });
 });

@@ -56,6 +56,7 @@ vi.mock('@/app/home/components/RightSidebar', () => ({
 
 vi.mock('@/lib/feed-api', () => ({
   fetchFeed: api.fetchFeed,
+  fetchUserRecommendations: vi.fn().mockResolvedValue([]),
   likePost: api.likePost,
   unlikePost: api.unlikePost,
   updatePostLikeState: (post: PostRecord, likedByMe = !post.likedByMe) => ({
@@ -142,7 +143,7 @@ vi.mock('@/app/context/PendingPostsContext', async (importOriginal) => {
   };
 });
 
-import HomePage from '../page';
+import HomePage from '../../page';
 import { PendingPostsProvider } from '@/app/context/PendingPostsContext';
 
 // 실제 앱처럼 (app) 레이아웃의 업로드 상태 Provider 안에서 렌더링한다.
@@ -186,6 +187,7 @@ function createDeferred<T>() {
 
 describe('HomePage like rollback', () => {
   beforeEach(() => {
+    auth.user = { id: 'viewer-1', handle: 'viewer' };
     navigation.query = '';
     navigation.push.mockReset();
     navigation.replace.mockReset();
@@ -246,13 +248,26 @@ describe('HomePage like rollback', () => {
     expect(screen.getByRole('button', { name: '추천' })).toHaveAttribute('aria-pressed', 'true');
   });
 
+  it('게스트 팔로잉 진입을 요청 전에 막고 전체 피드를 유지한다', async () => {
+    auth.user = null;
+    const prompt = vi.fn(); window.addEventListener('gamerin_login_prompt', prompt);
+    try {
+      render(<HomeUnderTest />);
+      await screen.findByTestId('post-post-1');
+      fireEvent.click(screen.getByRole('button', { name: '팔로잉' }));
+      expect(prompt).toHaveBeenCalledOnce();
+      expect(navigation.push).not.toHaveBeenCalled();
+      expect(api.fetchFeed.mock.calls.every(([tab]) => tab === 'all')).toBe(true);
+    } finally { window.removeEventListener('gamerin_login_prompt', prompt); }
+  });
+
   it('탭을 URL에 기록하고 문서 스크롤을 맨 위로 이동한다', async () => {
     render(<HomeUnderTest />);
     await screen.findByTestId('post-post-1');
 
     fireEvent.click(screen.getByRole('button', { name: '팔로잉' }));
 
-    expect(navigation.push).toHaveBeenCalledWith('/home?tab=following', { scroll: false });
+    expect(navigation.push).toHaveBeenCalledWith('/?tab=following', { scroll: false });
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'smooth' });
   });
 
@@ -446,3 +461,6 @@ describe('HomePage like rollback', () => {
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
   });
 });
+
+const auth = vi.hoisted(() => ({ user: { id: 'viewer-1', handle: 'viewer' } as { id: string; handle: string } | null, isAuthReady: true }));
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => auth }));

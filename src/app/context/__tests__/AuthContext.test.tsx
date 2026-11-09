@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 const authStore = vi.hoisted(() => ({
   AUTH_CLEARED_EVENT: 'gamerin_auth_cleared',
+  AUTH_BLOCKED_EVENT: 'gamerin_auth_blocked',
   AUTH_LOGOUT_STATE_EVENT: 'gamerin_auth_logout_state',
   AUTH_REAUTH_REQUIRED_EVENT: 'gamerin_auth_reauthentication_required',
   AUTH_USER_KEY: 'gamerin_user',
@@ -39,12 +40,14 @@ vi.mock('@/lib/api-client', () => apiClient);
 import { AuthProvider, useAuth } from '../AuthContext';
 
 function AuthHarness() {
-  const { user, isAuthReady, isSessionUnavailable, retrySessionRestore, login, logout } = useAuth();
+  const { user, isAuthReady, isSessionUnavailable, isAccountBlocked, retrySessionRestore, login, logout } = useAuth();
   return (
     <div>
       <span>{isAuthReady ? 'ready' : 'loading'}</span>
       <span>{user?.nickname ?? 'no-user'}</span>
+      <span data-testid="profile-image">{user?.profileImageUrl ?? 'no-image'}</span>
       <span>{isSessionUnavailable ? 'session-unavailable' : 'session-checked'}</span>
+      <span>{isAccountBlocked ? 'account-blocked' : 'account-not-blocked'}</span>
       <button type="button" onClick={() => void retrySessionRestore()}>
         test retry
       </button>
@@ -76,6 +79,20 @@ describe('AuthProvider session clearing', () => {
     authStore.logoutAuthSession.mockReset();
     authStore.logoutAuthSession.mockResolvedValue(undefined);
     authStore.isLocalReauthenticationRequired.mockReturnValue(false);
+  });
+
+  it('정지 계정 종료는 정상 게스트와 구분하고 명시적 로그인에서만 차단 상태를 해제한다', async () => {
+    render(<AuthProvider><AuthHarness /></AuthProvider>);
+    await screen.findByText('ready');
+    fireEvent.click(screen.getByRole('button', { name: 'test login' }));
+    act(() => {
+      window.dispatchEvent(new Event(authStore.AUTH_BLOCKED_EVENT));
+      window.dispatchEvent(new Event(authStore.AUTH_CLEARED_EVENT));
+    });
+    expect(screen.getByText('account-blocked')).toBeInTheDocument();
+    expect(screen.getByText('no-user')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'test login' }));
+    expect(screen.getByText('account-not-blocked')).toBeInTheDocument();
   });
 
   it('immediately clears the Context user when the shared auth-cleared event arrives', async () => {
@@ -137,6 +154,21 @@ describe('AuthProvider session clearing', () => {
     beforeEach(() => {
       window.localStorage.setItem(authStore.AUTH_USER_KEY, JSON.stringify(savedUser));
       apiClient.apiRequest.mockReset();
+    });
+
+    it.each(['/uploads/new.jpg', null])('복원한 사진 %j를 정규화해 Context와 저장 사용자에 반영한다', async (profileImageUrl) => {
+      vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'http://api.test');
+      onTestFinished(() => { vi.unstubAllEnvs(); });
+      window.localStorage.setItem(authStore.AUTH_USER_KEY, JSON.stringify({ ...savedUser, profileImageUrl: '/uploads/old.jpg' }));
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'refreshed' } as never);
+      apiClient.apiRequest.mockResolvedValueOnce({ userId: savedUser.id, handle: 'demo', nickname: savedUser.nickname, profileImageUrl });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      await screen.findByText('ready');
+      const expected = profileImageUrl ? `http://api.test${profileImageUrl}` : null;
+      expect(screen.getByTestId('profile-image')).toHaveTextContent(expected ?? 'no-image');
+      expect(JSON.parse(window.localStorage.getItem(authStore.AUTH_USER_KEY)!)).toMatchObject({ profileImageUrl: expected });
     });
 
     it('탭별 재인증 마커가 있으면 bootstrap API를 한 번도 호출하지 않는다', async () => {

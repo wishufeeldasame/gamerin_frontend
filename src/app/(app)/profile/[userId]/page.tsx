@@ -7,17 +7,11 @@ import Link from 'next/link';
 import { PostListSkeleton, ProfileSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
   Settings,
-  Edit3,
-  Grid,
-  BarChart3,
-  Layers,
   Plus,
   RefreshCw,
-  ExternalLink,
   Globe,
   Play,
   Trash2,
-  Tv,
   MessageCircle,
   MoreHorizontal,
   Flag,
@@ -26,14 +20,16 @@ import {
   WalletCards,
   Gamepad2,
 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { assertCurrentAuthGeneration, getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import { FetchGameStatsModal } from '@/app/home/components/FetchGameStatsModal';
 import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/components/EditProfileModal';
 import { Post } from '@/app/home/components/Post';
 import { ReportContentModal } from '@/app/home/components/Report';
+import { SuggestedFriendsCard } from '@/app/home/components/SuggestedFriendsCard';
 import {
   PostRecord,
   FollowUserRecord,
@@ -62,20 +58,26 @@ import {
   fetchPubgSummary,
   fetchLolSummary,
   refreshR6Summary,
+  refreshValorantSummary,
   GameStatsApiError,
   type GameName,
   type PubgSummaryResponse,
   type LolSummaryResponse,
   type R6SummaryResponse,
   type StatsMode,
+  type ValorantSummaryResponse,
 } from '@/lib/game-stats-api';
 import { useCursorList } from '@/hooks/useCursorList';
+import { useMileageBalance } from '@/hooks/useMileageBalance';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 
 type ProfileTab = 'posts' | 'stats' | 'media';
 type FollowListType = 'followers' | 'following';
 type PostDetailTarget = 'post' | 'comments';
+
+const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
 
 const GAME_STATS_UI_CONFIG: Record<
   GameName,
@@ -94,6 +96,10 @@ const GAME_STATS_UI_CONFIG: Record<
   },
   R6: {
     displayName: 'Rainbow Six Siege',
+    disconnectable: true,
+  },
+  VALORANT: {
+    displayName: 'VALORANT',
     disconnectable: true,
   },
 };
@@ -121,52 +127,6 @@ function withImageCacheBust(imageUrl: string | null | undefined) {
 
   const separator = imageUrl.includes('?') ? '&' : '?';
   return `${imageUrl}${separator}v=${Date.now()}`;
-}
-
-type ConnectedPlatformId = 'youtube' | 'twitch' | 'soop';
-
-type ConnectedAccount = {
-  id: ConnectedPlatformId;
-  label: string;
-  handle: string;
-  url: string;
-};
-
-const connectedPlatformMeta: Record<
-  ConnectedPlatformId,
-  {
-    label: string;
-    placeholder: string;
-    color: string;
-    icon: typeof Tv;
-    buildUrl: (handle: string) => string;
-  }
-> = {
-  youtube: {
-    label: 'YouTube',
-    placeholder: '@채널 핸들',
-    color: 'bg-red-500',
-    icon: Tv,
-    buildUrl: (handle) => `https://www.youtube.com/${handle.startsWith('@') ? handle : `@${handle}`}`,
-  },
-  twitch: {
-    label: 'Twitch',
-    placeholder: '채널 ID',
-    color: 'bg-purple-600',
-    icon: Tv,
-    buildUrl: (handle) => `https://www.twitch.tv/${handle.replace(/^@/, '')}`,
-  },
-  soop: {
-    label: 'SOOP (AfreecaTV)',
-    placeholder: '채널 ID',
-    color: 'bg-blue-500',
-    icon: Tv,
-    buildUrl: (handle) => `https://ch.sooplive.co.kr/${handle.replace(/^@/, '')}`,
-  },
-};
-
-function normalizeHandle(value: string) {
-  return value.trim().replace(/\s+/g, '').toLowerCase();
 }
 
 type GameStatsRecord = Record<string, unknown>;
@@ -206,7 +166,10 @@ function isCommonGameStats(gameName: string) {
 function getDisconnectableGameName(gameName: string): GameName | null {
   const normalizedGameName = gameName.toUpperCase();
 
-  if (normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6' && normalizedGameName !== 'LOL') {
+  if (
+    normalizedGameName !== 'PUBG' && normalizedGameName !== 'R6'
+    && normalizedGameName !== 'LOL' && normalizedGameName !== 'VALORANT'
+  ) {
     return null;
   }
 
@@ -221,50 +184,76 @@ function formatNullablePercent(value: number | null) {
   return `${Number.isInteger(value) ? value : value.toFixed(1)}%`;
 }
 
-function formatGameStatsSummary(gameName: string, stats: unknown, isOwnProfile: boolean) {
+type GameStatMetric = { label: string; value: string };
+
+function formatGameStats(gameName: string, stats: unknown, isOwnProfile: boolean): GameStatMetric[] | string {
   const record = toGameStatsRecord(stats);
-  if (!record) {
-    return String(stats ?? '');
+  if (!record) return String(stats ?? '');
+
+  const game = gameName.toUpperCase();
+  const tier = readStringStat(record, 'tierLabel');
+  const matches = readNumberStat(record, game === 'LOL' ? 'games' : 'matches');
+  const ratio = readNumberStat(record, game === 'LOL' ? 'kda' : 'kd');
+
+  if (
+    (game === 'LOL' && ratio === null && matches === null)
+    || (game === 'VALORANT' && !tier && matches === null)
+  ) {
+    return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
   }
 
-  if (gameName.toUpperCase() === 'LOL') {
-    const tier = readStringStat(record, 'tierLabel');
-    const kda = readNumberStat(record, 'kda');
-    const games = readNumberStat(record, 'games');
-    if (kda === null && games === null) {
-      return isOwnProfile ? '계정 연결됨 · 전적 새로고침으로 불러와 주세요.' : '계정 연결됨';
-    }
-    return [tier || 'UNRANKED', `KDA ${kda === null ? '-' : kda.toFixed(2)}`,
-      `승률 ${formatNullablePercent(readNumberStat(record, 'winRate'))}`,
-      games === null ? '경기 수 -' : `${games.toLocaleString('ko-KR')}게임`].join(' · ');
-  }
-
-  if (!isCommonGameStats(gameName)) {
+  if (game !== 'LOL' && game !== 'VALORANT' && !isCommonGameStats(game)) {
     return Object.entries(record)
-      .filter(
-        ([key]) =>
-          key !== 'accountId' && key !== 'playerNameNormalized',
-      )
+      .filter(([key]) => key !== 'accountId' && key !== 'playerNameNormalized')
       .map(([key, value]) => `${key}: ${String(value)}`)
       .join(' · ');
   }
 
-  const summaryParts: string[] = [];
-  const tierLabel = readStringStat(record, 'tierLabel');
-  const winRate = readNumberStat(record, 'winRate');
-  const statsMode = readStatsMode(record);
-  const kd = readNumberStat(record, 'kd');
-  const matches = readNumberStat(record, 'matches');
-
-  if (statsMode === 'RANKED' && tierLabel) {
-    summaryParts.push(tierLabel);
+  const metrics: GameStatMetric[] = [];
+  if (game === 'LOL') {
+    metrics.push({ label: '티어', value: tier ?? 'UNRANKED' });
+  } else if (game === 'VALORANT') {
+    // HenrikDev 티어 표기를 유지하고 최근 경쟁전 지표를 표시한다.
+    const rr = readNumberStat(record, 'rr');
+    const peak = readStringStat(record, 'peakTierLabel');
+    metrics.push({ label: '티어', value: `${tier ?? 'Unrated'}${rr === null ? '' : ` ${rr}RR`}` });
+    if (peak) metrics.push({ label: '최고', value: peak });
+  } else if (readStatsMode(record) === 'RANKED' && tier) {
+    metrics.push({ label: '티어', value: tier });
   }
 
-  summaryParts.push(`K/D ${kd === null ? '-' : kd.toFixed(2)}`);
-  summaryParts.push(`승률 ${formatNullablePercent(winRate)}`);
-  summaryParts.push(matches === null ? '경기 수 -' : `${matches.toLocaleString('ko-KR')}게임`);
+  metrics.push({ label: game === 'LOL' ? 'KDA' : 'K/D', value: ratio?.toFixed(2) ?? '-' });
+  if (game === 'VALORANT') {
+    metrics.push(
+      { label: 'ACS', value: String(readNumberStat(record, 'acs') ?? '-') },
+      { label: '헤드샷', value: formatNullablePercent(readNumberStat(record, 'headshotRate')) },
+    );
+  }
+  metrics.push(
+    { label: '승률', value: formatNullablePercent(readNumberStat(record, 'winRate')) },
+    { label: '판수', value: matches?.toLocaleString('ko-KR') ?? '-' },
+  );
+  return metrics;
+}
 
-  return summaryParts.join(' · ');
+const VALORANT_REFRESH_COOLDOWN_MS = 10 * 60 * 1000;
+
+/** 마지막 갱신 뒤 10분이 지나지 않았으면 남은 분(올림), 아니면 0. */
+function getValorantRefreshWaitMinutes(stats: unknown, now = Date.now()) {
+  const record = toGameStatsRecord(stats);
+  if (!record?.connected) return 0;
+  const updatedAt = Date.parse(readStringStat(record, 'updatedAt') ?? '');
+  if (Number.isNaN(updatedAt)) return 0;
+  const remaining = updatedAt + VALORANT_REFRESH_COOLDOWN_MS - now;
+  return remaining > 0 ? Math.ceil(remaining / 60000) : 0;
+}
+
+function formatValorantDetail(stats: unknown) {
+  const record = toGameStatsRecord(stats);
+  if (!record) return null;
+  // riotId는 본인 응답에만 포함된다.
+  const riotName = readStringStat(record, 'riotId')?.split('#')[0] ?? null;
+  return ['경쟁전', readStringStat(record, 'region'), riotName].filter(Boolean).join(' ');
 }
 
 function formatGameStatsDetail(gameName: string, stats: unknown) {
@@ -348,6 +337,11 @@ function applyLolSummary(gameStats: UserProfile['gameStats'], summary: LolSummar
   };
 }
 
+function applyValorantSummary(gameStats: UserProfile['gameStats'], summary: ValorantSummaryResponse) {
+  if (!summary.connected) return removeGameStats(gameStats, 'VALORANT');
+  return { ...gameStats, VALORANT: { ...(toGameStatsRecord(gameStats.VALORANT) ?? {}), ...summary } };
+}
+
 function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
   if (!(error instanceof GameStatsApiError)) {
     return error instanceof Error ? error.message : `${gameName} 전적 갱신에 실패했습니다.`;
@@ -358,6 +352,11 @@ function getGameStatsErrorMessage(gameName: GameName, error: unknown) {
     if (error.status === 409) return 'R6 계정 정보가 일치하지 않습니다. 다시 연결해 주세요.';
     if (error.status === 429) return 'R6 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
     if (error.status === 502 || error.status === 503) return 'R6 전적 서버를 일시적으로 사용할 수 없습니다.';
+  }
+
+  if (gameName === 'VALORANT') {
+    if (error.status === 429) return '발로란트 전적 조회 요청이 많습니다. 잠시 후 다시 시도해 주세요.';
+    if (error.status === 502 || error.status === 503) return '발로란트 전적 서버를 일시적으로 사용할 수 없습니다.';
   }
 
   if (gameName === 'LOL' && (error.status === 403 || error.status === 503)) {
@@ -372,8 +371,10 @@ export default function ProfilePage() {
   const params = useParams<{ userId?: string }>();
   const router = useRouter();
   const { user: currentUser, updateUser } = useAuth();
+  const requireAuth = useRequireAuth();
   const routeUserId = typeof params.userId === 'string' ? decodeURIComponent(params.userId) : '';
   const [activeTab, setActiveTab] = useState<ProfileTab>('posts');
+  const tabsId = useId();
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -397,16 +398,6 @@ export default function ProfilePage() {
   const [mediaItems, setMediaItems] = useState<ProfileMediaItem[]>([]);
   const [mediaNextCursor, setMediaNextCursor] = useState<string | null>(null);
   const [mediaHasNext, setMediaHasNext] = useState(false);
-  const [connectedAccounts, setConnectedAccounts] = useState<Record<ConnectedPlatformId, ConnectedAccount | null>>({
-    youtube: null,
-    twitch: null,
-    soop: null,
-  });
-  const [platformInputs, setPlatformInputs] = useState<Record<ConnectedPlatformId, string>>({
-    youtube: '',
-    twitch: '',
-    soop: '',
-  });
   const [loading, setLoading] = useState(true);
   const [loadingMoreMedia, setLoadingMoreMedia] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -428,7 +419,7 @@ export default function ProfilePage() {
   } = useCursorList({
     loadPage: loadProfilePostPage,
     getKey: (post: PostRecord) => post.postId,
-    queryKey: profileHandle,
+    queryKey: `${profileHandle}:${currentUser?.id ?? 'guest'}`,
     enabled: Boolean(profileHandle),
     initialErrorMessage: '게시글을 불러오지 못했습니다.',
     loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
@@ -442,25 +433,14 @@ export default function ProfilePage() {
     localStorage.removeItem('gamerin_profile_cover');
     localStorage.removeItem('gamerin_profile_avatar');
 
-    try {
-      const savedAccounts = localStorage.getItem('gamerin_connected_accounts');
-      if (savedAccounts) {
-        const parsedAccounts = JSON.parse(savedAccounts) as Partial<Record<ConnectedPlatformId, ConnectedAccount>>;
-        setConnectedAccounts({
-          youtube: parsedAccounts.youtube ?? null,
-          twitch: parsedAccounts.twitch ?? null,
-          soop: parsedAccounts.soop ?? null,
-        });
-      }
-    } catch {
-      localStorage.removeItem('gamerin_connected_accounts');
-    }
   }, []);
 
   useEffect(() => {
     let cancelled = false;
 
     const loadProfile = async () => {
+      if (!routeUserId && !currentUser?.id) return;
+      const viewerGeneration = getAuthGeneration();
       try {
         setLoading(true);
         setError(null);
@@ -477,7 +457,7 @@ export default function ProfilePage() {
           followsViewer,
         };
 
-        if (cancelled) {
+        if (cancelled || !isCurrentAuthGeneration(viewerGeneration)) {
           return;
         }
 
@@ -498,6 +478,7 @@ export default function ProfilePage() {
             location: loadedProfile.location ?? '',
             website: loadedProfile.website ?? '',
             profileImageUrl: loadedProfile.profileImageUrl,
+            representativeTier: loadedProfile.representativeTier ?? null,
           });
         }
       } catch (loadError) {
@@ -532,9 +513,11 @@ export default function ProfilePage() {
     return entries.map(([gameName, stats]) => ({
       gameName,
       displayName: gameName.toUpperCase() === 'LOL' ? 'League of Legends' : gameName,
-      summary: formatGameStatsSummary(gameName, stats, isOwnProfile),
+      stats: formatGameStats(gameName, stats, isOwnProfile),
       detail: gameName.toUpperCase() === 'LOL'
         ? riotId?.split('#')[0] ?? null
+        : gameName.toUpperCase() === 'VALORANT'
+        ? formatValorantDetail(stats)
         : formatGameStatsDetail(gameName, stats),
       disconnectGameName: getDisconnectableGameName(gameName),
       // 서버가 마지막 갱신 시각(updatedAt)을 준 게임만 "N분 전"을 표시한다.
@@ -553,7 +536,7 @@ export default function ProfilePage() {
 
     const refreshRequests: Array<{
       gameName: GameName;
-      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse>;
+      request: () => Promise<PubgSummaryResponse | R6SummaryResponse | LolSummaryResponse | ValorantSummaryResponse>;
     }> = [];
 
     if (isConnectedGameStats(profile.gameStats.PUBG)) {
@@ -565,9 +548,17 @@ export default function ProfilePage() {
     if (isConnectedGameStats(profile.gameStats.RIOT) || isConnectedGameStats(profile.gameStats.LOL)) {
       refreshRequests.push({ gameName: 'LOL', request: fetchLolSummary });
     }
+    // 서버도 10분 안의 재조회는 외부 API를 부르지 않고 저장값을 돌려준다(HenrikDev 호출 한도).
+    const valorantWaitMinutes = getValorantRefreshWaitMinutes(profile.gameStats.VALORANT);
+    if (isConnectedGameStats(profile.gameStats.VALORANT) && valorantWaitMinutes === 0) {
+      refreshRequests.push({ gameName: 'VALORANT', request: refreshValorantSummary });
+    }
+    const valorantCooldownNotice = valorantWaitMinutes > 0
+      ? `발로란트 전적은 10분마다 새로고침할 수 있습니다. ${valorantWaitMinutes}분 뒤 다시 시도해 주세요.`
+      : null;
 
     if (refreshRequests.length === 0) {
-      toast.info('새로고침할 게임 전적이 없습니다.');
+      toast.info(valorantCooldownNotice ?? '새로고침할 게임 전적이 없습니다.');
       return;
     }
 
@@ -598,6 +589,8 @@ export default function ProfilePage() {
             ? applyLolSummary(updatedGameStats, result.value as LolSummaryResponse)
             : gameName === 'R6'
             ? applyR6Summary(updatedGameStats, result.value as R6SummaryResponse)
+            : gameName === 'VALORANT'
+            ? applyValorantSummary(updatedGameStats, result.value as ValorantSummaryResponse)
             : applyPubgSummary(updatedGameStats, result.value as PubgSummaryResponse);
       });
 
@@ -612,6 +605,8 @@ export default function ProfilePage() {
           ...refreshed,
           followedByMe: false,
         };
+        // 대표 게임 티어가 바뀌었을 수 있으므로 사이드바 등 인증 사용자 표시도 맞춘다.
+        updateUser({ representativeTier: refreshed.representativeTier ?? null });
         setProfileCover(refreshed.coverImageUrl || null);
         setProfileAvatar(refreshed.profileImageUrl);
       } catch (profileRefreshError) {
@@ -634,6 +629,9 @@ export default function ProfilePage() {
       if (failures.length > 0) {
         toast.error(`일부 전적을 갱신하지 못했습니다.\n${failures.join('\n')}`);
       }
+      if (valorantCooldownNotice) {
+        toast.info(valorantCooldownNotice);
+      }
     } finally {
       setIsRefreshing(false);
     }
@@ -641,6 +639,7 @@ export default function ProfilePage() {
 
   const handleGameConnected = async () => {
     const refreshed = await fetchMyProfile();
+    updateUser({ representativeTier: refreshed.representativeTier ?? null });
     setProfile({
       ...refreshed,
       followedByMe: false,
@@ -659,14 +658,20 @@ export default function ProfilePage() {
     try {
       setIsDisconnectingGame(true);
       await disconnectGameStats(gameName);
+      // 서버가 해제한 게임이 대표였다면 대표 설정도 비우므로 화면 상태를 맞춘다.
+      const wasRepresentative = currentUser?.representativeGame === gameName;
       setProfile((current) =>
         current
           ? {
               ...current,
               gameStats: removeGameStats(current.gameStats, gameName),
+              ...(wasRepresentative ? { representativeTier: null } : {}),
             }
           : current,
       );
+      if (wasRepresentative) {
+        updateUser({ representativeGame: null, representativeTier: null });
+      }
       setDisconnectTarget(null);
     } catch (disconnectError) {
       toast.error(getGameStatsErrorMessage(gameName, disconnectError));
@@ -722,13 +727,16 @@ export default function ProfilePage() {
   };
 
   const handleSaveUserInfo = async (userInfo: EditProfileUserInfo) => {
+    if (!requireAuth('프로필을 수정하려면 로그인이 필요해요.')) return;
     if (!profile) return;
+    const generation = getAuthGeneration();
 
     const [profileImageUpload, coverImageUpload] = await Promise.all([
       userInfo.profileImageFile ? uploadProfileImage('PROFILE', userInfo.profileImageFile) : Promise.resolve(null),
       userInfo.coverImageFile ? uploadProfileImage('COVER', userInfo.coverImageFile) : Promise.resolve(null),
     ]);
 
+    assertCurrentAuthGeneration(generation);
     const updatePayload: UpdateMyProfilePayload = {
       nickname: userInfo.name,
       bio: userInfo.bio,
@@ -741,6 +749,7 @@ export default function ProfilePage() {
     }
 
     const updatedProfile = await updateMyProfile(updatePayload);
+    assertCurrentAuthGeneration(generation);
     const nextProfileImageUrl = profileImageUpload
       ? withImageCacheBust(profileImageUpload.imageUrl)
       : updatedProfile.profileImageUrl;
@@ -768,6 +777,7 @@ export default function ProfilePage() {
   };
 
   const handleToggleFollow = async () => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     if (!profile || followLoading) {
       return;
     }
@@ -804,6 +814,7 @@ export default function ProfilePage() {
   };
 
   const loadFollowList = async (type: FollowListType, cursor?: string | null) => {
+    if (!requireAuth('팔로우 목록은 로그인 후 볼 수 있어요.')) return;
     if (!profile) return;
 
     try {
@@ -832,6 +843,7 @@ export default function ProfilePage() {
   };
 
   const openFollowList = (type: FollowListType) => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     setFollowListType(type);
     void loadFollowList(type);
   };
@@ -845,6 +857,7 @@ export default function ProfilePage() {
   };
 
   const handleToggleFollowUser = async (target: FollowUserRecord) => {
+    if (!requireAuth('팔로우 기능은 로그인 후 이용할 수 있어요.')) return;
     if (followActionHandle || target.handle === currentUser?.handle) {
       return;
     }
@@ -875,129 +888,12 @@ export default function ProfilePage() {
     }
   };
 
-  const saveConnectedAccounts = (nextAccounts: Record<ConnectedPlatformId, ConnectedAccount | null>) => {
-    setConnectedAccounts(nextAccounts);
-    localStorage.setItem('gamerin_connected_accounts', JSON.stringify(nextAccounts));
-  };
+  const isOwnProfile = Boolean(profile && currentUser && (
+    profile.handle === currentUser.handle || profile.id === currentUser.id
+  ));
+  const mileageBalance = useMileageBalance(isOwnProfile && !loading ? currentUser?.id : undefined, 'mobile');
 
-  const handleConnectPlatform = (platformId: ConnectedPlatformId) => {
-    const handle = normalizeHandle(platformInputs[platformId]);
-    if (!handle) {
-      toast.error('연결할 계정 ID를 입력해 주세요.');
-      return;
-    }
-
-    const meta = connectedPlatformMeta[platformId];
-    const nextAccounts = {
-      ...connectedAccounts,
-      [platformId]: {
-        id: platformId,
-        label: meta.label,
-        handle,
-        url: meta.buildUrl(handle),
-      },
-    };
-
-    saveConnectedAccounts(nextAccounts);
-    setPlatformInputs({ ...platformInputs, [platformId]: '' });
-  };
-
-  const handleDisconnectPlatform = (platformId: ConnectedPlatformId) => {
-    const nextAccounts = {
-      ...connectedAccounts,
-      [platformId]: null,
-    };
-
-    saveConnectedAccounts(nextAccounts);
-  };
-
-  const renderConnectedAccounts = () => (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-6 md:p-8">
-      <div className="mb-6">
-        <h2 className="section-title">연결된 계정</h2>
-        <p className="mt-1 text-sm font-bold text-zinc-400">
-          YouTube, Twitch, SOOP 채널을 프로필에 표시할 수 있습니다.
-        </p>
-      </div>
-
-      <div className="space-y-4">
-        {(Object.keys(connectedPlatformMeta) as ConnectedPlatformId[]).map((platformId) => {
-          const meta = connectedPlatformMeta[platformId];
-          const account = connectedAccounts[platformId];
-          const Icon = meta.icon;
-
-          return (
-            <div key={platformId} className="rounded-2xl bg-zinc-50 p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div className="flex min-w-0 items-center gap-4">
-                  <div className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-white ${meta.color}`}>
-                    <Icon size={24} />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-lg font-black text-black">{meta.label}</h3>
-                    {account ? (
-                      <a
-                        href={account.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="truncate text-sm font-bold text-blue-600 hover:underline"
-                      >
-                        {account.handle}
-                      </a>
-                    ) : (
-                      <p className="text-sm font-bold text-zinc-400">아직 연결되지 않았습니다.</p>
-                    )}
-                  </div>
-                </div>
-
-                {account ? (
-                  <div className="flex gap-2">
-                    <a
-                      href={account.url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-black transition hover:bg-zinc-100"
-                    >
-                      <ExternalLink size={16} />
-                      열기
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => handleDisconnectPlatform(platformId)}
-                      className="flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-black text-red-500 transition hover:bg-red-50"
-                    >
-                      <Trash2 size={16} />
-                      해제
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={platformInputs[platformId]}
-                      onChange={(event) =>
-                        setPlatformInputs({ ...platformInputs, [platformId]: event.target.value })
-                      }
-                      placeholder={meta.placeholder}
-                      className="h-11 min-w-0 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-bold text-black outline-none transition focus:border-black dark:placeholder:!text-zinc-400 dark:focus:!border-[#f5b93d] dark:focus:ring-1 dark:focus:ring-[#f5b93d]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleConnectPlatform(platformId)}
-                      className="btn-primary"
-                    >
-                      연결
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-
-  if (!currentUser || loading) {
+  if (loading) {
     return (
       <ProfileSkeleton />
     );
@@ -1006,9 +902,9 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="flex h-screen flex-col items-center justify-center gap-4 px-4 text-center">
-        <p className="font-black text-red-500">{error ?? '프로필을 찾을 수 없습니다.'}</p>
+        <p className="text-body text-fg-danger">{error ?? '프로필을 찾을 수 없습니다.'}</p>
         <Link
-          href="/home"
+          href="/"
           className="btn-primary"
         >
           홈으로 돌아가기
@@ -1017,435 +913,525 @@ export default function ProfilePage() {
     );
   }
 
-  const isOwnProfile = profile.handle === currentUser.handle || profile.id === currentUser.id;
   const disconnectTargetConfig = disconnectTarget ? GAME_STATS_UI_CONFIG[disconnectTarget] : null;
   const displayedCover =
     (isOwnProfile ? profileCover || profile.coverImageUrl : profile.coverImageUrl) || DEFAULT_PROFILE_COVER;
   const displayedAvatar = isOwnProfile ? profileAvatar || profile.profileImageUrl : profile.profileImageUrl;
   const tabs = [
-    { name: 'posts' as const, label: '게시글', icon: <Grid size={16} /> },
-    { name: 'stats' as const, label: '전적', icon: <BarChart3 size={16} /> },
-    { name: 'media' as const, label: '미디어', icon: <Layers size={16} /> },
+    { name: 'posts' as const, label: '게시글' },
+    { name: 'stats' as const, label: '전적' },
+    { name: 'media' as const, label: '미디어' },
   ];
 
   return (
-    <div className="mx-auto min-h-screen w-full max-w-6xl bg-background pb-20 md:px-8 md:pt-6">
-      <div className="relative h-32 overflow-hidden bg-zinc-950 md:h-56 md:rounded-2xl">
-        <Image
-          src={displayedCover}
-          alt={`${profile.nickname} profile cover`}
-          fill
-          priority
-          unoptimized
-          sizes="(max-width: 1152px) 100vw, 1152px"
-          className="object-cover"
-        />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-white/10 via-transparent to-transparent opacity-50" />
-      </div>
+    <div className="mx-auto flex w-full gap-10 px-4 pb-6 pt-2 md:px-6 lg:pt-5 xl:pr-0">
+      <div className="min-w-0 flex-1">
+        <div className="relative h-32 overflow-hidden rounded-xl bg-subtle md:h-56 md:rounded-card">
+          <Image
+            src={displayedCover}
+            alt={`${profile.nickname} profile cover`}
+            fill
+            priority
+            unoptimized
+            sizes="(min-width: 1280px) 600px, 100vw"
+            className={displayedCover === DEFAULT_PROFILE_COVER ? 'object-cover dark:hidden' : 'object-cover'}
+          />
+        </div>
 
-      <div className="px-4 md:px-6">
-        <div className="relative mb-4 flex items-end justify-between -mt-10 md:mb-8 md:-mt-16">
-          <div className="relative">
-            <div className="relative flex h-20 w-20 items-center justify-center overflow-hidden rounded-2xl border-4 border-white bg-black text-2xl font-black text-white shadow-lg md:h-36 md:w-36 md:rounded-3xl md:border-[6px] md:text-4xl">
-              {displayedAvatar ? (
-                <Image
-                  src={displayedAvatar}
-                  alt="프로필 이미지"
-                  fill
-                  unoptimized
-                  sizes="(max-width: 768px) 80px, 144px"
-                  className="object-cover"
-                />
+        <header>
+          <div className="relative -mt-9 mb-4 flex items-end justify-between gap-2 md:-mt-11">
+            <div className="ml-3 shrink-0 md:ml-4">
+              <div className="relative flex size-[72px] items-center justify-center overflow-hidden rounded-full border-4 border-canvas bg-subtle text-body text-fg-secondary md:size-[88px]">
+                {displayedAvatar ? (
+                  <Image
+                    src={displayedAvatar}
+                    alt="프로필 이미지"
+                    fill
+                    unoptimized
+                    sizes="(min-width: 768px) 88px, 72px"
+                    className="object-cover"
+                  />
+                ) : (
+                  getInitials(profile.nickname)
+                )}
+              </div>
+            </div>
+
+            <div className="relative top-3 flex flex-wrap justify-end gap-2 md:top-2">
+              {isOwnProfile ? (
+                <>
+                  <Link href="/settings" className="btn-secondary-square" aria-label="설정">
+                    <Settings size={18} className="text-icon-secondary" />
+                  </Link>
+                  <button type="button" onClick={() => setShowEditProfileModal(true)} className="btn-secondary">
+                    프로필 수정
+                  </button>
+                </>
               ) : (
-                getInitials(profile.nickname)
+                <>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setProfileReportMenuOpen((current) => !current)}
+                      className="btn-secondary-square"
+                      aria-label="사용자 메뉴"
+                      aria-expanded={profileReportMenuOpen}
+                    >
+                      <MoreHorizontal size={18} />
+                    </button>
+
+                    {profileReportMenuOpen ? (
+                      <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-card border border-line-card bg-surface p-1 shadow-xl">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfileReportMenuOpen(false);
+                            if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
+                            setProfileReportOpen(true);
+                          }}
+                          className="flex w-full items-center gap-2 rounded-control px-3 py-2.5 text-left text-label text-fg-danger transition hover:bg-danger-subtle"
+                        >
+                          <Flag size={15} />
+                          사용자 신고
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProfileReportMenuOpen(false)}
+                          className="w-full rounded-control px-3 py-2.5 text-left text-label text-fg-secondary transition hover:bg-surface-elevated"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { if (requireAuth('메시지를 보내려면 로그인이 필요해요.', { returnTo: `/messages?recipient=${encodeURIComponent(profile.handle)}` })) router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`); }}
+                    title="메시지"
+                    className="btn-secondary-square"
+                    aria-label="메시지"
+                  >
+                    <MessageCircle size={18} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleToggleFollow}
+                    disabled={followLoading}
+                    className={isFollowing ? 'btn-secondary' : 'btn-primary'}
+                  >
+                    {isFollowing ? '팔로잉' : '팔로우'}
+                  </button>
+                </>
               )}
             </div>
           </div>
 
-          <div className="flex flex-wrap justify-end gap-1.5 md:mb-1 md:gap-2">
-            {isOwnProfile ? (
-              <>
+          <div className="space-y-3">
+            <div>
+              <h1 className="flex items-center gap-2 text-title text-fg-primary">
+                <span className="min-w-0 break-all">{profile.nickname}</span>
+                <MembershipBadge active={profile.membershipBadge} size={24} />
+                <RepresentativeTierBadge tier={profile.representativeTier} size={24} />
+              </h1>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="min-w-0 break-all text-body text-fg-tertiary">@{profile.handle}</p>
+                {!isOwnProfile && profile.followsViewer ? (
+                  <span className="rounded-full bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
+                    나를 팔로우합니다
+                  </span>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-body text-fg-primary">
+              {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
+            </p>
+
+            {profile.location || profile.website ? (
+              <div className="flex flex-wrap gap-x-3 gap-y-1 text-caption text-fg-secondary">
+                {profile.location ? (
+                  <div className="flex min-w-0 max-w-full items-center gap-1.5">
+                    <MapPin size={16} className="shrink-0" />
+                    <span className="truncate">{profile.location}</span>
+                  </div>
+                ) : null}
+                {profile.website ? (
+                  <a
+                    href={profile.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex min-w-0 max-w-full items-center gap-1.5 transition hover:text-fg-brand"
+                  >
+                    <Globe size={16} className="shrink-0" />
+                    <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              <button
+                type="button"
+                onClick={() => openFollowList('followers')}
+                className="flex min-h-8 items-center gap-1 text-left transition hover:underline focus-visible:outline-2 focus-visible:outline-fg-brand"
+              >
+                <span className="text-body font-medium text-fg-primary">
+                  {profile.followersCount.toLocaleString()}
+                </span>
+                <span className="text-body text-fg-secondary">팔로워</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => openFollowList('following')}
+                className="flex min-h-8 items-center gap-1 text-left transition hover:underline focus-visible:outline-2 focus-visible:outline-fg-brand"
+              >
+                <span className="text-body font-medium text-fg-primary">
+                  {profile.followingCount.toLocaleString()}
+                </span>
+                <span className="text-body text-fg-secondary">팔로잉</span>
+              </button>
+              <div className="flex items-center gap-1">
+                <span className="text-body font-medium text-fg-primary">{profile.postCount.toLocaleString()}</span>
+                <span className="text-body text-fg-secondary">게시글</span>
+              </div>
+            </div>
+          </div>
+
+          {isOwnProfile ? (
             <Link
               href="/wallet"
-              className="btn-secondary-square max-md:h-9! max-md:w-9! lg:hidden"
-              aria-label="내 지갑"
+              className="mt-3 flex items-center gap-3 rounded-xl border border-line-card bg-surface px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand lg:hidden"
             >
-              <WalletCards size={18} />
+              <WalletCards size={20} className="shrink-0 text-icon-secondary" />
+              <div className="min-w-0 flex-1">
+                <p className="text-caption text-fg-tertiary">마일리지</p>
+                <p className="text-body font-medium text-fg-primary">
+                  {mileageBalance === null ? '—' : `${mileageBalance.toLocaleString('ko-KR')} M`}
+                </p>
+              </div>
+              <span className="text-label text-fg-brand">충전 ›</span>
             </Link>
-            <Link
-              href="/settings"
-              className="btn-secondary-square max-md:h-9! max-md:w-9!"
-              aria-label="설정"
-            >
-              <Settings size={18} />
-            </Link>
-            <button
-              onClick={() => setShowEditProfileModal(true)}
-              className="btn-primary max-md:h-9! max-md:px-3.5! max-md:text-xs!"
-            >
-              <Edit3 size={14} />
-              프로필 수정
-            </button>
-              </>
-            ) : (
-              <>
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setProfileReportMenuOpen((current) => !current)}
-                    className="btn-secondary-square max-md:h-9! max-md:w-9!"
-                    aria-label="사용자 메뉴"
-                    aria-expanded={profileReportMenuOpen}
-                  >
-                    <MoreHorizontal size={18} />
-                  </button>
+          ) : null}
+        </header>
 
-                  {profileReportMenuOpen ? (
-                    <div className="absolute right-0 top-12 z-40 min-w-40 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+        <div
+          role="tablist"
+          aria-label="프로필 콘텐츠"
+          data-view-occluder="top"
+          className="sticky top-[var(--app-header-height)] z-10 mt-3 flex gap-6 border-b border-line bg-canvas md:mt-4"
+          onKeyDown={(event) => {
+            const buttons = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]'));
+            const index = buttons.findIndex((button) => button === event.target);
+            if (index === -1) return;
+
+            let nextIndex: number;
+            switch (event.key) {
+              case 'ArrowLeft': nextIndex = (index + buttons.length - 1) % buttons.length; break;
+              case 'ArrowRight': nextIndex = (index + 1) % buttons.length; break;
+              case 'Home': nextIndex = 0; break;
+              case 'End': nextIndex = buttons.length - 1; break;
+              default: return;
+            }
+            event.preventDefault();
+            buttons[nextIndex].focus();
+          }}
+        >
+          {tabs.map((tab) => (
+            <button
+              key={tab.name}
+              type="button"
+              role="tab"
+              id={`${tabsId}-tab-${tab.name}`}
+              aria-controls={`${tabsId}-panel-${tab.name}`}
+              aria-selected={activeTab === tab.name}
+              tabIndex={activeTab === tab.name ? 0 : -1}
+              onFocus={() => setActiveTab(tab.name)}
+              onClick={() => setActiveTab(tab.name)}
+              className={`h-12 border-b-2 text-body transition-colors ${FOCUS_RING} ${
+                activeTab === tab.name ? 'border-brand font-semibold text-fg-primary' : 'border-transparent text-fg-secondary hover:text-fg-primary'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="pt-4">
+          <div
+            role="tabpanel"
+            id={`${tabsId}-panel-stats`}
+            aria-labelledby={`${tabsId}-tab-stats`}
+            hidden={activeTab !== 'stats'}
+            tabIndex={0}
+            className={FOCUS_RING}
+          >
+            {activeTab === 'stats' ? (
+              <section className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-heading text-fg-primary">인증된 전적</h2>
+
+                  {isOwnProfile ? (
+                    <div className="flex shrink-0 items-center gap-2">
                       <button
-                        type="button"
-                        onClick={() => {
-                          setProfileReportMenuOpen(false);
-                          setProfileReportOpen(true);
-                        }}
-                        className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                        onClick={() => setShowFetchStatsModal(true)}
+                        className="btn-secondary px-3!"
                       >
-                        <Flag size={15} />
-                        사용자 신고
+                        <Plus size={14} className="sm:size-4" />
+                        전적 추가
                       </button>
+
                       <button
                         type="button"
-                        onClick={() => setProfileReportMenuOpen(false)}
-                        className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                        onClick={() => void handleRefreshStats()}
+                        disabled={isRefreshing || isDisconnectingGame}
+                        className="btn-secondary-square"
+                        aria-label="연결된 게임 전적 새로고침"
                       >
-                        취소
+                        <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
                       </button>
                     </div>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  onClick={() => router.push(`/messages?recipient=${encodeURIComponent(profile.handle)}`)}
-                  title="메시지"
-                  className="btn-secondary-square max-md:h-9! max-md:w-9!"
-                  aria-label="메시지"
-                >
-                  <MessageCircle size={18} />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleToggleFollow}
-                  disabled={followLoading}
-                  className={`${isFollowing ? 'btn-secondary' : 'btn-primary'} max-md:h-9! max-md:px-3.5! max-md:text-xs!`}
-                >
-                  {isFollowing ? '팔로잉' : '팔로우'}
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <div>
-            <h1 className="page-title flex items-center gap-2">
-              {profile.nickname}
-              <MembershipBadge active={profile.membershipBadge} size={24} />
-            </h1>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-bold text-zinc-400">@{profile.handle}</p>
-              {!isOwnProfile && profile.followsViewer ? (
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-black leading-none tracking-tight text-zinc-500">
-                  나를 팔로우합니다
-                </span>
-              ) : null}
-            </div>
-          </div>
-
-          <p className="max-w-xl whitespace-pre-wrap text-sm font-medium leading-6 text-zinc-800 md:text-base">
-            {profile.bio || 'GamerIN에서 게임 이야기를 소개해 보세요.'}
-          </p>
-
-          {profile.location || profile.website ? (
-            <div className="flex max-w-xl flex-wrap gap-4 text-sm font-bold text-zinc-500">
-              {profile.location ? (
-                <div className="flex min-w-0 items-center gap-1.5">
-                  <MapPin size={16} className="shrink-0" />
-                  <span className="truncate">{profile.location}</span>
-                </div>
-              ) : null}
-              {profile.website ? (
-                <a
-                  href={profile.website}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex min-w-0 max-w-full items-center gap-1.5 transition hover:text-black"
-                >
-                  <Globe size={16} className="shrink-0" />
-                  <span className="truncate">{profile.website.replace(/^https?:\/\//i, '')}</span>
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-
-          <div className="flex flex-wrap gap-x-5 gap-y-1 md:gap-8">
-            <button
-              type="button"
-              onClick={() => openFollowList('followers')}
-              className="flex items-center gap-2 text-left transition hover:opacity-70"
-            >
-              <span className="text-lg font-black text-black md:text-2xl">
-                {profile.followersCount.toLocaleString()}
-              </span>
-              <span className="text-xs font-bold text-zinc-500">팔로워</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => openFollowList('following')}
-              className="flex items-center gap-2 text-left transition hover:opacity-70"
-            >
-              <span className="text-lg font-black text-black md:text-2xl">
-                {profile.followingCount.toLocaleString()}
-              </span>
-              <span className="text-xs font-bold text-zinc-500">팔로잉</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black text-black md:text-2xl">{profile.postCount.toLocaleString()}</span>
-              <span className="text-xs font-bold text-zinc-500">게시글</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="sticky top-16 z-10 mt-5 flex border-b border-zinc-100 bg-white md:mt-8 md:gap-10 md:px-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.name}
-            onClick={() => setActiveTab(tab.name)}
-            className={`relative flex h-12 flex-1 items-center justify-center gap-2 text-sm font-black transition-all md:flex-none ${
-              activeTab === tab.name ? 'text-black dark:text-[#f5b93d]' : 'text-zinc-300 hover:text-zinc-500'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-            {activeTab === tab.name ? (
-              <motion.div layoutId="activeTab" className="absolute left-0 right-0 bottom-0 h-1 rounded-full bg-black dark:bg-[#f5b93d]" />
-            ) : null}
-          </button>
-        ))}
-      </div>
-
-      <div className="pt-0 md:pt-6">
-        {activeTab === 'stats' ? (
-          <div className="m-4 rounded-2xl border border-zinc-200 bg-white p-4 md:m-0 md:p-8">
-            <div className="mb-3 flex items-center justify-between gap-3 sm:mb-6">
-              <h2 className="text-lg font-black text-black sm:text-xl md:text-3xl">인증된 전적</h2>
-
-              {isOwnProfile ? (
-                <div className="flex items-center gap-1.5 sm:gap-3">
-                  <button
-                    onClick={() => setShowFetchStatsModal(true)}
-                    className="flex items-center gap-1 rounded-xl bg-black px-3 py-1.5 text-xs font-bold text-white transition hover:bg-zinc-800 sm:gap-2 sm:px-4 sm:py-2 sm:text-sm"
-                  >
-                    <Plus size={14} className="sm:size-4" />
-                    전적 추가
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => void handleRefreshStats()}
-                    disabled={isRefreshing || isDisconnectingGame}
-                    className="rounded-xl p-2 text-zinc-500 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
-                    aria-label="연결된 게임 전적 새로고침"
-                  >
-                    <RefreshCw size={18} className={isRefreshing ? 'animate-spin' : ''} />
-                  </button>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="space-y-2 sm:space-y-4">
-              {gameStatEntries.length === 0 ? (
-                <div className="rounded-2xl bg-zinc-50 px-5 py-6 text-sm font-bold text-zinc-400">
-                  아직 연결된 게임 전적이 없습니다.
-                </div>
-              ) : (
-                gameStatEntries.map((entry) => {
+                {gameStatEntries.length === 0 ? (
+                  <p className="rounded-card border border-line-card bg-surface p-5 text-body text-fg-secondary">
+                    아직 연결된 게임 전적이 없습니다.
+                  </p>
+                ) : gameStatEntries.map((entry) => {
                   const iconMeta = getGameIconMeta(entry.gameName);
 
                   return (
-                    <div
-                      key={entry.gameName}
-                      className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 sm:rounded-2xl sm:px-4 sm:py-5 md:px-5"
-                    >
-                      <div className="flex min-w-0 items-center gap-3 sm:gap-4">
-                        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white p-1 sm:h-12 sm:w-12 sm:rounded-xl">
+                    <article key={entry.gameName} className="rounded-card border border-line-card bg-surface p-4 md:p-5">
+                      <div className="flex items-center gap-3">
+                        <div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-control bg-subtle">
                           {iconMeta ? (
                             <Image
                               src={iconMeta.url}
                               alt={`${entry.gameName} 아이콘`}
                               fill
-                              sizes="48px"
+                              sizes="36px"
                               className={`object-contain p-1 ${iconMeta.invertInDark ? 'dark:invert' : ''}`}
                             />
                           ) : (
-                            <Gamepad2 size={24} className="text-zinc-400" />
+                            <Gamepad2 size={20} className="text-icon-secondary" />
                           )}
                         </div>
-                        <div className="min-w-0">
-                          <p className="text-sm font-black leading-tight text-black sm:text-xl sm:leading-normal">{entry.displayName}</p>
-                          {entry.detail ? (
-                            <p className="max-w-xl break-keep text-xs font-bold text-zinc-400 sm:truncate sm:text-xs">{entry.detail}</p>
-                          ) : null}
-                          <p className="mt-0.5 max-w-xl break-keep text-xs text-slate-600 sm:mt-1 sm:truncate sm:text-base dark:text-slate-300">{entry.summary}</p>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="break-words text-heading text-fg-primary">{entry.displayName}</h3>
+                          {entry.detail ? <p className="break-words text-caption text-fg-tertiary">{entry.detail}</p> : null}
                         </div>
-                      </div>
-
-                      <div className="flex shrink-0 items-center gap-2 text-right">
                         {entry.syncedAt && parseDisplayTime(entry.syncedAt) ? (
-                          <p className="hidden text-sm font-black tracking-widest text-zinc-400 sm:block">{formatRelativeTimeLabel(entry.syncedAt)}</p>
+                          <p className="hidden text-caption text-fg-tertiary sm:block">{formatRelativeTimeLabel(entry.syncedAt)}</p>
                         ) : null}
                         {isOwnProfile && entry.disconnectGameName ? (
                           <button
                             type="button"
                             onClick={() => setDisconnectTarget(entry.disconnectGameName)}
                             disabled={isRefreshing || isDisconnectingGame}
-                            className="rounded-lg p-1.5 text-zinc-300 transition-colors hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-red-950/40 dark:hover:!text-red-300"
+                            className="btn-icon hover:bg-danger-subtle hover:text-fg-danger"
                             aria-label={`${GAME_STATS_UI_CONFIG[entry.disconnectGameName].displayName} 전적 연결 해제`}
                           >
                             <Trash2 size={16} />
                           </button>
                         ) : null}
                       </div>
-                    </div>
+                      {typeof entry.stats === 'string' ? (
+                        <p className="mt-3 break-words text-body text-fg-secondary">{entry.stats}</p>
+                      ) : (
+                        <dl className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {entry.stats.map(({ label, value }) => (
+                            <div key={label} className="min-w-0 rounded-control bg-subtle px-3 py-2.5">
+                              <dt className="text-caption text-fg-secondary">{label}</dt>
+                              <dd className={`break-words text-heading ${label === '티어' ? 'text-fg-brand' : 'text-fg-primary'}`}>
+                                {value}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      )}
+                    </article>
                   );
-                })
-              )}
-            </div>
-          </div>
-        ) : null}
-
-        {activeTab === 'posts' ? (
-          <div className="md:space-y-4">
-            {postsLoading ? (
-              <PostListSkeleton />
-            ) : postsError ? (
-              <div className="py-16 text-center">
-                <p className="font-black text-red-500">{postsError}</p>
-                <button
-                  type="button"
-                  onClick={() => void reloadPosts()}
-                  className="btn-primary mt-4"
-                >
-                  다시 시도
-                </button>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="py-16 text-center">
-                <h3 className="section-title mb-1">아직 게시글이 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">이 프로필에는 아직 작성된 게시글이 없습니다.</p>
-              </div>
-            ) : (
-              posts.map((post) => (
-                <Post
-                  key={post.postId}
-                  post={post}
-                  likeLoading={Boolean(likeLoadingByPostId[post.postId])}
-                  onToggleLike={toggleLike}
-                  onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
-                  onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
-                  onShare={handlePostUpdated}
-                  onRepostChange={handleRepostChanged}
-                  onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
-                  onBookmarkChange={handleBookmarkChanged}
-                />
-              ))
-            )}
-
-            {postsHasNext ? (
-              <button
-                type="button"
-                onClick={() => void loadMorePosts()}
-                disabled={loadingMorePosts}
-                className="btn-secondary w-full"
-              >
-                {loadingMorePosts ? '불러오는 중...' : '게시글 더 보기'}
-              </button>
+                })}
+              </section>
             ) : null}
           </div>
-        ) : null}
 
-        {activeTab === 'media' ? (
-          <div className="space-y-4 p-4 md:space-y-6 md:p-0">
-            {isOwnProfile ? renderConnectedAccounts() : null}
+          <div
+            role="tabpanel"
+            id={`${tabsId}-panel-posts`}
+            aria-labelledby={`${tabsId}-tab-posts`}
+            hidden={activeTab !== 'posts'}
+            tabIndex={0}
+            className={FOCUS_RING}
+          >
+            {activeTab === 'posts' ? (
+              <div className="space-y-3">
+                {postsLoading ? (
+                  <PostListSkeleton />
+                ) : postsError ? (
+                  <div className="py-16 text-center">
+                    <p className="text-body text-fg-danger">{postsError}</p>
+                    <button
+                      type="button"
+                      onClick={() => void reloadPosts()}
+                      className="btn-primary mt-4"
+                    >
+                      다시 시도
+                    </button>
+                  </div>
+                ) : posts.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <h3 className="mb-1 text-heading text-fg-primary">아직 게시글이 없습니다</h3>
+                    <p className="text-body text-fg-secondary">이 프로필에는 아직 작성된 게시글이 없습니다.</p>
+                  </div>
+                ) : (
+                  posts.map((post) => (
+                    <Post
+                      key={post.postId}
+                      post={post}
+                      likeLoading={Boolean(likeLoadingByPostId[post.postId])}
+                      onToggleLike={toggleLike}
+                      onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
+                      onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
+                      onShare={handlePostUpdated}
+                      onRepostChange={handleRepostChanged}
+                      onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}
+                      onBookmarkChange={handleBookmarkChanged}
+                    />
+                  ))
+                )}
 
-            {mediaItems.length === 0 ? (
-              <div className="py-16 text-center">
-                <h3 className="section-title mb-1">아직 미디어가 없습니다</h3>
-                <p className="text-sm font-bold text-zinc-400">업로드한 이미지와 동영상 게시글이 여기에 표시됩니다.</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-3 gap-1 md:gap-4">
-                {mediaItems.map((item) => (
+                {postsHasNext ? (
                   <button
-                    key={item.mediaId}
                     type="button"
-                    onClick={() => handleOpenPost(item.postNumber)}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-100 bg-zinc-50 text-left transition md:rounded-2xl md:shadow-sm md:hover:-translate-y-0.5 hover:border-black hover:shadow-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2"
-                    aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시글 상세 보기`}
+                    onClick={() => void loadMorePosts()}
+                    disabled={loadingMorePosts}
+                    className="btn-secondary w-full"
                   >
-                    {item.mediaType === 'VIDEO' ? (
-                      <>
-                        <video
-                          muted
-                          playsInline
-                          preload="metadata"
-                          poster={item.thumbnailUrl ?? undefined}
-                          src={item.mediaUrl}
-                          className="h-full w-full bg-black object-cover transition duration-300 group-hover:scale-105"
-                        />
-                        <span className="absolute inset-0 flex items-center justify-center bg-black/15 text-white">
-                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm md:h-12 md:w-12">
-                            <Play size={18} className="ml-0.5 fill-white" />
-                          </span>
-                        </span>
-                      </>
-                    ) : (
-                      <div className="relative h-full w-full">
-                        <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
-                      </div>
-                    )}
+                    {loadingMorePosts ? '불러오는 중...' : '게시글 더 보기'}
                   </button>
-                ))}
+                ) : null}
               </div>
-            )}
-
-            {mediaHasNext ? (
-              <button
-                type="button"
-                onClick={handleLoadMoreMedia}
-                disabled={loadingMoreMedia}
-                className="btn-secondary w-full"
-              >
-                {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
-              </button>
             ) : null}
           </div>
-        ) : null}
+
+          <div
+            role="tabpanel"
+            id={`${tabsId}-panel-media`}
+            aria-labelledby={`${tabsId}-tab-media`}
+            hidden={activeTab !== 'media'}
+            tabIndex={0}
+            className={FOCUS_RING}
+          >
+            {activeTab === 'media' ? (
+              <div className="space-y-4">
+
+                {mediaItems.length === 0 ? (
+                  <div className="py-16 text-center">
+                    <h3 className="mb-1 text-heading text-fg-primary">아직 미디어가 없습니다</h3>
+                    <p className="text-body text-fg-secondary">업로드한 이미지와 동영상 게시글이 여기에 표시됩니다.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-1">
+                    {mediaItems.map((item) => (
+                      <button
+                        key={item.mediaId}
+                        type="button"
+                        onClick={() => handleOpenPost(item.postNumber)}
+                        className="relative aspect-square overflow-hidden rounded-md border border-line-card bg-subtle focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand"
+                        aria-label={`${item.mediaType === 'VIDEO' ? '동영상' : '이미지'} 게시글 상세 보기`}
+                      >
+                        {item.mediaType === 'VIDEO' ? (
+                          <>
+                            <video
+                              muted
+                              playsInline
+                              preload="metadata"
+                              poster={item.thumbnailUrl ?? undefined}
+                              src={item.mediaUrl}
+                              className="h-full w-full bg-black object-cover"
+                            />
+                            <span className="absolute right-1 top-1 rounded-md bg-black/60 p-1 text-white">
+                              <Play size={14} fill="currentColor" />
+                            </span>
+                          </>
+                        ) : (
+                          <div className="relative h-full w-full">
+                            <Image src={item.mediaUrl} alt="프로필 미디어" fill unoptimized className="object-cover" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {mediaHasNext ? (
+                  <button
+                    type="button"
+                    onClick={handleLoadMoreMedia}
+                    disabled={loadingMoreMedia}
+                    className="btn-secondary w-full"
+                  >
+                    {loadingMoreMedia ? '불러오는 중...' : '미디어 더 보기'}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+        </div>
       </div>
+
+      <aside
+        aria-label="프로필 요약"
+        className="hidden w-[300px] shrink-0 space-y-6 pt-2 xl:sticky xl:top-[var(--app-header-height)] xl:block xl:self-start"
+      >
+        <section>
+          <h2 className="mb-3 text-heading text-fg-primary">인증된 전적</h2>
+          {gameStatEntries.length === 0 ? (
+            <p className="rounded-card border border-line-card bg-surface p-4 text-label text-fg-secondary">
+              아직 연결된 게임 전적이 없습니다.
+            </p>
+          ) : (
+            <ul className="divide-y divide-line rounded-card border border-line-card bg-surface px-4">
+              {gameStatEntries.map((entry) => {
+                const metrics = typeof entry.stats === 'string' ? [] : entry.stats;
+                const tier = metrics.find(({ label }) => label === '티어');
+                const summary = typeof entry.stats === 'string' ? entry.stats : metrics
+                  .filter(({ label }) => label === 'K/D' || label === 'KDA' || label === '승률' || label === '판수')
+                  .map(({ label, value }) => label === '판수' ? `${value}판` : `${label} ${value}`)
+                  .join(' · ');
+
+                return (
+                  <li key={entry.gameName} className="space-y-1 py-3">
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-2">
+                      <p className="break-words text-body font-medium text-fg-primary">{entry.displayName}</p>
+                      {tier ? <p className="text-label text-fg-brand">{tier.value}</p> : null}
+                    </div>
+                    <p className="break-words text-caption text-fg-secondary">{summary}</p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+        <SuggestedFriendsCard />
+      </aside>
 
       {isOwnProfile && showFetchStatsModal ? (
         <FetchGameStatsModal
+          connectedGames={Object.entries(profile?.gameStats ?? {})
+            .filter(([, stats]) => isConnectedGameStats(stats))
+            .map(([game]) => game.toUpperCase() === 'RIOT' ? 'LOL' : game.toUpperCase())}
           onClose={() => setShowFetchStatsModal(false)}
           onConnected={handleGameConnected}
         />
       ) : null}
       {isOwnProfile && disconnectTarget && disconnectTargetConfig ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-8 shadow-2xl">
-            <h2 className="text-2xl font-black tracking-tight text-black">
+          <div className="w-full max-w-md rounded-card border border-line-card bg-surface p-5 shadow-2xl sm:p-6">
+            <h2 className="text-title text-fg-primary">
               {disconnectTargetConfig.displayName} 전적 연결을 해제할까요?
             </h2>
-            <p className="mt-3 text-base font-bold text-zinc-500">
+            <p className="mt-3 text-body text-fg-secondary">
               {disconnectTargetConfig.displayName} 전적만 프로필에서 제거됩니다. 다른 게임 전적은 유지됩니다.
             </p>
             <div className="mt-8 flex justify-end gap-3">
@@ -1453,7 +1439,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => setDisconnectTarget(null)}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl px-5 py-3 text-sm font-black text-zinc-500 transition hover:bg-zinc-100 hover:text-black disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-surface-elevated"
+                className="btn-secondary bg-transparent! hover:bg-subtle!"
               >
                 취소
               </button>
@@ -1461,7 +1447,7 @@ export default function ProfilePage() {
                 type="button"
                 onClick={() => void handleDisconnectGame()}
                 disabled={isDisconnectingGame}
-                className="rounded-2xl bg-red-500 px-6 py-3 text-sm font-black text-white shadow-lg shadow-red-100 transition hover:bg-red-600 disabled:cursor-not-allowed disabled:bg-red-300 dark:bg-red-700 dark:hover:bg-red-800 dark:disabled:bg-surface-elevated"
+                className="btn-secondary bg-danger-subtle! text-fg-danger! hover:bg-line!"
               >
                 {isDisconnectingGame ? '연결 해제 중...' : '연결 해제'}
               </button>
@@ -1497,20 +1483,20 @@ export default function ProfilePage() {
       ) : null}
       {followListType ? (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
-          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-3xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-zinc-100 px-6 py-5">
+          <div className="max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-hidden rounded-card border border-line-card bg-surface shadow-2xl">
+            <div className="flex items-center justify-between border-b border-line px-6 py-5">
               <div>
-                <p className="text-xs font-black uppercase tracking-widest text-zinc-400">
+                <p className="text-caption text-fg-tertiary">
                   @{profile.handle}
                 </p>
-                <h2 className="text-2xl font-black text-black">
+                <h2 className="text-title text-fg-primary">
                   {followListType === 'followers' ? '팔로워' : '팔로잉'}
                 </h2>
               </div>
               <button
                 type="button"
                 onClick={closeFollowList}
-                className="rounded-xl p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-black dark:hover:bg-surface-elevated"
+                className="btn-icon"
                 aria-label="닫기"
               >
                 <X size={20} />
@@ -1521,31 +1507,31 @@ export default function ProfilePage() {
               {followListLoading ? (
                 <UserRowsSkeleton />
               ) : followListError ? (
-                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                <div className="rounded-control bg-danger-subtle px-4 py-3 text-body text-fg-danger">
                   {followListError}
                 </div>
               ) : followUsers.length === 0 ? (
-                <div className="py-16 text-center text-sm font-bold text-zinc-400">
+                <div className="py-16 text-center text-body text-fg-secondary">
                   {followListType === 'followers' ? '아직 팔로워가 없습니다.' : '아직 팔로우한 사용자가 없습니다.'}
                 </div>
               ) : (
                 <div className="space-y-2">
                   {followUsers.map((followUserRecord) => {
                     const isMe =
-                      followUserRecord.handle === currentUser.handle ||
-                      followUserRecord.userId === currentUser.id;
+                      followUserRecord.handle === currentUser?.handle ||
+                      followUserRecord.userId === currentUser?.id;
 
                     return (
                       <div
                         key={`${followUserRecord.userId}-${followUserRecord.followedAt}`}
-                        className="flex items-center justify-between gap-3 rounded-2xl p-3 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                        className="flex items-center justify-between gap-3 rounded-control p-3 transition hover:bg-surface-elevated"
                       >
                         <Link
                           href={`/profile/${encodeURIComponent(followUserRecord.handle)}`}
                           onClick={closeFollowList}
                           className="flex min-w-0 flex-1 items-center gap-3"
                         >
-                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+                          <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-body text-fg-secondary">
                             {followUserRecord.profileImageUrl ? (
                               <Image
                                 src={followUserRecord.profileImageUrl}
@@ -1560,15 +1546,15 @@ export default function ProfilePage() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="flex min-w-0 items-center gap-1 text-sm font-black text-black">
+                            <p className="flex min-w-0 items-center gap-1 text-body font-semibold text-fg-primary">
                               <span className="truncate">{followUserRecord.nickname}</span>
-                              <MembershipBadge active={followUserRecord.membershipBadge} />
+                              <MembershipBadge active={followUserRecord.membershipBadge} /><RepresentativeTierBadge tier={followUserRecord.representativeTier} />
                             </p>
-                            <p className="truncate text-xs font-bold text-zinc-400">
+                            <p className="truncate text-caption text-fg-tertiary">
                               @{followUserRecord.handle}
                             </p>
                             {followUserRecord.bio ? (
-                              <p className="mt-1 line-clamp-1 text-xs font-medium text-zinc-500">
+                              <p className="mt-1 line-clamp-1 text-caption text-fg-secondary">
                                 {followUserRecord.bio}
                               </p>
                             ) : null}
@@ -1580,11 +1566,7 @@ export default function ProfilePage() {
                             type="button"
                             onClick={() => handleToggleFollowUser(followUserRecord)}
                             disabled={followActionHandle === followUserRecord.handle}
-                            className={`shrink-0 rounded-xl px-4 py-2 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                              followUserRecord.isFollowing
-                                ? 'bg-zinc-100 text-black hover:bg-zinc-200'
-                                : 'bg-black text-white hover:bg-zinc-800'
-                            }`}
+                            className={followUserRecord.isFollowing ? 'btn-secondary' : 'btn-primary'}
                           >
                             {followUserRecord.isFollowing ? '팔로잉' : '팔로우'}
                           </button>
@@ -1597,12 +1579,12 @@ export default function ProfilePage() {
             </div>
 
             {followHasNext ? (
-              <div className="border-t border-zinc-100 p-4">
+              <div className="border-t border-line p-4">
                 <button
                   type="button"
                   onClick={() => void loadFollowList(followListType, followNextCursor)}
                   disabled={followListLoadingMore}
-                  className="w-full rounded-2xl border border-zinc-100 bg-white px-5 py-3 text-sm font-black text-zinc-600 transition hover:border-black hover:text-black disabled:cursor-not-allowed disabled:text-zinc-300"
+                  className="btn-secondary w-full"
                 >
                   {followListLoadingMore ? '불러오는 중...' : '더 보기'}
                 </button>

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { fetchPostDetailByNumber, getPostHref, normalizePostRecord, type PostRecord } from '@/lib/feed-api';
+import { createPostUpload, fetchPostUploadJob, createComment, fetchPostComments, fetchPostDetailByNumber, fetchUserRecommendations, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -12,6 +12,26 @@ vi.mock('@/lib/api-base', () => ({
 }));
 
 describe('feed-api 이미지 주소', () => {
+  it('추천 친구는 인증 전용 배열 응답을 받고 이미지 주소를 정규화한다', async () => {
+    const users = [
+      { userId: 'a', profileImageUrl: '/uploads/profile.png', mutualCount: 2, winRate: 58.5 },
+      { userId: 'b', profileImageUrl: null, representativeTier: null, winRate: null },
+    ];
+    apiRequest.mockResolvedValueOnce(users);
+    const controller = new AbortController();
+    await expect(fetchUserRecommendations({ signal: controller.signal })).resolves.toEqual([
+      { ...users[0], profileImageUrl: 'http://api.test/uploads/profile.png' },
+      users[1],
+    ]);
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/users/me/recommendations?limit=5',
+      expect.objectContaining({ auth: 'required' }), { signal: controller.signal });
+  });
+
+  it('추천 후보가 없으면 빈 배열을 반환한다', async () => {
+    apiRequest.mockResolvedValueOnce([]);
+    await expect(fetchUserRecommendations()).resolves.toEqual([]);
+  });
+
   it('상대경로는 API 주소로 바꾸고 빈 값은 null, 원본 media URL은 정규화할 수 없을 때 그대로 둔다', () => {
     const post = normalizePostRecord({
       authorProfileImageUrl: 'uploads/p.png',
@@ -27,6 +47,39 @@ describe('feed-api 이미지 주소', () => {
       { mediaUrl: '', thumbnailUrl: 'https://cdn.test/t.png' },
     ]);
   });
+
+  it('댓글 작성자 프로필 이미지도 API 주소로 바꾼다', async () => {
+    apiRequest.mockResolvedValueOnce([{ commentId: 'c-1', authorProfileImageUrl: '/uploads/profile-images/a.png' }]);
+    expect((await fetchPostComments('p-1'))[0].authorProfileImageUrl).toBe('http://api.test/uploads/profile-images/a.png');
+
+    apiRequest.mockResolvedValueOnce({ commentId: 'c-2', authorProfileImageUrl: null });
+    expect((await createComment('p-1', '내용')).authorProfileImageUrl).toBeNull();
+  });
+});
+
+describe('조회수', () => {
+  it.each([
+    [0, 0],
+    [12_345, 12_345],
+    [undefined, null],
+    [null, null],
+    ['12', null],
+    [-1, null],
+    [1.5, null],
+    [Number.NaN, null],
+  ])('viewCount %s → %s', (viewCount, expected) => {
+    expect(normalizePostRecord({ viewCount } as unknown as PostRecord).viewCount).toBe(expected);
+  });
+
+  it('노출한 게시물 ID를 POST /posts/views로 보낸다', async () => {
+    apiRequest.mockResolvedValueOnce({ counted: 2 });
+    await expect(recordPostViews(['a', 'b'], { keepalive: true })).resolves.toEqual({ counted: 2 });
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts/views', expect.anything(), {
+      keepalive: true,
+      method: 'POST',
+      body: JSON.stringify({ postIds: ['a', 'b'] }),
+    });
+  });
 });
 
 describe('게시글 숫자 URL', () => {
@@ -41,5 +94,25 @@ describe('게시글 숫자 URL', () => {
 
     expect(apiRequest.mock.calls[0][0]).toBe('/api/v1/posts/by-number/7');
     expect(post).toMatchObject({ postId: 'uuid-1', postNumber: 7 });
+  });
+});
+
+
+describe('게시물 비동기 업로드 API', () => {
+  it('기존 multipart 필드를 유지하고 opt-in·UUID를 보낸다', async () => {
+    const job = { jobId: 'job-1', status: 'QUEUED', errorCode: null, errorMessage: null, post: null, message: null };
+    apiRequest.mockResolvedValueOnce(job);
+    const form = new FormData(); form.append('mediaFiles', new File(['a'], 'a.png'));
+    expect(await createPostUpload(form, 'key-1')).toEqual(job);
+    expect(form.get('asyncUpload')).toBe('true'); expect(form.get('clientRequestId')).toBe('key-1');
+    expect(form.getAll('mediaFiles')).toHaveLength(1);
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts', expect.anything(), { method: 'POST', body: form });
+  });
+  it('새 upload-jobs 경로를 조회하고 완료 게시물의 자산 주소를 정규화한다', async () => {
+    apiRequest.mockResolvedValueOnce({ jobId: 'job-1', status: 'COMPLETED', errorCode: null, errorMessage: null, message: null,
+      post: { postId: 'p-1', media: [{ mediaId: 'a-1', mediaType: 'IMAGE', mediaUrl: '/uploads/a.png' }] } });
+    const result = await fetchPostUploadJob('key/1', true);
+    expect(result.post?.media[0].mediaUrl).toBe('http://api.test/uploads/a.png');
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts/upload-jobs/by-client-id/key%2F1', expect.anything(), {});
   });
 });

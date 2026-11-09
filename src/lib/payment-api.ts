@@ -1,5 +1,6 @@
 import { AUTH_REQUIRED_MESSAGE, ApiError, type ApiClientConfig, type ApiRequestOptions, apiRequest } from '@/lib/api-client';
 import { BLOCKED_ACCOUNT_MESSAGE } from '@/lib/auth-session-policy';
+import { invalidateMileageAfter } from '@/lib/mileage-sync';
 
 const PAYMENT_BASE = '/api/v1/payments';
 
@@ -79,11 +80,12 @@ export function readyPayment(productCode: string, requestId: string) {
   });
 }
 
+// 충전 승인·결제 취소는 마일리지를 바꾼다(PaymentStateService).
 export function approvePayment(orderId: string, pgToken: string) {
-  return paymentRequest<PaymentResponse>(`${PAYMENT_BASE}/kakao/approve`, {
+  return invalidateMileageAfter(paymentRequest<PaymentResponse>(`${PAYMENT_BASE}/kakao/approve`, {
     method: 'POST',
     body: JSON.stringify({ orderId, pgToken }),
-  });
+  }));
 }
 
 export function getPayment(orderId: string) {
@@ -96,7 +98,7 @@ export function fetchMyPayments(cursor?: string | null) {
 }
 
 export function cancelPayment(orderId: string) {
-  return paymentRequest<PaymentResponse>(`${PAYMENT_BASE}/${encodeURIComponent(orderId)}/cancel`, {
+  return invalidateMileageAfter(paymentRequest<PaymentResponse>(`${PAYMENT_BASE}/${encodeURIComponent(orderId)}/cancel`, {
     method: 'POST',
-  });
+  }));
 }

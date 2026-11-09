@@ -14,7 +14,7 @@ vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({ user: { id: 'viewer', handle: 'viewer', nickname: '테스터' }, logout: vi.fn() }),
 }));
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: api.push }), usePathname: () => '/home',
+  useRouter: () => ({ push: api.push }), usePathname: () => '/',
 }));
 vi.mock('@/hooks/useVisiblePolling', () => ({ useVisiblePolling: vi.fn() }));
 vi.mock('@/app/context/BookmarkCollectionContext', () => ({
@@ -40,7 +40,16 @@ vi.mock('@/hooks/useRepost', () => ({
 
 import { Post } from '../Post';
 import { PostDetail } from '../PostDetail';
-import { Header } from '../Header';
+import { Sidebar } from '../Sidebar';
+import { useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
+
+vi.mock('@/lib/mileage-api', () => ({ fetchMyMileageBalance: vi.fn().mockResolvedValue({ currentBalance: 0 }) }));
+
+// (app)/layout.tsx처럼 셸이 알림 수를 들고 사이드바에 내려 준다.
+function Shell() {
+  const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
+  return <Sidebar unreadCount={unreadCount} onUnreadCountChange={setUnreadCount} />;
+}
 
 const post: PostRecord = {
   postId: 'post-1', postNumber: 1, author: '작성자', authorHandle: 'author', authorProfileImageUrl: null,
@@ -73,8 +82,8 @@ describe('FE-7 shared menus and actions', () => {
   });
 
   it('shares one open ID across notification portal and two post menus', async () => {
-    render(<><Header /><Post post={post} /><Post post={{ ...post, postId: 'post-2' }} /></>);
-    const bell = screen.getByRole('button', { name: '알림' });
+    render(<><Shell /><Post post={post} /><Post post={{ ...post, postId: 'post-2' }} /></>);
+    const bell = screen.getByRole('button', { name: /^알림/ });
     fireEvent.click(bell);
     await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.');
     expect(screen.getByRole('button', { name: '알림 닫기' })).toHaveFocus();
@@ -94,8 +103,8 @@ describe('FE-7 shared menus and actions', () => {
   });
 
   it('keeps notification navigation and close-button dismissal', async () => {
-    render(<Header />);
-    const bell = screen.getByRole('button', { name: '알림' });
+    render(<Shell />);
+    const bell = screen.getByRole('button', { name: /^알림/ });
     fireEvent.click(bell);
     fireEvent.click(await screen.findByText('알림 사용자님이 내 게시글을 좋아합니다.'));
     await waitFor(() => expect(api.push).toHaveBeenCalledWith('/posts/1'));
@@ -106,19 +115,19 @@ describe('FE-7 shared menus and actions', () => {
     expect(bell).toHaveFocus();
   });
 
-  it('leaves Header search Escape unchanged and lets the next Escape close notifications', () => {
-    render(<Header />);
-    fireEvent.click(screen.getByRole('button', { name: '검색 열기' }));
-    const bell = screen.getByRole('button', { name: '알림' });
+  it('opens one sidebar panel at a time and closes the search panel with Escape', () => {
+    render(<Shell />);
+    const searchMenu = screen.getByRole('button', { name: '검색' });
+    const bell = screen.getByRole('button', { name: /^알림/ });
     fireEvent.click(bell);
-    const search = screen.getByRole('textbox', { name: '통합 검색' });
-    search.focus();
-    fireEvent.keyDown(search, { key: 'Escape' });
-    expect(screen.getByRole('button', { name: '검색 열기' })).toHaveAttribute('aria-expanded', 'false');
-    expect(bell).toHaveAttribute('aria-expanded', 'true');
-    fireEvent.keyDown(search, { key: 'Escape' });
+    fireEvent.click(searchMenu);
     expect(bell).toHaveAttribute('aria-expanded', 'false');
-    expect(bell).toHaveFocus();
+    expect(searchMenu).toHaveAttribute('aria-expanded', 'true');
+    const search = screen.getByRole('textbox', { name: '통합 검색' });
+    expect(search).toHaveFocus();
+    fireEvent.keyDown(search, { key: 'Escape' });
+    expect(searchMenu).toHaveAttribute('aria-expanded', 'false');
+    expect(searchMenu).toHaveFocus();
   });
 
   it('uses the same accessible action names and states in card and detail', async () => {
@@ -178,7 +187,7 @@ describe('FE-7 shared menus and actions', () => {
     fireEvent.change(textarea, { target: { value: '  새 댓글  ' } });
     act(() => { fireEvent.submit(form); fireEvent.submit(form); });
     expect(api.createComment).toHaveBeenCalledTimes(1);
-    expect(within(form).getByRole('button', { name: '댓글 전송' })).toBeDisabled();
+    expect(within(form).getByRole('button', { name: '등록' })).toBeDisabled();
     await act(async () => finish({ ...comment, commentId: 'created', content: '새 댓글' }));
     expect(textarea).toHaveValue('');
   });

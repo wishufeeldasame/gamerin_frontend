@@ -7,8 +7,10 @@ const paymentApi = vi.hoisted(() => ({
   readyPayment: vi.fn(),
 }));
 const membershipApi = vi.hoisted(() => ({ fetchMyMembership: vi.fn() }));
+const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: vi.fn() }));
 
-vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('next/navigation', () => ({ useRouter: () => navigation }));
+vi.mock('@/lib/history-back', () => ({ canGoBack: navigation.canGoBack }));
 vi.mock('@/app/context/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }) }));
 vi.mock('@/lib/payment-api', () => paymentApi);
 vi.mock('@/lib/membership-api', () => membershipApi);
@@ -21,12 +23,37 @@ const membership = (active: boolean, expiresAt: string | null) => ({
 
 describe('MembershipPage', () => {
   beforeEach(() => {
+    Object.values(navigation).forEach((mock) => mock.mockReset());
     paymentApi.fetchPaymentProducts.mockReset().mockResolvedValue([
       { productCode: 'CHARGE_5000', purpose: 'MILEAGE_CHARGE', name: '마일리지 5,000', price: 5_000, mileage: 5_000, durationDays: null },
       { productCode: 'MEMBERSHIP_30D', purpose: 'MEMBERSHIP_PASS', name: '멤버십 30일 이용권', price: 4_900, mileage: null, durationDays: 30 },
     ]);
     paymentApi.readyPayment.mockReset();
     membershipApi.fetchMyMembership.mockReset().mockResolvedValue(membership(false, null));
+  });
+
+  it.each([true, false])('뒤로는 이전 기록(%s)에 따라 돌아가거나 지갑으로 이동한다', async (hasHistory) => {
+    const user = userEvent.setup();
+    navigation.canGoBack.mockReturnValue(hasHistory);
+    render(<MembershipPage />);
+    await user.click(screen.getByRole('button', { name: '뒤로' }));
+    if (hasHistory) expect(navigation.back).toHaveBeenCalledOnce();
+    else expect(navigation.replace).toHaveBeenCalledWith('/wallet');
+  });
+
+  it('서버 조회 오류를 안내하고 다시 시도하면 이용권을 표시한다', async () => {
+    const user = userEvent.setup();
+    membershipApi.fetchMyMembership.mockRejectedValueOnce(new Error('멤버십 조회 실패'));
+    render(<MembershipPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('멤버십 조회 실패');
+    await user.click(screen.getByRole('button', { name: '다시 시도' }));
+    expect(await screen.findByRole('heading', { name: '30일 이용권 4,900원' })).toBeInTheDocument();
+  });
+
+  it('구매 가능한 멤버십 상품이 없으면 결제를 막는다', async () => {
+    paymentApi.fetchPaymentProducts.mockResolvedValue([]);
+    render(<MembershipPage />);
+    expect(await screen.findByRole('button', { name: '현재 구매할 수 없습니다' })).toBeDisabled();
   });
 
   it('비가입자에게 서버 가격·자동 갱신 없음·정책 혜택을 보여주고 결제 확인창을 연다', async () => {

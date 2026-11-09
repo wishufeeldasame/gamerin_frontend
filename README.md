@@ -1,5 +1,32 @@
 # GamerIN Frontend
 
+전역 글꼴은 동봉 Noto Sans KR 가변 WOFF2를 `next/font/local`로 재사용합니다. 일반·인증·관리자·번호 표시는 같은 글꼴이며 `font-sans`도 전역 변수에 연결합니다. 약 3.9MB 파일은 `display: swap`, `preload: false`로 로드합니다.
+
+
+## 공통 모달·기타 화면 v2
+
+공유·게임 전적 연결·프로필/게시글 수정·모음집 저장·신고는 1024px 이상에서 중앙 모달, 그 아래에서 손잡이와 안전 영역을 갖춘 하단 시트다. 공통 `modal-overlay`, `modal-panel`, `modal-handle`과 v2 입력·버튼·색상 토큰을 사용한다. 네이티브 공통 확인창과 신고의 최종 확인창은 중앙에 유지한다.
+
+전적 연결 모달은 프로필 `gameStats`의 `connected === true`인 게임을 `연동 완료`로 표시하고 재연결을 막는다. `RIOT`·`LOL`은 LoL, `VALORANT`는 별도 연결이다. 미지원 게임은 `지원 예정`으로 비활성화한다. 결제 결과와 공개 `/terms`·`/privacy`도 v2 토큰을 사용하며 결제 로직·약관 본문·버전·API·DB·Docker 계약은 바꾸지 않는다.
+
+브라우저 회귀: `npm run test:e2e -- e2e/design-v2-modals-misc.spec.ts --workers=2`. API는 모의 응답으로 검증하므로 실결제·외부 전적 API·iOS 실기기 검증을 대신하지 않는다.
+
+## 추천 친구 연동 (백엔드 #192)
+
+홈·프로필의 `SuggestedFriendsCard`는 인증 복원 완료 후 `GET /api/v1/users/me/recommendations?limit=5`를 호출한다. 비로그인·로그아웃 진행·차단·세션 복원 장애 상태에서는 카드를 숨긴다. 기존 xl(1280px) 이상 오른쪽 열 배치를 유지한다.
+
+닉네임·핸들·프로필 이미지·멤버십·대표 티어 엠블럼·저장 승률·공통 연결 수를 표시한다. 이미지가 없으면 이니셜을 쓰고, null 티어·승률과 0인 공통 연결 수는 숨긴다. 승률 0%는 표시한다. 팔로우는 `POST /api/v1/users/{handle}/follow`이며 성공한 후보만 제거하고 자동 보충하지 않는다. 로딩·빈 목록·조회 오류 재시도·팔로우 실패 안내를 제공하며 중복 팔로우와 계정 전환 후 늦은 응답을 막는다.
+
+선행 배포: [추천 API PR #192](https://github.com/wishufeeldasame/gamerin_backend/pull/192). 프론트 자체의 DB·프록시 설정 변경은 없다. 검증은 `npm test -- --exclude '.claude/**'`, `npm run lint -- --ignore-pattern '.claude/**'`, `npx tsc --noEmit`, `npm run build`로 수행한다. 로그인 후 실서버·브라우저 연동은 별도 확인이 필요하다.
+
+## 공개 탐색·로그인 모달 (#187)
+
+메인은 `/`이며 전체 피드·게시물/댓글·타인 프로필·멘토링을 로그인 없이 탐색한다. `/home`·`/login` 페이지는 제거했다. 회원 행동과 개인 URL은 공통 중앙 로그인 모달로 보호한다. 일반 가입은 `/signup`이며 OAuth·계정 복구를 유지한다. 로그인 성공은 개인화만 갱신하고 대기한 쓰기를 자동 실행하지 않는다.
+
+선행 백엔드: [공개 조회 PR #191](https://github.com/wishufeeldasame/gamerin_backend/pull/191). [모달 명세·다크/라이트 1440·375·320 시안](docs/design-system-v2/login-modal.md).
+
+검증: `npm run lint -- src`, `npm test -- --dir src`, `npm run build`, `npx playwright test --list`. 브라우저 실행은 사용자 요청으로 생략한다.
+
 ## League of Legends 전적 연동
 
 내 프로필 → 전적 → 전적 추가 → League of Legends에서 한국 서버 Riot ID(`닉네임#태그`)를 입력한다.

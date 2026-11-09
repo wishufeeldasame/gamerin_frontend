@@ -1,3 +1,4 @@
+import { assertUploadJob, type UploadJob } from '@/lib/upload-jobs';
 import { assertCurrentAuthGeneration, getAuthGeneration } from '@/lib/auth-store';
 import { getApiBaseUrl } from '@/lib/api-base';
 import { isApiOriginUrl, toAbsoluteAssetUrl } from '@/lib/asset-url';
@@ -300,6 +301,26 @@ export async function sendConversationMessage(payload: {
   });
 
   return toMessage(data);
+}
+
+export async function sendMessageUpload(payload: {
+  conversationId: string;
+  content: string;
+  attachments: File[];
+  clientMessageId: string;
+}): Promise<UploadJob> {
+  const formData = new FormData();
+  formData.set('asyncUpload', 'true');
+  formData.set('clientMessageId', payload.clientMessageId);
+  if (payload.content.trim()) formData.set('content', payload.content.trim());
+  payload.attachments.forEach((file) => formData.append('attachments', file));
+  const job = assertUploadJob(await messageRequest<UploadJob>(`/conversations/${payload.conversationId}/messages`, { method: 'POST', body: formData }));
+  return { ...job, message: job.message ? toMessage(job.message) : null };
+}
+
+export async function fetchMessageUploadJob(id: string, byClientId = false): Promise<UploadJob> {
+  const job = assertUploadJob(await messageRequest<UploadJob>(`/upload-jobs/${byClientId ? 'by-client-id/' : ''}${encodeURIComponent(id)}`));
+  return { ...job, message: job.message ? toMessage(job.message) : null };
 }
 
 export async function sharePostMessage(payload: {

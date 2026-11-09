@@ -5,11 +5,13 @@ import { restoreFeedbackFocus, useConfirm } from '@/app/context/ConfirmContext';
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { ArrowLeft, Bookmark, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Send } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Bookmark, ChevronLeft, Flag, Heart, MessageCircle, MoreHorizontal, Repeat2, Share } from 'lucide-react';
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { motion } from 'framer-motion';
+import { useRequireAuth } from '@/hooks/useRequireAuth';
 import { useAuth } from '@/app/context/AuthContext';
 import {
   CommentRecord,
@@ -36,9 +38,27 @@ import { RelatedHashtagPosts } from './RelatedHashtagPosts';
 import { PostImage } from './PostImage';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from './MembershipBadge';
+import { RepresentativeTierBadge } from './RepresentativeTierBadge';
+import { PostViewCount } from './PostViewCount';
 import { EditPostModal, canEditPost, requestPostEdit } from './EditPostModal';
 
 const MAX_COMMENT_LENGTH = 300;
+// btn-* 유틸리티의 포커스 색(yellow/500)은 라이트 모드 밝은 바탕에서 3:1에 못 미쳐 이 화면에서는 라이트만 바꾼다.
+const FOCUS_RING = 'focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
+const MENU_DANGER_ITEM = 'flex h-10 w-full items-center gap-2 rounded-md px-3 text-left text-label text-fg-danger transition hover:bg-danger-subtle disabled:cursor-not-allowed disabled:opacity-50';
+const MENU_CANCEL_ITEM = 'flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-secondary transition hover:bg-subtle hover:text-fg-primary';
+
+// 모바일은 앱 상단 바 대신 이 헤더를 쓴다(F15). 웹앱 독립 실행에는 브라우저 뒤로가기가 없다.
+export function PostDetailHeader({ onBack }: { onBack: () => void }) {
+  return (
+    <div className="sticky top-0 z-20 flex items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:-ml-2 lg:px-0 lg:pb-4 lg:pt-0">
+      <button type="button" onClick={onBack} className={`btn-icon text-icon-primary ${FOCUS_RING}`} aria-label="뒤로 가기">
+        <ChevronLeft size={24} strokeWidth={1.67} />
+      </button>
+      <h1 className="text-title text-fg-primary">게시물</h1>
+    </div>
+  );
+}
 
 interface PostDetailProps {
   postNumber: number;
@@ -63,6 +83,8 @@ export function PostDetail({
   const deletePostLockRef = useRef(false);
   const commentMenuButtonRefs = useRef(new Map<string, HTMLButtonElement>());
   const { user } = useAuth();
+  const requireAuth = useRequireAuth();
+  const router = useRouter();
   const commentsSectionRef = useRef<HTMLDivElement | null>(null);
   const commentRefs = useRef(new Map<string, HTMLDivElement>());
   const handledScrollKeyRef = useRef<string | null>(null);
@@ -71,6 +93,8 @@ export function PostDetail({
   useLayoutEffect(() => {
     latestPostRef.current = post;
   }, [post]);
+  const [commentsError, setCommentsError] = useState<string | null>(null);
+  const [commentsLoading, setCommentsLoading] = useState(false);
   const [comments, setComments] = useState<CommentRecord[]>([]);
   const [commentMenuOpenId, setCommentMenuOpenId] = useState<string | null>(null);
   const [reportComment, setReportComment] = useState<CommentRecord | null>(null);
@@ -138,7 +162,7 @@ export function PostDetail({
       commentRequestGenerationRef.current += 1;
       submittingCommentRef.current = false;
     };
-  }, [postNumber]);
+  }, [postNumber, user?.id]);
 
   useEffect(() => {
     const scrollKey = JSON.stringify([postNumber, initialCommentId ?? null, initialScrollTarget ?? null]);
@@ -186,12 +210,22 @@ export function PostDetail({
         setComments([]);
         // 댓글 API는 UUID를 쓰므로 상세를 먼저 받아 `detail.postId`로 조회한다
         const detail = await fetchPostDetailByNumber(postNumber, { signal: controller.signal });
-        const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
-        if (!cancelled) {
-          setPost(detail);
-          setComments(commentList);
-          latestPostRef.current = detail;
-          setBookmarked(detail.bookmarkedByMe);
+        if (cancelled) return;
+        setPost(detail);
+        latestPostRef.current = detail;
+        setBookmarked(detail.bookmarkedByMe);
+        setLoading(false);
+        setCommentsError(null);
+        setCommentsLoading(true);
+        try {
+          const commentList = await fetchPostComments(detail.postId, { signal: controller.signal });
+          if (!cancelled) setComments(commentList);
+        } catch (commentError) {
+          if (!cancelled && !(commentError instanceof DOMException && commentError.name === 'AbortError')) {
+            setCommentsError(commentError instanceof Error ? commentError.message : '댓글을 불러오지 못했습니다.');
+          }
+        } finally {
+          if (!cancelled) setCommentsLoading(false);
         }
       } catch (loadError) {
         if (loadError instanceof DOMException && loadError.name === 'AbortError') {
@@ -213,7 +247,7 @@ export function PostDetail({
       cancelled = true;
       controller.abort();
     };
-  }, [postNumber]);
+  }, [postNumber, user?.id]);
 
   const handleToggleLike = () => {
     const currentPost = latestPostRef.current;
@@ -221,6 +255,7 @@ export function PostDetail({
   };
 
   const handleToggleRepost = async () => {
+    if (!requireAuth('리포스트하려면 로그인이 필요해요.')) return;
     if (!post || isRepostLoading || post.mine) {
       return;
     }
@@ -279,6 +314,7 @@ export function PostDetail({
   };
 
   const handleSubmitComment = async () => {
+    if (!requireAuth('댓글을 남기려면 로그인이 필요해요.')) return;
     if (!post || post.postNumber !== postNumber || !commentText.trim() || submittingCommentRef.current) {
       return;
     }
@@ -363,6 +399,7 @@ export function PostDetail({
     nextBookmarked: boolean,
     options: { skipRequest?: boolean } = {},
   ) => {
+    if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return false;
     if (!post || bookmarking) {
       return false;
     }
@@ -411,6 +448,7 @@ export function PostDetail({
   };
 
   const handleDeletePost = async () => {
+    if (!requireAuth('게시글을 관리하려면 로그인이 필요해요.')) return;
     if (!post || post.postNumber !== postNumber || deletingPost || deletePostLockRef.current) {
       return;
     }
@@ -441,23 +479,27 @@ export function PostDetail({
     }
   };
 
+  const header = <PostDetailHeader onBack={onBack} />;
+
   if (loading) {
-    return <div className="mx-auto max-w-3xl pb-20 text-center font-black text-zinc-400">게시글을 불러오는 중...</div>;
+    return (
+      <div className="pb-20">
+        {header}
+        <p role="status" className="px-4 py-10 text-center text-body text-fg-tertiary">게시글을 불러오는 중...</p>
+      </div>
+    );
   }
 
   if (!post) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 pb-20 text-center">
-        <button onClick={onBack} className="font-black text-zinc-500 hover:text-black">
-          돌아가기
-        </button>
-        <p className="font-black text-red-500">{error ?? '게시글을 찾을 수 없습니다.'}</p>
-        <Link
-          href="/home"
-          className="btn-primary"
-        >
-          홈으로 돌아가기
-        </Link>
+      <div className="pb-20">
+        {header}
+        <div className="flex flex-col items-center gap-4 px-4 py-10 text-center">
+          <p className="text-body text-fg-danger">{error ?? '게시글을 찾을 수 없습니다.'}</p>
+          <Link href="/" className={`btn-secondary ${FOCUS_RING}`}>
+            홈으로 돌아가기
+          </Link>
+        </div>
       </div>
     );
   }
@@ -471,34 +513,29 @@ export function PostDetail({
     : repostError ?? undefined;
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mx-auto max-w-3xl pb-20">
-      <button
-        onClick={onBack}
-        className="group flex h-11 items-center gap-2 px-4 text-sm font-bold text-zinc-500 transition-all hover:text-black md:mb-2 md:px-0"
-      >
-        <ArrowLeft size={18} className="transition-transform group-hover:-translate-x-1" />
-        <span>피드로 돌아가기</span>
-      </button>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="pb-20">
+      {header}
 
-      <article className="border-y border-zinc-100 bg-white md:rounded-2xl md:border md:shadow-sm">
-        <div className="px-4 py-4 md:p-6">
-          <div className="mb-4 flex items-center justify-between">
+      <div className="space-y-3 px-4 md:px-0">
+      <article className="rounded-card border border-line-card bg-surface">
+        <div className="px-4 pb-2 pt-4 md:px-5 md:pt-5">
+          <div className="mb-3 flex items-center justify-between">
             <Link href={`/profile/${encodeURIComponent(post.authorHandle)}`} className="flex min-w-0 items-center gap-3">
               {post.authorProfileImageUrl ? (
-                <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl">
+                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full">
                   <Image src={post.authorProfileImageUrl} alt={post.author} fill unoptimized className="object-cover" />
                 </div>
               ) : (
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-subtle text-label text-fg-secondary">
                   {getInitials(post.author)}
                 </div>
               )}
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-base font-black tracking-tight text-black">{post.author}</h2>
-                  <MembershipBadge active={post.authorMembershipBadge} />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-x-1.5">
+                  <h2 className="text-body font-medium text-fg-primary">{post.author}</h2>
+                  <MembershipBadge active={post.authorMembershipBadge} /><RepresentativeTierBadge tier={post.authorRepresentativeTier} />
                 </div>
-                <p className="text-xs font-bold text-zinc-400">
+                <p className="text-caption text-fg-tertiary">
                   @{post.authorHandle} · <RelativeTime createdAt={post.createdAt} />
                 </p>
               </div>
@@ -508,26 +545,27 @@ export function PostDetail({
                 type="button"
                 ref={menuTriggerRef}
                 onClick={toggleMenu}
-                className="btn-icon -mr-2"
+                className={`btn-icon -mr-2 ${FOCUS_RING}`}
                 aria-label="게시글 메뉴"
                 aria-expanded={menuOpen}
                 aria-controls={menuOpen ? menuId : undefined}
               >
-                <MoreHorizontal size={20} />
+                <MoreHorizontal size={20} strokeWidth={1.67} />
               </button>
 
               {menuOpen ? (
-                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-11 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                <div ref={menuPanelRef} id={menuId} className="absolute right-0 top-10 z-30 min-w-36 rounded-control bg-surface-elevated p-1 shadow-xl ring-1 ring-line">
                   {canReportPost ? (
                     <button
                       type="button"
                       onClick={() => {
                         closeMenu();
+                        if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                         setReportPostOpen(true);
                       }}
-                      className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      className={MENU_DANGER_ITEM}
                     >
-                      <Flag size={15} />
+                      <Flag size={16} strokeWidth={1.67} />
                       게시글 신고
                     </button>
                   ) : null}
@@ -540,12 +578,12 @@ export function PostDetail({
                         void requestPostEdit({
                           hasMembership: Boolean(user?.membershipBadge),
                           confirm,
-                          goToMembership: () => window.location.assign('/membership'),
+                          goToMembership: () => router.push('/membership'),
                           openEditor: () => setEditOpen(true),
                           returnFocusTo: menuTriggerRef.current,
                         });
                       }}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-black transition hover:bg-zinc-50 dark:hover:bg-surface-elevated"
+                      className="flex h-10 w-full items-center rounded-md px-3 text-left text-label text-fg-primary transition hover:bg-subtle"
                     >
                       수정
                     </button>
@@ -556,7 +594,7 @@ export function PostDetail({
                       type="button"
                       onClick={handleDeletePost}
                       disabled={deletingPost}
-                      className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                      className={MENU_DANGER_ITEM}
                     >
                       {deletingPost ? '삭제 중...' : '삭제'}
                     </button>
@@ -565,7 +603,7 @@ export function PostDetail({
                   <button
                     type="button"
                     onClick={closeMenu}
-                    className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
+                    className={MENU_CANCEL_ITEM}
                   >
                     취소
                   </button>
@@ -575,13 +613,13 @@ export function PostDetail({
           </div>
 
           {post.content ? (
-            <p className="mb-4 break-words text-base font-medium leading-7 text-zinc-800">
+            <p className="break-words text-body text-fg-primary">
               <HashtagText text={post.content} />
             </p>
           ) : null}
 
           {post.media.length > 0 ? (
-            <div className="mb-4 space-y-2">
+            <div className="mt-3 space-y-2">
               {post.media.map((item, index) =>
                 item.mediaType === 'VIDEO' ? (
                   <video
@@ -591,10 +629,10 @@ export function PostDetail({
                     preload="metadata"
                     poster={item.thumbnailUrl ?? undefined}
                     src={item.mediaUrl}
-                    className="max-h-[520px] w-full rounded-xl bg-black object-contain"
+                    className="max-h-[520px] w-full rounded-control bg-black object-contain"
                   />
                 ) : (
-                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-xl border border-zinc-100">
+                  <div key={`${post.postId}:${item.mediaId}`} className="relative overflow-hidden rounded-control bg-subtle">
                     <PostImage
                       src={item.mediaUrl}
                       imageNumber={index + 1}
@@ -608,80 +646,94 @@ export function PostDetail({
             </div>
           ) : null}
 
-          <div className="-mx-2 flex items-center justify-between border-y border-zinc-50 py-1 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:px-2">
-            <div className="flex items-center gap-1 md:gap-3">
-              <button
-                type="button"
-                onClick={handleToggleLike}
-                aria-label={`좋아요 ${post.likes}개`}
-                aria-pressed={post.likedByMe}
-                disabled={isLikeLoading}
-                className={`flex items-center gap-2 text-sm font-black transition-all ${
-                  post.likedByMe ? 'text-red-500' : 'text-zinc-400 hover:text-black'
-                } disabled:cursor-not-allowed disabled:opacity-60`}
-              >
-                <Heart size={20} className={post.likedByMe ? 'fill-red-500' : ''} />
-                <span>{post.likes}</span>
-              </button>
-              <div className="flex min-h-11 items-center gap-2 px-2 text-sm font-black text-zinc-400">
-                <MessageCircle size={20} />
-                <span>{post.comments}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => void handleToggleRepost()}
-                disabled={isRepostLoading || !canRepostPost}
-                aria-label="리포스트"
-                aria-pressed={post.isReposted}
-                aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
-                title={repostButtonTitle}
-                className={`flex items-center gap-2 text-sm font-black transition-all disabled:cursor-not-allowed disabled:opacity-60 ${
-                  post.isReposted ? 'text-emerald-500' : 'text-zinc-400 hover:text-emerald-500'
-                }`}
-              >
-                <Repeat2 size={20} />
-                <span>{post.repostCount}</span>
-              </button>
-              {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
-              <button
-                type="button"
-                onClick={() => { closeAll(); setCollectionModalOpen(true); }}
-                aria-haspopup="dialog"
-                aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
-                disabled={bookmarking}
-                className={`flex items-center gap-2 text-sm font-black transition-all ${
-                  bookmarked ? 'text-black' : 'text-zinc-400 hover:text-black'
-                }`}
-              >
-                <Bookmark size={20} className={bookmarked ? 'fill-black dark:fill-[#f5b93d]' : ''} />
-              </button>
+        </div>
+
+        {/* 액션 바는 Post 카드와 같은 모양이다(댓글 수는 이 화면에서 버튼이 아니다). */}
+        <div className="flex items-center justify-between px-2 py-1 text-icon-secondary md:px-3 [&_button]:min-h-11 [&_button]:min-w-11 [&_button]:justify-center [&_button]:rounded-control [&_button]:px-2 [&_button]:focus-visible:outline-2 [&_button]:focus-visible:outline-offset-0 [&_button]:focus-visible:outline-fg-brand dark:[&_button]:focus-visible:outline-line-focus">
+          <div className="flex items-center min-[400px]:gap-1 md:gap-2">
+            <button
+              type="button"
+              onClick={handleToggleLike}
+              aria-label={`좋아요 ${post.likes}개`}
+              aria-pressed={post.likedByMe}
+              disabled={isLikeLoading}
+              className={`group flex items-center gap-1.5 transition-colors ${
+                post.likedByMe ? 'text-red-500' : 'hover:text-red-500'
+              } disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <Heart size={20} strokeWidth={1.67} className={post.likedByMe ? 'fill-red-500' : 'transition-all group-hover:fill-red-500'} />
+              <span className="text-label text-fg-secondary">{post.likes}</span>
+            </button>
+            <div className="flex min-h-11 items-center gap-1.5 px-2">
+              <MessageCircle size={20} strokeWidth={1.67} />
+              <span className="text-label text-fg-secondary">{post.comments}</span>
             </div>
             <button
               type="button"
+              onClick={() => void handleToggleRepost()}
+              disabled={isRepostLoading || !canRepostPost}
+              aria-label="리포스트"
+              aria-pressed={post.isReposted}
+              aria-describedby={repostButtonTitle ? `${menuId}-repost-reason` : undefined}
+              title={repostButtonTitle}
+              className={`flex items-center gap-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+                post.isReposted ? 'text-fg-success' : 'hover:text-fg-success'
+              }`}
+            >
+              <Repeat2 size={20} strokeWidth={1.67} />
+              <span className="text-label text-fg-secondary">{post.repostCount}</span>
+            </button>
+            <PostViewCount count={post.viewCount} />
+            {repostButtonTitle ? <span id={`${menuId}-repost-reason`} className="sr-only">{repostButtonTitle}</span> : null}
+          </div>
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() => { if (!requireAuth('북마크를 저장하려면 로그인이 필요해요.')) return; closeAll(); setCollectionModalOpen(true); }}
+              aria-haspopup="dialog"
+              aria-label={bookmarked ? '북마크 해제' : '북마크 저장'}
+              disabled={bookmarking}
+              className={`flex items-center transition-colors ${
+                bookmarked ? 'text-icon-brand' : 'hover:text-icon-primary'
+              }`}
+            >
+              <Bookmark size={20} strokeWidth={1.67} className={bookmarked ? 'fill-current' : undefined} />
+            </button>
+            <button
+              type="button"
               onClick={() => { closeAll(); setShareOpen(true); }}
-              className="flex items-center text-zinc-400 transition-all hover:text-black"
+              className="flex items-center transition-colors hover:text-icon-primary"
               aria-label="게시글 공유"
             >
-              <Send size={20} />
+              <Share size={20} strokeWidth={1.67} />
             </button>
           </div>
+        </div>
+      </article>
 
-          <div id="comments" ref={commentsSectionRef} className="mt-4 scroll-mt-24 space-y-4">
-            <div className="flex gap-3">
-              <div className="relative flex h-10 w-10 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl bg-black text-sm font-black text-white dark:bg-avatar dark:text-zinc-200">
+      <section
+        id="comments"
+        ref={commentsSectionRef}
+        aria-label="댓글"
+        className="scroll-mt-24 rounded-card border border-line-card bg-surface px-4 pt-4 md:px-5 md:pt-5"
+      >
+            {user ? (
+            <div className="flex gap-3 pb-4">
+              <div className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-caption text-fg-secondary">
                 {user?.profileImageUrl ? (
-                  <Image src={user.profileImageUrl} alt={user.nickname} fill unoptimized sizes="40px" className="object-cover" />
+                  <Image src={user.profileImageUrl} alt={user.nickname} fill unoptimized sizes="36px" className="object-cover" />
                 ) : (
                   getInitials(user?.nickname ?? '나')
                 )}
               </div>
               <form
-                className="relative flex-1"
+                className="flex flex-1 items-start gap-2"
                 onSubmit={(event) => {
                   event.preventDefault();
                   void handleSubmitComment();
                 }}
               >
+                <div className="min-w-0 flex-1">
                 <textarea
                   aria-label="댓글 입력"
                   value={commentText}
@@ -725,30 +777,36 @@ export function PostDetail({
                   }}
                   maxLength={MAX_COMMENT_LENGTH}
                   placeholder="댓글을 남겨보세요..."
-                  className="w-full resize-none rounded-xl border-none bg-zinc-50 px-4 pb-11 pt-3 text-base font-medium text-black transition-all focus:ring-2 focus:ring-black dark:placeholder:!text-zinc-400 dark:focus:ring-[#f5b93d]"
-                  rows={2}
+                  className="block max-h-40 min-h-10 w-full resize-none rounded-control border border-line bg-subtle px-3.5 py-[7px] text-body text-fg-primary outline-none transition-colors [field-sizing:content] placeholder:text-fg-tertiary focus:border-fg-brand dark:focus:border-line-focus"
+                  rows={1}
                 />
-                <span
-                  className={`absolute bottom-4 right-14 text-xs font-bold tabular-nums ${
-                    commentText.length >= MAX_COMMENT_LENGTH ? 'text-red-500' : 'text-zinc-400'
-                  }`}
-                >
-                  {commentText.length}/{MAX_COMMENT_LENGTH}
-                </span>
+                {/* 빈 입력창에는 시안처럼 글자 수를 숨긴다. 좁은 화면에서 안내 문구가 두 줄로 꺾이지 않게 한다. */}
+                {commentText ? (
+                  <span
+                    className={`mt-1 block text-right text-caption tabular-nums ${
+                      commentText.length >= MAX_COMMENT_LENGTH ? 'text-fg-danger' : 'text-fg-tertiary'
+                    }`}
+                  >
+                    {commentText.length}/{MAX_COMMENT_LENGTH}
+                  </span>
+                ) : null}
+                </div>
                 <button
                   type="submit"
-                  aria-label="댓글 전송"
                   disabled={!commentText.trim() || submittingComment}
-                  className="absolute bottom-2.5 right-2.5 flex h-9 w-9 items-center justify-center rounded-lg bg-black text-white transition-all hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300 dark:disabled:bg-surface-elevated dark:disabled:text-zinc-500"
+                  className={`btn-secondary ${FOCUS_RING}`}
                 >
-                  <Send size={16} />
+                  등록
                 </button>
               </form>
             </div>
+            ) : <button type="button" className="mb-4 min-h-11 w-full rounded-control border border-line bg-subtle px-3 text-left text-body text-fg-secondary focus-visible:outline-2 focus-visible:outline-line-focus" onClick={() => requireAuth('댓글을 남기려면 로그인이 필요해요.')}>로그인하고 댓글 남기기</button>}
+            {commentsLoading ? <p role="status" className="pb-4 text-label text-fg-secondary">댓글을 불러오는 중…</p> : null}
+            {commentsError ? <p role="alert" className="pb-4 text-label text-fg-danger">댓글을 불러오지 못했습니다. {commentsError}</p> : null}
 
-            <div className="space-y-4">
+            <div className="divide-y divide-line border-t border-line">
               {comments.length === 0 ? (
-                <p className="text-sm font-bold text-zinc-400">아직 댓글이 없습니다.</p>
+                <p className="py-6 text-center text-body text-fg-tertiary">아직 댓글이 없습니다.</p>
               ) : (
                 comments.map((comment) => (
                   <div
@@ -761,23 +819,33 @@ export function PostDetail({
                       }
                     }}
                     data-comment-id={comment.commentId}
-                    className={`scroll-mt-24 rounded-2xl border p-4 transition-colors duration-500 ${
+                    className={`-mx-2 flex scroll-mt-24 gap-3 px-2 py-4 transition-colors duration-500 ${
                       initialCommentId === comment.commentId && highlightedCommentId === comment.commentId
-                        ? 'border-sky-300 bg-sky-50 dark:border-sky-500 dark:bg-sky-500/10'
-                        : 'border-zinc-100 bg-zinc-50 dark:border-line dark:bg-surface'
+                        ? 'rounded-control bg-brand-subtle'
+                        : ''
                     }`}
                   >
-                    <div className="mb-2 flex items-start justify-between gap-3">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="inline-flex items-center gap-1 text-sm font-black text-black">
+                    {comment.authorProfileImageUrl ? (
+                      <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full">
+                        <Image src={comment.authorProfileImageUrl} alt="" fill unoptimized sizes="36px" className="object-cover" />
+                      </div>
+                    ) : (
+                      <div aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-subtle text-caption text-fg-secondary">
+                        {getInitials(comment.author)}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
+                        <span className="inline-flex items-center gap-1 text-body font-medium text-fg-primary">
                           {comment.author}
-                          <MembershipBadge active={comment.authorMembershipBadge} />
+                          <MembershipBadge active={comment.authorMembershipBadge} /><RepresentativeTierBadge tier={comment.authorRepresentativeTier} />
                         </span>
-                        <span className="text-xs font-bold text-zinc-400">
+                        <span className="text-caption text-fg-tertiary">
                           @{comment.authorHandle} · <RelativeTime createdAt={comment.createdAt} />
                         </span>
                       </div>
-                      <div className="relative">
+                      <div className="relative -my-2 -mr-2">
                         <button
                           type="button"
                           onClick={() =>
@@ -785,7 +853,7 @@ export function PostDetail({
                               current === comment.commentId ? null : comment.commentId
                             )
                           }
-                          className="rounded-lg p-1 text-zinc-300 transition hover:bg-white hover:text-black dark:hover:bg-surface-elevated"
+                          className={`btn-icon ${FOCUS_RING}`}
                           aria-label="댓글 메뉴"
                           ref={(element) => {
                             if (element) commentMenuButtonRefs.current.set(comment.commentId, element);
@@ -793,16 +861,16 @@ export function PostDetail({
                           }}
                           aria-expanded={commentMenuOpenId === comment.commentId}
                         >
-                          <MoreHorizontal size={18} />
+                          <MoreHorizontal size={18} strokeWidth={1.67} />
                         </button>
                         {commentMenuOpenId === comment.commentId ? (
-                          <div className="absolute right-0 top-8 z-30 min-w-36 overflow-hidden rounded-2xl border border-zinc-100 bg-white py-1 shadow-xl">
+                          <div className="absolute right-0 top-10 z-30 min-w-36 rounded-control bg-surface-elevated p-1 shadow-xl ring-1 ring-line">
                             {comment.mine ? (
                               <button
                                 type="button"
                                 onClick={() => handleDeleteComment(comment)}
                                 disabled={deletingCommentId === comment.commentId}
-                                className="w-full px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:text-red-300 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                className={MENU_DANGER_ITEM}
                               >
                                 {deletingCommentId === comment.commentId ? '삭제 중...' : '삭제'}
                               </button>
@@ -811,18 +879,19 @@ export function PostDetail({
                                 type="button"
                                 onClick={() => {
                                   setCommentMenuOpenId(null);
+                                  if (!requireAuth('신고하려면 로그인이 필요해요.')) return;
                                   setReportComment(comment);
                                 }}
-                                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-black text-red-500 transition hover:bg-red-50 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                className={MENU_DANGER_ITEM}
                               >
-                                <Flag size={15} />
+                                <Flag size={16} strokeWidth={1.67} />
                                 댓글 신고
                               </button>
                             )}
                             <button
                               type="button"
                               onClick={() => setCommentMenuOpenId(null)}
-                              className="w-full px-4 py-3 text-left text-sm font-black text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-surface-elevated dark:hover:!text-zinc-100"
+                              className={MENU_CANCEL_ITEM}
                             >
                               취소
                             </button>
@@ -830,16 +899,16 @@ export function PostDetail({
                         ) : null}
                       </div>
                     </div>
-                    <p className="whitespace-pre-wrap text-sm font-medium text-zinc-700"><HashtagText text={comment.content} linkHashtags={false} /></p>
+                    <p className="whitespace-pre-wrap break-words text-body text-fg-primary"><HashtagText text={comment.content} linkHashtags={false} /></p>
+                    </div>
                   </div>
                 ))
               )}
             </div>
-          </div>
-        </div>
-      </article>
+      </section>
+      </div>
 
-      <RelatedHashtagPosts content={post.content} excludePostId={post.postId} />
+      {user ? <RelatedHashtagPosts content={post.content} excludePostId={post.postId} /> : null}
 
       {shareOpen ? (
         <SharePostModal

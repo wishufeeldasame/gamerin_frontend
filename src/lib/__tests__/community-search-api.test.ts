@@ -62,6 +62,7 @@ describe('community-search-api', () => {
         profileImageUrl: 'http://api.test/uploads/profile.png',
         verifiedBadge: false,
         membershipBadge: false,
+        representativeTier: null,
       }],
       nextCursor: null,
       hasNext: false,

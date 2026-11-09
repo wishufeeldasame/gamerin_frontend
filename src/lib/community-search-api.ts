@@ -7,6 +7,7 @@ import {
   normalizePostRecord,
 } from '@/lib/feed-api';
 import type { CursorPage } from '@/types/api';
+import type { RepresentativeTier } from '@/lib/representative-tier';
 
 type SearchRequestOptions = {
   signal?: AbortSignal;
@@ -26,6 +27,7 @@ export interface SimpleUserProfile {
   profileImageUrl: string | null;
   verifiedBadge: boolean;
   membershipBadge: boolean;
+  representativeTier?: RepresentativeTier | null;
   isFollowing?: boolean;
 }
 
@@ -37,6 +39,7 @@ interface SimpleUserProfileResponse {
   profileImageUrl: string | null;
   verifiedBadge: boolean;
   membershipBadge?: boolean;
+  representativeTier?: RepresentativeTier | null;
 }
 
 export interface SearchSection<T> {
@@ -85,6 +88,7 @@ function normalizeUserProfile(profile: SimpleUserProfileResponse): SimpleUserPro
     profileImageUrl: toAbsoluteAssetUrl(profile.profileImageUrl),
     verifiedBadge: Boolean(profile.verifiedBadge),
     membershipBadge: Boolean(profile.membershipBadge),
+    representativeTier: profile.representativeTier ?? null,
   };
 }
 

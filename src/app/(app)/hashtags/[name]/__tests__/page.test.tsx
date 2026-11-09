@@ -121,7 +121,7 @@ describe('HashtagPostsPage like rollback', () => {
     render(<HashtagPostsPage />);
 
     expect(await screen.findByText('해시태그 게시글을 불러오지 못했습니다.')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/home');
+    expect(screen.getByRole('link', { name: '홈으로 돌아가기' })).toHaveAttribute('href', '/');
   });
 
   it('다음 커서가 없으면 hasNext가 true여도 더보기를 표시하지 않는다', async () => {
@@ -179,3 +179,5 @@ describe('HashtagPostsPage like rollback', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('좋아요 요청 실패');
   });
 });
+
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'viewer-1', handle: 'viewer' }, isAuthReady: true }) }));

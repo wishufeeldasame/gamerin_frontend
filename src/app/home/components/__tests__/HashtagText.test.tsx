@@ -10,7 +10,7 @@ describe('HashtagText mentions', () => {
     expect(screen.getByRole('link', { name: '@user' })).toHaveAttribute('href', '/profile/user');
     expect(screen.getByRole('link', { name: '#게임' })).toHaveAttribute('href', '/hashtags/%EA%B2%8C%EC%9E%84');
     expect(screen.getByRole('link', { name: '@user' })).toHaveClass('text-sky-700', 'dark:text-sky-400');
-    expect(screen.getByRole('link', { name: '#게임' })).toHaveClass('text-emerald-700', 'dark:text-emerald-400');
+    expect(screen.getByRole('link', { name: '#게임' })).toHaveClass('text-fg-brand');
     for (const link of screen.getAllByRole('link')) expect(link).toHaveAttribute('data-card-open-ignore', 'true');
   });
   it('keeps comment hashtags plain and still links unknown handles', () => {

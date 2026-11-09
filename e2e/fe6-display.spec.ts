@@ -122,13 +122,13 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
       test('사용자 화면 한국어 문구와 시간 요소가 넘치지 않는다', async ({ page }, info) => {
         await mockApp(page, theme);
-        await page.goto('/home');
+        await page.goto('/');
         await expect(page.getByText('한국어 화면 확인용 게시글')).toBeVisible();
         await expect(page.locator('time').filter({ hasText: '1분 전' }).first()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await expect(page.locator('time').filter({ hasText: '9월 29일' })).toHaveAttribute('datetime', '2026-09-29T06:05:00.000Z');
-        if (viewport.width >= 1024) await expect(page.getByText('미배치')).toHaveCount(2);
+        await expect(page.getByText('미배치', { exact: true })).toHaveCount(0);
         await checkLayout(page, info, 'home');
-        await page.getByRole('button', { name: '알림', exact: true }).click();
+        await page.getByRole('button', { name: /^알림(?:\s*,|$)/ }).click();
         await expect(page.getByText('테스터님이 내 게시글을 좋아합니다.')).toBeVisible();
         await expect(page.locator('time').last()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await checkLayout(page, info, 'notifications');
@@ -158,7 +158,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/profile/viewer');
         await expect(page.getByRole('button', { name: '프로필 수정', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: '게시글', exact: true })).toBeVisible();
+        await expect(page.getByRole('tab', { name: '게시글', exact: true })).toBeVisible();
         await checkLayout(page, info, 'profile');
         await page.getByRole('button', { name: '프로필 수정', exact: true }).click();
         await expect(page.getByPlaceholder('닉네임을 입력하세요')).toBeVisible();
@@ -166,7 +166,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await checkLayout(page, info, 'edit-profile');
 
         await page.goto('/profile/viewer');
-        await page.getByRole('button', { name: '전적', exact: true }).click();
+        await page.getByRole('tab', { name: '전적', exact: true }).click();
         await page.getByRole('button', { name: '전적 추가', exact: true }).click();
         await expect(page.getByText('게임 전적 연결', { exact: true })).toBeVisible();
         await expect(page.getByText('등급, 승률, 킬/데스/어시스트 비율 연동', { exact: true })).toBeVisible();
@@ -182,7 +182,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await checkLayout(page, info, 'game-stats');
 
         await page.goto('/settings');
-        await page.getByRole('button', { name: '테마', exact: true }).click();
+        await page.getByRole('button', { name: '개인화', exact: true }).click();
         await expect(page.getByRole('button', { name: '라이트 모드', exact: true })).toBeVisible();
         await expect(page.getByRole('button', { name: '다크 모드', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox')).toHaveCount(0);
@@ -190,10 +190,11 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/mentoring');
         await expect(page.getByRole('heading', { name: '멘토링', exact: true })).toBeVisible();
-        await expect(page.getByText('프로그램 둘러보기', { exact: true })).toBeVisible();
+        await expect(page.getByRole('group', { name: '게임 필터' })).toBeVisible();
         await checkLayout(page, info, 'mentoring-find');
-        await page.getByRole('button', { name: '내 멘토링', exact: true }).click();
-        await expect(page.getByText('마일리지', { exact: true })).toBeVisible();
+        await page.getByRole('tab', { name: '내 멘토링', exact: true }).click();
+        await expect(page.getByRole('link', { name: /내 마일리지/ })).toBeVisible();
+        await expect(page.getByRole('heading', { name: '내가 신청한 멘토링' })).toBeVisible();
         await checkLayout(page, info, 'mentoring');
       });
 

@@ -1,7 +1,10 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+vi.mock('@/app/context/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), info: vi.fn(), error: vi.fn() }) }));
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError, MODERATION_REJECTED_MESSAGE } from '@/lib/api-client';
 import { removeAccessToken } from '@/lib/auth-store';
+import type { UploadJob } from '@/lib/upload-jobs';
+import { saveUploadRecord } from '@/lib/upload-jobs';
 import type { ChatMessage, Conversation } from '@/lib/message-store';
 import MessagesPage from '../page';
 
@@ -17,6 +20,8 @@ const api = vi.hoisted(() => ({
   parseMessageRealtimeEvent: (raw: string) => JSON.parse(raw),
   searchMessageRecipients: vi.fn(),
   sendConversationMessage: vi.fn(),
+  sendMessageUpload: vi.fn(),
+  fetchMessageUploadJob: vi.fn(),
 }));
 
 vi.mock('@/lib/message-api', () => api);
@@ -87,6 +92,9 @@ function sentClientMessageId(call = 0): string {
 async function renderPage() {
   const view = render(<MessagesPage />);
   const input = await screen.findByLabelText('상대님에게 메시지 보내기');
+  // 초기 이력 스켈레톤이 사라진 뒤 전송을 검증해 작업자 병렬 실행의 타이밍 영향을 없앤다.
+  await waitFor(() => expect(api.fetchConversationMessages).toHaveBeenCalled());
+  await waitFor(() => expect(screen.queryByLabelText('메시지를 불러오는 중')).not.toBeInTheDocument());
   return { ...view, input };
 }
 
@@ -97,6 +105,7 @@ function send(input: HTMLElement, text: string) {
 
 describe('MessagesPage 낙관적 전송', () => {
   beforeEach(() => {
+    window.localStorage.clear();
     objectUrlCount = 0;
     streamListeners = {};
     Object.values(api).forEach((fn) => {
@@ -205,7 +214,7 @@ describe('MessagesPage 낙관적 전송', () => {
   });
 
   it('실패한 메시지를 삭제하면 목록에서 빼고 첨부 미리보기 URL을 해제한다', async () => {
-    api.sendConversationMessage.mockRejectedValueOnce(new ApiError('서버 오류', 500));
+    api.sendMessageUpload.mockResolvedValueOnce({ jobId: 'j-1', status: 'FAILED', errorCode: 'PROCESSING_FAILED', errorMessage: '서버 오류', post: null, message: null });
     const { container } = await renderPage();
     const imageInput = container.querySelector('input[type="file"][multiple]') as HTMLInputElement;
 
@@ -224,9 +233,9 @@ describe('MessagesPage 낙관적 전송', () => {
   });
 
   it('성공하면 첨부 미리보기 URL을 해제하고 전송 중에 언마운트해도 해제한다', async () => {
-    const request = deferred<ChatMessage>();
-    api.sendConversationMessage.mockResolvedValueOnce(serverMessage('m-1', '', '2026-10-05T12:01:00.000Z'));
-    api.sendConversationMessage.mockReturnValueOnce(request.promise);
+    const request = deferred<UploadJob>();
+    api.sendMessageUpload.mockResolvedValueOnce({ jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null, message: serverMessage('m-1', '', '2026-10-05T12:01:00.000Z') });
+    api.sendMessageUpload.mockReturnValueOnce(request.promise);
     const { container, unmount } = await renderPage();
     const imageInput = container.querySelector('input[type="file"][multiple]') as HTMLInputElement;
 
@@ -238,7 +247,7 @@ describe('MessagesPage 낙관적 전송', () => {
     fireEvent.change(imageInput, { target: { files: [new File(['b'], 'b.png', { type: 'image/png' })] } });
     await screen.findByAltText('b.png');
     fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
-    await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.sendMessageUpload).toHaveBeenCalledTimes(2));
 
     unmount();
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:dm-2');
@@ -388,4 +397,104 @@ describe('MessagesPage 낙관적 전송', () => {
     expect(screen.getByRole('button', { name: '재시도' })).toBeInTheDocument();
     expect(screen.getAllByText('다른 탭과 같은 내용')).toHaveLength(2);
   });
+  it('접수 뒤에는 다음 텍스트를 보낼 수 있고 SSE와 조회 완료가 겹쳐도 한 번만 표시한다', async () => {
+    api.sendMessageUpload.mockResolvedValue({ jobId: 'j-1', status: 'QUEUED', errorCode: null, errorMessage: null, post: null, message: null });
+    const delivered = serverMessage('async-1', '첨부 완료', '2026-10-05T12:01:00.000Z');
+    api.fetchMessageUploadJob.mockImplementation(async () => ({ jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null,
+      message: { ...delivered, clientMessageId: api.sendMessageUpload.mock.calls[0][0].clientMessageId } }));
+    api.sendConversationMessage.mockResolvedValue(serverMessage('text-1', '후속 텍스트', '2026-10-05T12:02:00.000Z'));
+    const { container, input } = await renderPage();
+    fireEvent.change(container.querySelector('input[type="file"][multiple]')!, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
+    fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
+    await screen.findByText(/서버 접수 완료/);
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(false);
+    send(input, '후속 텍스트');
+    await waitFor(() => expect(api.sendConversationMessage).toHaveBeenCalledTimes(1));
+    const clientMessageId = api.sendMessageUpload.mock.calls[0][0].clientMessageId;
+    act(() => streamListeners['message-created']({ data: JSON.stringify({ type: 'message-created', conversationId: 'conv-1',
+      message: { ...delivered, clientMessageId }, messageId: delivered.id }) }));
+    await waitFor(() => expect(api.fetchMessageUploadJob).toHaveBeenCalledWith('j-1', false), { timeout: 4500 });
+    await waitFor(() => expect(container.querySelector('[data-pending-message-id]')).toBeNull());
+    expect(screen.getAllByText('첨부 완료')).toHaveLength(1);
+    expect(api.sendMessageUpload).toHaveBeenCalledTimes(1);
+  });
+
+  it('응답 유실·404 재확인은 같은 키와 원본을 유지하며 자동 재전송하지 않는다', async () => {
+    api.sendMessageUpload.mockRejectedValueOnce(new ApiError('응답 유실', 0)).mockResolvedValueOnce({
+      jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null, message: null });
+    api.fetchMessageUploadJob.mockRejectedValue(new ApiError('없음', 404));
+    const { container } = await renderPage();
+    fireEvent.change(container.querySelector('input[type="file"][multiple]')!, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
+    fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
+    await screen.findByRole('button', { name: '상태 다시 확인' });
+    expect(api.sendMessageUpload).toHaveBeenCalledTimes(1);
+    const first = api.sendMessageUpload.mock.calls[0][0];
+    fireEvent.click(screen.getByRole('button', { name: '상태 다시 확인' }));
+    await waitFor(() => expect(api.sendMessageUpload).toHaveBeenCalledTimes(2));
+    expect(api.sendMessageUpload.mock.calls[1][0]).toEqual(first);
+  });
+
+  it('명시적 FAILED 재시도는 새 키를 쓰고 검열 거부는 자동·동일 내용 재전송을 막는다', async () => {
+    api.sendMessageUpload.mockResolvedValueOnce({ jobId: 'j-1', status: 'FAILED', errorCode: 'PROCESSING_FAILED', errorMessage: '처리 실패', post: null, message: null })
+      .mockResolvedValueOnce({ jobId: 'j-2', status: 'FAILED', errorCode: 'MODERATION_REJECTED', errorMessage: '정책 거부', post: null, message: null });
+    const { container } = await renderPage();
+    fireEvent.change(container.querySelector('input[type="file"][multiple]')!, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
+    fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
+    await screen.findByRole('button', { name: '재시도' });
+    const firstKey = api.sendMessageUpload.mock.calls[0][0].clientMessageId;
+    fireEvent.click(screen.getByRole('button', { name: '재시도' }));
+    await screen.findByText(/검열 거부 · 정책 거부/);
+    expect(api.sendMessageUpload.mock.calls[1][0].clientMessageId).not.toBe(firstKey);
+    expect(screen.queryByRole('button', { name: '재시도' })).not.toBeInTheDocument();
+  });
+
+  it('복귀 시 같은 사용자의 대화 메타데이터를 복원하고 원본 없는 404는 조회만 다시 한다', async () => {
+    saveUploadRecord({ userId: 'me', kind: 'message', clientId: 'restored-key', conversationId: 'conv-1' });
+    saveUploadRecord({ userId: 'other', kind: 'message', clientId: 'other-key', conversationId: 'conv-1' });
+    api.fetchMessageUploadJob.mockRejectedValue(new ApiError('없음', 404));
+    await renderPage();
+    await screen.findByText(/원본이 없는 경우/);
+    expect(api.fetchMessageUploadJob).toHaveBeenCalledWith('restored-key', true);
+    expect(api.fetchMessageUploadJob).not.toHaveBeenCalledWith('other-key', true);
+    fireEvent.click(screen.getByRole('button', { name: '상태 다시 확인' }));
+    await waitFor(() => expect(api.fetchMessageUploadJob).toHaveBeenCalledTimes(2));
+    expect(api.sendMessageUpload).not.toHaveBeenCalled();
+  });
+
+  it('방 전환 뒤 늦게 완료된 첨부는 원래 대화에만 병합한다', async () => {
+    const request = deferred<UploadJob>();
+    api.sendMessageUpload.mockReturnValueOnce(request.promise);
+    api.fetchConversationList.mockResolvedValue([conversation, { ...conversation, id: 'conv-2', recipient: { ...conversation.recipient, name: '다른이' } }]);
+    const { container } = await renderPage();
+    fireEvent.change(container.querySelector('input[type="file"][multiple]')!, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
+    fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
+    await waitFor(() => expect(api.sendMessageUpload).toHaveBeenCalled());
+    fireEvent.click(screen.getByRole('button', { name: /다른이/ }));
+    await screen.findByLabelText('다른이님에게 메시지 보내기');
+    await act(async () => request.resolve({ jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null,
+      message: serverMessage('late-attachment', '원래 대화의 첨부', '2026-10-05T12:03:00.000Z') }));
+    expect(screen.getByLabelText('다른이님에게 메시지 보내기')).toBeInTheDocument();
+    expect(within(screen.getByRole('region', { name: '메시지 대화' })).queryByText('원래 대화의 첨부')).not.toBeInTheDocument();
+  });
+
+  it.each(['unmount', 'auth'])('첨부 전송의 %s 뒤 늦은 완료를 화면에 반영하지 않는다', async (mode) => {
+    const request = deferred<UploadJob>();
+    api.sendMessageUpload.mockReturnValueOnce(request.promise);
+    const { container, unmount } = await renderPage();
+    fireEvent.change(container.querySelector('input[type="file"][multiple]')!, { target: { files: [new File(['a'], 'a.png', { type: 'image/png' })] } });
+    await screen.findByAltText('a.png');
+    fireEvent.click(screen.getByRole('button', { name: '메시지 전송' }));
+    await waitFor(() => expect(api.sendMessageUpload).toHaveBeenCalled());
+    if (mode === 'unmount') unmount(); else removeAccessToken();
+    await act(async () => request.resolve({ jobId: 'j-1', status: 'COMPLETED', errorCode: null, errorMessage: null, post: null,
+      message: serverMessage('stale-attachment', '늦은 첨부 응답', '2026-10-05T12:03:00.000Z') }));
+    expect(screen.queryByText('늦은 첨부 응답')).not.toBeInTheDocument();
+    expect(api.fetchMessageUploadJob).not.toHaveBeenCalled();
+  });
+
 });

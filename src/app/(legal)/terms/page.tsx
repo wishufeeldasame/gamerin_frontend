@@ -14,7 +14,7 @@ export default function TermsPage() {
   return (
     <>
       <header className="space-y-4">
-        <h1 className="text-3xl font-black tracking-tight text-black">이용약관</h1>
+        <h1 className="text-display text-fg-primary">이용약관</h1>
         <LegalNotice />
       </header>
 

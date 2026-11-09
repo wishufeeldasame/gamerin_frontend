@@ -124,15 +124,15 @@ export function ConfirmProvider({ children, scopeKey }: { children: ReactNode; s
                 }
               }
             }}
-            className='m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-neutral-950 shadow-xl backdrop:bg-black/50 dark:border-neutral-700 dark:bg-surface dark:text-neutral-50'
+            className='m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-md overflow-y-auto rounded-card border border-line-card bg-surface p-6 text-fg-primary shadow-xl backdrop:bg-black/60'
           >
-            <h2 id={titleId} className='text-lg font-bold'>작업 확인</h2>
-            <p id={descriptionId} className='mt-3 whitespace-pre-wrap break-words text-sm leading-6'>{active.options.message}</p>
+            <h2 id={titleId} className='text-title'>작업 확인</h2>
+            <p id={descriptionId} className='mt-3 whitespace-pre-wrap break-words text-body text-fg-secondary'>{active.options.message}</p>
             <div className='mt-6 flex justify-end gap-3'>
-              <button ref={cancelButtonRef} type='button' onClick={() => settle(false)} className='rounded-xl border border-neutral-300 px-4 py-2 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 dark:border-neutral-600'>
+              <button ref={cancelButtonRef} type='button' onClick={() => settle(false)} className='btn-secondary'>
                 {active.options.cancelLabel ?? '취소'}
               </button>
-              <button ref={confirmButtonRef} type='button' onClick={() => settle(true)} className={`rounded-xl px-4 py-2 text-sm font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 ${active.options.danger ? 'bg-red-700 hover:bg-red-800 dark:bg-red-600 dark:hover:bg-red-700' : 'bg-neutral-900 hover:bg-neutral-800 dark:bg-amber-400 dark:text-neutral-950 dark:hover:bg-amber-300'}`}>
+              <button ref={confirmButtonRef} type='button' onClick={() => settle(true)} className={`btn-primary ${active.options.danger ? 'bg-red-700 text-white hover:bg-red-800 dark:bg-red-600 dark:hover:bg-red-700' : ''}`}>
                 {active.options.confirmLabel ?? '확인'}
               </button>
             </div>

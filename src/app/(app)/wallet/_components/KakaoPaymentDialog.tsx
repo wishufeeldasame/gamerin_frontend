@@ -207,7 +207,7 @@ export function KakaoPaymentDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-5"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 lg:items-center lg:p-5"
       onMouseDown={phase === 'confirm' || phase === 'canceled' ? onClose : undefined}
     >
       <section
@@ -217,36 +217,44 @@ export function KakaoPaymentDialog({
         aria-labelledby="kakao-payment-title"
         onKeyDown={handleKeyDown}
         onMouseDown={(event) => event.stopPropagation()}
-        className="relative w-full max-w-[460px] rounded-2xl border border-zinc-100 bg-white p-6 shadow-2xl dark:border-line dark:bg-surface sm:p-7"
+        className="relative max-h-[90dvh] w-full overflow-y-auto rounded-t-[20px] border border-line-card bg-surface px-5 pt-8 pb-[calc(1.25rem+env(safe-area-inset-bottom))] shadow-2xl lg:max-w-[420px] lg:rounded-card lg:p-6"
       >
+        <div aria-hidden="true" className="absolute left-1/2 top-2.5 h-1 w-10 -translate-x-1/2 rounded-full bg-line-strong lg:hidden" />
         {phase === 'confirm' ? (
           <button
             type="button"
             onClick={onClose}
             aria-label="결제창 닫기"
-            className="absolute right-4 top-4 grid size-9 place-items-center rounded-full bg-zinc-100 text-zinc-500 dark:bg-surface-elevated dark:text-zinc-300"
+            className="btn-icon absolute right-2 top-4 lg:right-3 lg:top-3"
           >
             <X size={17} />
           </button>
         ) : null}
 
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-zinc-400">KAKAOPAY</p>
-        <h2 id="kakao-payment-title" className="mt-2 pr-10 text-2xl font-black text-black dark:text-zinc-100">
-          {title}
-        </h2>
+        <div className="text-center">
+          <span className="inline-flex rounded-md bg-[#fee500] px-2.5 py-1 text-caption font-semibold text-[#191919]">KAKAOPAY</span>
+          {phase === 'waiting' ? (
+            <div className="mx-auto mt-4 grid size-16 place-items-center rounded-full bg-brand-subtle text-fg-brand">
+              <Loader2 className="motion-safe:animate-spin" size={26} aria-hidden="true" />
+            </div>
+          ) : null}
+          <h2 id="kakao-payment-title" className="mt-3 text-title text-fg-primary">
+            {title}
+          </h2>
+        </div>
 
         {phase === 'preparing' ? (
           <div className="flex min-h-44 flex-col items-center justify-center gap-4 text-center" aria-live="polite">
-            <Loader2 className="animate-spin text-zinc-400" size={36} />
-            <p className="text-sm font-bold text-zinc-500">잠시 후 카카오페이 결제 화면으로 이동합니다.</p>
+            <Loader2 className="motion-safe:animate-spin text-fg-brand" size={36} aria-hidden="true" />
+            <p className="text-body text-fg-secondary">잠시 후 카카오페이 결제 화면으로 이동합니다.</p>
           </div>
         ) : phase === 'canceled' ? (
           <>
-            <p className="mt-5 text-sm font-bold text-zinc-500" aria-live="polite">
+            <p className="mt-4 text-center text-body text-fg-secondary" aria-live="polite">
               카카오페이 결제창이 닫혀 결제가 진행되지 않았습니다.
             </p>
             {error ? (
-              <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
+              <p role="alert" className="mt-4 rounded-control bg-danger-subtle p-3 text-label text-red-700 dark:text-fg-danger">
                 {error}
               </p>
             ) : null}
@@ -261,7 +269,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-12 rounded-xl border border-zinc-200 px-4 text-sm font-black text-black dark:border-neutral-700 dark:text-zinc-100"
+                className="btn-secondary px-2!"
               >
                 닫기
               </button>
@@ -269,22 +277,26 @@ export function KakaoPaymentDialog({
           </>
         ) : phase === 'waiting' ? (
           <>
-            <div className="mt-5 space-y-1 text-sm font-bold text-zinc-500" aria-live="polite">
+            <div className="mt-4 space-y-1 text-center text-body text-fg-secondary" aria-live="polite">
               <p>카카오페이 창에서 결제를 완료해 주세요.</p>
               <p>QR 또는 카카오톡 알림으로 결제할 수 있습니다.</p>
             </div>
-            <div className="mt-6 grid grid-cols-2 gap-2">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-control bg-subtle p-3">
+              <span className="text-label text-fg-secondary">{product.name}</span>
+              <strong className="text-body font-semibold text-fg-primary">{product.price.toLocaleString('ko-KR')}원</strong>
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => popupRef.current?.focus()}
-                className="h-12 rounded-xl border border-zinc-200 px-4 text-sm font-black text-black dark:border-neutral-700 dark:text-zinc-100"
+                className="btn-secondary px-2!"
               >
                 결제 창 다시 열기
               </button>
               <button
                 type="button"
                 onClick={stopPayment}
-                className="btn-primary"
+                className="btn-secondary px-2!"
               >
                 결제 중단
               </button>
@@ -292,12 +304,12 @@ export function KakaoPaymentDialog({
           </>
         ) : (
           <>
-            <div className="mt-6 rounded-2xl bg-zinc-50 p-5 dark:bg-surface-elevated">
-              <p className="text-xs font-bold text-zinc-500">{product.name}</p>
-              <p className="mt-2 text-3xl font-black text-black dark:text-zinc-100">
+            <div className="mt-4 rounded-control bg-subtle p-4">
+              <p className="text-label text-fg-secondary">{product.name}</p>
+              <p className="mt-1 text-title text-fg-primary">
                 {product.price.toLocaleString('ko-KR')}원
               </p>
-              <p className="mt-2 text-xs font-bold text-zinc-400">
+              <p className="mt-1 text-caption text-fg-secondary">
                 {isMembership
                   ? `${product.durationDays ?? 30}일 이용권이 적용됩니다. 자동 갱신되지 않습니다.`
                   : `${(product.mileage ?? product.price).toLocaleString('ko-KR')} M이 충전됩니다.`}
@@ -305,7 +317,7 @@ export function KakaoPaymentDialog({
             </div>
 
             {error ? (
-              <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-600 dark:bg-red-950/30 dark:text-red-300">
+              <p role="alert" className="mt-4 rounded-control bg-danger-subtle p-3 text-label text-red-700 dark:text-fg-danger">
                 {error}
               </p>
             ) : null}
@@ -314,7 +326,7 @@ export function KakaoPaymentDialog({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-12 rounded-xl bg-zinc-100 px-4 text-sm font-black text-zinc-600 dark:bg-surface-elevated dark:text-zinc-300"
+                className="btn-secondary"
               >
                 취소
               </button>

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-for (const path of ['/home', '/posts/1']) {
+for (const path of ['/', '/posts/1']) {
   test(`late share preserves newer likes on ${path}`, async ({ page }) => {
     await mockApp(page, 'light');
     let release!: () => void;
@@ -40,7 +40,7 @@ for (const leave of [false, true]) {
         await route.fulfill({ json: { success: true, data: null } });
       } else await route.fulfill({ json: { success: true, data: { ...post, mine: true, authorHandle: 'viewer' } } });
     });
-    await page.goto('/home');
+    await page.goto('/');
     await page.goto('/posts/1');
     await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
     await page.getByRole('button', { name: '삭제', exact: true }).click();
@@ -54,7 +54,7 @@ for (const leave of [false, true]) {
     release();
     await response;
     await page.waitForTimeout(500);
-    await expect(page).toHaveURL(leave ? /\/bookmarks$/ : /\/home$/);
+    await expect(page).toHaveURL(leave ? /\/bookmarks$/ : /\/$/);
   });
 }
 
@@ -150,7 +150,7 @@ for (const width of [375, 1440]) {
       test.use({ viewport: { width, height: 1000 }, colorScheme: theme });
       test('메뉴·텍스트 선택·키보드·액션·멘션을 각각 조작한다', async ({ page }, info) => {
         await mockApp(page, theme);
-        await page.goto('/home');
+        await page.goto('/');
         if (theme === 'dark') await expect(page.locator('html')).toHaveClass(/dark/);
         else await expect(page.locator('html')).not.toHaveClass(/dark/);
         const article = page.locator('article').first();
@@ -203,7 +203,7 @@ for (const width of [375, 1440]) {
         await expect(reposted).toBeEnabled();
         await reposted.click();
         await expect(article.getByRole('button', { name: '리포스트', pressed: false })).toHaveText('0');
-        await expect(page).toHaveURL(/\/home$/);
+        await expect(page).toHaveURL(/\/$/);
         await article.getByRole('button', { name: '북마크 저장' }).click();
         await expect(page.getByRole('dialog')).toBeVisible();
         await page.keyboard.press('Escape');
@@ -216,7 +216,7 @@ for (const width of [375, 1440]) {
         await expect(page).toHaveURL(/\/profile\/alpha$/);
         await expect(page.getByText('프로필을 찾을 수 없습니다.')).toBeVisible();
 
-        await page.goto('/home');
+        await page.goto('/');
         await page.getByRole('button', { name: '작성자님의 게시글 열기', exact: true }).focus();
         await page.keyboard.press('Enter');
         await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
@@ -307,7 +307,7 @@ for (const width of [375, 1440]) {
 
       test('카드·상세 사진은 독립 확대되고 닫으면 해당 사진으로 포커스가 돌아온다', async ({ page }, info) => {
         await mockPostImages(page, theme);
-        for (const path of ['/home', '/posts/1']) {
+        for (const path of ['/', '/posts/1']) {
           await page.goto(path);
           const image = page.getByRole('button', { name: '게시글 이미지 2 확대 보기' });
           await expect(image).toBeVisible();
@@ -333,7 +333,7 @@ for (const width of [375, 1440]) {
           expect(box!.x).toBeGreaterThanOrEqual(0);
           expect(box!.x + box!.width).toBeLessThanOrEqual(width);
           expect(box!.height).toBeLessThanOrEqual(1000);
-          const screenshot = info.outputPath(path === '/home' ? 'card-image-preview.png' : 'detail-image-preview.png');
+          const screenshot = info.outputPath(path === '/' ? 'card-image-preview.png' : 'detail-image-preview.png');
           await page.screenshot({ path: screenshot, fullPage: true });
           await info.attach('image-preview', { path: screenshot, contentType: 'image/png' });
           await page.keyboard.press('Escape');
@@ -360,7 +360,7 @@ test('카드·상세의 리포스트 실패 복원과 본인 게시글 설명을
       status: 500, json: { success: false, message: '리포스트 실패 테스트' },
     });
   });
-  for (const path of ['/home', '/posts/1']) {
+  for (const path of ['/', '/posts/1']) {
     await page.goto(path);
     const button = page.getByRole('button', { name: '리포스트', pressed: false }).first();
     await button.click();
@@ -376,7 +376,7 @@ test('카드·상세의 리포스트 실패 복원과 본인 게시글 설명을
   await page.route('**/api/v1/posts/{post-1,by-number/1}', (route) => route.fulfill({
     json: { success: true, data: { ...post, mine: true } },
   }));
-  for (const path of ['/home', '/posts/1']) {
+  for (const path of ['/', '/posts/1']) {
     await page.goto(path);
     const button = page.getByRole('button', { name: '리포스트', pressed: false });
     await expect(button).toBeDisabled();
@@ -390,25 +390,25 @@ test.describe('모바일 터치', () => {
   for (const theme of ['light', 'dark'] as const) {
     test(`${theme}: 액션·멘션 터치와 본문 터치를 분리한다`, async ({ page }) => {
       await mockApp(page, theme);
-      await page.goto('/home');
+      await page.goto('/');
       const article = page.locator('article').first();
       await article.getByRole('button', { name: '좋아요 2개', pressed: false }).tap();
       await expect(article.getByRole('button', { name: '좋아요 3개', pressed: true })).toBeVisible();
-      await expect(page).toHaveURL(/\/home$/);
+      await expect(page).toHaveURL(/\/$/);
       await article.getByRole('link', { name: '@alpha' }).tap();
       await expect(page).toHaveURL(/\/profile\/alpha$/);
-      await page.goto('/home');
+      await page.goto('/');
       await page.locator('article').first().locator('p').first().tap({ position: { x: 12, y: 12 } });
       await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
     });
     test(`${theme}: 사진 터치는 확대만 열고 본문 터치는 상세를 연다`, async ({ page }) => {
       await mockPostImages(page, theme);
-      await page.goto('/home');
+      await page.goto('/');
       const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
       await image.tap();
       const preview = page.getByRole('dialog', { name: '게시글 이미지 1 확대' });
       await expect(preview).toBeVisible();
-      await expect(page).toHaveURL(/\/home$/);
+      await expect(page).toHaveURL(/\/$/);
       await preview.getByRole('button', { name: '이미지 확대 닫기' }).tap();
       await expect(preview).toHaveCount(0);
       await expect(image).toBeFocused();
@@ -427,7 +427,7 @@ test('점은 카드·상세·댓글에서 핸들 구분자로 처리되고 원�
   await page.route('**/api/v1/users/user', (route) => route.fulfill({
     status: 404, json: { success: false, message: '프로필을 찾을 수 없습니다.' },
   }));
-  for (const path of ['/home', '/posts/1']) {
+  for (const path of ['/', '/posts/1']) {
     await page.goto(path);
     const mentions = page.getByRole('link', { name: '@user', exact: true });
     await expect(mentions).toHaveCount(2);
@@ -448,7 +448,7 @@ test('점은 카드·상세·댓글에서 핸들 구분자로 처리되고 원�
 test('이미지 오류·배경 클릭·외부 화면 이동에도 확대 창과 배경 스크롤이 복구된다', async ({ page }) => {
   await mockPostImages(page, 'light');
   await page.route('**/fe7-image-2.svg', (route) => route.fulfill({ status: 404, body: 'missing image' }));
-  await page.goto('/home');
+  await page.goto('/');
   const broken = page.getByRole('button', { name: '게시글 이미지 2 확대 보기' });
   await broken.click();
   await expect(page.getByRole('dialog').getByRole('alert')).toHaveText('이미지를 불러오지 못했습니다.');
@@ -473,7 +473,7 @@ test('이미지 오류·배경 클릭·외부 화면 이동에도 확대 창과 
 
 test('새 이미지 확대 Esc와 뒤늦게 열린 알림 팝업 Esc가 동시에 처리되지 않는다', async ({ page }) => {
   await mockPostImages(page, 'light');
-  await page.goto('/home');
+  await page.goto('/');
   const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
   await image.click();
   await expect(page.getByRole('dialog')).toBeVisible();
@@ -558,7 +558,7 @@ test('본문·빈 영역 클릭과 비디오 컨트롤을 오버레이와 분리
     }] }],
   } } }));
   await page.route('**/fe7-test.webm', (route) => route.fulfill({ status: 204 }));
-  await page.goto('/home');
+  await page.goto('/');
   const article = page.locator('article').first();
   const video = article.locator('video');
   await expect(video).toBeVisible();
@@ -587,12 +587,12 @@ test('본문·빈 영역 클릭과 비디오 컨트롤을 오버레이와 분리
   await expect(video).toBeFocused();
   await page.keyboard.press('Space');
   await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(false);
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(/\/$/);
   await video.click();
   await expect(page.getByRole('button', { name: '작성자님의 게시글 열기', exact: true })).toBeVisible();
   await article.locator('p').first().click({ position: { x: 12, y: 12 } });
   await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
-  await page.goto('/home');
+  await page.goto('/');
   const box = await page.locator('article').first().boundingBox();
   await page.mouse.click(box!.x + box!.width - 12, box!.y + 100);
   await expect(page.getByRole('textbox', { name: '댓글 입력' })).toBeVisible();
@@ -671,10 +671,10 @@ test('문장 끝 점은 계정 조회 없이 평문으로 남고 카드·상세�
   page.on('request', (request) => {
     if (new URL(request.url()).pathname.startsWith('/api/v1/users/player')) lookups.push(request.url());
   });
-  for (const path of ['/home', '/posts/1']) {
+  for (const path of ['/', '/posts/1']) {
     await page.goto(path);
     const mentions = page.getByRole('link', { name: '@player', exact: true });
-    await expect(mentions).toHaveCount(path === '/home' ? 1 : 2);
+    await expect(mentions).toHaveCount(path === '/' ? 1 : 2);
     for (const mention of await mentions.all()) await expect(mention).toHaveAttribute('href', '/profile/player');
     await expect(page.getByRole('link', { name: '@player.', exact: true })).toHaveCount(0);
     await expect(page.getByRole('link', { name: '#댓글태그' })).toHaveCount(0);
@@ -693,7 +693,7 @@ test('점으로 끝나는 없는 핸들도 점 없는 프로필 찾을 수 없�
     lookups.push(new URL(route.request().url()).pathname);
     return route.fulfill({ status: 404, json: { success: false, message: '사용자를 찾을 수 없습니다.' } });
   });
-  await page.goto('/home');
+  await page.goto('/');
   await expect(page.getByRole('link', { name: '@exact', exact: true })).toHaveAttribute('href', '/profile/exact');
   await expect(page.getByRole('link', { name: '@abcdefghijklmnopqrst', exact: true })).toHaveAttribute('href', '/profile/abcdefghijklmnopqrst');
   const unknown = page.getByRole('link', { name: '@unknown', exact: true });
@@ -710,7 +710,7 @@ test('점 앞의 잘못된 후보를 잘라서 링크하지 않고 점 뒤의 @�
   await page.route('**/api/v1/feed?**', (route) => route.fulfill({ json: { success: true, data: {
     ...cursor, items: [{ ...post, content: '@ab.name @ABC.name @abcD. @abc한. @abcdefghijklmnopqrstu. .@alpha @.alpha' }],
   } } }));
-  await page.goto('/home');
+  await page.goto('/');
   const article = page.locator('article').first();
   await expect(article.getByText('@ab.name @ABC.name @abcD. @abc한. @abcdefghijklmnopqrstu. .@alpha @.alpha', { exact: true })).toBeVisible();
   await expect(article.getByRole('link', { name: /^@/ })).toHaveCount(0);
@@ -722,9 +722,9 @@ for (const width of [375, 1440]) {
       test.use({ viewport: { width, height: 1000 }, colorScheme: theme });
       test('카드·상세·댓글 멘션과 해시태그의 기본·호버 글자 대비가 4.5 이상이다', async ({ page }, info) => {
         await mockApp(page, theme);
-        for (const path of ['/home', '/posts/1']) {
+        for (const path of ['/', '/posts/1']) {
           await page.goto(path);
-          const names = path === '/home' ? ['@alpha', '#게임'] : ['@alpha', '#게임', '@bravo'];
+          const names = path === '/' ? ['@alpha', '#게임'] : ['@alpha', '#게임', '@bravo'];
           for (const name of names) {
             const link = page.getByRole('link', { name, exact: true });
             await expect(link).toBeVisible();
@@ -750,7 +750,7 @@ for (const width of [375, 1440]) {
               })).toBeGreaterThanOrEqual(4.5);
             }
           }
-          await page.screenshot({ path: info.outputPath(path === '/home' ? 'mention-card-contrast.png' : 'mention-detail-contrast.png'), fullPage: true });
+          await page.screenshot({ path: info.outputPath(path === '/' ? 'mention-card-contrast.png' : 'mention-detail-contrast.png'), fullPage: true });
         }
       });
     });

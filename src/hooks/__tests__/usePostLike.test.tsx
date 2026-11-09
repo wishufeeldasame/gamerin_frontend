@@ -166,3 +166,5 @@ describe('usePostLike', () => {
     expect(result.current.likeLoadingByPostId).toEqual({});
   });
 });
+
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: 'viewer-1', handle: 'viewer' }, isAuthReady: true }) }));
