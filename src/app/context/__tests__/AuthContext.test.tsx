@@ -45,6 +45,7 @@ function AuthHarness() {
     <div>
       <span>{isAuthReady ? 'ready' : 'loading'}</span>
       <span>{user?.nickname ?? 'no-user'}</span>
+      <span data-testid="profile-image">{user?.profileImageUrl ?? 'no-image'}</span>
       <span>{isSessionUnavailable ? 'session-unavailable' : 'session-checked'}</span>
       <span>{isAccountBlocked ? 'account-blocked' : 'account-not-blocked'}</span>
       <button type="button" onClick={() => void retrySessionRestore()}>
@@ -153,6 +154,21 @@ describe('AuthProvider session clearing', () => {
     beforeEach(() => {
       window.localStorage.setItem(authStore.AUTH_USER_KEY, JSON.stringify(savedUser));
       apiClient.apiRequest.mockReset();
+    });
+
+    it.each(['/uploads/new.jpg', null])('복원한 사진 %j를 정규화해 Context와 저장 사용자에 반영한다', async (profileImageUrl) => {
+      vi.stubEnv('NEXT_PUBLIC_API_BASE_URL', 'http://api.test');
+      onTestFinished(() => { vi.unstubAllEnvs(); });
+      window.localStorage.setItem(authStore.AUTH_USER_KEY, JSON.stringify({ ...savedUser, profileImageUrl: '/uploads/old.jpg' }));
+      authStore.refreshAccessTokenResult.mockResolvedValueOnce({ status: 'refreshed' } as never);
+      apiClient.apiRequest.mockResolvedValueOnce({ userId: savedUser.id, handle: 'demo', nickname: savedUser.nickname, profileImageUrl });
+
+      render(<AuthProvider><AuthHarness /></AuthProvider>);
+
+      await screen.findByText('ready');
+      const expected = profileImageUrl ? `http://api.test${profileImageUrl}` : null;
+      expect(screen.getByTestId('profile-image')).toHaveTextContent(expected ?? 'no-image');
+      expect(JSON.parse(window.localStorage.getItem(authStore.AUTH_USER_KEY)!)).toMatchObject({ profileImageUrl: expected });
     });
 
     it('탭별 재인증 마커가 있으면 bootstrap API를 한 번도 호출하지 않는다', async () => {
