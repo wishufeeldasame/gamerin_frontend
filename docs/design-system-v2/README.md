@@ -389,7 +389,7 @@ Components에는 이후 아이콘 13종(settings, log-out, eye-off, mail, lock, 
 | 항목 | 반영 |
 |---|---|
 | 매니페스트 | `src/app/manifest.ts`(`start_url /`(PR #194에서 변경), `scope /`, `display standalone`, 바탕·테마 `#19191D`). 아이콘은 `public/icons/`에 192·512·maskable 512(`logo.png` 가운데를 노란 바탕에 얹음) |
-| iOS 메타 | `appleWebApp`(`capable`, `title GamerIN`, `statusBarStyle black-translucent`), `icons.apple` 180. Next 15는 `capable`을 `mobile-web-app-capable`로만 내보내서 `apple-mobile-web-app-capable`을 `other`로 따로 넣었다 |
+| iOS 메타 | `appleWebApp`(`capable`, `title GamerIN`, `statusBarStyle default`(2026-11-09 후속)), `icons.apple` 180. Next 15는 `capable`을 `mobile-web-app-capable`로만 내보내서 `apple-mobile-web-app-capable`을 `other`로 따로 넣었다 |
 | theme-color | `viewport.themeColor #19191D`. 라이트 테마면 첫 화면 스크립트와 `applyThemeMode`가 `#FAFAFA`로 바꾼다. `media`별 지정(10-2 제안 3)은 앱 테마가 OS 설정과 따로 움직여서 쓰지 않았다 |
 | 안전 영역 | 모바일 상단 바·알림 페이지 헤더·전체 화면 검색에 `env(safe-area-inset-top)`, `--app-header-height`가 상단 바 높이를 포함한다 |
 | 앱 안 이동 | 멤버십 이동을 `router.push('/membership')`로 바꿨다(`Post.tsx`, `PostDetail.tsx`) |
@@ -436,7 +436,7 @@ Components에는 이후 아이콘 13종(settings, log-out, eye-off, mail, lock, 
 ### 10-3. 독립 실행(standalone) 화면 설계 반영 사항
 
 - **뒤로 버튼:** 웹앱 독립 실행에는 브라우저 뒤로가기가 없다. 모바일 시안의 상세·하위 화면에는 뒤로 버튼 헤더를 넣었다(F15). 코드에서도 상세 화면마다 앱 안 뒤로 수단을 둔다.
-- **상단 안전 영역:** `statusBarStyle: 'black-translucent'`를 쓰면 콘텐츠가 상태 표시줄 아래까지 올라간다. 모바일 상단 바와 뒤로 헤더에 `padding-top: env(safe-area-inset-top)`을 준다. 모바일 시안(390×844)에는 상태 표시줄 영역을 그리지 않았다.
+- **상단 안전 영역:** 2026-11-09에 `statusBarStyle: 'default'`로 전환했다. 시스템 반투명 오버레이를 요청하지 않고 상태 표시줄 아래에서 시작한다. 모바일 상단 바와 뒤로 헤더에 `padding-top: env(safe-area-inset-top)`을 준다. 모바일 시안(390×844)에는 상태 표시줄 영역을 그리지 않았다.
 - **하단 안전 영역:** 하단 탭 바와 바텀시트·모달 하단에 `env(safe-area-inset-bottom)`을 유지·추가한다. 시안의 탭 바 높이 82는 탭 56에 아래 여백을 더한 값이다.
 - **새로고침:** 독립 실행에서는 당겨서 새로고침이 브라우저처럼 동작하지 않을 수 있다(추정). 피드 새 글 알림이나 새로고침 동작을 검토한다.
 - **시작 화면 색:** 다크 기본이라 매니페스트 `background_color`를 다크로 둬서 실행 직후 흰 화면이 번쩍이지 않게 한다.
@@ -490,3 +490,16 @@ PR #201 병합(`1cd238a`)으로 전역 폰트·임시 API 정리까지 완료했
 회귀는 Chromium에서 VisualViewport 값 변화와 상하 안전 여백을 모의한다. 실제 iOS 키보드·standalone을 에뮬레이션한 결과가 아니며 기기 재확인이 필요하다. API·DB·Docker 설정 변경은 없다. 참고: [MDN VisualViewport](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport)는 키보드가 layout viewport와 별개로 visual viewport를 줄일 수 있음을 설명한다.
 
 검증: 전체 단위 1,171개, 메시지 E2E 79개(신규/기존 v2 15+기존 화면 64) 통과. 마지막 불필요한 뷰포트 재렌더 방지 변경 뒤 DM 단위 37개·E2E 15개를 재검증했다. 프로덕션 build·타입·공백 검사 통과, lint는 기존 경고 1개다. 실제 iOS 재현은 사용자 기기에서 확인 필요.
+
+
+### 2026-11-09 웹앱 상태바·DM 잔여 여백 재수정 (PR #202)
+
+상단 앱 바 CSS에는 blur가 없었다. `black-translucent` 상태바는 WebKit이 사용 중단·해제를 안내하므로 `default`로 전환했다. [WebKit 안내](https://bugs.webkit.org/show_bug.cgi?id=317153#c2). 실제 사용자 iOS 버전과 시스템 합성 결과는 원격에서 확인하지 못했으며, 해당 설정을 원인 후보로 판단한 변경이다. 기존 홈 화면 앱의 설치 시점 설정이 남는 기기는 아이콘 삭제 후 다시 추가하여 비교할 필요가 있다.
+
+기존 키보드 판정은 innerHeight에서 visualViewport.height를 빼므로 두 값이 함께 줄어들면 하단 safe-area 여백 제거가 누락됐다. 이를 기존 코드의 E2E 실패 2개로 재현했다. DM 입력 포커스 이전 높이를 보관하고 포커스·창 회전/폭 변경을 반영하여 키보드를 판정한다. resize/scroll과 focusin/focusout 구독은 이탈 시 정리한다. 키보드가 닫히면 하단 여백을 복원한다.
+
+입력에는 enterKeyHint=send를 지정해 Enter 동작을 알린다. 화살표·완료 보조 바는 Safari/홈 화면 앱이 관리하는 기본 UI이며 웹 CSS로 확실히 숨길 수 있다고 보장하지 않는다. UIKit inputAccessoryView 제어는 네이티브 앱 API로, 이 프로젝트에 네이티브 래퍼는 추가하지 않았다.
+
+검증: visual viewport만 축소·innerHeight와 clientHeight까지 축소하는 두 조건의 키보드 회귀, 기본 상태바 메타·불투명 헤더, 확대 이미지 포함 E2E 19개 통과. 실제 iOS 시스템 블러/키보드 표시를 Chromium이 재현한 것은 아니므로 실기기 확인은 필요하다. API·DB·Docker 설정은 바꾸지 않았다.
+
+검증 후속: 전체 단위 1,171개 통과, 포커스 이동 보정 최종 코드에서 DM 단위 37개와 E2E 19개 재검증 통과. 프로덕션 build·타입·공백 검사 통과. lint는 기존 캡처 스크립트 경고 1개다. 변경 diff를 직접 리뷰했고 추가 확정 문제는 찾지 못했다. 실제 iPhone 시스템 UI 재확인은 별도다.

@@ -76,37 +76,48 @@ test('메시지 검색 결과 없음과 긴 메시지 줄바꿈', async ({ page 
 });
 
 for (const theme of ['light', 'dark'] as const) {
-  test(`모바일 키보드 표시 영역과 복원 ${theme}`, async ({ page }) => {
-    await page.setViewportSize({ width: 390, height: 900 });
-    await installAuditFixture(page, theme);
-    await page.goto('/messages');
-    await page.getByRole('button', { name: /대화상대/ }).click();
-    await page.addStyleTag({ content: '[data-message-composer] { padding-bottom: 46px; }' });
-    await page.getByPlaceholder('메시지 입력').focus();
-    const shell = page.locator('[data-message-shell]');
-    const composer = page.locator('[data-message-composer]');
-    for (const [height, top] of [[470, 60], [430, 100], [900, 0]]) {
-      await page.evaluate(({ height, top }) => {
-        Object.defineProperties(window.visualViewport!, {
-          height: { configurable: true, value: height },
-          offsetTop: { configurable: true, value: top },
-        });
-        window.visualViewport!.dispatchEvent(new Event('resize'));
-        window.visualViewport!.dispatchEvent(new Event('scroll'));
-      }, { height, top });
-      await expect(shell).toHaveCSS('height', `${height}px`);
-      await expect(composer).toHaveCSS('padding-bottom', height < 900 ? '12px' : '46px');
-      const box = (await shell.boundingBox())!;
-      const input = (await composer.boundingBox())!;
-      expect(box.y).toBe(top);
-      expect(Math.round(input.y + input.height)).toBe(height + top);
-      expect(await composer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
-    }
-    await page.getByRole('button', { name: '대화 목록으로 돌아가기' }).click();
-    await expect(shell).toHaveCSS('position', 'static');
-    await expect(page.locator('body')).toHaveCSS('overflow', 'visible');
-    await expect(page.locator('body')).not.toHaveAttribute('data-chat-open');
-  });
+  for (const resizesLayout of [false, true]) {
+    test(`모바일 키보드 표시 영역과 복원 ${theme} layout-resize=${resizesLayout}`, async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 900 });
+      await installAuditFixture(page, theme);
+      await page.goto('/messages');
+      await page.getByRole('button', { name: /대화상대/ }).click();
+      await page.addStyleTag({ content: '[data-message-composer] { padding-bottom: 46px; }' });
+      await page.getByPlaceholder('메시지 입력').focus();
+      const shell = page.locator('[data-message-shell]');
+      const composer = page.locator('[data-message-composer]');
+      for (const [height, top] of [[470, 60], [430, 100], [900, 0]]) {
+        await page.evaluate(({ height, top, resizesLayout }) => {
+          if (resizesLayout) {
+            Object.defineProperty(window, 'innerHeight', { configurable: true, value: height });
+            Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: height });
+          }
+          Object.defineProperties(window.visualViewport!, {
+            height: { configurable: true, value: height },
+            offsetTop: { configurable: true, value: top },
+          });
+          window.visualViewport!.dispatchEvent(new Event('resize'));
+          window.visualViewport!.dispatchEvent(new Event('scroll'));
+        }, { height, top, resizesLayout });
+        await expect(shell).toHaveCSS('height', `${height}px`);
+        await expect(composer).toHaveCSS('padding-bottom', height < 900 ? '12px' : '46px');
+        const box = (await shell.boundingBox())!;
+        const input = (await composer.boundingBox())!;
+        expect(box.y).toBe(top);
+        expect(Math.round(input.y + input.height)).toBe(height + top);
+        if (height < 900) {
+          await page.getByRole('button', { name: '첨부 메뉴', exact: true }).focus();
+          await page.getByPlaceholder('메시지 입력').focus();
+          await expect(composer).toHaveCSS('padding-bottom', '12px');
+        }
+        expect(await composer.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+      }
+      await page.getByRole('button', { name: '대화 목록으로 돌아가기' }).click();
+      await expect(shell).toHaveCSS('position', 'static');
+      await expect(page.locator('body')).toHaveCSS('overflow', 'visible');
+      await expect(page.locator('body')).not.toHaveAttribute('data-chat-open');
+    });
+  }
 }
 
 for (const standalone of [false, true]) {

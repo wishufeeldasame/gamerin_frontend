@@ -16,8 +16,8 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: "GamerIN",
-    // 콘텐츠가 상태 표시줄 아래까지 올라오므로 상단 바·뒤로 헤더가 env(safe-area-inset-top)만큼 띄운다.
-    statusBarStyle: "black-translucent",
+    // 기본 상태바로 두어 설치 앱의 시스템 반투명 오버레이를 피한다.
+    statusBarStyle: "default",
   },
   icons: {
     apple: "/icons/apple-touch-icon.png",

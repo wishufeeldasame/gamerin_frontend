@@ -691,12 +691,19 @@ export default function MessagesPage() {
   const [viewport, setViewport] = useState<{ height: number; top: number; keyboard: boolean } | null>(null);
   useEffect(() => {
     const visual = window.visualViewport;
-    // iOS 키보드는 100dvh 대신 visual viewport를 줄인다.
+    const layoutHeight = () => Math.max(document.documentElement.clientHeight, window.innerHeight, visual?.height ?? 0);
+    let unfocusedHeight = layoutHeight();
+    let width = window.innerWidth;
     const update = () => {
+      const focused = Boolean(document.activeElement?.closest('[data-message-composer]'));
+      const height = visual?.height ?? window.innerHeight;
+      // 키보드가 열린 채 포커스가 이동해도 축소된 높이를 기준값으로 저장하지 않는다.
+      if (width !== window.innerWidth || (!focused && unfocusedHeight - height <= 150)) unfocusedHeight = layoutHeight();
+      width = window.innerWidth;
       const next = {
-        height: visual?.height ?? window.innerHeight,
+        height,
         top: visual?.offsetTop ?? 0,
-        keyboard: window.innerHeight - (visual?.height ?? window.innerHeight) > 150,
+        keyboard: focused && unfocusedHeight - height > 150,
       };
       setViewport(previous => previous?.height === next.height && previous.top === next.top && previous.keyboard === next.keyboard ? previous : next);
     };
@@ -704,10 +711,14 @@ export default function MessagesPage() {
     visual?.addEventListener('resize', update);
     visual?.addEventListener('scroll', update);
     window.addEventListener('resize', update);
+    document.addEventListener('focusin', update);
+    document.addEventListener('focusout', update);
     return () => {
       visual?.removeEventListener('resize', update);
       visual?.removeEventListener('scroll', update);
       window.removeEventListener('resize', update);
+      document.removeEventListener('focusin', update);
+      document.removeEventListener('focusout', update);
     };
   }, []);
   // 모바일에서 대화창을 열면 하단 탭바를 숨겨 대화 영역을 넓힌다(globals.css의 data-chat-open 규칙).
@@ -2003,6 +2014,7 @@ export default function MessagesPage() {
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   maxLength={MAX_MESSAGE_LENGTH}
+                  enterKeyHint="send"
                   placeholder="메시지 입력"
                   aria-label={`${activeConversation.recipient.name}님에게 메시지 보내기`}
                   className="input-base h-10 min-w-0 flex-1 border-transparent"
