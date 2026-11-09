@@ -27,7 +27,7 @@ function FindIdResultPageContent() {
       title="아이디를 찾았습니다"
       description="회원님의 정보와 일치하는 아이디입니다."
       icon={<CheckCircle2 size={28} />}
-      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
+      back={{ href: '/', label: '홈으로 돌아가기' }}
     >
       {/* 1. 왼쪽: GamerIN 로고 전용 영역 */}
       {/* 2. 오른쪽: 결과 표시 영역 */}

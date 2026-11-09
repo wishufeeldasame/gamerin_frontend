@@ -34,6 +34,48 @@ async function guestFixture(page: Page, theme: 'dark' | 'light') {
 
 for (const theme of ['dark', 'light'] as const) {
   for (const width of [1440, 375, 320]) {
+    test(`계정 화면 복귀와 멘토링 로그인 닫기 ${theme} ${width}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width === 1440 ? 1024 : 812 });
+      await guestFixture(page, theme);
+      await page.goto('/signup');
+      await expect(page.getByRole('heading', { name: '회원가입', exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: '로그인', exact: true })).toHaveCount(0);
+      await page.screenshot({ path: `/tmp/capstone-signup-${theme}-${width}.png`, fullPage: true });
+      await page.getByLabel('필수 항목 전체 동의').check();
+      await page.getByRole('button', { name: '다음', exact: true }).click();
+      await expect(page.getByLabel('아이디', { exact: true })).toBeVisible();
+      await expect(page.getByRole('link', { name: '로그인', exact: true })).toHaveCount(0);
+
+      for (const path of ['/find-id', '/find-id-result?maskedHandle=vi***', '/auth/forgot-password', '/find-Password']) {
+        await page.goto(path);
+        const back = page.getByRole('link', { name: '홈으로 돌아가기' });
+        await expect(back).toHaveAttribute('href', '/');
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+        await page.screenshot({ path: `/tmp/capstone-account-${path.split('?')[0].replaceAll('/', '-')}-${theme}-${width}.png`, fullPage: true });
+        await back.click();
+        await expect(page).toHaveURL('/');
+        await expect(page.getByRole('dialog', { name: '다시 오신 걸 환영해요' })).toHaveCount(0);
+      }
+
+      await page.goto('/mentoring');
+      const dialog = page.getByRole('dialog', { name: '다시 오신 걸 환영해요' });
+      for (const tabName of ['내 멘토링', '내 프로그램', '멘토 되기']) {
+        const tab = page.getByRole('tab', { name: tabName, exact: true });
+        await tab.click();
+        await expect(dialog).toBeVisible();
+        await expect(dialog.getByRole('textbox', { name: '아이디', exact: true })).toBeFocused();
+        if (tabName === '내 멘토링') await page.screenshot({ path: `/tmp/capstone-login-${theme}-${width}.png` });
+        await dialog.getByRole('button', { name: '로그인 닫기' }).click();
+        await expect(dialog).toHaveCount(0);
+        await expect(tab).toBeFocused();
+      }
+      await page.getByRole('tab', { name: '내 멘토링', exact: true }).click();
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByRole('tab', { name: '내 멘토링', exact: true })).toBeFocused();
+    });
+
     test(`게스트 공개 탐색과 중앙 로그인 모달 ${theme} ${width}`, async ({ page }) => {
       await page.setViewportSize({ width, height: width === 1440 ? 1024 : 812 });
       const calls = await guestFixture(page, theme);

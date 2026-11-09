@@ -72,7 +72,7 @@ export default function FindIdPage() {
           등록된 정보로 아이디를 검색합니다.
         </>
       }
-      back={{ href: '/?login=1', label: '로그인 창으로 돌아가기' }}
+      back={{ href: '/', label: '홈으로 돌아가기' }}
     >
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="space-y-2">
