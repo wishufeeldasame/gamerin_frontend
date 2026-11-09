@@ -479,3 +479,14 @@ Components에는 이후 아이콘 13종(settings, log-out, eye-off, mail, lock, 
 PR #201 병합(`1cd238a`)으로 전역 폰트·임시 API 정리까지 완료했다. 디자인 v2 구현 범위는 종료하며 실제 외부 서비스·iOS·느린 네트워크 확인은 별도 검증 항목이다.
 
 `develop`의 FE #192(탈퇴 Google 로그인 안내)와 v2의 로그인 페이지 삭제가 두 파일에서 충돌했다. `/login` 페이지 삭제를 유지하고 구형 페이지 테스트 대신 중앙 로그인 모달의 `account_withdrawn` 회귀를 유지했다. `develop` 전용 기능은 이 안내 변경뿐이며 모달에서도 해당 안내가 보존된다. 대상 `origin/develop` 대비 통합 diff를 직접 리뷰했으며 API 인증 정책·게스트 보호·안전한 복귀·결제 승인 미재개·테마 저장·조회수 집계와 기존 단계별 리뷰를 대조했다. 별도 Codex /review는 실행하지 않았다.
+
+
+### 2026-11-09 모바일 DM 키보드·이미지 확대 후속 (PR #202)
+
+사용자 iPhone 브라우저·홈 화면 앱에서 키보드 위 빈 공간과 확대 이미지 넘침·닫기 버튼 가림을 보고했다. DM 대화는 768px 미만에서 VisualViewport.height/offsetTop을 반영한 고정 표시 영역을 사용한다. resize/scroll·창 크기 변경을 구독하고 이탈 시 구독을 제거한다. 모바일 대화 중 body 스크롤을 막고 키보드로 영역이 크게 줄면 입력창의 하단 safe-area 여백을 중복 적용하지 않는다. 목록 복귀·페이지 이탈 시 기존 앱 바와 스크롤 상태를 복원한다.
+
+이미지 확대는 같은 표시 영역 높이와 노치/홈 인디케이터 safe-area를 사용하며 닫기 버튼·축소 이미지·파일명 공간을 따로 예약한다. 이미지 자체 높이만 88dvh로 제한하던 방식을 제거했다. 닫기 버튼은 앞 레이어에 두고 이미지에는 object-contain을 적용한다. 전송·첨부 인증 fetch·object URL 수명은 유지한다.
+
+회귀는 Chromium에서 VisualViewport 값 변화와 상하 안전 여백을 모의한다. 실제 iOS 키보드·standalone을 에뮬레이션한 결과가 아니며 기기 재확인이 필요하다. API·DB·Docker 설정 변경은 없다. 참고: [MDN VisualViewport](https://developer.mozilla.org/en-US/docs/Web/API/VisualViewport)는 키보드가 layout viewport와 별개로 visual viewport를 줄일 수 있음을 설명한다.
+
+검증: 전체 단위 1,171개, 메시지 E2E 79개(신규/기존 v2 15+기존 화면 64) 통과. 마지막 불필요한 뷰포트 재렌더 방지 변경 뒤 DM 단위 37개·E2E 15개를 재검증했다. 프로덕션 build·타입·공백 검사 통과, lint는 기존 경고 1개다. 실제 iOS 재현은 사용자 기기에서 확인 필요.

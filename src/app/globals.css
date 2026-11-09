@@ -278,3 +278,25 @@ body {
     display: none;
   }
 }
+
+.dm-image-lightbox {
+  top: var(--dm-viewport-top, 0px);
+  height: var(--dm-viewport-height, 100dvh);
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+}
+
+@media (max-width: 47.999rem) {
+  body[data-chat-open] { overflow: hidden; }
+
+  [data-message-shell][data-mobile-chat] {
+    position: fixed;
+    top: var(--dm-viewport-top, 0px);
+    left: 0;
+    right: 0;
+    height: var(--dm-viewport-height, 100dvh);
+  }
+
+  [data-message-shell][data-keyboard-open] [data-message-composer] {
+    padding-bottom: 0.75rem;
+  }
+}

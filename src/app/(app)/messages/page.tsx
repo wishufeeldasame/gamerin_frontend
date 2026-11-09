@@ -20,7 +20,7 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { type CSSProperties, ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getPostHref } from '@/lib/feed-api';
 import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
@@ -338,7 +338,7 @@ function ImageLightbox({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+      className="dm-image-lightbox fixed left-0 right-0 z-[200] flex flex-col items-center gap-3 bg-black/85 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -347,20 +347,20 @@ function ImageLightbox({
       <button
         type="button"
         onClick={onClose}
-        className="absolute right-4 top-4 flex h-11 w-11 items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
+        className="z-10 flex h-11 w-11 shrink-0 self-end items-center justify-center rounded-full bg-white/10 text-white transition hover:bg-white/20"
         aria-label="이미지 닫기"
       >
         <X size={20} />
       </button>
-      <div className="max-h-full max-w-6xl" onClick={(event) => event.stopPropagation()}>
+      <div className="min-h-0 w-full max-w-6xl flex-1" onClick={(event) => event.stopPropagation()}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={image.url}
           alt={image.name}
-          className="max-h-[88dvh] w-auto max-w-full rounded-card object-contain"
+          className="h-full w-full rounded-card object-contain"
         />
-        <p className="mt-3 text-center text-label text-white/80">{image.name}</p>
       </div>
+      <p onClick={(event) => event.stopPropagation()} className="max-h-20 w-full shrink-0 overflow-auto break-all text-center text-label text-white/80">{image.name}</p>
     </div>
   );
 }
@@ -688,6 +688,28 @@ export default function MessagesPage() {
   const [headerMenuOpen, setHeaderMenuOpen] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list');
+  const [viewport, setViewport] = useState<{ height: number; top: number; keyboard: boolean } | null>(null);
+  useEffect(() => {
+    const visual = window.visualViewport;
+    // iOS 키보드는 100dvh 대신 visual viewport를 줄인다.
+    const update = () => {
+      const next = {
+        height: visual?.height ?? window.innerHeight,
+        top: visual?.offsetTop ?? 0,
+        keyboard: window.innerHeight - (visual?.height ?? window.innerHeight) > 150,
+      };
+      setViewport(previous => previous?.height === next.height && previous.top === next.top && previous.keyboard === next.keyboard ? previous : next);
+    };
+    update();
+    visual?.addEventListener('resize', update);
+    visual?.addEventListener('scroll', update);
+    window.addEventListener('resize', update);
+    return () => {
+      visual?.removeEventListener('resize', update);
+      visual?.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
   // 모바일에서 대화창을 열면 하단 탭바를 숨겨 대화 영역을 넓힌다(globals.css의 data-chat-open 규칙).
   // v2는 상단 바도 숨기고 대화 헤더의 뒤로 버튼으로 목록에 돌아간다(F15).
   useEffect(() => {
@@ -1627,7 +1649,12 @@ export default function MessagesPage() {
   }
 
   return (
-    <div className="flex h-[calc(100dvh-var(--app-header-height)-var(--tab-bar-height))] overflow-hidden bg-canvas text-fg-primary md:bg-surface lg:my-5 lg:ml-6 lg:h-[calc(100dvh-40px)] lg:rounded-card lg:border lg:border-line-card [&_svg]:stroke-[1.67]">
+    <div
+      data-message-shell="true"
+      data-mobile-chat={mobileView === 'chat' ? '' : undefined}
+      data-keyboard-open={viewport?.keyboard ? '' : undefined}
+      style={viewport ? { '--dm-viewport-height': `${viewport.height}px`, '--dm-viewport-top': `${viewport.top}px` } as CSSProperties : undefined}
+      className="flex h-[calc(100dvh-var(--app-header-height)-var(--tab-bar-height))] overflow-hidden bg-canvas text-fg-primary md:bg-surface lg:my-5 lg:ml-6 lg:h-[calc(100dvh-40px)] lg:rounded-card lg:border lg:border-line-card [&_svg]:stroke-[1.67]">
       <section
         aria-label="대화 목록"
         className={`min-h-0 w-full shrink-0 flex-col md:flex md:w-[280px] md:border-r md:border-line xl:w-[340px] ${
@@ -1855,7 +1882,7 @@ export default function MessagesPage() {
               <div ref={messageEndRef} />
             </div>
 
-            <form onSubmit={handleSubmit} className="shrink-0 border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
+            <form data-message-composer="true" onSubmit={handleSubmit} className="shrink-0 border-t border-line p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] md:pb-3">
               {composerError ? (
                 <div role="alert" className="mb-3 flex items-center gap-2 rounded-control bg-danger-subtle px-4 py-3 text-label text-fg-danger">
                   <CircleAlert size={16} className="shrink-0" />
