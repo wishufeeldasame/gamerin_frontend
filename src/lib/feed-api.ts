@@ -1,3 +1,4 @@
+import { assertUploadJob, type UploadJob } from '@/lib/upload-jobs';
 import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 import {
   ApiError,
@@ -377,6 +378,18 @@ export async function createMultipartPost(formData: FormData): Promise<Multipart
     return { kind: 'videoJob', job: normalizePostVideoJob(data) };
   }
   return { kind: 'post', post: normalizePostRecord(data as PostRecord) };
+}
+
+export async function createPostUpload(formData: FormData, clientRequestId: string): Promise<UploadJob> {
+  formData.set('asyncUpload', 'true');
+  formData.set('clientRequestId', clientRequestId);
+  const job = assertUploadJob(await apiRequest<UploadJob>('/api/v1/posts', { method: 'POST', body: formData }));
+  return { ...job, post: job.post ? normalizePostRecord(job.post) : null };
+}
+
+export async function fetchPostUploadJob(id: string, byClientId = false): Promise<UploadJob> {
+  const job = assertUploadJob(await apiRequest<UploadJob>(`/api/v1/posts/upload-jobs/${byClientId ? 'by-client-id/' : ''}${encodeURIComponent(id)}`));
+  return { ...job, post: job.post ? normalizePostRecord(job.post) : null };
 }
 
 export async function fetchPostVideoJob(jobId: string, options: FeedRequestOptions = {}) {

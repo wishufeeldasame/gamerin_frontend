@@ -22,6 +22,7 @@ import Image from 'next/image';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type CSSProperties, ChangeEvent, FormEvent, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/app/context/AuthContext';
+import { useToast } from '@/app/context/ToastContext';
 import { getPostHref } from '@/lib/feed-api';
 import { isAuthError, toUploadErrorMessage } from '@/lib/api-client';
 import { getAuthGeneration, isCurrentAuthGeneration } from '@/lib/auth-store';
@@ -37,6 +38,8 @@ import {
   parseMessageRealtimeEvent,
   searchMessageRecipients,
   sendConversationMessage,
+  sendMessageUpload,
+  fetchMessageUploadJob,
 } from '@/lib/message-api';
 import {
   ChatAttachment,
@@ -54,6 +57,7 @@ import {
   shouldShowMessageDateSeparator,
 } from '@/lib/message-store';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
+import { loadUploadRecords, saveUploadRecord, removeUploadRecord, trackUpload, UploadJobError, UPLOAD_PHASE_LABELS } from '@/lib/upload-jobs';
 import { invalidateNotifications } from '@/lib/notification-sync';
 import { convertImagesForUpload } from '@/lib/profile-image-compression';
 import MessageDateSeparator from './MessageDateSeparator';
@@ -570,7 +574,8 @@ function PendingMessageBubble({
   onDiscard: () => void;
   onOpenImage: (image: ExpandedImage) => void;
 }) {
-  const failed = pendingMessage.status === 'failed';
+  const failed = ['failed', 'rejected', 'invalid', 'unavailable', 'missing'].includes(pendingMessage.status);
+  const uncertain = pendingMessage.status === 'unavailable' || pendingMessage.status === 'missing';
   const hasVideo = pendingMessage.attachments.some((attachment) => attachment.type === 'video');
 
   return (
@@ -581,7 +586,7 @@ function PendingMessageBubble({
             failed ? 'ring-1 ring-line-danger' : ''
           }`}
         >
-          {pendingMessage.text ? <p>{pendingMessage.text}</p> : null}
+          {pendingMessage.text ? <p>{pendingMessage.text}</p> : pendingMessage.upload && !pendingMessage.hasOriginal ? <p>첨부 업로드 상태</p> : null}
           {pendingMessage.attachments.length > 0 ? (
             <div className="mt-3 grid gap-2">
               {pendingMessage.attachments.map((attachment) => (
@@ -608,28 +613,28 @@ function PendingMessageBubble({
         {failed ? (
           <div role="alert" className="mt-2 flex flex-wrap items-center justify-end gap-2 text-caption text-fg-danger">
             <CircleAlert size={13} className="shrink-0" />
-            <span>전송 실패 · {pendingMessage.errorMessage}</span>
-            <button
+            <span>{uncertain ? '상태 확인 필요' : pendingMessage.status === 'rejected' ? '검열 거부' : '전송 실패'} · {pendingMessage.errorMessage}</span>
+            {pendingMessage.status !== 'rejected' && pendingMessage.status !== 'invalid' && (uncertain || !pendingMessage.upload || pendingMessage.hasOriginal) ? <button
               type="button"
               onClick={onRetry}
               className="inline-flex items-center gap-1 rounded-control bg-danger-subtle px-2.5 py-1 text-label text-fg-danger focus-visible:outline-2 focus-visible:outline-line-danger"
             >
               <RotateCw size={12} />
-              재시도
-            </button>
+              {uncertain ? '상태 다시 확인' : '재시도'}
+            </button> : <span>내용·파일을 수정해 새로 보내 주세요.</span>}
             <button
               type="button"
               onClick={onDiscard}
               className="inline-flex items-center gap-1 rounded-control bg-subtle px-2.5 py-1 text-label text-fg-secondary transition hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-fg-brand"
             >
               <Trash2 size={12} />
-              삭제
+              {uncertain ? '추적 닫기' : '삭제'}
             </button>
           </div>
         ) : (
           <div role="status" className="mt-2 flex items-center gap-1 text-caption text-fg-tertiary">
             <Loader2 size={12} className="animate-spin" />
-            <span>{hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
+            <span>{pendingMessage.upload ? UPLOAD_PHASE_LABELS[pendingMessage.uploadPhase ?? 'sending'] : hasVideo ? '동영상 업로드 중... 시간이 걸릴 수 있습니다' : '전송 중...'}</span>
           </div>
         )}
       </div>
@@ -649,6 +654,7 @@ function StreamReplacedNotice({ className = '' }: { className?: string }) {
 }
 
 export default function MessagesPage() {
+  const toast = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, isAuthReady } = useAuth();
@@ -659,11 +665,13 @@ export default function MessagesPage() {
   const messageEndRef = useRef<HTMLDivElement | null>(null);
   const messageElementRefs = useRef(new Map<string, HTMLDivElement>());
   const handledMessageDeepLinkRef = useRef('');
+  const handledConversationDeepLinkRef = useRef('');
   const activeConversationIdRef = useRef('');
   const attachmentsRef = useRef<DraftAttachment[]>([]);
   // 전송 대기열이 렌더 전에도 최신 임시 메시지를 읽도록 state와 함께 갱신한다.
   const pendingRef = useRef<Record<string, PendingChatMessage[]>>({});
   const sendQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const sendSessionRef = useRef(0);
   const messagesRef = useRef<Record<string, ChatMessage[]>>({});
 
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -763,7 +771,7 @@ export default function MessagesPage() {
     ? `${latestServerMessageId}|${latestPendingMessage.id}:${latestPendingMessage.status}`
     : latestServerMessageId;
   useUnloadWarning(
-    Object.values(pendingByConversation).some((items) => items.some((item) => item.status !== 'failed'))
+    Object.values(pendingByConversation).some((items) => items.some((item) => item.status === 'queued' || item.status === 'sending'))
   );
   const hasNextMessages = activeConversationId ? (hasNextByConversation[activeConversationId] ?? false) : false;
 
@@ -851,6 +859,8 @@ export default function MessagesPage() {
       revokeAttachmentUrls(attachmentsRef.current);
       revokeAttachmentUrls(Object.values(pendingRef.current).flat().flatMap((item) => item.attachments));
       // 대기열에 남은 메시지가 화면을 떠난 뒤 전송되지 않도록 비운다.
+      sendSessionRef.current += 1;
+      sendQueueRef.current = Promise.resolve();
       pendingRef.current = {};
     };
   }, [revokeAttachmentUrls]);
@@ -1262,12 +1272,18 @@ export default function MessagesPage() {
   };
 
   useEffect(() => {
-    if (!requestedConversationId) return;
+    if (!requestedConversationId) {
+      handledConversationDeepLinkRef.current = '';
+      return;
+    }
+    const deepLink = `${requestedConversationId}:${requestedMessageId}`;
+    if (handledConversationDeepLinkRef.current === deepLink) return;
     if (!conversations.some((conversation) => conversation.id === requestedConversationId)) return;
 
+    handledConversationDeepLinkRef.current = deepLink;
     setActiveConversationId(requestedConversationId);
     setMobileView('chat');
-  }, [conversations, requestedConversationId]);
+  }, [conversations, requestedConversationId, requestedMessageId]);
 
   useEffect(() => {
     if (
@@ -1335,7 +1351,8 @@ export default function MessagesPage() {
   useEffect(() => {
     for (const [conversationId, items] of Object.entries(pendingRef.current)) {
       const visible = hideDeliveredPendingMessages(items, messagesByConversation[conversationId] ?? []);
-      const delivered = items.filter((item) => item.status === 'failed' && !visible.includes(item));
+      const delivered = items.filter((item) => ['failed', 'unavailable', 'missing'].includes(item.status) && !visible.includes(item));
+      delivered.forEach((item) => { if (item.upload) removeUploadRecord(item.upload); });
       if (delivered.length === 0) continue;
 
       revokeAttachmentUrls(delivered.flatMap((item) => item.attachments));
@@ -1345,63 +1362,95 @@ export default function MessagesPage() {
 
   const discardPendingMessages = (conversationId: string, pendingId?: string) => {
     const targets = (pendingRef.current[conversationId] ?? []).filter((item) => !pendingId || item.id === pendingId);
+    targets.forEach((item) => { if (item.upload) removeUploadRecord(item.upload); });
     revokeAttachmentUrls(targets.flatMap((item) => item.attachments));
     updatePendingMessages(conversationId, (items) => items.filter((item) => !targets.includes(item)));
   };
 
-  // 대기열로 한 번에 하나씩 보내 연속 전송해도 서버 저장 순서가 보낸 순서와 같도록 한다.
+  // 파일 접수까지만 직렬화하고 서버 처리는 별도로 추적해 다음 전송을 막지 않는다.
   const enqueuePendingMessage = (conversationId: string, pendingId: string) => {
+    const session = sendSessionRef.current;
     sendQueueRef.current = sendQueueRef.current.then(async () => {
       const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
-      // 대화방을 나가거나 화면을 떠나 임시 메시지가 사라졌으면 보내지 않는다.
-      if (!target || target.status !== 'queued') return;
+      if (!target || target.status !== 'queued' || session !== sendSessionRef.current) return;
+      const active = () => session === sendSessionRef.current && isCurrentAuthGeneration(target.authGeneration) &&
+        !!pendingRef.current[conversationId]?.some((item) => item.id === pendingId);
       if (!isCurrentAuthGeneration(target.authGeneration)) {
         discardPendingMessages(conversationId, pendingId);
         return;
       }
-
+      if (!active()) return;
       updatePendingMessages(conversationId, (items) =>
-        items.map((item) => (item.id === pendingId ? { ...item, status: 'sending' } : item))
-      );
-
-      try {
-        const sentMessage = await sendConversationMessage({
-          conversationId,
-          content: target.text,
-          attachments: target.attachments.map((attachment) => attachment.file),
-          clientMessageId: target.id,
-        });
-
-        if (!pendingRef.current[conversationId]?.some((item) => item.id === pendingId)) return;
-
-        revokeAttachmentUrls(target.attachments);
-        updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
-        setMessagesByConversation((current) => ({
-          ...current,
-          [conversationId]: mergeMessages(current[conversationId] ?? [], [sentMessage]),
-        }));
-        updateConversationPreviewWithMessage(conversationId, sentMessage);
-        void loadConversations({ silent: true });
-      } catch (error) {
-        // 서버 저장 뒤 응답만 실패했고 SSE·폴링으로 이미 전달이 확인됐다면 실패로 되돌리지 않고 정리한다.
-        const sendingItem = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
-        if (
-          sendingItem &&
-          hideDeliveredPendingMessages([sendingItem], messagesRef.current[conversationId] ?? []).length === 0
-        ) {
-          discardPendingMessages(conversationId, pendingId);
-          return;
-        }
-        updatePendingMessages(conversationId, (items) =>
-          items.map((item) =>
-            item.id === pendingId
-              ? { ...item, status: 'failed', errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.') }
-              : item
-          )
-        );
-      }
+        items.map((item) => item.id === pendingId ? { ...item, status: 'sending' } : item));
+      let release!: () => void;
+      const accepted = new Promise<void>((resolve) => { release = resolve; });
+      const process = async () => {
+        try {
+          let sentMessage: ChatMessage | null;
+          if (target.upload) {
+            const job = await trackUpload(target.upload, {
+              recover: target.recoverUpload,
+              send: target.hasOriginal ? () => sendMessageUpload({ conversationId, content: target.text,
+                attachments: target.attachments.map((attachment) => attachment.file), clientMessageId: target.id }) : undefined,
+              fetchJob: fetchMessageUploadJob,
+              active,
+              onPhase: (phase) => {
+                updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId
+                  ? { ...item, status: phase === 'sending' ? 'sending' : 'processing', uploadPhase: phase } : item));
+                if (phase !== 'sending') release();
+              },
+            });
+            sentMessage = job.message;
+          } else {
+            sentMessage = await sendConversationMessage({ conversationId, content: target.text,
+              attachments: target.attachments.map((attachment) => attachment.file), clientMessageId: target.id });
+          }
+          if (!active()) return;
+          revokeAttachmentUrls(target.attachments);
+          updatePendingMessages(conversationId, (items) => items.filter((item) => item.id !== pendingId));
+          if (sentMessage) {
+            const deliveredMessage = sentMessage;
+            setMessagesByConversation((current) => ({ ...current,
+              [conversationId]: mergeMessages(current[conversationId] ?? [], [deliveredMessage]) }));
+            updateConversationPreviewWithMessage(conversationId, sentMessage);
+          }
+          if (target.upload) {
+            if (sentMessage) toast.success('첨부 업로드 완료', { placement: 'top' });
+            else toast.info('업로드 처리가 완료됐습니다. 삭제·숨김 또는 접근 권한 변경으로 메시지를 표시할 수 없습니다.');
+          }
+          void loadConversations({ silent: true });
+        } catch (error) {
+          if (!active()) return;
+          // SSE·폴링으로 먼저 전달됐다면 실패로 되돌리지 않는다.
+          if (hideDeliveredPendingMessages([target], messagesRef.current[conversationId] ?? []).length === 0) {
+            discardPendingMessages(conversationId, pendingId);
+            return;
+          }
+          updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId ? {
+            ...item, status: error instanceof UploadJobError ? error.kind : target.upload ? 'unavailable' : 'failed',
+            errorMessage: toUploadErrorMessage(error, '메시지 전송에 실패했습니다.'),
+          } : item));
+        } finally { release(); }
+      };
+      void process();
+      await accepted;
     });
   };
+
+  const enqueueRef = useRef(enqueuePendingMessage);
+  enqueueRef.current = enqueuePendingMessage;
+  useEffect(() => {
+    if (!isAuthReady || !user?.id) return;
+    for (const record of loadUploadRecords(user.id, 'message')) {
+      if (pendingRef.current[record.conversationId!]?.some((item) => item.id === record.clientId)) continue;
+      updatePendingMessages(record.conversationId!, (items) => [...items, {
+        id: record.clientId, text: '', attachments: [], status: 'queued', errorMessage: null,
+        upload: record, hasOriginal: false, recoverUpload: true, uploadPhase: 'processing',
+        authGeneration: getAuthGeneration(),
+      }]);
+      enqueueRef.current(record.conversationId!, record.clientId);
+    }
+  }, [isAuthReady, user?.id, updatePendingMessages]);
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1424,6 +1473,12 @@ export default function MessagesPage() {
       authGeneration: getAuthGeneration(),
     };
 
+    if (attachments.length > 0 && user) {
+      pendingMessage.upload = { userId: user.id, kind: 'message', clientId: pendingMessage.id, conversationId };
+      pendingMessage.hasOriginal = true;
+      pendingMessage.uploadPhase = 'sending';
+      saveUploadRecord(pendingMessage.upload);
+    }
     updatePendingMessages(conversationId, (items) => [...items, pendingMessage]);
     setComposerError('');
     setMessage('');
@@ -1435,10 +1490,19 @@ export default function MessagesPage() {
   };
 
   const handleRetryPendingMessage = (conversationId: string, pendingId: string) => {
-    updatePendingMessages(conversationId, (items) =>
-      items.map((item) => (item.id === pendingId ? { ...item, status: 'queued', errorMessage: null } : item))
-    );
-    enqueuePendingMessage(conversationId, pendingId);
+    const target = pendingRef.current[conversationId]?.find((item) => item.id === pendingId);
+    if (!target || !['failed', 'unavailable', 'missing'].includes(target.status)) return;
+    if (target.upload && target.status === 'failed' && !target.hasOriginal) return;
+    const next = { ...target, status: 'queued' as const, errorMessage: null, recoverUpload: true };
+    if (target.upload && target.status === 'failed') {
+      removeUploadRecord(target.upload);
+      next.id = createClientId();
+      next.upload = { ...target.upload, clientId: next.id, jobId: undefined };
+      next.recoverUpload = false;
+      saveUploadRecord(next.upload);
+    }
+    updatePendingMessages(conversationId, (items) => items.map((item) => item.id === pendingId ? next : item));
+    enqueuePendingMessage(conversationId, next.id);
   };
 
   const handleLoadOlderMessages = async () => {
@@ -1659,6 +1723,17 @@ export default function MessagesPage() {
     );
   }
 
+  const orphanUploads = !loadingConversations ? Object.entries(pendingByConversation)
+    .filter(([id]) => !conversations.some((conversation) => conversation.id === id))
+    .flatMap(([id, items]) => items.map((item) => (
+      <div key={item.id} className="m-3 rounded-control border border-line p-3">
+        <p className="mb-2 text-caption text-fg-secondary">접근할 수 없는 대화의 업로드</p>
+        <PendingMessageBubble pendingMessage={item}
+          onRetry={() => handleRetryPendingMessage(id, item.id)}
+          onDiscard={() => discardPendingMessages(id, item.id)} onOpenImage={handleOpenImage} />
+      </div>
+    ))) : [];
+
   return (
     <div
       data-message-shell="true"
@@ -1709,6 +1784,7 @@ export default function MessagesPage() {
         </div>
 
         <div ref={conversationListRef} className="min-h-0 flex-1 overflow-y-auto pb-4">
+          {orphanUploads}
           {showNewChat ? (
             <NewChatPicker
               onStart={handleStartConversation}
@@ -1757,6 +1833,7 @@ export default function MessagesPage() {
       >
         {/* 모바일 채팅 화면에서는 대화 목록 영역이 숨겨지므로 안내를 여기에도 둔다. */}
         {streamReplaced ? <StreamReplacedNotice className="md:hidden" /> : null}
+        {orphanUploads.length > 0 ? <div className="max-h-64 overflow-y-auto md:hidden">{orphanUploads}</div> : null}
         {activeConversation ? (
           <>
             <div className="z-10 flex shrink-0 items-center justify-between border-b border-line px-3 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] md:px-5 md:pt-3">

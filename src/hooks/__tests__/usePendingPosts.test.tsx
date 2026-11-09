@@ -1,216 +1,118 @@
 import { act, renderHook } from '@testing-library/react';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, MODERATION_REJECTED_MESSAGE } from '@/lib/api-client';
-import {
-  createJsonPost,
-  createMultipartPost,
-  fetchPostVideoJob,
-  type MultipartPostResult,
-  type PostRecord,
-  type PostVideoJob,
-} from '@/lib/feed-api';
-import { type PostDraft, usePendingPosts, VIDEO_JOB_POLL_INTERVAL_MS } from '@/hooks/usePendingPosts';
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
+import { ApiError } from '@/lib/api-client';
+import { createJsonPost, createPostUpload, fetchPostUploadJob, type PostRecord } from '@/lib/feed-api';
+import { usePendingPosts, type PostDraft, VIDEO_JOB_POLL_INTERVAL_MS } from '@/hooks/usePendingPosts';
+import { loadUploadRecords, saveUploadRecord, type UploadJob } from '@/lib/upload-jobs';
+import { setAccessToken, clearStoredAuth } from '@/lib/auth-store';
 
-vi.mock('@/lib/feed-api', () => ({
-  createJsonPost: vi.fn(),
-  createMultipartPost: vi.fn(),
-  fetchPostVideoJob: vi.fn(),
-}));
+vi.mock('@/lib/feed-api', () => ({ createJsonPost: vi.fn(), createPostUpload: vi.fn(), fetchPostUploadJob: vi.fn() }));
+const post = { postId: 'p-1', postNumber: 1 } as PostRecord;
+const draft = (media = true): PostDraft => ({ content: '본문', imageFiles: media ? [new File(['a'], 'a.png')] : [], videoFile: null, thumbnailFile: null });
+const job = (status: UploadJob['status'], overrides: Partial<UploadJob> = {}): UploadJob => ({
+  jobId: 'j-1', status, errorCode: null, errorMessage: null, post: null, message: null, ...overrides,
+});
 
-function deferred<T>() {
-  let resolve!: (value: T | PromiseLike<T>) => void;
-  let reject!: (reason?: unknown) => void;
-  const promise = new Promise<T>((promiseResolve, promiseReject) => {
-    resolve = promiseResolve;
-    reject = promiseReject;
-  });
-  return { promise, resolve, reject };
-}
-
-function draft(overrides: Partial<PostDraft> = {}): PostDraft {
-  return { content: '첫 게시글', imageFiles: [], videoFile: null, thumbnailFile: null, ...overrides };
-}
-
-const createdPost = { postId: 'post-1', postNumber: 1, content: '첫 게시글' } as PostRecord;
-const createdResult: MultipartPostResult = { kind: 'post', post: createdPost };
-const videoFile = () => new File(['v'], 'v.mp4', { type: 'video/mp4' });
-
-function videoJob(status: PostVideoJob['status'], overrides: Partial<PostVideoJob> = {}): PostVideoJob {
-  return { jobId: 'job-1', status, errorMessage: null, post: null, ...overrides };
-}
-let objectUrlCount = 0;
+beforeEach(() => {
+  vi.resetAllMocks(); localStorage.clear(); setAccessToken('test');
+  URL.createObjectURL = vi.fn(() => 'blob:preview'); URL.revokeObjectURL = vi.fn();
+});
+afterEach(() => { vi.useRealTimers(); });
 
 describe('usePendingPosts', () => {
-  beforeEach(() => {
-    objectUrlCount = 0;
-    vi.mocked(createJsonPost).mockReset();
-    vi.mocked(createMultipartPost).mockReset();
-    vi.mocked(fetchPostVideoJob).mockReset();
-    URL.createObjectURL = vi.fn(() => `blob:preview-${++objectUrlCount}`);
-    URL.revokeObjectURL = vi.fn();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-  });
-
-  it('제출 즉시 임시 게시글을 보여주고 성공하면 서버 게시글로 교체한다', async () => {
-    const request = deferred<MultipartPostResult>();
-    vi.mocked(createMultipartPost).mockReturnValue(request.promise);
+  it('텍스트만 작성하면 기존 동기 요청을 유지한다', async () => {
+    vi.mocked(createJsonPost).mockResolvedValue(post);
     const onCreated = vi.fn();
     const { result } = renderHook(() => usePendingPosts(onCreated));
-    const images = [new File(['a'], 'a.png', { type: 'image/png' }), new File(['b'], 'b.png', { type: 'image/png' })];
-
-    act(() => result.current.submit(draft({ imageFiles: images })));
-
-    expect(result.current.pendingPosts).toHaveLength(1);
-    expect(result.current.pendingPosts[0]).toMatchObject({
-      status: 'uploading',
-      previews: [
-        { type: 'image', url: 'blob:preview-1' },
-        { type: 'image', url: 'blob:preview-2' },
-      ],
-    });
-    const formData = vi.mocked(createMultipartPost).mock.calls[0][0];
-    expect(formData.get('content')).toBe('첫 게시글');
-    expect(formData.getAll('mediaFiles')).toHaveLength(2);
-
-    await act(async () => request.resolve(createdResult));
-
-    expect(onCreated).toHaveBeenCalledWith(createdPost);
-    expect(result.current.pendingPosts).toEqual([]);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1');
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-2');
+    await act(async () => result.current.submit(draft(false)));
+    expect(createJsonPost).toHaveBeenCalledWith({ content: '본문' });
+    expect(createPostUpload).not.toHaveBeenCalled();
+    expect(onCreated).toHaveBeenCalledWith(post);
   });
 
-  it('실패하면 내용을 유지한 채 실패 상태로 두고 재시도로 같은 내용을 다시 보낸다', async () => {
-    vi.mocked(createJsonPost).mockRejectedValueOnce(new ApiError('서버 오류', 500)).mockResolvedValueOnce(createdPost);
-    const onCreated = vi.fn();
-    const { result } = renderHook(() => usePendingPosts(onCreated));
-
-    await act(async () => result.current.submit(draft()));
-
-    expect(result.current.pendingPosts[0]).toMatchObject({
-      status: 'failed',
-      errorMessage: '서버 오류',
-      draft: { content: '첫 게시글' },
-    });
-
-    await act(async () => result.current.retry(result.current.pendingPosts[0].id));
-
-    expect(createJsonPost).toHaveBeenCalledTimes(2);
-    expect(createJsonPost).toHaveBeenLastCalledWith({ content: '첫 게시글' });
-    expect(onCreated).toHaveBeenCalledWith(createdPost);
-    expect(result.current.pendingPosts).toEqual([]);
-  });
-
-  it('검열 거부(422)는 정책 위반 문구로 표시하고 삭제하면 미리보기 URL을 해제한다', async () => {
-    vi.mocked(createMultipartPost).mockRejectedValue(new ApiError('Content violates moderation policy: x', 422));
-    const { result } = renderHook(() => usePendingPosts(vi.fn()));
-
-    await act(async () => result.current.submit(draft({ imageFiles: [new File(['a'], 'a.png')] })));
-
-    expect(result.current.pendingPosts[0].errorMessage).toBe(MODERATION_REJECTED_MESSAGE);
-    expect(URL.revokeObjectURL).not.toHaveBeenCalled();
-
-    act(() => result.current.discard(result.current.pendingPosts[0].id));
-
-    expect(result.current.pendingPosts).toEqual([]);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1');
-  });
-
-  it('언마운트하면 남은 미리보기 URL을 해제하고 늦은 응답은 반영하지 않는다', async () => {
-    const request = deferred<MultipartPostResult>();
-    vi.mocked(createMultipartPost).mockReturnValue(request.promise);
-    const onCreated = vi.fn();
-    const { result, unmount } = renderHook(() => usePendingPosts(onCreated));
-
-    act(() => result.current.submit(draft({ videoFile: videoFile() })));
-    unmount();
-
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1');
-
-    await act(async () => request.resolve(createdResult));
-    expect(onCreated).not.toHaveBeenCalled();
-  });
-
-  it('영상은 처리 작업이 끝날 때까지 업로드 중으로 두고 완료되면 게시글을 전달하고 완료 알림을 호출한다', async () => {
+  it('접수·처리 중 상태와 이탈 경고를 구분하고 완료 시 교체한다', async () => {
     vi.useFakeTimers();
-    vi.mocked(createMultipartPost).mockResolvedValue({ kind: 'videoJob', job: videoJob('QUEUED') });
-    vi.mocked(fetchPostVideoJob)
-      .mockResolvedValueOnce(videoJob('PROCESSING'))
-      .mockResolvedValueOnce(videoJob('COMPLETED', { post: createdPost }));
-    const onCreated = vi.fn();
-    const onVideoProcessed = vi.fn();
-    const { result } = renderHook(() => usePendingPosts(onCreated, { onVideoProcessed }));
-
-    await act(async () => result.current.submit(draft({ videoFile: videoFile() })));
-
-    expect(result.current.pendingPosts[0]).toMatchObject({ status: 'uploading', phase: 'processing' });
-    expect(onCreated).not.toHaveBeenCalled();
-
+    let resolve!: (value: UploadJob) => void;
+    vi.mocked(createPostUpload).mockReturnValue(new Promise((done) => { resolve = done; }));
+    vi.mocked(fetchPostUploadJob).mockResolvedValueOnce(job('PROCESSING')).mockResolvedValueOnce(job('COMPLETED', { post }));
+    const onCreated = vi.fn(); const onVideoProcessed = vi.fn();
+    const { result } = renderHook(() => usePendingPosts(onCreated, { userId: 'u-1', onVideoProcessed }));
+    act(() => result.current.submit(draft()));
+    const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    const key = result.current.pendingPosts[0].id;
+    expect(createPostUpload).toHaveBeenCalledWith(expect.any(FormData), key);
+    expect(localStorage.getItem('gamerin_upload_jobs')).not.toContain('본문');
+    await act(async () => resolve(job('QUEUED')));
+    expect(result.current.pendingPosts[0].phase).toBe('queued');
+    const acceptedEvent = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(acceptedEvent);
+    expect(acceptedEvent.defaultPrevented).toBe(false);
     await act(async () => vi.advanceTimersByTimeAsync(VIDEO_JOB_POLL_INTERVAL_MS));
-    expect(result.current.pendingPosts).toHaveLength(1);
-
-    await act(async () => vi.advanceTimersByTimeAsync(VIDEO_JOB_POLL_INTERVAL_MS));
-
-    expect(fetchPostVideoJob).toHaveBeenCalledWith('job-1');
-    expect(result.current.pendingPosts).toEqual([]);
-    expect(onCreated).toHaveBeenCalledWith(createdPost);
-    expect(onVideoProcessed).toHaveBeenCalledTimes(1);
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview-1');
-  });
-
-  it('서버 처리가 실패하면 서버 문구로 실패 상태가 되고 일시 오류는 다시 확인한다', async () => {
-    vi.useFakeTimers();
-    vi.mocked(createMultipartPost).mockResolvedValue({ kind: 'videoJob', job: videoJob('QUEUED') });
-    vi.mocked(fetchPostVideoJob)
-      .mockRejectedValueOnce(new ApiError('Network error', 0, 'unavailable'))
-      .mockRejectedValueOnce(new ApiError('Invalid response', 200, 'invalid-response'))
-      .mockResolvedValueOnce(videoJob('FAILED', { errorMessage: '영상 처리 시간이 초과됐습니다.' }));
-    const onVideoProcessed = vi.fn();
-    const { result } = renderHook(() => usePendingPosts(vi.fn(), { onVideoProcessed }));
-
-    await act(async () => result.current.submit(draft({ videoFile: videoFile() })));
-    await act(async () => vi.advanceTimersByTimeAsync(VIDEO_JOB_POLL_INTERVAL_MS * 3));
-
-    expect(fetchPostVideoJob).toHaveBeenCalledTimes(3);
-    expect(result.current.pendingPosts[0]).toMatchObject({
-      status: 'failed',
-      errorMessage: '영상 처리 시간이 초과됐습니다.',
-    });
-    expect(onVideoProcessed).not.toHaveBeenCalled();
-  });
-
-  it('파일을 보내는 동안만 페이지 이탈 경고를 켜고 서버 처리 중에는 끈다', async () => {
-    vi.useFakeTimers();
-    const request = deferred<MultipartPostResult>();
-    vi.mocked(createMultipartPost).mockReturnValue(request.promise);
-    vi.mocked(fetchPostVideoJob).mockResolvedValue(videoJob('PROCESSING'));
-    const addListener = vi.spyOn(window, 'addEventListener');
-    const removeListener = vi.spyOn(window, 'removeEventListener');
-    const { result } = renderHook(() => usePendingPosts(vi.fn()));
-
-    act(() => result.current.submit(draft({ videoFile: videoFile() })));
-    expect(addListener).toHaveBeenCalledWith('beforeunload', expect.any(Function));
-
-    await act(async () => request.resolve({ kind: 'videoJob', job: videoJob('QUEUED') }));
-
     expect(result.current.pendingPosts[0].phase).toBe('processing');
-    expect(removeListener).toHaveBeenCalledWith('beforeunload', expect.any(Function));
+    await act(async () => vi.advanceTimersByTimeAsync(VIDEO_JOB_POLL_INTERVAL_MS));
+    expect(onCreated).toHaveBeenCalledWith(post); expect(onVideoProcessed).toHaveBeenCalledWith(post);
+    expect(result.current.pendingPosts).toEqual([]);
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:preview');
   });
 
-  it('처리 중에 언마운트하면 상태 확인을 멈춘다', async () => {
-    vi.useFakeTimers();
-    vi.mocked(createMultipartPost).mockResolvedValue({ kind: 'videoJob', job: videoJob('QUEUED') });
-    vi.mocked(fetchPostVideoJob).mockResolvedValue(videoJob('PROCESSING'));
-    const { result, unmount } = renderHook(() => usePendingPosts(vi.fn()));
-
-    await act(async () => result.current.submit(draft({ videoFile: videoFile() })));
-    unmount();
-    await act(async () => vi.advanceTimersByTimeAsync(VIDEO_JOB_POLL_INTERVAL_MS * 3));
-
-    expect(fetchPostVideoJob).not.toHaveBeenCalled();
+  it('통신 장애에서는 키를 유지하고 404 확인 뒤 같은 원본을 재전송한다', async () => {
+    vi.mocked(createPostUpload).mockRejectedValueOnce(new ApiError('통신', 0)).mockResolvedValueOnce(job('COMPLETED', { post }));
+    vi.mocked(fetchPostUploadJob).mockRejectedValue(new ApiError('없음', 404));
+    const { result } = renderHook(() => usePendingPosts(vi.fn(), { userId: 'u-1' }));
+    await act(async () => result.current.submit(draft()));
+    const key = result.current.pendingPosts[0].id;
+    expect(result.current.pendingPosts[0].status).toBe('unavailable');
+    await act(async () => result.current.retry(key));
+    expect(vi.mocked(createPostUpload).mock.calls.map((call) => call[1])).toEqual([key, key]);
+    expect(fetchPostUploadJob).toHaveBeenCalledWith(key, true);
   });
+
+  it('명시적 시스템 실패 재시도만 새 키를 만들고 검열 거부는 새 작성으로 안내한다', async () => {
+    vi.mocked(createPostUpload).mockResolvedValueOnce(job('FAILED', { errorCode: 'PROCESSING_FAILED', errorMessage: '처리 실패' }))
+      .mockResolvedValueOnce(job('FAILED', { errorCode: 'MODERATION_REJECTED', errorMessage: '검열 거부' }));
+    const { result } = renderHook(() => usePendingPosts(vi.fn()));
+    await act(async () => result.current.submit(draft()));
+    const oldKey = result.current.pendingPosts[0].id;
+    await act(async () => result.current.retry(oldKey));
+    expect(vi.mocked(createPostUpload).mock.calls[1][1]).not.toBe(oldKey);
+    expect(result.current.pendingPosts[0].status).toBe('rejected');
+    act(() => result.current.retry(result.current.pendingPosts[0].id));
+    expect(createPostUpload).toHaveBeenCalledTimes(2);
+  });
+
+  it('복귀하면 같은 사용자 메타데이터만 조회하며 원본 없는 404를 표시한다', async () => {
+    saveUploadRecord({ userId: 'u-1', kind: 'post', clientId: 'key-1' });
+    saveUploadRecord({ userId: 'u-2', kind: 'post', clientId: 'key-2' });
+    vi.mocked(fetchPostUploadJob).mockRejectedValue(new ApiError('없음', 404));
+    const { result } = renderHook(() => usePendingPosts(vi.fn(), { userId: 'u-1' }));
+    await act(async () => {});
+    expect(fetchPostUploadJob).toHaveBeenCalledWith('key-1', true);
+    expect(result.current.pendingPosts[0]).toMatchObject({ status: 'missing', hasOriginal: false });
+    await act(async () => result.current.retry('key-1'));
+    expect(createPostUpload).not.toHaveBeenCalled();
+    expect(loadUploadRecords('u-2', 'post')).toHaveLength(1);
+  });
+
+  it.each(['unmount', 'auth'])('%s 뒤 늦은 접수 결과는 반영하지 않는다', async (mode) => {
+    let resolve!: (value: UploadJob) => void;
+    vi.mocked(createPostUpload).mockReturnValue(new Promise((done) => { resolve = done; }));
+    const onCreated = vi.fn();
+    const { result, unmount } = renderHook(() => usePendingPosts(onCreated, { userId: 'u-1' }));
+    act(() => result.current.submit(draft()));
+    if (mode === 'unmount') unmount(); else clearStoredAuth();
+    await act(async () => resolve(job('COMPLETED', { post })));
+    expect(onCreated).not.toHaveBeenCalled(); expect(fetchPostUploadJob).not.toHaveBeenCalled();
+    expect(loadUploadRecords('u-1', 'post')).toHaveLength(1);
+  });
+  it('동영상·썸네일도 같은 비동기 경로에 원본 그대로 보낸다', async () => {
+    vi.mocked(createPostUpload).mockResolvedValue(job('COMPLETED', { post }));
+    const videoFile = new File(['video'], 'v.mp4', { type: 'video/mp4' });
+    const thumbnailFile = new File(['thumb'], 'thumb.jpg', { type: 'image/jpeg' });
+    const { result } = renderHook(() => usePendingPosts(vi.fn()));
+    await act(async () => result.current.submit({ ...draft(false), videoFile, thumbnailFile }));
+    const form = vi.mocked(createPostUpload).mock.calls[0][0];
+    expect(form.get('mediaFiles')).toBe(videoFile);
+    expect(form.get('thumbnailFile')).toBe(thumbnailFile);
+  });
+
 });

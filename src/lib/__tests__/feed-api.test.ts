@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createComment, fetchPostComments, fetchPostDetailByNumber, fetchUserRecommendations, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
+import { createPostUpload, fetchPostUploadJob, createComment, fetchPostComments, fetchPostDetailByNumber, fetchUserRecommendations, getPostHref, normalizePostRecord, recordPostViews, type PostRecord } from '@/lib/feed-api';
 
 const apiRequest = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/api-client', async (importOriginal) => ({
@@ -94,5 +94,25 @@ describe('게시글 숫자 URL', () => {
 
     expect(apiRequest.mock.calls[0][0]).toBe('/api/v1/posts/by-number/7');
     expect(post).toMatchObject({ postId: 'uuid-1', postNumber: 7 });
+  });
+});
+
+
+describe('게시물 비동기 업로드 API', () => {
+  it('기존 multipart 필드를 유지하고 opt-in·UUID를 보낸다', async () => {
+    const job = { jobId: 'job-1', status: 'QUEUED', errorCode: null, errorMessage: null, post: null, message: null };
+    apiRequest.mockResolvedValueOnce(job);
+    const form = new FormData(); form.append('mediaFiles', new File(['a'], 'a.png'));
+    expect(await createPostUpload(form, 'key-1')).toEqual(job);
+    expect(form.get('asyncUpload')).toBe('true'); expect(form.get('clientRequestId')).toBe('key-1');
+    expect(form.getAll('mediaFiles')).toHaveLength(1);
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts', expect.anything(), { method: 'POST', body: form });
+  });
+  it('새 upload-jobs 경로를 조회하고 완료 게시물의 자산 주소를 정규화한다', async () => {
+    apiRequest.mockResolvedValueOnce({ jobId: 'job-1', status: 'COMPLETED', errorCode: null, errorMessage: null, message: null,
+      post: { postId: 'p-1', media: [{ mediaId: 'a-1', mediaType: 'IMAGE', mediaUrl: '/uploads/a.png' }] } });
+    const result = await fetchPostUploadJob('key/1', true);
+    expect(result.post?.media[0].mediaUrl).toBe('http://api.test/uploads/a.png');
+    expect(apiRequest).toHaveBeenLastCalledWith('/api/v1/posts/upload-jobs/by-client-id/key%2F1', expect.anything(), {});
   });
 });

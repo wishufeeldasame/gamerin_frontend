@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useMemo, useRef, type ReactNode } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
 import { useToast } from '@/app/context/ToastContext';
 import { usePendingPosts } from '@/hooks/usePendingPosts';
 import type { PostRecord } from '@/lib/feed-api';
@@ -15,11 +16,12 @@ type PendingPostsContextValue = ReturnType<typeof usePendingPosts> & {
 const PendingPostsContext = createContext<PendingPostsContextValue | null>(null);
 
 /**
- * 업로드 중인 게시물을 앱 공통 레이아웃에서 관리한다. 영상은 서버 처리에 시간이 걸리므로
+ * 업로드 중인 게시물을 앱 공통 레이아웃에서 관리한다. 미디어는 서버 처리에 시간이 걸리므로
  * 다른 화면으로 이동해도 처리 상태를 계속 확인하고, 끝나면 상단에 "업로드 완료"를 띄운다.
  */
 export function PendingPostsProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
+  const { user } = useAuth();
   const listenersRef = useRef(new Set<CreatedPostListener>());
 
   const handleCreated = useCallback((post: PostRecord) => {
@@ -31,6 +33,7 @@ export function PendingPostsProvider({ children }: { children: ReactNode }) {
 
   const { pendingPosts, submit, retry, discard } = usePendingPosts(handleCreated, {
     onVideoProcessed: handleVideoProcessed,
+    userId: user?.id,
   });
 
   const subscribeCreated = useCallback((listener: CreatedPostListener) => {

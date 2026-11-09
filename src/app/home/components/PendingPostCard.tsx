@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { CircleAlert, Loader2, RotateCw, Trash2 } from 'lucide-react';
 import { useAuth } from '@/app/context/AuthContext';
 import { getInitials } from '@/lib/feed-api';
+import { UPLOAD_PHASE_LABELS } from '@/lib/upload-jobs';
 import type { PendingPost } from '@/hooks/usePendingPosts';
 
 interface PendingPostCardProps {
@@ -15,14 +16,14 @@ interface PendingPostCardProps {
 // 서버 id가 없는 임시 게시물이라 좋아요·리포스트·북마크·공유·상세 이동 버튼을 두지 않는다.
 export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPostCardProps) {
   const { user } = useAuth();
-  const failed = pendingPost.status === 'failed';
-  const hasVideo = pendingPost.previews.some((preview) => preview.type === 'video');
+  const failed = pendingPost.status !== 'uploading';
+  const uncertain = pendingPost.status === 'unavailable' || pendingPost.status === 'missing';
   const author = user?.nickname ?? '';
 
   return (
     <article
       aria-busy={!failed}
-      aria-label={failed ? '업로드 실패한 게시글' : '업로드 중인 게시글'}
+      aria-label={failed ? (uncertain ? '상태 확인이 필요한 게시글' : '업로드 실패한 게시글') : '업로드 중인 게시글'}
       className={`overflow-hidden rounded-card border bg-surface ${failed ? 'border-line-danger' : 'border-line-card'}`}
     >
       <div className="px-4 pb-3 pt-4 md:px-5 md:pt-5">
@@ -39,12 +40,12 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
             {failed ? (
               <p role="alert" className="flex items-center gap-1 text-caption text-fg-danger">
                 <CircleAlert size={12} className="shrink-0" />
-                {pendingPost.errorMessage}
+                {pendingPost.status === 'rejected' ? '검열 거부 · ' : ''}{pendingPost.errorMessage}
               </p>
             ) : (
               <p role="status" className="flex items-center gap-1 text-caption text-fg-tertiary">
                 <Loader2 size={12} className="animate-spin" />
-                {hasVideo ? '동영상 업로드 중... 처리에 시간이 걸릴 수 있습니다' : '업로드 중...'}
+                {UPLOAD_PHASE_LABELS[pendingPost.phase]}
               </p>
             )}
           </div>
@@ -72,21 +73,21 @@ export function PendingPostCard({ pendingPost, onRetry, onDiscard }: PendingPost
 
       {failed ? (
         <div className="flex justify-end gap-2 px-4 pb-4 md:px-5">
-          <button
+          {pendingPost.status !== 'rejected' && pendingPost.status !== 'invalid' && (uncertain || pendingPost.hasOriginal) ? <button
             type="button"
             onClick={() => onRetry(pendingPost.id)}
             className="btn-secondary h-8 px-3"
           >
             <RotateCw size={14} />
-            재시도
-          </button>
+            {uncertain ? '상태 다시 확인' : '재시도'}
+          </button> : <p className="text-caption text-fg-secondary">{pendingPost.status === 'rejected' || pendingPost.status === 'invalid' ? '내용·파일을 수정해 새로 작성해 주세요.' : '다시 작성하려면 파일을 선택해 주세요.'}</p>}
           <button
             type="button"
             onClick={() => onDiscard(pendingPost.id)}
             className="btn-secondary h-8 px-3 text-fg-danger"
           >
             <Trash2 size={14} />
-            삭제
+            {uncertain ? '추적 닫기' : '삭제'}
           </button>
         </div>
       ) : null}

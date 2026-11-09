@@ -1,3 +1,4 @@
+vi.mock('@/app/context/ToastContext', () => ({ useToast: () => ({ success: vi.fn(), info: vi.fn(), error: vi.fn() }) }));
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '@/lib/api-client';
