@@ -1,5 +1,8 @@
 # GamerIN Frontend
 
+전역 글꼴은 동봉 Noto Sans KR 가변 WOFF2를 `next/font/local`로 재사용합니다. 일반·인증·관리자·번호 표시는 같은 글꼴이며 `font-sans`도 전역 변수에 연결합니다. 약 3.9MB 파일은 `display: swap`, `preload: false`로 로드합니다.
+
+
 ## 공통 모달·기타 화면 v2
 
 공유·게임 전적 연결·프로필/게시글 수정·모음집 저장·신고는 1024px 이상에서 중앙 모달, 그 아래에서 손잡이와 안전 영역을 갖춘 하단 시트다. 공통 `modal-overlay`, `modal-panel`, `modal-handle`과 v2 입력·버튼·색상 토큰을 사용한다. 네이티브 공통 확인창과 신고의 최종 확인창은 중앙에 유지한다.

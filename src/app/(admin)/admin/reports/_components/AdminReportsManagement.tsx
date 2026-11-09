@@ -503,7 +503,7 @@ function AdminReportsManagementContent({ accountKey }: { accountKey: string }) {
               <tbody>
                 {reports.map((report) => (
                   <tr key={report.reportUuid} className="h-[77px] border-b border-[#f2f4f7] last:border-b-0">
-                    <td className="px-5 font-mono text-xs font-bold text-[#315ef5]"><Link href={`/admin/reports/${encodeURIComponent(report.id)}`} className="underline-offset-2 hover:underline">{report.id}</Link></td>
+                    <td className="px-5 font-sans text-xs font-bold text-[#315ef5]"><Link href={`/admin/reports/${encodeURIComponent(report.id)}`} className="underline-offset-2 hover:underline">{report.id}</Link></td>
                     <td>
                       <div className="flex flex-col items-start gap-1">
                         <span className="rounded bg-[#f2f4f7] px-1.5 py-0.5 text-[11px] font-semibold text-[#667085]">{report.targetType}</span>

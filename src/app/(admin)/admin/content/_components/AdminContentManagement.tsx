@@ -265,7 +265,7 @@ function AdminContentManagementContent() {
                       <td className="px-5 text-[13px] font-semibold text-[#172033]">
                         {targetTypeLabel[content.targetType]}
                       </td>
-                      <td className="truncate font-mono text-[11px] text-[#667085]">
+                      <td className="truncate font-sans text-[11px] text-[#667085]">
                         {content.targetId}
                       </td>
                       <td className="text-[13px] font-semibold text-[#344054]">

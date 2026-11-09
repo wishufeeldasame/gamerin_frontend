@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { adminFont } from '@/app/(admin)/admin/_components/admin-font';
 // 1. 전역 인증 상태 관리를 위해 AuthProvider를 가져옵니다.
 import { AuthProvider } from '@/app/context/AuthContext';
 import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
@@ -42,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ko" suppressHydrationWarning>
+    <html lang="ko" className={adminFont.variable} suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -65,7 +66,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased">
+      <body className="font-sans antialiased">
         {/* 3. AuthProvider로 전체를 감싸서 로그인 상태를 전역으로 관리합니다. */}
         <AuthProvider>
           <BookmarkCollectionProvider>
