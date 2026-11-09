@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { expect, test } from '@playwright/test';
 import { installDemoCapture } from './support/demo-capture';
 
@@ -24,4 +26,128 @@ test('전시 촬영용 실제 페이지 확인', async ({ page }, info) => {
   await page.getByRole('region', { name: '대화 목록' }).getByRole('button', { name: /클러치코치/ }).click();
   await expect(page.getByRole('region', { name: '메시지 대화' }).getByText('에임은 좋아요. 다음엔 엄폐물 쪽으로 한 발 물러나 각을 하나씩 확인해보세요.', { exact: true })).toBeVisible();
   await page.screenshot({ path: info.outputPath('04-messages.png') });
+});
+
+test('실제 화면 전시 영상 촬영', async ({ page, context }) => {
+  test.skip(!process.env.DEMO_CAPTURE_DIR, 'DEMO_CAPTURE_DIR 지정 시에만 실제 영상 자료를 생성한다.');
+  test.setTimeout(180_000);
+  page.setDefaultTimeout(8000);
+  const output = process.env.DEMO_CAPTURE_DIR!;
+  await mkdir(output, { recursive: true });
+  const { state, writes } = await installDemoCapture(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addInitScript(() => {
+    const style = document.createElement('style');
+    style.textContent = 'nextjs-portal { display: none !important; }';
+    document.addEventListener('DOMContentLoaded', () => document.head.appendChild(style), { once: true });
+  });
+  const cdp = await context.newCDPSession(page);
+  const clips: { name: string; start: number; duration: number; rawDuration: number; frames: { file: string; at: number }[] }[] = [];
+  async function record(name: string, start: number, duration: number, action: () => Promise<void>) {
+    const frames: { file: string; at: number }[] = [];
+    const pending: Promise<void>[] = [];
+    let first = 0;
+    const listener = (event: { data: string; sessionId: number; metadata: { timestamp?: number } }) => {
+      const stamp = (event.metadata.timestamp ?? Date.now() / 1000) * 1000;
+      if (!first) first = stamp;
+      const file = join(output, `${name}-${String(frames.length).padStart(5, '0')}.jpg`);
+      frames.push({ file, at: stamp - first });
+      pending.push(writeFile(file, Buffer.from(event.data, 'base64')));
+      void cdp.send('Page.screencastFrameAck', { sessionId: event.sessionId });
+    };
+    cdp.on('Page.screencastFrame', listener);
+    const began = Date.now();
+    const opening = join(output, `${name}-opening.jpg`);
+    await page.screenshot({ path: opening, type: 'jpeg', quality: 85 });
+    frames.push({ file: opening, at: 0 });
+    await cdp.send('Page.startScreencast', { format: 'jpeg', quality: 85, maxWidth: 1440, maxHeight: 900, everyNthFrame: 2 });
+    await page.waitForTimeout(1300);
+    await action();
+    await page.waitForTimeout(Math.max(800, duration * 1000 - (Date.now() - began)));
+    await cdp.send('Page.stopScreencast');
+    cdp.off('Page.screencastFrame', listener);
+    await Promise.all(pending);
+    const ending = join(output, `${name}-ending.jpg`);
+    await page.screenshot({ path: ending, type: 'jpeg', quality: 85 });
+    frames.push({ file: ending, at: Date.now() - began });
+    expect(frames.length, `${name}: 실제 프레임`).toBeGreaterThanOrEqual(2);
+    clips.push({ name, start, duration, rawDuration: Date.now() - began, frames });
+    await page.screenshot({ path: join(output, `${name}-result.png`) });
+  }
+  await page.goto('/profile/viewer');
+  await page.getByRole('tab', { name: '전적', exact: true }).click();
+  await record('profile', 5, 8, async () => {
+    await page.getByRole('button', { name: '전적 추가', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: '게임 전적 연결', exact: true });
+    await dialog.locator('div.group').filter({ has: page.getByRole('heading', { name: 'VALORANT', exact: true }) }).getByRole('button', { name: '연결', exact: true }).click();
+    await dialog.getByRole('textbox', { name: 'Riot ID', exact: true }).pressSequentially('Dawn#KR1', { delay: 80 });
+    await dialog.getByRole('group', { name: 'VALORANT 연결', exact: true }).getByRole('button', { name: '연결', exact: true }).click();
+    await expect(dialog).toBeHidden();
+    await page.locator('article').filter({ has: page.getByRole('heading', { name: 'VALORANT', exact: true }) }).scrollIntoViewIfNeeded();
+  });
+  await page.goto('/');
+  await expect(page.getByRole('textbox', { name: '게시글 내용' })).toBeVisible();
+  await record('publish', 13, 13, async () => {
+    const input = page.locator('input[type="file"][accept^="video/"]');
+    await input.setInputFiles('public/demo-assets/valorant-highlight.mp4');
+    await expect(page.getByText('썸네일 후보를 준비하고 있습니다...')).toBeHidden();
+    const video = page.locator('video').first();
+    await video.evaluate(async (element: HTMLVideoElement) => { element.muted = true; await element.play(); });
+    await page.waitForTimeout(1800);
+    await page.getByRole('button', { name: /옵션 2/ }).click();
+    await page.getByRole('textbox', { name: '게시글 내용' }).pressSequentially('오늘의 클러치. 마지막 판단, 어땠나요? #발로란트', { delay: 30 });
+    await page.getByRole('button', { name: '게시', exact: true }).click();
+    const postedVideo = page.locator('article video').first();
+    await expect(postedVideo).toBeVisible();
+    await postedVideo.evaluate(async (element: HTMLVideoElement) => { element.muted = true; await element.play(); });
+    await expect.poll(() => postedVideo.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0.3);
+  });
+  await page.goto('/posts/1?target=comments');
+  await expect(page.getByText('마지막 침착한 에임, 멋져요!', { exact: true })).toBeVisible();
+  await record('reactions', 26, 9, async () => {
+    const video = page.locator('video').first();
+    await video.evaluate(async (element: HTMLVideoElement) => { element.muted = true; element.currentTime = 0; await element.play(); });
+    await page.waitForTimeout(2500);
+    await page.getByText('저 타이밍에 들어가는 판단 좋네요.', { exact: true }).scrollIntoViewIfNeeded();
+  });
+  await page.goto('/mentoring');
+  await expect(page.getByText('클러치 판단과 포지셔닝', { exact: true })).toBeVisible();
+  await record('program', 35, 9, async () => {
+    await page.getByText('클러치 판단과 포지셔닝', { exact: true }).click();
+    await expect(page.getByText('왜 그 판단이 필요한지 이해됐어요.', { exact: true })).toBeVisible();
+    await page.waitForTimeout(1200);
+    await page.getByPlaceholder('원하는 멘토링 방향이나 현재 고민을 적어 주세요.').fill('마지막 진입 판단과 포지셔닝을 배우고 싶어요.');
+    await page.getByRole('button', { name: '신청하고 결제하기', exact: true }).click();
+    await expect.poll(() => state.applied).toBe(true);
+  });
+  state.status = 'ACCEPTED';
+  await page.goto('/mentoring?tab=mine');
+  await expect(page.locator('#mentoring-application-application-demo').getByText('수락', { exact: true })).toBeVisible();
+  await record('accepted', 44, 1.5, async () => {});
+  state.shared = true;
+  state.feedback = true;
+  await page.goto('/messages');
+  await page.getByRole('region', { name: '대화 목록' }).getByRole('button', { name: /클러치코치/ }).click();
+  await expect(page.getByRole('region', { name: '메시지 대화' }).getByText('에임은 좋아요. 다음엔 엄폐물 쪽으로 한 발 물러나 각을 하나씩 확인해보세요.', { exact: true })).toBeVisible();
+  await record('feedback', 45.5, 4.5, async () => {
+    const video = page.locator('video').first();
+    await expect(video).toBeVisible();
+    await video.evaluate(async (element: HTMLVideoElement) => { element.muted = true; await element.play(); });
+    await expect.poll(() => video.evaluate((element: HTMLVideoElement) => element.currentTime)).toBeGreaterThan(0.3);
+  });
+  state.status = 'FINISHED';
+  await page.goto('/mentoring?tab=mine');
+  await expect(page.getByRole('button', { name: '완료 확정', exact: true })).toBeVisible();
+  await record('review', 50, 4, async () => {
+    await page.getByRole('button', { name: '완료 확정', exact: true }).click();
+    const confirm = page.getByRole('alertdialog');
+    if (await confirm.isVisible()) await confirm.getByRole('button', { name: /확인|완료/ }).click();
+    await page.getByRole('button', { name: '리뷰 작성', exact: true }).click();
+    await page.getByRole('radio', { name: '5점', exact: true }).click();
+    await page.getByPlaceholder('멘토링이 어땠는지 자세히 적어 주세요.').pressSequentially('다음 플레이에서 무엇을 바꿀지 알겠어요.', { delay: 25 });
+    await page.getByRole('button', { name: '리뷰 등록', exact: true }).click();
+    await expect(page.getByRole('button', { name: '리뷰 작성 완료', exact: true })).toBeVisible();
+  });
+  expect(state.linked && state.posted && state.applied && state.reviewed).toBe(true);
+  await writeFile(join(output, 'manifest.json'), JSON.stringify({ width: 1440, height: 900, duration: 60, clips, writes }, null, 2));
 });

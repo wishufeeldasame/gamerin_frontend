@@ -18,7 +18,7 @@ export async function installDemoCapture(page: Page) {
   const state = { linked: false, posted: false, status: 'APPLIED', applied: false, reviewed: false, shared: false, feedback: false };
   const writes: string[] = [];
   const application = () => ({ id: 'application-demo', programId: captureProgram.id, programTitle: captureProgram.title, mentorId: 'recipient', mentorNickname: mentor.nickname, menteeId: 'viewer', menteeNickname: user.nickname, appliedMileage: 10000, status: state.status, paymentStatus: state.status === 'COMPLETED' ? 'SETTLED' : 'ESCROW_HELD', message: '마지막 진입 판단과 포지셔닝을 배우고 싶어요.', createdAt: date, reviewed: state.reviewed });
-  const message = (id: string, text: string, mine = false) => ({ id, senderId: mine ? 'me' : 'recipient', text, createdAt: date, read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null });
+  const message = (id: string, text: string, mine = false) => ({ id, senderId: mine ? 'me' : 'recipient', text, createdAt: new Date(Date.parse(date) + (id === 'feedback' ? 120_000 : id === 'shared' ? 60_000 : 0)).toISOString(), read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null });
   const messages = () => [message('welcome', '반가워요! 함께 살펴볼 플레이 영상을 보내주세요.'), ...(state.shared ? [{ ...message('shared', '마지막 진입 판단이 궁금해요.', true), attachments: [{ id: 'demo-video', type: 'video', name: '오늘의 클러치.mp4', url: '/api/v1/messages/attachments/demo-video' }] }] : []), ...(state.feedback ? [message('feedback', '에임은 좋아요. 다음엔 엄폐물 쪽으로 한 발 물러나 각을 하나씩 확인해보세요.')] : [])];
   const recipient = { id: 'recipient', name: mentor.nickname, handle: '@clutchcoach', role: 'USER', online: true };
   const profile = () => ({ id: 'viewer', handle: 'viewer', nickname: user.nickname, bio: '오늘의 플레이를 기록하고, 함께 더 나은 한 판을 만듭니다.', location: '대한민국', website: null, coverImageUrl: null, profileImageUrl: null, gameStats: { PUBG: pubg, ...(state.linked ? { VALORANT: valorant } : {}) }, verifiedBadge: false, followersCount: 128, followingCount: 86, postCount: state.posted ? 1 : 0, mediaPostCount: state.posted ? 1 : 0, mediaItemCount: state.posted ? 1 : 0 });
@@ -32,7 +32,7 @@ export async function installDemoCapture(page: Page) {
     if (!['GET', 'HEAD'].includes(request.method())) writes.push(`${request.method()} ${path}`);
     let data: unknown;
     if (path === '/api/v1/auth/me') data = user;
-    else if (path === '/api/v1/users/me/recommendations') data = [{ userId: 'recipient', handle: 'clutchcoach', nickname: '클러치코치', profileImageUrl: null, verifiedBadge: false, followedByMe: false }];
+    else if (path === '/api/v1/users/me/recommendations') data = [{ userId: 'recipient', handle: 'clutchcoach', nickname: '클러치코치', profileImageUrl: null, verifiedBadge: false, followedByMe: false, winRate: 68, mutualCount: 3 }];
     else if (path === '/api/v1/users/me' || path === '/api/v1/users/viewer') data = profile();
     else if (path === '/api/v1/pubg/me') data = pubg;
     else if (path === '/api/v1/valorant/connect') { state.linked = true; data = valorant; }
@@ -48,6 +48,7 @@ export async function installDemoCapture(page: Page) {
     else if (path.endsWith('/mentoring/mentors/recipient')) data = mentor;
     else if (path.endsWith('/mentoring/mentors/recipient/reviews')) data = pageOf(['왜 그 판단이 필요한지 이해됐어요.', '제 리플레이로 설명해줘서 바로 적용했어요.', '포지셔닝에서 놓치던 습관을 찾았어요.'].map((content, i) => ({ id: `review-${i}`, programId: captureProgram.id, programTitle: captureProgram.title, menteeNickname: ['원탭연습중', '다음라운드', '클러치메이트'][i], rating: 5, content, createdAt: date })));
     else if (path.endsWith('/mentoring/applications/mentee')) data = pageOf(state.applied ? [application()] : []);
+    else if (path.endsWith('/mentoring/applications/mentor')) data = pageOf([]);
     else if (path.endsWith('/mentoring/applications') && request.method() === 'POST') { state.applied = true; data = application(); }
     else if (path.endsWith('/application-demo/complete')) { state.status = 'COMPLETED'; data = application(); }
     else if (path.endsWith('/mentoring/reviews') && request.method() === 'POST') { state.reviewed = true; data = { id: 'review-new', applicationId: 'application-demo', programId: captureProgram.id, programTitle: captureProgram.title, menteeNickname: user.nickname, rating: 5, content: '다음 플레이에서 무엇을 바꿀지 알겠어요.', createdAt: date }; }
