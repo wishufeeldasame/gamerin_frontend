@@ -96,7 +96,7 @@ function isAbortError(error: unknown) {
 export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | null {
   if (!me || typeof me !== 'object') return null;
 
-  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier, theme } =
+  const { userId, handle, nickname, role, status, hasPassword, membershipBadge, representativeGame, representativeTier, theme, profileImageUrl } =
     me as Record<string, unknown>;
   if (typeof userId !== 'string' || typeof handle !== 'string' || typeof nickname !== 'string') {
     return null;
@@ -110,6 +110,8 @@ export function toAuthUser(me: unknown, base?: Partial<AuthUser>): AuthUser | nu
     handle,
     nickname,
     name: base?.name || nickname,
+    // 구버전 서버가 필드를 생략하면 저장값을 유지하고, 명시적 null은 삭제로 반영한다. URL 정규화는 AuthContext가 맡는다.
+    profileImageUrl: typeof profileImageUrl === 'string' || profileImageUrl === null ? profileImageUrl : base?.profileImageUrl,
     role: typeof role === 'string' ? role : undefined,
     status: typeof status === 'string' ? status : undefined,
     hasPassword: typeof hasPassword === 'boolean' ? hasPassword : base?.hasPassword,
