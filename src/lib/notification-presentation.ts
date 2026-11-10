@@ -42,6 +42,7 @@ const NOTIFICATION_TYPE_LOOKUP = {
   mentoring_refunded: true,
   mentoring_review: true,
   mention: true,
+  weekly_report_ready: true,
 } satisfies Record<NotificationType, true>;
 
 function isNotificationType(value: unknown): value is NotificationType {
@@ -120,6 +121,12 @@ function getKnownNotificationPresentation(
   const actorSubject = getActorSubject(notification);
 
   switch (type) {
+    case 'weekly_report_ready':
+      return {
+        message: '주간 전적 리포트가 완성되었습니다. 지난주 플레이를 확인해 보세요.',
+        iconKind: 'bell',
+        href: '/membership/content',
+      };
     case 'like':
       return {
         message: `${actorSubject} 내 게시글을 좋아합니다.`,
