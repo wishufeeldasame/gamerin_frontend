@@ -49,7 +49,7 @@ export function clearLoginReturnTo() {
 
 export function isPublicAppPath(pathname: string) {
   try { pathname = decodeURIComponent(pathname); } catch { return false; }
-  return pathname === '/' || pathname === '/mentoring' || /^\/posts\/\d+\/?$/.test(pathname)
+  return pathname === '/' || pathname === '/mentoring' || pathname === '/membership/content' || /^\/posts\/\d+\/?$/.test(pathname)
     || (/^\/profile\/[^/]+\/?$/.test(pathname) && !/^\/profile\/me\/?$/i.test(pathname));
 }
 

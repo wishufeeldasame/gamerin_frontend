@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeCheck, BadgePercent, ChevronLeft, Crown, Loader2, PencilLine } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, BadgePercent, Ban, ChevronLeft, Clock, Crown, Loader2, Newspaper, PencilLine, Video } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchMyMembership, type MyMembership } from '@/lib/membership-api';
@@ -17,6 +17,12 @@ const benefits = [
   { icon: BadgeCheck, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 노란 체크 배지가 표시됩니다.' },
   { icon: PencilLine, title: '게시글 1회 수정', description: '게시 후 1시간 이내, 게시글당 1번 본문을 수정할 수 있습니다.' },
   { icon: BadgePercent, title: '멘토 정산 수수료 10% → 5%', description: '멘토로 진행한 멘토링의 GamerIN 정산 수수료가 낮아집니다.' },
+];
+
+const upcomingBenefits = [
+  { icon: Newspaper, title: '멤버십 전용 콘텐츠', description: '한 주의 전적과 게임별 패치 소식을 한눈에 확인하세요.', preview: true },
+  { icon: Video, title: '고화질 영상 업로드', description: '선명한 화질로 플레이의 순간을 공유하세요.', preview: false },
+  { icon: Ban, title: '광고 제거', description: '광고 없이 피드와 콘텐츠에 집중하세요.', preview: false },
 ];
 
 function formatDate(value: Date | string | null) {
@@ -158,6 +164,34 @@ export default function MembershipPage() {
               <p>멘티 결제 금액은 바뀌지 않습니다.</p>
               <p>GamerIN 정산 수수료 할인이며 카카오페이 수수료와 무관합니다.</p>
             </div>
+          </section>
+
+          <section aria-labelledby="membership-upcoming-title" className="space-y-3">
+            <div className="flex items-center gap-2 px-1">
+              <Clock size={18} className="text-icon-secondary" aria-hidden="true" />
+              <h2 id="membership-upcoming-title" className="text-heading text-fg-primary">앞으로 만날 혜택</h2>
+            </div>
+            <ul className="space-y-3">
+              {upcomingBenefits.map((benefit) => (
+                <li key={benefit.title} className="rounded-card border border-line-card bg-surface p-5 sm:p-6">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
+                      <benefit.icon size={20} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="rounded-full bg-subtle px-2 py-1 text-caption text-fg-secondary">지원 예정</span>
+                      <h3 className="mt-2 text-heading text-fg-primary">{benefit.title}</h3>
+                      <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
+                      {benefit.preview ? (
+                        <button type="button" onClick={() => router.push('/membership/content')} className={`btn-secondary mt-4 inline-flex items-center gap-2 ${FOCUS_RING}`}>
+                          미리보기 <ArrowUpRight size={16} aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </section>
         </div>
       </div>

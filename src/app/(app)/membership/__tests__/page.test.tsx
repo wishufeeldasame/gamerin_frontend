@@ -82,6 +82,18 @@ describe('MembershipPage', () => {
     expect(await screen.findByText('2026-01-09에 만료되었습니다')).toBeInTheDocument();
   });
 
+  it('가입 여부와 관계없이 지원 예정 카드와 콘텐츠 미리보기를 보여준다', async () => {
+    const user = userEvent.setup();
+    render(<MembershipPage />);
+    await screen.findByText('30일 이용권 4,900원');
+    expect(screen.getAllByText('지원 예정')).toHaveLength(3);
+    expect(screen.getByRole('heading', { name: '멤버십 전용 콘텐츠' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '고화질 영상 업로드' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '광고 제거' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: '미리보기' }));
+    expect(navigation.push).toHaveBeenCalledWith('/membership/content');
+  });
+
   it('이용권 취소 진행 중 409는 문서 문구로 보여준다', async () => {
     const user = userEvent.setup();
     vi.spyOn(window, 'open').mockReturnValue({ close: vi.fn(), location: { href: '' } } as unknown as Window);
