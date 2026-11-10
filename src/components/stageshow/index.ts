@@ -16,3 +16,4 @@ export { Bubble, Receipt, Thread } from './kit/messages';
 export { Collapse } from './kit/motion/Collapse';
 export { Count } from './kit/motion/Count';
 export { Meter } from './kit/parts/Meter';
+export { Camera } from './kit/motion/Camera';
