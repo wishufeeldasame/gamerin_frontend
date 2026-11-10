@@ -169,7 +169,7 @@ export default function MembershipPage() {
           <section aria-labelledby="membership-upcoming-title" className="space-y-3">
             <div className="flex items-center gap-2 px-1">
               <Clock size={18} className="text-icon-secondary" aria-hidden="true" />
-              <h2 id="membership-upcoming-title" className="text-heading text-fg-primary">앞으로 만날 혜택</h2>
+              <h2 id="membership-upcoming-title" className="text-heading text-fg-primary">콘텐츠와 추가 혜택</h2>
             </div>
             <ul className="space-y-3">
               {upcomingBenefits.map((benefit) => (
@@ -179,12 +179,12 @@ export default function MembershipPage() {
                       <benefit.icon size={20} aria-hidden="true" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <span className="rounded-full bg-subtle px-2 py-1 text-caption text-fg-secondary">지원 예정</span>
+                      <span className="rounded-full bg-subtle px-2 py-1 text-caption text-fg-secondary">{benefit.preview ? '이용 가능' : '지원 예정'}</span>
                       <h3 className="mt-2 text-heading text-fg-primary">{benefit.title}</h3>
                       <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
                       {benefit.preview ? (
-                        <button type="button" onClick={() => router.push('/membership/content')} className={`btn-secondary mt-4 inline-flex items-center gap-2 ${FOCUS_RING}`}>
-                          미리보기 <ArrowUpRight size={16} aria-hidden="true" />
+                        <button type="button" onClick={() => router.push(active ? '/membership/content' : '/membership/content-preview')} className={`btn-secondary mt-4 inline-flex items-center gap-2 ${FOCUS_RING}`}>
+                          {active ? '내 리포트 보기' : '미리보기'} <ArrowUpRight size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                     </div>

@@ -21,7 +21,7 @@ export default function AppLayout({
   const { user, isAuthReady, isSessionUnavailable, isAccountBlocked, isLoggingOut, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
   // 자체 뒤로 헤더가 있는 하위 화면에서는 모바일 상단 바를 숨긴다(F15).
-  const showTopBar = pathname !== '/notifications' && pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
+  const showTopBar = pathname !== '/notifications' && pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/membership/content-preview' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
 
   const protectedPage = !isPublicAppPath(pathname);
   useEffect(() => {

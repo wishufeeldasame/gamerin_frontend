@@ -2,11 +2,18 @@
 
 import { ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, ChevronLeft, Crown, Gamepad2, Newspaper, Sparkles, Target } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { useAuth } from '@/app/context/AuthContext';
+import { ApiError } from '@/lib/api-client';
 import { canGoBack } from '@/lib/history-back';
-import { MEMBERSHIP_CONTENT } from '@/lib/membership-content';
+import { requestLogin } from '@/lib/login-prompt';
+import { MEMBERSHIP_CONTENT, type WeeklyGameReport } from '@/lib/membership-content';
+import { fetchMyWeeklyReport } from '@/lib/membership-api';
 
 const FOCUS_RING = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand dark:focus-visible:outline-line-focus';
+
+const formatDate = (date: string) => date.slice(5).replace('-', '.');
 
 function StatChange({ current, previous, unit }: { current: number | null; previous: number | null; unit: string }) {
   if (current === null || previous === null) return <span className="text-fg-tertiary">비교 없음</span>;
@@ -21,7 +28,35 @@ function StatChange({ current, previous, unit }: { current: number | null; previ
 
 export default function MembershipContentPage() {
   const router = useRouter();
-  const { weeklyReport, patchNotes } = MEMBERSHIP_CONTENT;
+  const preview = usePathname() === '/membership/content-preview';
+  const { user, isAuthReady } = useAuth();
+  const userId = user?.id;
+  const { patchNotes } = MEMBERSHIP_CONTENT;
+  const [loaded, setLoaded] = useState<{ userId: string; report: WeeklyGameReport } | null>(null);
+  const [loadError, setLoadError] = useState<{ userId: string; message: string; forbidden: boolean } | null>(null);
+  const [reload, setReload] = useState(0);
+  const weeklyReport = preview ? MEMBERSHIP_CONTENT.weeklyReport : loaded && loaded.userId === userId ? loaded.report : null;
+  const error = loadError?.userId === userId ? loadError : null;
+
+  useEffect(() => {
+    if (preview || !isAuthReady || !userId) return;
+    const controller = new AbortController();
+    setLoaded(null);
+    setLoadError(null);
+    fetchMyWeeklyReport(controller.signal)
+      .then((report) => {
+        if (!controller.signal.aborted) setLoaded({ userId, report });
+      })
+      .catch((failure: unknown) => {
+        if (controller.signal.aborted || (failure instanceof Error && failure.name === 'AbortError')) return;
+        setLoadError({
+          userId,
+          message: failure instanceof Error ? failure.message : '주간 리포트를 불러오지 못했습니다.',
+          forbidden: failure instanceof ApiError && failure.status === 403,
+        });
+      });
+    return () => controller.abort();
+  }, [preview, isAuthReady, userId, reload]);
 
   return (
     <>
@@ -49,108 +84,126 @@ export default function MembershipContentPage() {
             <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-subtle px-3 py-1 text-caption text-fg-brand">
               <Crown size={14} aria-hidden="true" /> 멤버십 전용
             </span>
-            <span className="text-caption text-fg-tertiary">미리보기</span>
+            {preview ? <span className="text-caption text-fg-tertiary">미리보기</span> : null}
           </div>
           <h1 className="mt-3 text-display text-fg-primary">한 주의 플레이, 한눈에</h1>
           <p className="mt-2 text-body text-fg-secondary">내 전적을 돌아보고, 다음 플레이에 필요한 패치 소식을 확인하세요.</p>
-          <p className="mt-3 text-caption text-fg-tertiary">주간 전적과 AI 분석은 예시 데이터입니다. 패치노트는 공식 발표를 요약했습니다.</p>
+          <p className="mt-3 text-caption text-fg-tertiary">{preview ? '주간 전적과 AI 분석은 예시 데이터입니다. ' : ''}패치노트는 공식 발표를 요약했습니다.</p>
+          <Link href={preview ? '/membership/content' : '/membership/content-preview'} className={`mt-3 inline-flex min-h-10 items-center text-label text-fg-brand hover:underline ${FOCUS_RING}`}>
+            {preview ? '내 주간 리포트 보기' : '예시 리포트 미리보기'}
+          </Link>
         </header>
 
-        <section aria-labelledby="membership-content-weekly" className="overflow-hidden rounded-card border border-line-card bg-surface">
-          <div className="border-b border-line-card p-5 sm:p-6">
-            <div className="flex items-center gap-2">
-              <BarChart3 size={20} className="text-icon-brand" aria-hidden="true" />
-              <h2 id="membership-content-weekly" className="text-heading text-fg-primary">주간 전적 요약</h2>
-              <span className="rounded-full bg-brand-subtle px-2 py-1 text-caption text-fg-brand">AI 리포트</span>
+        {!weeklyReport ? (
+          <section aria-label="주간 전적 요약" className="rounded-card border border-line-card bg-surface p-6">
+            {isAuthReady && !userId ? (
+              <>
+                <p className="text-body text-fg-secondary">로그인하면 내 주간 리포트를 확인할 수 있어요.</p>
+                <button type="button" onClick={() => requestLogin({ returnTo: '/membership/content' })} className={`btn-secondary mt-4 ${FOCUS_RING}`}>로그인하고 확인하기</button>
+              </>
+            ) : error ? (
+              <>
+                <p role="alert" className="text-body text-fg-secondary">{error.forbidden ? '주간 리포트는 멤버십 이용 중에 볼 수 있어요.' : error.message}</p>
+                {error.forbidden ? (
+                  <Link href="/membership" className={`btn-secondary mt-4 inline-flex ${FOCUS_RING}`}>멤버십 안내 보기</Link>
+                ) : (
+                  <button type="button" onClick={() => setReload((value) => value + 1)} className={`btn-secondary mt-4 ${FOCUS_RING}`}>다시 시도</button>
+                )}
+              </>
+            ) : <p role="status" className="text-body text-fg-secondary">주간 리포트를 불러오는 중입니다.</p>}
+          </section>
+        ) : <section aria-labelledby="membership-content-weekly" className="overflow-hidden rounded-card border border-line-card bg-surface">
+          <div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-5 border-b border-line-card p-5 sm:p-6">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <BarChart3 size={20} className="text-icon-brand" aria-hidden="true" />
+                <h2 id="membership-content-weekly" className="text-heading text-fg-primary">주간 전적 요약</h2>
+                <span className="rounded-full bg-brand-subtle px-2 py-1 text-caption text-fg-brand">AI 리포트</span>
+              </div>
+              <p className="mt-3 text-body text-fg-secondary">숫자로 보는 변화와 다음 플레이를 위한 피드백을 함께 정리했어요.</p>
+              <p className="mt-2 text-caption text-fg-tertiary">
+                <time dateTime={weeklyReport.weekStart}>{formatDate(weeklyReport.weekStart)}</time> ~ <time dateTime={weeklyReport.weekEnd}>{formatDate(weeklyReport.weekEnd)}</time>
+                {' · 지난주('}
+                <time dateTime={weeklyReport.previousWeekStart}>{formatDate(weeklyReport.previousWeekStart)}</time> ~ <time dateTime={weeklyReport.previousWeekEnd}>{formatDate(weeklyReport.previousWeekEnd)}</time>
+                {') 대비'}
+              </p>
+              {preview ? <p className="mt-1 text-caption text-fg-tertiary">AI 분석 형식의 예시 리포트입니다.</p> : null}
             </div>
-            <p className="mt-3 text-body text-fg-secondary">숫자로 보는 변화와 다음 플레이를 위한 피드백을 함께 정리했어요.</p>
-            <p className="mt-1 text-caption text-fg-tertiary">AI 분석 형식의 예시 리포트입니다.</p>
-            <p className="mt-3 text-caption text-fg-secondary">
-              이번 주 · <time dateTime={weeklyReport.weekStart}>{weeklyReport.weekStart}</time> ~ <time dateTime={weeklyReport.weekEnd}>{weeklyReport.weekEnd}</time>
-            </p>
-            <p className="mt-1 text-caption text-fg-tertiary">
-              지난주 · <time dateTime={weeklyReport.previousWeekStart}>{weeklyReport.previousWeekStart}</time> ~ <time dateTime={weeklyReport.previousWeekEnd}>{weeklyReport.previousWeekEnd}</time>
-            </p>
-            <div className="mt-5 flex items-end gap-6 sm:gap-10">
+            <dl className="flex gap-8">
               <div>
-                <p className="text-caption text-fg-secondary">총 플레이</p>
-                <p className="mt-1 text-display tabular-nums text-fg-primary">{weeklyReport.totalMatches}<span className="ml-1 text-body text-fg-secondary">경기</span></p>
+                <dt className="text-caption text-fg-secondary">{weeklyReport.notice ? '확인된 경기' : '총 플레이'}</dt>
+                <dd className="mt-1 text-display tabular-nums text-fg-primary">{weeklyReport.totalMatches}<span className="ml-1 text-body text-fg-secondary">경기</span></dd>
               </div>
               <div>
-                <p className="text-caption text-fg-secondary">플레이한 게임</p>
-                <p className="mt-1 text-display tabular-nums text-fg-primary">{weeklyReport.games.length}<span className="ml-1 text-body text-fg-secondary">개</span></p>
+                <dt className="text-caption text-fg-secondary">플레이한 게임</dt>
+                <dd className="mt-1 text-display tabular-nums text-fg-primary">{weeklyReport.games.length}<span className="ml-1 text-body text-fg-secondary">개</span></dd>
               </div>
-            </div>
+            </dl>
           </div>
+          {weeklyReport.notice ? (
+            <p role="status" className="mx-4 mt-4 rounded-control border border-line-card bg-brand-subtle p-4 text-body text-fg-secondary sm:mx-6">
+              {weeklyReport.notice}
+            </p>
+          ) : null}
           {weeklyReport.games.length === 0 ? (
-            <p className="p-6 text-body text-fg-secondary">이번 주 플레이 기록이 없습니다.</p>
+            <p className="p-6 text-body text-fg-secondary">{weeklyReport.notice ? '불러올 수 있는 경기 기록이 없습니다.' : preview ? '이번 주 플레이 기록이 없습니다.' : '아직 표시할 주간 리포트가 없습니다. 게임 연동 여부와 리포트 생성 일정을 확인해 주세요.'}</p>
           ) : (
             <ul className="space-y-4 p-4 sm:p-6">
               {weeklyReport.games.map((game) => (
-                <li key={game.game} className="min-w-0 overflow-hidden rounded-control border border-line-card bg-canvas">
-                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line-card p-4 sm:px-5">
+                <li key={game.game} className="min-w-0 space-y-5 rounded-control border border-line-card bg-canvas p-4 sm:p-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                      <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
-                        <Gamepad2 size={20} aria-hidden="true" />
+                      <span className="grid size-9 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
+                        <Gamepad2 size={18} aria-hidden="true" />
                       </span>
-                      <div>
-                        <h3 id={`weekly-${game.game}`} className="text-heading text-fg-primary">{game.gameLabel}</h3>
-                        <p className="mt-0.5 text-caption text-fg-secondary">지난주 대비 플레이 변화</p>
-                      </div>
+                      <h3 id={`weekly-${game.game}`} className="text-heading text-fg-primary">{game.gameLabel}</h3>
                     </div>
                     {game.tierLabel ? (
                       <p className="inline-flex items-center gap-2 text-caption">
-                        <span className="text-fg-secondary">지난주 {game.previousWeek?.tierLabel ?? '기록 없음'}</span>
-                        <ArrowRight size={12} className="text-icon-secondary" aria-hidden="true" />
-                        <span className="text-fg-brand">이번 주 {game.tierLabel}</span>
+                        <span className="text-fg-tertiary">티어</span>
+                        {game.previousWeek?.tierLabel && game.previousWeek.tierLabel !== game.tierLabel ? (
+                          <>
+                            <span className="text-fg-secondary">{game.previousWeek.tierLabel}</span>
+                            <ArrowRight size={12} className="text-icon-secondary" aria-label="에서" />
+                          </>
+                        ) : null}
+                        <span className="text-fg-brand">{game.tierLabel}</span>
+                        {game.previousWeek?.tierLabel === game.tierLabel ? <span className="text-fg-secondary">유지</span> : null}
                       </p>
                     ) : null}
                   </div>
-                  <div className="space-y-4 p-4 sm:p-5">
-                    <div>
-                      <p className="mb-2 inline-flex items-center gap-1.5 text-caption text-fg-brand"><Sparkles size={14} aria-hidden="true" /> AI 분석 요약</p>
-                      <h4 className="text-heading text-fg-primary">{game.analysis.headline}</h4>
-                      <p className="mt-2 text-body leading-7 text-fg-secondary">{game.analysis.summary}</p>
-                    </div>
-                    <div className="rounded-control border border-line-card bg-surface p-4">
-                      <h4 className="flex items-center gap-1.5 text-label text-fg-primary"><Target size={16} className="text-icon-brand" aria-hidden="true" /> 다음 주 체크 포인트</h4>
-                      <p className="mt-2 text-body text-fg-secondary">{game.analysis.focus}</p>
-                    </div>
+                  <dl aria-labelledby={`weekly-${game.game}`} className={`grid gap-2 ${game.headshotRate !== undefined ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'}`}>
+                    {[
+                      { label: '경기 수', current: game.matches, previous: game.previousWeek?.matches ?? null, unit: '경기', changeUnit: '경기' },
+                      { label: '승률', current: game.winRate, previous: game.previousWeek?.winRate ?? null, unit: '%', changeUnit: '%p' },
+                      { label: 'K/D', current: game.kd, previous: game.previousWeek?.kd ?? null, unit: '', changeUnit: '' },
+                      ...(game.headshotRate !== undefined ? [{ label: '헤드샷(HS%)', current: game.headshotRate, previous: game.previousWeek?.headshotRate ?? null, unit: '%', changeUnit: '%p' }] : []),
+                    ].map((stat) => (
+                      <div key={stat.label} className="min-w-0 rounded-control bg-surface p-2.5 sm:p-4">
+                        <dt className="text-caption text-fg-secondary">{stat.label}</dt>
+                        <dd className="mt-1 text-heading tabular-nums text-fg-primary">{stat.current === null ? '—' : `${stat.current}${stat.unit}`}</dd>
+                        <dd className="mt-1 flex flex-wrap gap-x-2 text-caption tabular-nums">
+                          <StatChange current={stat.current} previous={stat.previous} unit={stat.changeUnit} />
+                          <span className="whitespace-nowrap text-fg-tertiary">지난주 {stat.previous === null ? '—' : `${stat.previous}${stat.unit}`}</span>
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                  {!game.previousWeek ? <p className="text-caption text-fg-tertiary">지난주 기록이 없어 비교할 수 없습니다.</p> : null}
+                  <div>
+                    <p className="mb-2 inline-flex items-center gap-1.5 text-caption text-fg-brand"><Sparkles size={14} aria-hidden="true" /> AI 분석 요약</p>
+                    <h4 className="text-label text-fg-primary">{game.analysis.headline}</h4>
+                    <p className="mt-2 text-body text-fg-secondary">{game.analysis.summary}</p>
                   </div>
-                  <div className="px-4 pb-2 sm:px-5">
-                    <table aria-labelledby={`weekly-${game.game}`} className="w-full table-fixed text-right text-label tabular-nums">
-                      <thead className="text-caption text-fg-secondary">
-                        <tr>
-                          <th scope="col" className="w-1/4 py-3 text-left font-normal">스탯</th>
-                          <th scope="col" className="py-3 font-normal">지난주</th>
-                          <th scope="col" className="bg-brand-subtle py-3 font-medium text-fg-brand">이번 주</th>
-                          <th scope="col" className="py-3 font-normal">변화</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {[
-                          { label: '경기 수', current: game.matches, previous: game.previousWeek?.matches ?? null, unit: '경기', changeUnit: '경기' },
-                          { label: '승률', current: game.winRate, previous: game.previousWeek?.winRate ?? null, unit: '%', changeUnit: '%p' },
-                          { label: 'K/D', current: game.kd, previous: game.previousWeek?.kd ?? null, unit: '', changeUnit: '' },
-                          ...(game.headshotRate !== undefined ? [{ label: 'HS%', current: game.headshotRate, previous: game.previousWeek?.headshotRate ?? null, unit: '%', changeUnit: '%p' }] : []),
-                        ].map((stat) => (
-                          <tr key={stat.label} className="border-t border-line-card">
-                            <th scope="row" className="py-3 text-left font-normal text-fg-secondary">{stat.label}</th>
-                            <td className="py-3 text-fg-secondary">{stat.previous === null ? '—' : `${stat.previous}${stat.unit}`}</td>
-                            <td className="bg-brand-subtle py-3 font-medium text-fg-primary">{stat.current === null ? '—' : `${stat.current}${stat.unit}`}</td>
-                            <td className="py-3"><StatChange current={stat.current} previous={stat.previous} unit={stat.changeUnit} /></td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                    {game.headshotRate !== undefined ? <p className="pb-3 pt-2 text-caption text-fg-tertiary">HS% · 헤드샷 비율</p> : null}
-                    {!game.previousWeek ? <p className="pb-3 text-caption text-fg-tertiary">지난주 기록이 없어 비교할 수 없습니다.</p> : null}
+                  <div className="border-t border-line-card pt-4">
+                    <h4 className="flex items-center gap-1.5 text-label text-fg-primary"><Target size={16} className="text-icon-brand" aria-hidden="true" /> 다음 주 체크 포인트</h4>
+                    <p className="mt-2 text-body text-fg-secondary">{game.analysis.focus}</p>
                   </div>
                 </li>
               ))}
             </ul>
           )}
-        </section>
+        </section>}
 
         <section aria-labelledby="membership-content-patch-notes" className="rounded-card border border-line-card bg-surface p-5 sm:p-6">
           <div className="flex items-center gap-2">

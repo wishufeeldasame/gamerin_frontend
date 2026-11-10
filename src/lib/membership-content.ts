@@ -35,6 +35,7 @@ export interface WeeklyGameReport {
   previousWeekEnd: string;
   totalMatches: number;
   games: WeeklyGameStat[];
+  notice?: string | null;
 }
 
 export interface MembershipContent {

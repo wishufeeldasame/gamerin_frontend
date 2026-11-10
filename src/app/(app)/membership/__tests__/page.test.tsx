@@ -86,12 +86,13 @@ describe('MembershipPage', () => {
     const user = userEvent.setup();
     render(<MembershipPage />);
     await screen.findByText('30일 이용권 4,900원');
-    expect(screen.getAllByText('지원 예정')).toHaveLength(3);
+    expect(screen.getAllByText('지원 예정')).toHaveLength(2);
+    expect(screen.getByText('이용 가능')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '멤버십 전용 콘텐츠' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '고화질 영상 업로드' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: '광고 제거' })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '미리보기' }));
-    expect(navigation.push).toHaveBeenCalledWith('/membership/content');
+    expect(navigation.push).toHaveBeenCalledWith('/membership/content-preview');
   });
 
   it('이용권 취소 진행 중 409는 문서 문구로 보여준다', async () => {

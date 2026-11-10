@@ -22,8 +22,17 @@ const post: PostRecord = {
 };
 
 function intersect(video: HTMLVideoElement, ratio: number) {
+  const rect = video.getBoundingClientRect();
   act(() => observed.get(video)?.([
-    { target: video, isIntersecting: ratio > 0, intersectionRatio: ratio } as IntersectionObserverEntry,
+    {
+      target: video,
+      isIntersecting: ratio > 0,
+      intersectionRatio: ratio,
+      boundingClientRect: rect,
+      intersectionRect: rect,
+      rootBounds: null,
+      time: 0,
+    },
   ], {} as IntersectionObserver));
 }
 

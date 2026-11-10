@@ -24,6 +24,7 @@ export type AdminPageKey =
   | 'reports'
   | 'auditLogs'
   | 'mentoring'
+  | 'weeklyReports'
   | 'settings';
 
 type Breadcrumb = {
@@ -48,6 +49,7 @@ const navigationItems = [
   { key: 'reports', label: '신고 관리', icon: Flag, href: '/admin/reports' },
   { key: 'auditLogs', label: '작업 이력', icon: ClipboardList, href: '/admin/audit-logs' },
   { key: 'mentoring', label: '멘토링 관리', icon: Gamepad2, href: '/admin/mentoring' },
+  { key: 'weeklyReports', label: '주간 전적 리포트', icon: FileText, href: '/admin/weekly-reports' },
   { key: 'settings', label: '시스템 설정', icon: Settings, href: '/admin/settings' },
 ] satisfies Array<{
   key: AdminPageKey;
