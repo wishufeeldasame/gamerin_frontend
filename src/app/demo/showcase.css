@@ -1,9 +1,46 @@
-/* 전시용 소개 화면. 색·모서리·글꼴은 globals.css 의 다크 토큰 값을 그대로 쓴다(전시는 항상 다크). */
+/* 소개 페이지 바탕: 앱 테마와 무관하게 항상 라이트. 다크인 영상과 구분되게 한다. */
+.demo-page {
+  --canvas: #FAFAFA; --surface: #FFFFFF; --line: #E4E4E7; --brand: #F5B93D; --fg-primary: #151518; --fg-secondary: #52525B;
+  min-height: 100dvh; display: flex; flex-direction: column; background: var(--canvas); color: var(--fg-primary); color-scheme: light; font-size: 15px; line-height: 1.6;
+
+  & a:focus-visible { outline: 2px solid var(--fg-primary); outline-offset: 3px; }
+  & .demo-wrap { width: min(100% - 32px, 1120px); margin-inline: auto; }
+  & .demo-logo { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
+  & .demo-logo img { border-radius: 7px; }
+  & .demo-logo em { font-style: normal; color: #B27B00; }
+  & .demo-go { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 10px; background: var(--brand); color: #1A1406; font-size: 14px; font-weight: 700; white-space: nowrap; transition: filter 150ms; }
+  & .demo-go:hover { filter: brightness(1.06); }
+  & .demo-header { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line); background: #FAFAFAE6; backdrop-filter: blur(10px); }
+  & .demo-header > div { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  & .demo-hero { padding: 48px 0 28px; text-align: center; }
+  & .demo-hero h1 { font-size: clamp(30px, 5vw, 52px); font-weight: 800; line-height: 1.2; letter-spacing: -0.035em; text-wrap: balance; }
+  & .demo-hero p { margin-top: 12px; color: var(--fg-secondary); text-wrap: balance; }
+  & .demo-caption { margin-top: 12px; text-align: center; font-size: 13px; color: var(--fg-secondary); }
+  & .demo-section { padding: 72px 0 0; }
+  & .demo-section h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.025em; }
+  & .demo-section > p { margin-top: 10px; color: var(--fg-secondary); word-break: keep-all; text-wrap: pretty; }
+  & .demo-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 24px; }
+  & .demo-features li { padding: 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  & .demo-features svg { color: #B27B00; }
+  & .demo-features h3 { margin-top: 12px; font-size: 16px; font-weight: 700; }
+  & .demo-features p { margin-top: 4px; font-size: 14px; color: var(--fg-secondary); word-break: keep-all; }
+  & .demo-team { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-top: 24px; }
+  & .demo-team li { padding: 16px 20px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+  & .demo-team strong { display: block; font-size: 16px; }
+  & .demo-team span { font-size: 13px; color: var(--fg-secondary); }
+  & .demo-footer { margin-top: 88px; border-top: 1px solid var(--line); background: var(--surface); }
+  & .demo-footer > div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px; padding: 32px 0; }
+  & .demo-footer p { margin-top: 6px; font-size: 13px; color: var(--fg-secondary); }
+  & .demo-footer nav { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; font-size: 13px; color: var(--fg-secondary); }
+  & .demo-footer nav a:not(.demo-go):hover { text-decoration: underline; }
+}
+
+/* 영상(무대). 색·모서리·글꼴은 globals.css 의 다크 토큰 값을 그대로 쓴다(영상은 항상 다크). */
 .showcase {
   --canvas: #19191D; --surface: #222226; --surface-elevated: #2B2B31; --line: #38383F; --avatar: #303037;
   --brand: #F5B93D; --brand-hover: #FBCD5A; --brand-subtle: #2A2112; --success-subtle: #0F2416; --danger-subtle: #2A1212;
   --fg-primary: #F4F4F5; --fg-secondary: #A1A1AA; --fg-tertiary: #94949E; --fg-brand: #F8C24A; --fg-on-brand: #1A1406; --fg-success: #4ADE80; --fg-danger: #F87171;
-  position: fixed; inset: 0; display: grid; place-items: center; overflow: hidden; background: var(--canvas); color: var(--fg-primary); color-scheme: dark;
+  overflow: hidden; border-radius: 16px; box-shadow: 0 24px 60px -24px #0006; background: var(--canvas); color: var(--fg-primary); color-scheme: dark; font-size: 13px;
 
   cursor: none;
   & .showcase-frame { overflow: hidden; }
@@ -114,6 +151,35 @@
   & .sc-val-card[data-in] { box-shadow: 0 0 0 1px #f5b93d59, 0 0 44px -14px #f5b93d73; }
   & .sc-val-card[data-in] .sc-emblem::before { content: ''; position: absolute; inset: -2px; border-radius: 50%; border: 2px solid var(--brand); animation: sc-ring 900ms 250ms ease-out both; }
   & .sc-val-card[data-in] .sc-emblem img { animation: sc-pop 600ms 200ms cubic-bezier(.3, 1.6, .5, 1) both; }
+
+  /* 주간 전적 리포트(멤버십 콘텐츠 프리뷰) */
+  & .sc-report { overflow: hidden; }
+  & .sc-report-inner { width: 792px; transition: transform 1100ms cubic-bezier(.3, 0, .1, 1); }
+  & .sc-report-inner[data-scrolled] { transform: translateY(-560px); }
+  & .sc-report-card { margin-top: 14px; padding-bottom: 4px; }
+  & .sc-report-head { display: flex; align-items: flex-end; justify-content: space-between; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+  & .sc-report-head h3 { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 17px; }
+  & .sc-report-head h3 svg { color: var(--brand); }
+  & .sc-ai { padding: 2px 9px; border-radius: 12px; background: var(--brand-subtle); font-size: 12px; font-weight: 500; color: var(--fg-brand); }
+  & .sc-report-head dl { display: flex; gap: 28px; }
+  & .sc-report-head dt { font-size: 12px; color: var(--fg-secondary); }
+  & .sc-report-head dd { font-size: 24px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
+  & .sc-report-head dd span { margin-left: 4px; font-size: 13px; font-weight: 400; color: var(--fg-secondary); }
+  & .sc-rgame { margin: 16px; padding: 18px; border-radius: 12px; border: 1px solid var(--line); background: var(--canvas); }
+  & .sc-rgame-top { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  & .sc-rgame-icon { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--brand-subtle); color: var(--fg-brand); }
+  & .sc-rstats { display: grid; gap: 8px; margin-bottom: 16px; }
+  & .sc-rstats > div { padding: 12px 14px; border-radius: 10px; background: var(--surface); }
+  & .sc-rstats span { display: block; font-size: 12px; color: var(--fg-secondary); }
+  & .sc-rstats strong { display: block; margin: 2px 0; font-size: 17px; font-variant-numeric: tabular-nums; }
+  & .sc-rstats small { font-size: 11px; color: var(--fg-tertiary); white-space: nowrap; }
+  & .sc-rstats small span { display: inline; margin-right: 4px; font-size: 11px; font-weight: 600; color: var(--fg-tertiary); }
+  & .sc-rstats small [data-dir="up"] { color: var(--fg-success); }
+  & .sc-rstats small [data-dir="down"] { color: var(--fg-danger); }
+  & .sc-rgame > strong { display: flex; align-items: center; gap: 6px; font-size: 14px; }
+  & .sc-rgame > p { margin-top: 4px; color: var(--fg-secondary); }
+  & .sc-rfocus { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+  & .sc-rfocus svg { color: var(--brand); }
 
   /* 피드 */
   & .sc-feed { overflow: hidden; }
@@ -251,7 +317,7 @@
   /* 카메라 밖 오버레이: 토스트, 진행 막대, 챕터 카드, 타이틀 */
   & .sc-toast { position: absolute; left: 0; right: 0; top: 20px; display: flex; justify-content: center; pointer-events: none; }
   & .sc-toast .ss-toast__icon { color: var(--fg-success); }
-  & .sc-progress { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; height: 3px; }
+  & .sc-progress { position: absolute; left: 0; right: 0; bottom: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; height: 3px; }
   & .sc-progress i { background: #ffffff1f; transition: background 500ms; }
   & .sc-progress i[data-on] { background: var(--brand); }
   & .sc-rest { position: absolute; left: 1320px; top: 640px; width: 1px; height: 1px; }
