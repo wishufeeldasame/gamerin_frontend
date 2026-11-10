@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, ChevronLeft, Crown, Gamepad2, Newspaper, Sparkles, Target } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, ChevronLeft, Crown, Gamepad2, Newspaper, Target } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -80,18 +80,17 @@ export default function MembershipContentPage() {
           <Link href="/membership" className={`mb-5 hidden w-fit items-center gap-1.5 text-caption text-fg-secondary hover:text-fg-primary lg:inline-flex ${FOCUS_RING}`}>
             <ArrowLeft size={14} aria-hidden="true" /> 멤버십으로 돌아가기
           </Link>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-subtle px-3 py-1 text-caption text-fg-brand">
-              <Crown size={14} aria-hidden="true" /> 멤버십 전용
-            </span>
-            {preview ? <span className="text-caption text-fg-tertiary">미리보기</span> : null}
-          </div>
-          <h1 className="mt-3 text-display text-fg-primary">한 주의 플레이, 한눈에</h1>
-          <p className="mt-2 text-body text-fg-secondary">내 전적을 돌아보고, 다음 플레이에 필요한 패치 소식을 확인하세요.</p>
-          <p className="mt-3 text-caption text-fg-tertiary">{preview ? '주간 전적과 AI 분석은 예시 데이터입니다. ' : ''}패치노트는 공식 발표를 요약했습니다.</p>
-          <Link href={preview ? '/membership/content' : '/membership/content-preview'} className={`mt-3 inline-flex min-h-10 items-center text-label text-fg-brand hover:underline ${FOCUS_RING}`}>
-            {preview ? '내 주간 리포트 보기' : '예시 리포트 미리보기'}
-          </Link>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-subtle px-3 py-1 text-caption text-fg-brand">
+            <Crown size={14} aria-hidden="true" /> 멤버십 전용
+          </span>
+          <h1 className="mt-3 text-display text-fg-primary">멤버십 콘텐츠</h1>
+          {preview ? <p className="mt-3 text-caption text-fg-tertiary">예시 데이터입니다.</p> : null}
+          {/* 예시 화면에서 실제 리포트로 가는 링크는 멤버십 회원에게만 보인다. */}
+          {!preview || user?.membershipBadge ? (
+            <Link href={preview ? '/membership/content' : '/membership/content-preview'} className={`mt-3 inline-flex min-h-10 items-center text-label text-fg-brand hover:underline ${FOCUS_RING}`}>
+              {preview ? '내 주간 리포트 보기' : '예시 리포트 미리보기'}
+            </Link>
+          ) : null}
         </header>
 
         {!weeklyReport ? (
@@ -120,14 +119,12 @@ export default function MembershipContentPage() {
                 <h2 id="membership-content-weekly" className="text-heading text-fg-primary">주간 전적 요약</h2>
                 <span className="rounded-full bg-brand-subtle px-2 py-1 text-caption text-fg-brand">AI 리포트</span>
               </div>
-              <p className="mt-3 text-body text-fg-secondary">숫자로 보는 변화와 다음 플레이를 위한 피드백을 함께 정리했어요.</p>
-              <p className="mt-2 text-caption text-fg-tertiary">
+              <p className="mt-3 text-caption text-fg-tertiary">
                 <time dateTime={weeklyReport.weekStart}>{formatDate(weeklyReport.weekStart)}</time> ~ <time dateTime={weeklyReport.weekEnd}>{formatDate(weeklyReport.weekEnd)}</time>
                 {' · 지난주('}
                 <time dateTime={weeklyReport.previousWeekStart}>{formatDate(weeklyReport.previousWeekStart)}</time> ~ <time dateTime={weeklyReport.previousWeekEnd}>{formatDate(weeklyReport.previousWeekEnd)}</time>
                 {') 대비'}
               </p>
-              {preview ? <p className="mt-1 text-caption text-fg-tertiary">AI 분석 형식의 예시 리포트입니다.</p> : null}
             </div>
             <dl className="flex gap-8">
               <div>
@@ -184,14 +181,12 @@ export default function MembershipContentPage() {
                         <dd className="mt-1 text-heading tabular-nums text-fg-primary">{stat.current === null ? '—' : `${stat.current}${stat.unit}`}</dd>
                         <dd className="mt-1 flex flex-wrap gap-x-2 text-caption tabular-nums">
                           <StatChange current={stat.current} previous={stat.previous} unit={stat.changeUnit} />
-                          <span className="whitespace-nowrap text-fg-tertiary">지난주 {stat.previous === null ? '—' : `${stat.previous}${stat.unit}`}</span>
+                          {stat.previous === null ? null : <span className="whitespace-nowrap text-fg-tertiary">지난주 {stat.previous}{stat.unit}</span>}
                         </dd>
                       </div>
                     ))}
                   </dl>
-                  {!game.previousWeek ? <p className="text-caption text-fg-tertiary">지난주 기록이 없어 비교할 수 없습니다.</p> : null}
                   <div>
-                    <p className="mb-2 inline-flex items-center gap-1.5 text-caption text-fg-brand"><Sparkles size={14} aria-hidden="true" /> AI 분석 요약</p>
                     <h4 className="text-label text-fg-primary">{game.analysis.headline}</h4>
                     <p className="mt-2 text-body text-fg-secondary">{game.analysis.summary}</p>
                   </div>
@@ -205,7 +200,8 @@ export default function MembershipContentPage() {
           )}
         </section>}
 
-        <section aria-labelledby="membership-content-patch-notes" className="rounded-card border border-line-card bg-surface p-5 sm:p-6">
+        {/* 실제 화면의 패치노트는 멤버십 전용이다. 게스트·403에는 숨기고, 조회 실패(서버 오류)에는 남긴다. */}
+        {preview || weeklyReport || (error && !error.forbidden) ? <section aria-labelledby="membership-content-patch-notes" className="rounded-card border border-line-card bg-surface p-5 sm:p-6">
           <div className="flex items-center gap-2">
             <Newspaper size={20} className="text-icon-brand" aria-hidden="true" />
             <h2 id="membership-content-patch-notes" className="text-heading text-fg-primary">패치노트 요약</h2>
@@ -223,7 +219,6 @@ export default function MembershipContentPage() {
                   </div>
                   <h3 className="mt-4 text-heading text-fg-primary">{note.title}</h3>
                   <p className="mb-4 mt-2 text-body text-fg-secondary">{note.summary}</p>
-                  {note.statusNote ? <p className="mb-4 text-caption text-fg-secondary">{note.statusNote}</p> : null}
                   <div className="mt-auto flex flex-wrap items-center justify-between gap-3 border-t border-line-card pt-3">
                     <time dateTime={note.publishedAt} className="text-caption text-fg-tertiary">게시 {note.publishedAt}</time>
                     {note.sourceUrl ? (
@@ -236,7 +231,7 @@ export default function MembershipContentPage() {
               ))}
             </ul>
           )}
-        </section>
+        </section> : null}
       </div>
     </>
   );

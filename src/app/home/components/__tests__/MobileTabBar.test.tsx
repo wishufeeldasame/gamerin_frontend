@@ -21,24 +21,32 @@ describe('MobileTabBar', () => {
     mocks.pathname = '/';
   });
 
-  it('renders the same five menu links as the sidebar, with the profile link using the handle', () => {
-    render(<MobileTabBar />);
+  it('renders the five mobile tabs with the profile link using the handle', () => {
+    render(<MobileTabBar unreadCount={0} />);
 
     const links = screen.getAllByRole('link');
-    expect(links.map((link) => link.textContent)).toEqual(['홈', '북마크', '메시지', '멘토링', '프로필']);
+    expect(links.map((link) => link.textContent)).toEqual(['홈', '멘토링', '메시지', '알림', '프로필']);
     expect(screen.getByRole('link', { name: '프로필' })).toHaveAttribute('href', '/profile/demo%2001');
   });
 
   it('marks only the current page with aria-current', () => {
-    render(<MobileTabBar />);
+    render(<MobileTabBar unreadCount={0} />);
 
     expect(screen.getByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: '북마크' })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: '알림' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('links the bell tab to the notifications page with the unread count in its name', () => {
+    mocks.pathname = '/notifications';
+    render(<MobileTabBar unreadCount={3} />);
+    const bell = screen.getByRole('link', { name: '알림, 읽지 않은 알림 3개' });
+    expect(bell).toHaveAttribute('href', '/notifications');
+    expect(bell).toHaveAttribute('aria-current', 'page');
   });
 
   it('treats any profile page as the profile tab', () => {
     mocks.pathname = '/profile/someone-else';
-    render(<MobileTabBar />);
+    render(<MobileTabBar unreadCount={0} />);
 
     expect(screen.getByRole('link', { name: '프로필' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByRole('link', { name: '홈' })).not.toHaveAttribute('aria-current');

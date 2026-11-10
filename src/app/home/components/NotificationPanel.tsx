@@ -8,7 +8,6 @@ import {
   AtSign,
   Bell,
   CheckCheck,
-  ChevronLeft,
   GraduationCap,
   Heart,
   Loader2,
@@ -37,11 +36,12 @@ import { MembershipBadge } from './MembershipBadge';
 import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 
 interface NotificationPanelProps {
-  onClose: () => void;
+  // panel 전용. page는 하단 탭으로 드나들어 닫기가 없다.
+  onClose?: () => void;
   onUnreadCountChange?: (count: number) => void;
   id?: string;
   panelRef?: RefObject<HTMLDivElement | null>;
-  // panel: 데스크톱 사이드바 슬라이드 패널(닫기 버튼), page: 모바일 알림 페이지(뒤로 버튼).
+  // panel: 데스크톱 사이드바 슬라이드 패널(닫기 버튼), page: 모바일 하단 탭의 알림 페이지.
   variant?: 'panel' | 'page';
 }
 
@@ -241,8 +241,7 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef, 
       return;
     }
 
-    // 페이지의 onClose는 뒤로 가기라, 이동과 함께 부르면 기록이 엉킨다. 패널만 닫고 이동한다.
-    if (variant === 'panel') onClose();
+    onClose?.();
     router.push(href);
   };
 
@@ -285,20 +284,10 @@ export function NotificationPanel({ onClose, onUnreadCountChange, id, panelRef, 
       <div
         className={`flex shrink-0 items-center gap-2 border-b border-line ${
           variant === 'page'
-            ? 'sticky top-0 z-10 bg-canvas px-2 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] lg:static lg:rounded-t-card lg:bg-surface lg:px-6 lg:pt-5'
+            ? 'sticky top-[var(--app-header-height)] z-10 bg-canvas px-4 py-3 lg:static lg:rounded-t-card lg:bg-surface lg:px-6 lg:pt-5'
             : 'bg-surface px-6 py-5'
         }`}
       >
-        {variant === 'page' ? (
-          <button
-            type="button"
-            onClick={onClose}
-            className="btn-icon text-icon-primary"
-            aria-label="뒤로 가기"
-          >
-            <ChevronLeft size={24} strokeWidth={1.67} />
-          </button>
-        ) : null}
         <div className="min-w-0 flex-1">
           <h2 className="text-title text-fg-primary">알림</h2>
           <p className="text-caption text-fg-tertiary">읽지 않은 알림 {unreadCount}개</p>

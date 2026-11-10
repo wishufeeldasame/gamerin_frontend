@@ -7,7 +7,6 @@ export interface PatchNoteSummary {
   summary: string;
   publishedAt: string;
   sourceUrl: string | null;
-  statusNote?: string;
 }
 
 export interface WeeklyGameStat {
@@ -85,7 +84,6 @@ export const MEMBERSHIP_CONTENT: MembershipContent = {
       summary: '에이스 장비의 두 번째 전개 시간을 1.0초에서 1.1초로, 자칼 장비의 사거리를 12m에서 15m로 조정한다고 안내했습니다. 니트로 셀 피해량은 180에서 185로, Commando 9 피해량은 36에서 38로 조정됩니다.',
       publishedAt: '2026-11-03',
       sourceUrl: 'https://www.ubisoft.com/en-us/game/rainbow-six/siege/news-updates/4siIATxV2PVpuSsBbTPB1t/y11s33-patch-notes',
-      statusNote: '공식 패치노트 기준 · 실제 배포 완료 여부 확인 필요',
     },
   ],
   weeklyReport: {

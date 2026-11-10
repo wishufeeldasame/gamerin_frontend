@@ -21,7 +21,7 @@ export default function AppLayout({
   const { user, isAuthReady, isSessionUnavailable, isAccountBlocked, isLoggingOut, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
   // 자체 뒤로 헤더가 있는 하위 화면에서는 모바일 상단 바를 숨긴다(F15).
-  const showTopBar = pathname !== '/notifications' && pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/membership/content-preview' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
+  const showTopBar = pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/membership/content-preview' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
 
   const protectedPage = !isPublicAppPath(pathname);
   useEffect(() => {
@@ -43,7 +43,7 @@ export default function AppLayout({
       className="min-h-screen bg-canvas"
       style={showTopBar ? undefined : ({ '--app-header-height': '0px' } as React.CSSProperties)}
     >
-      {showTopBar ? <MobileTopBar unreadCount={unreadCount} /> : null}
+      {showTopBar ? <MobileTopBar /> : null}
 
       <div className="mx-auto flex max-w-[1212px] pt-[var(--app-header-height)]">
         <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 px-4 pb-4 pt-6 lg:block">
@@ -53,7 +53,7 @@ export default function AppLayout({
         <main className="min-w-0 flex-1 min-h-[calc(100dvh-var(--app-header-height))] pb-[var(--tab-bar-height)]">{user || !protectedPage ? children : <p className="p-6 text-label text-fg-secondary">로그인 후 이용할 수 있습니다.</p>}</main>
       </div>
 
-      <MobileTabBar />
+      <MobileTabBar unreadCount={unreadCount} />
     </div>
     </UnreadNotificationCountContext.Provider>
     </PendingPostsProvider>

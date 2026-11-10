@@ -183,8 +183,6 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
 
         await page.goto('/settings');
         await page.getByRole('button', { name: '개인화', exact: true }).click();
-        await expect(page.getByRole('button', { name: '라이트 모드', exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: '다크 모드', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox')).toHaveCount(0);
         await checkLayout(page, info, 'settings');
 

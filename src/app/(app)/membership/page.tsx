@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpRight, BadgeCheck, BadgePercent, Ban, ChevronLeft, Clock, Crown, Loader2, Newspaper, PencilLine, Video } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, BadgePercent, Ban, Check, ChevronLeft, Clock, Crown, Loader2, Newspaper, PencilLine, Video } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchMyMembership, type MyMembership } from '@/lib/membership-api';
@@ -90,7 +90,7 @@ export default function MembershipPage() {
           <h1 className="text-title text-fg-primary">GamerIN 멤버십</h1>
         </header>
 
-        <div className="max-w-[640px] space-y-4">
+        <div className="space-y-4">
           <section className="rounded-card border border-line-card bg-surface p-5 sm:p-7">
             {loading ? (
               <div role="status" className="grid min-h-40 place-items-center">
@@ -144,54 +144,61 @@ export default function MembershipPage() {
             )}
           </section>
 
-          <section className="rounded-card border border-line-card bg-surface p-4 sm:p-7" aria-labelledby="membership-benefits-title">
-            <h2 id="membership-benefits-title" className="text-heading text-fg-primary">멤버십 혜택</h2>
-            <ul className="mt-4 space-y-6 sm:space-y-7">
-              {benefits.map((benefit) => (
-                <li key={benefit.title} className="flex items-start gap-3 sm:gap-4">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
-                    <benefit.icon size={20} aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-label text-fg-primary">{benefit.title}</h3>
-                    <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <section className="grid rounded-card border border-line-card bg-surface md:grid-cols-2">
+            <div className="p-5 sm:p-6">
+              <h2 className="text-heading text-fg-primary">멤버십 혜택</h2>
+              <ul className="mt-4 space-y-4">
+                {benefits.map((benefit) => (
+                  <li key={benefit.title} className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
+                      <benefit.icon size={20} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-label text-fg-primary">{benefit.title}</h3>
+                      <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-            <div className="mt-4 space-y-1 border-t border-line pt-3 text-caption text-fg-secondary">
-              <p>멘티 결제 금액은 바뀌지 않습니다.</p>
-              <p>GamerIN 정산 수수료 할인이며 카카오페이 수수료와 무관합니다.</p>
+              <div className="mt-4 space-y-1 border-t border-line pt-3 text-caption text-fg-secondary">
+                <p>멘티 결제 금액은 바뀌지 않습니다.</p>
+                <p>GamerIN 정산 수수료 할인이며 카카오페이 수수료와 무관합니다.</p>
+              </div>
             </div>
-          </section>
 
-          <section aria-labelledby="membership-upcoming-title" className="space-y-3">
-            <div className="flex items-center gap-2 px-1">
-              <Clock size={18} className="text-icon-secondary" aria-hidden="true" />
-              <h2 id="membership-upcoming-title" className="text-heading text-fg-primary">콘텐츠와 추가 혜택</h2>
-            </div>
-            <ul className="space-y-3">
-              {upcomingBenefits.map((benefit) => (
-                <li key={benefit.title} className="rounded-card border border-line-card bg-surface p-5 sm:p-6">
-                  <div className="flex items-start gap-3 sm:gap-4">
+            <div className="border-t border-line-card p-5 sm:p-6 md:border-l md:border-t-0">
+              <h2 className="text-heading text-fg-primary">콘텐츠와 추가 혜택</h2>
+              <ul className="mt-4 space-y-4">
+                {upcomingBenefits.map((benefit) => (
+                  <li key={benefit.title} className="flex items-start gap-3">
                     <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
                       <benefit.icon size={20} aria-hidden="true" />
                     </span>
                     <div className="min-w-0 flex-1">
-                      <span className="rounded-full bg-subtle px-2 py-1 text-caption text-fg-secondary">{benefit.preview ? '이용 가능' : '지원 예정'}</span>
-                      <h3 className="mt-2 text-heading text-fg-primary">{benefit.title}</h3>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-label text-fg-primary">{benefit.title}</h3>
+                        {benefit.preview ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success-subtle px-2.5 py-1 text-caption font-semibold text-fg-success">
+                            <Check size={14} aria-hidden="true" /> 이용 가능
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-1 text-caption font-semibold text-fg-secondary">
+                            <Clock size={14} aria-hidden="true" /> 지원 예정
+                          </span>
+                        )}
+                      </div>
                       <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
                       {benefit.preview ? (
-                        <button type="button" onClick={() => router.push(active ? '/membership/content' : '/membership/content-preview')} className={`btn-secondary mt-4 inline-flex items-center gap-2 ${FOCUS_RING}`}>
+                        <button type="button" onClick={() => router.push(active ? '/membership/content' : '/membership/content-preview')} className={`btn-secondary mt-3 inline-flex items-center gap-2 ${FOCUS_RING}`}>
                           {active ? '내 리포트 보기' : '미리보기'} <ArrowUpRight size={16} aria-hidden="true" />
                         </button>
                       ) : null}
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </section>
         </div>
       </div>

@@ -38,7 +38,7 @@ describe('Sidebar (L2)', () => {
     render(<Sidebar unreadCount={120} onUnreadCountChange={vi.fn()} />);
     const items = within(screen.getByRole('navigation', { name: '주요 메뉴' })).getAllByRole('listitem');
     expect(items.map((item) => item.textContent)).toEqual([
-      '홈', '검색', '알림99+, 읽지 않은 알림 120개', '북마크', '메시지', '멘토링', '프로필',
+      '홈', '검색', '알림99+, 읽지 않은 알림 120개', '북마크', '메시지', '멘토링', '프로필', '멤버십',
     ]);
     expect(screen.getByRole('link', { name: '홈' })).toHaveAttribute('aria-current', 'page');
   });
@@ -68,6 +68,9 @@ describe('Sidebar (L2)', () => {
     expect(screen.getByText('@tester')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: '계정 메뉴' }));
+    expect(screen.getByRole('menuitem', { name: '설정' })).toHaveAttribute('href', '/settings');
+    expect(screen.getByRole('menuitem', { name: '지갑' })).toHaveAttribute('href', '/wallet');
+    expect(screen.getByRole('menuitem', { name: /모드로 전환/ })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: '로그아웃' }));
     expect(mocks.logout).toHaveBeenCalled();
   });

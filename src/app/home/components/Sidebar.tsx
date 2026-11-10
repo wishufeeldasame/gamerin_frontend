@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useId, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useReducedMotion } from 'framer-motion';
-import { Bell, Bookmark, BookOpen, Home, LogOut, MessageSquare, MoreHorizontal, Search, User, WalletCards } from 'lucide-react';
+import { Bell, Bookmark, BookOpen, Crown, Home, LogOut, MessageSquare, Moon, MoreHorizontal, Search, Settings, Sun, User, WalletCards } from 'lucide-react';
 import { getInitials } from '@/lib/feed-api';
 import { requestLogin } from '@/lib/login-prompt';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
@@ -15,6 +15,7 @@ import { usePopup } from '@/app/context/PopupContext';
 import { useDismissable } from '@/hooks/useDismissable';
 import { useDesktopChange } from '@/hooks/useDesktopChange';
 import { useMileageBalance } from '@/hooks/useMileageBalance';
+import { useThemeToggle } from '@/hooks/useThemeToggle';
 import { MembershipBadge } from './MembershipBadge';
 import { RepresentativeTierBadge } from './RepresentativeTierBadge';
 import { NotificationPanel } from './NotificationPanel';
@@ -33,7 +34,7 @@ export const SHELL_MAX_WIDTH = 1212;
 export const SIDEBAR_WIDTH = 248;
 const PANEL_LEFT = `calc(max(0px, (100% - ${SHELL_MAX_WIDTH}px) / 2) + ${SIDEBAR_WIDTH}px)`;
 
-// Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 메뉴·활성 규칙을 쓴다.
+// Sidebar(데스크톱)와 MobileTabBar(lg 미만)가 같은 활성 규칙을 쓴다. 탭바는 북마크 대신 알림을 둔다(북마크는 모바일 메뉴).
 function useMenuLinks() {
   const pathname = usePathname();
   const { user } = useAuth();
@@ -46,8 +47,16 @@ function useMenuLinks() {
   });
 }
 
-export function MobileTabBar() {
-  const links = useMenuLinks();
+export function MobileTabBar({ unreadCount }: { unreadCount: number }) {
+  const pathname = usePathname();
+  const byIcon = new Map(useMenuLinks().map((item) => [item.icon, item]));
+  const links = [
+    byIcon.get(Home)!,
+    byIcon.get(BookOpen)!,
+    byIcon.get(MessageSquare)!,
+    { icon: Bell, label: '알림', href: '/notifications', isActive: pathname === '/notifications' },
+    byIcon.get(User)!,
+  ];
 
   return (
     <nav
@@ -66,8 +75,12 @@ export function MobileTabBar() {
                 item.isActive ? 'font-medium text-fg-primary' : 'text-fg-tertiary'
               }`}
             >
-              <item.icon size={22} strokeWidth={1.67} className={item.isActive ? 'text-icon-brand' : undefined} />
+              <span className="relative">
+                <item.icon size={22} strokeWidth={1.67} className={item.isActive ? 'text-icon-brand' : undefined} />
+                {item.icon === Bell && unreadCount > 0 ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-surface" /> : null}
+              </span>
               {item.label}
+              {item.icon === Bell && unreadCount > 0 ? <span className="sr-only">, 읽지 않은 알림 {unreadCount}개</span> : null}
             </Link>
           </li>
         ))}
@@ -121,65 +134,79 @@ function useShellPopup() {
   return { id, ...popup, triggerRef, panelRef, closeAndRestoreFocus };
 }
 
+const ACCOUNT_MENU_ITEM = 'flex h-10 w-full items-center gap-2 rounded-md px-3 text-label transition';
+
 function AccountCard() {
   const { user, logout } = useAuth();
   const balance = useMileageBalance(user?.id, 'desktop');
   const menu = useShellPopup();
+  const { theme, toggle: toggleTheme } = useThemeToggle();
 
   if (!user) return <div className="rounded-card border border-line-card bg-surface p-3"><p className="mb-3 text-label text-fg-secondary">로그인하고 게이머들과 함께하세요.</p><button type="button" className="btn-primary w-full" onClick={() => requestLogin()}>로그인</button></div>;
 
   return (
     <div className="rounded-card border border-line-card bg-surface p-3">
-      <div className="flex items-center gap-3">
-        <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-caption font-medium text-fg-secondary">
-          {user.profileImageUrl ? (
-            <Image src={user.profileImageUrl} alt={user.nickname} fill unoptimized sizes="36px" className="object-cover" />
-          ) : (
-            getInitials(user.nickname ?? '', 'U')
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="flex min-w-0 items-center gap-1 text-label font-bold text-fg-primary">
-            <span className="truncate">{user.nickname}</span>
-            <MembershipBadge active={user.membershipBadge} /><RepresentativeTierBadge tier={user.representativeTier} />
-          </p>
-          {user.handle ? <p className="truncate text-caption text-fg-tertiary">@{user.handle}</p> : null}
-        </div>
-        <div className="relative">
-          <button
-            type="button"
-            ref={menu.triggerRef}
-            onClick={menu.toggle}
-            className="btn-icon h-8 w-8"
-            aria-label="계정 메뉴"
-            aria-haspopup="menu"
-            aria-expanded={menu.isOpen}
-            aria-controls={menu.isOpen ? menu.id : undefined}
+      <div className="relative">
+        {/* 카드 윗줄 전체가 계정 메뉴를 여는 버튼이다. */}
+        <button
+          type="button"
+          ref={menu.triggerRef}
+          onClick={menu.toggle}
+          className="flex w-full cursor-pointer items-center gap-3 rounded-control text-left"
+          aria-label="계정 메뉴"
+          aria-haspopup="menu"
+          aria-expanded={menu.isOpen}
+          aria-controls={menu.isOpen ? menu.id : undefined}
+        >
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-subtle text-caption font-medium text-fg-secondary">
+            {user.profileImageUrl ? (
+              <Image src={user.profileImageUrl} alt={user.nickname} fill unoptimized sizes="36px" className="object-cover" />
+            ) : (
+              getInitials(user.nickname ?? '', 'U')
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex min-w-0 items-center gap-1 text-label font-bold text-fg-primary">
+              <span className="truncate">{user.nickname}</span>
+              <MembershipBadge active={user.membershipBadge} /><RepresentativeTierBadge tier={user.representativeTier} />
+            </span>
+            {user.handle ? <span className="block truncate text-caption text-fg-tertiary">@{user.handle}</span> : null}
+          </span>
+          <MoreHorizontal size={18} strokeWidth={1.67} className="shrink-0 text-icon-secondary" aria-hidden="true" />
+        </button>
+        {menu.isOpen ? (
+          <div
+            id={menu.id}
+            ref={menu.panelRef}
+            role="menu"
+            className="absolute inset-x-0 bottom-full z-10 mb-2 rounded-control bg-surface-elevated p-1 shadow-xl ring-1 ring-line"
           >
-            <MoreHorizontal size={18} strokeWidth={1.67} />
-          </button>
-          {menu.isOpen ? (
-            <div
-              id={menu.id}
-              ref={menu.panelRef}
-              role="menu"
-              className="absolute bottom-full right-0 z-10 mb-2 w-40 rounded-control bg-surface-elevated p-1 shadow-xl ring-1 ring-line"
+            <Link href="/settings" role="menuitem" onClick={menu.close} className={`${ACCOUNT_MENU_ITEM} text-fg-primary hover:bg-subtle`}>
+              <Settings size={16} strokeWidth={1.67} aria-hidden="true" />
+              설정
+            </Link>
+            <Link href="/wallet" role="menuitem" onClick={menu.close} className={`${ACCOUNT_MENU_ITEM} text-fg-primary hover:bg-subtle`}>
+              <WalletCards size={16} strokeWidth={1.67} aria-hidden="true" />
+              지갑
+            </Link>
+            <button type="button" role="menuitem" onClick={() => void toggleTheme()} className={`${ACCOUNT_MENU_ITEM} text-fg-primary hover:bg-subtle`}>
+              {theme === 'dark' ? <Sun size={16} strokeWidth={1.67} aria-hidden="true" /> : <Moon size={16} strokeWidth={1.67} aria-hidden="true" />}
+              {theme === 'dark' ? '라이트 모드로 전환' : '다크 모드로 전환'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                menu.close();
+                void logout();
+              }}
+              className={`${ACCOUNT_MENU_ITEM} text-fg-danger hover:bg-danger-subtle`}
             >
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  menu.close();
-                  void logout();
-                }}
-                className="flex h-10 w-full items-center gap-2 rounded-md px-3 text-label text-fg-danger transition hover:bg-danger-subtle"
-              >
-                <LogOut size={16} strokeWidth={1.67} />
-                로그아웃
-              </button>
-            </div>
-          ) : null}
-        </div>
+              <LogOut size={16} strokeWidth={1.67} aria-hidden="true" />
+              로그아웃
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-3 flex items-center gap-3 border-t border-line pt-3">
@@ -284,6 +311,8 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
             ) : null,
           )}
           {rest.map(linkItem)}
+          {/* 모바일 탭바는 5칸 고정이라 menuItems에 넣지 않고 데스크톱 사이드바에만 둔다. */}
+          {linkItem({ icon: Crown, label: '멤버십', href: '/membership', isActive: !panelOpen && pathname.startsWith('/membership') })}
         </ul>
       </nav>
 

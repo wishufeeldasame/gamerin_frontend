@@ -10,7 +10,7 @@ test('guest can open the preview without requesting a private weekly report', as
   await page.goto('/membership/content');
   await expect(page.getByRole('button', { name: '로그인하고 확인하기' })).toBeVisible();
   await page.getByRole('link', { name: '예시 리포트 미리보기' }).click();
-  await expect(page.getByText(/주간 전적과 AI 분석은 예시 데이터입니다/)).toBeVisible();
+  await expect(page.getByText('예시 데이터입니다.')).toBeVisible();
   expect(weeklyCalls).toBe(0);
 });
 
@@ -70,7 +70,7 @@ for (const viewport of [
     await page.getByRole('link', { name: '예시 리포트 미리보기' }).click();
 
     await expect(page).toHaveURL(/\/membership\/content-preview$/);
-    await expect(page.getByText(/주간 전적과 AI 분석은 예시 데이터입니다/)).toBeVisible();
+    await expect(page.getByText('예시 데이터입니다.')).toBeVisible();
     await expect(page.getByRole('heading', { name: '리그 오브 레전드', exact: true })).toBeVisible();
     expect(weeklyCalls).toBe(beforePreview);
   });

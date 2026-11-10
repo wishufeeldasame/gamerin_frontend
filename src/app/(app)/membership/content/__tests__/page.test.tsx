@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const membershipApi = vi.hoisted(() => ({ fetchMyMembership: vi.fn(), fetchMyWeeklyReport: vi.fn() }));
 const navigation = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn(), canGoBack: vi.fn() }));
-const reportView = vi.hoisted(() => ({ path: '/membership/content-preview', userId: 'member' }));
+const reportView = vi.hoisted(() => ({ path: '/membership/content-preview', userId: 'member', member: false }));
 const loginPrompt = vi.hoisted(() => ({ requestLogin: vi.fn() }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => navigation, usePathname: () => reportView.path }));
-vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: reportView.userId }, isAuthReady: true }) }));
+vi.mock('@/app/context/AuthContext', () => ({ useAuth: () => ({ user: { id: reportView.userId, membershipBadge: reportView.member }, isAuthReady: true }) }));
 vi.mock('@/lib/history-back', () => ({ canGoBack: navigation.canGoBack }));
 vi.mock('@/lib/membership-api', () => membershipApi);
 vi.mock('@/lib/login-prompt', () => loginPrompt);
@@ -45,6 +45,7 @@ describe('MembershipContentPage', () => {
     loginPrompt.requestLogin.mockReset();
     reportView.path = '/membership/content-preview';
     reportView.userId = 'member';
+    reportView.member = false;
   });
 
   it('멤버십 조회 없이 고정 전적과 패치노트만 미리보기로 보여준다', () => {
@@ -71,7 +72,6 @@ describe('MembershipContentPage', () => {
       expect(link).toHaveAttribute('href', note.sourceUrl);
       expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     }
-    expect(screen.getByText(/실제 배포 완료 여부 확인 필요/)).toBeInTheDocument();
     expect(screen.getByText('2026.11.10 기준 · PC 패치 · 공식 발표 요약')).toBeInTheDocument();
   });
 
@@ -106,7 +106,6 @@ describe('MembershipContentPage', () => {
     expect(headshot.getByText('지난주 22.1%')).toBeInTheDocument();
     expect(headshot.getByText('24.6%')).toBeInTheDocument();
     expect(headshot.getByText('+2.5%p')).toBeInTheDocument();
-    expect(screen.getByText('AI 분석 형식의 예시 리포트입니다.')).toBeInTheDocument();
     for (const game of MEMBERSHIP_CONTENT.weeklyReport.games) {
       expect(screen.getByRole('heading', { name: game.analysis.headline })).toBeInTheDocument();
       expect(screen.getByText(game.analysis.summary)).toBeInTheDocument();
@@ -126,13 +125,22 @@ describe('MembershipContentPage', () => {
       render(<MembershipContentPage />);
       const stats = statsOf(game.gameLabel);
       expect(stats.getAllByText('비교 없음')).toHaveLength(3);
-      expect(stats.getAllByText('지난주 —')).toHaveLength(3);
+      expect(stats.queryByText(/지난주/)).not.toBeInTheDocument();
       expect(stats.getAllByText('—')).toHaveLength(1);
-      expect(screen.getByText('지난주 기록이 없어 비교할 수 없습니다.')).toBeInTheDocument();
     } finally {
       game.previousWeek = previous;
       game.kd = kd;
     }
+  });
+
+  it('예시 화면에서 내 리포트 링크는 멤버십 회원에게만 보인다', () => {
+    const view = render(<MembershipContentPage />);
+    expect(screen.queryByRole('link', { name: '내 주간 리포트 보기' })).not.toBeInTheDocument();
+    view.unmount();
+
+    reportView.member = true;
+    render(<MembershipContentPage />);
+    expect(screen.getByRole('link', { name: '내 주간 리포트 보기' })).toHaveAttribute('href', '/membership/content');
   });
 
   it.each([true, false])('뒤로는 이전 기록(%s)에 따라 이동한다', async (hasHistory) => {
@@ -190,6 +198,7 @@ describe('MembershipContentPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('멤버십 이용 중');
     expect(screen.getByRole('link', { name: '멤버십 안내 보기' })).toHaveAttribute('href', '/membership');
     expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: '패치노트 요약' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: '발로란트' })).not.toBeInTheDocument();
   });
 
