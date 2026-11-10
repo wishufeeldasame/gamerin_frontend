@@ -35,7 +35,6 @@ for (const theme of ['light', 'dark'] as const) {
       await page.getByLabel('현재 비밀번호', { exact: true }).fill('OldPassword1!');
       await menu.getByRole('button', { name: '개인화', exact: true }).click();
       await expect(account).toBeHidden();
-      await expect(page.getByRole('button', { name: /다크 모드/ })).toBeVisible();
       const games = page.getByRole('region', { name: '대표 게임', exact: true });
       await expect(games).toBeVisible();
       const none = games.getByRole('radio', { name: '표시 안 함', exact: true });

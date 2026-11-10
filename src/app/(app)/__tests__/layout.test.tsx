@@ -138,7 +138,7 @@ describe('AppLayout 인증 확인', () => {
   it.each([
     ['/', true],
     ['/posts/12', false],
-    ['/notifications', false],
+    ['/notifications', true],
     ['/wallet', false],
     ['/membership', false],
     ['/settings', false],

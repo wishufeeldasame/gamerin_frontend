@@ -1,6 +1,6 @@
 'use client';
 
-import { BadgeCheck, BadgePercent, ChevronLeft, Crown, Loader2, PencilLine } from 'lucide-react';
+import { ArrowUpRight, BadgeCheck, BadgePercent, Ban, Check, ChevronLeft, Clock, Crown, Loader2, Newspaper, PencilLine, Video } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { fetchMyMembership, type MyMembership } from '@/lib/membership-api';
@@ -17,6 +17,12 @@ const benefits = [
   { icon: BadgeCheck, title: '닉네임 옆 멤버십 배지', description: '프로필이 보이는 모든 화면에서 노란 체크 배지가 표시됩니다.' },
   { icon: PencilLine, title: '게시글 1회 수정', description: '게시 후 1시간 이내, 게시글당 1번 본문을 수정할 수 있습니다.' },
   { icon: BadgePercent, title: '멘토 정산 수수료 10% → 5%', description: '멘토로 진행한 멘토링의 GamerIN 정산 수수료가 낮아집니다.' },
+];
+
+const upcomingBenefits = [
+  { icon: Newspaper, title: '멤버십 전용 콘텐츠', description: '한 주의 전적과 게임별 패치 소식을 한눈에 확인하세요.', preview: true },
+  { icon: Video, title: '고화질 영상 업로드', description: '선명한 화질로 플레이의 순간을 공유하세요.', preview: false },
+  { icon: Ban, title: '광고 제거', description: '광고 없이 피드와 콘텐츠에 집중하세요.', preview: false },
 ];
 
 function formatDate(value: Date | string | null) {
@@ -84,7 +90,7 @@ export default function MembershipPage() {
           <h1 className="text-title text-fg-primary">GamerIN 멤버십</h1>
         </header>
 
-        <div className="max-w-[640px] space-y-4">
+        <div className="space-y-4">
           <section className="rounded-card border border-line-card bg-surface p-5 sm:p-7">
             {loading ? (
               <div role="status" className="grid min-h-40 place-items-center">
@@ -138,25 +144,60 @@ export default function MembershipPage() {
             )}
           </section>
 
-          <section className="rounded-card border border-line-card bg-surface p-4 sm:p-7" aria-labelledby="membership-benefits-title">
-            <h2 id="membership-benefits-title" className="text-heading text-fg-primary">멤버십 혜택</h2>
-            <ul className="mt-4 space-y-6 sm:space-y-7">
-              {benefits.map((benefit) => (
-                <li key={benefit.title} className="flex items-start gap-3 sm:gap-4">
-                  <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
-                    <benefit.icon size={20} aria-hidden="true" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-label text-fg-primary">{benefit.title}</h3>
-                    <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
-                  </div>
-                </li>
-              ))}
-            </ul>
+          <section className="grid rounded-card border border-line-card bg-surface md:grid-cols-2">
+            <div className="p-5 sm:p-6">
+              <h2 className="text-heading text-fg-primary">멤버십 혜택</h2>
+              <ul className="mt-4 space-y-4">
+                {benefits.map((benefit) => (
+                  <li key={benefit.title} className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
+                      <benefit.icon size={20} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="text-label text-fg-primary">{benefit.title}</h3>
+                      <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-            <div className="mt-4 space-y-1 border-t border-line pt-3 text-caption text-fg-secondary">
-              <p>멘티 결제 금액은 바뀌지 않습니다.</p>
-              <p>GamerIN 정산 수수료 할인이며 카카오페이 수수료와 무관합니다.</p>
+              <div className="mt-4 space-y-1 border-t border-line pt-3 text-caption text-fg-secondary">
+                <p>멘티 결제 금액은 바뀌지 않습니다.</p>
+                <p>GamerIN 정산 수수료 할인이며 카카오페이 수수료와 무관합니다.</p>
+              </div>
+            </div>
+
+            <div className="border-t border-line-card p-5 sm:p-6 md:border-l md:border-t-0">
+              <h2 className="text-heading text-fg-primary">콘텐츠와 추가 혜택</h2>
+              <ul className="mt-4 space-y-4">
+                {upcomingBenefits.map((benefit) => (
+                  <li key={benefit.title} className="flex items-start gap-3">
+                    <span className="grid size-10 shrink-0 place-items-center rounded-control bg-brand-subtle text-fg-brand">
+                      <benefit.icon size={20} aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-label text-fg-primary">{benefit.title}</h3>
+                        {benefit.preview ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-success-subtle px-2.5 py-1 text-caption font-semibold text-fg-success">
+                            <Check size={14} aria-hidden="true" /> 이용 가능
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-line-strong px-2.5 py-1 text-caption font-semibold text-fg-secondary">
+                            <Clock size={14} aria-hidden="true" /> 지원 예정
+                          </span>
+                        )}
+                      </div>
+                      <p className="mt-1 text-body text-fg-secondary">{benefit.description}</p>
+                      {benefit.preview ? (
+                        <button type="button" onClick={() => router.push(active ? '/membership/content' : '/membership/content-preview')} className={`btn-secondary mt-3 inline-flex items-center gap-2 ${FOCUS_RING}`}>
+                          {active ? '내 리포트 보기' : '미리보기'} <ArrowUpRight size={16} aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           </section>
         </div>

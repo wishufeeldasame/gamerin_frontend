@@ -67,6 +67,68 @@ async function mockEmptyAdminReports(page: Page) {
   });
 }
 
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1100 },
+  { name: 'mobile', width: 390, height: 844 },
+]) {
+  test(`admin generates a weekly report from the sidebar on ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await seedAdmin(page);
+    await mockAuth(page);
+    await mockEmptyAdminReports(page);
+    const report = {
+      weekStart: '2026-11-02', weekEnd: '2026-11-08',
+      previousWeekStart: '2026-10-26', previousWeekEnd: '2026-11-01',
+      totalMatches: 9,
+      games: [{
+        game: 'VALORANT', gameLabel: '발로란트', matches: 9, winRate: 66.7,
+        kd: null, headshotRate: 24.6, tierLabel: null, previousWeek: null,
+        analysis: { headline: '이번 주 경기 분석', summary: '경기 기록을 바탕으로 생성한 요약입니다.', focus: '다음 경기의 교전 위치를 점검해 보세요.' },
+      }],
+      notice: '일부 경기 정보를 불러오지 못했어요. 확인된 경기만으로 작성해 실제 기록과 차이가 있을 수 있어요.',
+      collectionIssues: [{
+        matchId: 'unavailable-match', startedAt: '2026-11-02T15:27:02.659Z', map: 'Lotus', httpStatus: 404,
+        reason: '랭크 이력에는 있지만 HenrikDev 경기 상세 API에서 경기 정보를 찾을 수 없습니다.',
+      }],
+    };
+    let finishGeneration!: () => void;
+    const pending = new Promise<void>((resolve) => { finishGeneration = resolve; });
+    let submitted: unknown;
+    let calls = 0;
+    await page.route('**/api/v1/admin/weekly-reports/valorant', async (route) => {
+      calls++;
+      submitted = route.request().postDataJSON();
+      expect(route.request().method()).toBe('POST');
+      expect(route.request().headers().authorization).toBe('Bearer e2e-token');
+      await pending;
+      await route.fulfill({ json: { success: true, data: report } });
+    });
+
+    await page.goto('/admin/reports');
+    if (viewport.name === 'mobile') await page.getByRole('button', { name: '관리자 메뉴 열기' }).click();
+    await page.getByRole('link', { name: '주간 전적 리포트' }).filter({ visible: true }).click();
+    await expect(page).toHaveURL(/\/admin\/weekly-reports$/);
+    await expect(page.getByText('아직 실행한 요청이 없습니다.')).toBeVisible();
+    await page.getByRole('combobox', { name: '리전', exact: true }).selectOption('AP');
+    await page.getByLabel('닉네임 (이름#태그)').fill('플레이어#TAG');
+    await page.getByRole('button', { name: '실행 · 리포트 생성' }).click();
+
+    await expect(page.getByText('리포트를 생성하고 있습니다.')).toBeVisible();
+    await expect(page.getByRole('button', { name: '생성 중...' })).toBeDisabled();
+    await expect(page.getByRole('combobox', { name: '리전', exact: true })).toBeDisabled();
+    await expect.poll(() => submitted).toEqual({ riotId: '플레이어#TAG', region: 'AP' });
+    finishGeneration();
+
+    await expect(page.getByText('HTTP 200')).toBeVisible();
+    await expect(page.getByRole('heading', { name: '경기 수집 안내' })).toBeVisible();
+    await expect(page.getByText(/Lotus · HTTP 404/)).toBeVisible();
+    expect(JSON.parse((await page.getByLabel('응답 JSON').textContent())!)).toEqual(report);
+    expect(calls).toBe(1);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.screenshot({ path: `/private/tmp/gamerin-admin-weekly-report-${viewport.name}.png`, fullPage: true });
+  });
+}
+
 test('guard redirects an unauthenticated visitor to admin login', async ({ page }) => {
   await page.goto('/admin/reports');
   await expect(page).toHaveURL(/\/admin\/login$/);

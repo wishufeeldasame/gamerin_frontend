@@ -6,7 +6,6 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { PostListSkeleton, ProfileSkeleton, UserRowsSkeleton } from '@/app/home/components/LoadingSkeletons';
 import {
-  Settings,
   Plus,
   RefreshCw,
   Globe,
@@ -17,7 +16,6 @@ import {
   Flag,
   X,
   MapPin,
-  WalletCards,
   Gamepad2,
 } from 'lucide-react';
 import { useCallback, useEffect, useId, useMemo, useState } from 'react';
@@ -68,7 +66,6 @@ import {
   type ValorantSummaryResponse,
 } from '@/lib/game-stats-api';
 import { useCursorList } from '@/hooks/useCursorList';
-import { useMileageBalance } from '@/hooks/useMileageBalance';
 import { usePostLike } from '@/hooks/usePostLike';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
@@ -891,7 +888,6 @@ export default function ProfilePage() {
   const isOwnProfile = Boolean(profile && currentUser && (
     profile.handle === currentUser.handle || profile.id === currentUser.id
   ));
-  const mileageBalance = useMileageBalance(isOwnProfile && !loading ? currentUser?.id : undefined, 'mobile');
 
   if (loading) {
     return (
@@ -959,14 +955,9 @@ export default function ProfilePage() {
 
             <div className="relative top-3 flex flex-wrap justify-end gap-2 md:top-2">
               {isOwnProfile ? (
-                <>
-                  <Link href="/settings" className="btn-secondary-square" aria-label="설정">
-                    <Settings size={18} className="text-icon-secondary" />
-                  </Link>
-                  <button type="button" onClick={() => setShowEditProfileModal(true)} className="btn-secondary">
-                    프로필 수정
-                  </button>
-                </>
+                <button type="button" onClick={() => setShowEditProfileModal(true)} className="btn-secondary">
+                  프로필 수정
+                </button>
               ) : (
                 <>
                   <div className="relative">
@@ -1097,21 +1088,6 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          {isOwnProfile ? (
-            <Link
-              href="/wallet"
-              className="mt-3 flex items-center gap-3 rounded-xl border border-line-card bg-surface px-4 py-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-fg-brand lg:hidden"
-            >
-              <WalletCards size={20} className="shrink-0 text-icon-secondary" />
-              <div className="min-w-0 flex-1">
-                <p className="text-caption text-fg-tertiary">마일리지</p>
-                <p className="text-body font-medium text-fg-primary">
-                  {mileageBalance === null ? '—' : `${mileageBalance.toLocaleString('ko-KR')} M`}
-                </p>
-              </div>
-              <span className="text-label text-fg-brand">충전 ›</span>
-            </Link>
-          ) : null}
         </header>
 
         <div

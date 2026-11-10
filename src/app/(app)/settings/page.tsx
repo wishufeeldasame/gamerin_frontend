@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronLeft, ChevronRight, Moon, Sun } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import Link from 'next/link';
@@ -10,7 +10,6 @@ import { useToast } from '@/app/context/ToastContext';
 import { deleteMyAccount } from '@/lib/account-api';
 import { changePassword } from '@/lib/auth-api';
 import { validatePassword } from '@/lib/auth-validation';
-import { ThemeMode, loadUserSettings, saveUserSettings, saveThemeToServer } from '@/lib/user-settings';
 import { canGoBack } from '@/lib/history-back';
 import { RepresentativeGameSetting } from './RepresentativeGameSetting';
 
@@ -24,8 +23,6 @@ export default function SettingsPage() {
   const confirm = useConfirm();
   const router = useRouter();
   const [activeSection, setActiveSection] = useState<SettingsSection>('account');
-  const [theme, setTheme] = useState<ThemeMode>(() => loadUserSettings().theme);
-  const [isSavingTheme, setIsSavingTheme] = useState(false);
   const [passwordFields, setPasswordFields] = useState({
     current: '',
     next: '',
@@ -33,21 +30,6 @@ export default function SettingsPage() {
   });
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isDeletingAccount, setIsDeletingAccount] = useState(false);
-
-  const handleThemeChange = async (nextTheme: ThemeMode) => {
-    setTheme(nextTheme);
-    saveUserSettings({ theme: nextTheme });
-    if (!user) return;
-    setIsSavingTheme(true);
-    try {
-      await saveThemeToServer(nextTheme);
-    } catch (error) {
-      if (error instanceof DOMException && error.name === 'AbortError') return;
-      toast.error(error instanceof Error ? error.message : '테마를 저장하지 못했습니다.');
-    } finally {
-      setIsSavingTheme(false);
-    }
-  };
 
   const handlePasswordChange = async () => {
     if (!passwordFields.current || !passwordFields.next || !passwordFields.confirm) {
@@ -275,47 +257,6 @@ export default function SettingsPage() {
 
               {activeSection === 'personalization' && (
                 <div className="space-y-3 lg:space-y-4">
-                  <section aria-labelledby="theme-heading" className="rounded-card bg-surface p-6">
-                    <h2 id="theme-heading" className="mb-2 text-heading text-fg-primary">테마 설정</h2>
-                    <p className="mb-4 text-body text-fg-secondary">
-                      선택한 테마는 모든 기기에 동일하게 적용됩니다.
-                    </p>
-                    <fieldset disabled={isSavingTheme} className="space-y-3">
-                      <legend className="sr-only">테마 선택</legend>
-                      <button
-                        type="button"
-                        aria-pressed={theme === 'light'}
-                        onClick={() => void handleThemeChange('light')}
-                        className={`flex w-full items-center gap-4 rounded-card border-2 p-5 text-left transition ${FOCUS_RING} ${
-                          theme === 'light'
-                            ? 'border-fg-brand bg-brand-subtle'
-                            : 'border-line-card bg-surface hover:border-line'
-                        }`}
-                      >
-                        <Sun className="h-8 w-8 shrink-0 text-fg-brand" aria-hidden="true" />
-                        <div>
-                          <p className="text-heading text-fg-primary">라이트 모드</p>
-                          <p className="text-caption text-fg-secondary">밝은 배경에 어두운 글자</p>
-                        </div>
-                      </button>
-                      <button
-                        type="button"
-                        aria-pressed={theme === 'dark'}
-                        onClick={() => void handleThemeChange('dark')}
-                        className={`flex w-full items-center gap-4 rounded-card border-2 p-5 text-left transition ${FOCUS_RING} ${
-                          theme === 'dark'
-                            ? 'border-fg-brand bg-brand-subtle'
-                            : 'border-line-card bg-surface hover:border-line'
-                        }`}
-                      >
-                        <Moon className="h-8 w-8 shrink-0 text-fg-brand" aria-hidden="true" />
-                        <div>
-                          <p className="text-heading text-fg-primary">다크 모드</p>
-                          <p className="text-caption text-fg-secondary">어두운 배경에 밝은 글자</p>
-                        </div>
-                      </button>
-                    </fieldset>
-                  </section>
                   <RepresentativeGameSetting />
                 </div>
               )}

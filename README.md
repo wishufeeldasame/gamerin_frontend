@@ -2,6 +2,16 @@
 
 전역 글꼴은 동봉 Noto Sans KR 가변 WOFF2를 `next/font/local`로 재사용합니다. 일반·인증·관리자·번호 표시는 같은 글꼴이며 `font-sans`도 전역 변수에 연결합니다. 약 3.9MB 파일은 `display: swap`, `preload: false`로 로드합니다.
 
+## 관리자 주간 전적 리포트
+
+관리자 사이드바의 **주간 전적 리포트**(`/admin/weekly-reports`)에서 리전(`KR`·`AP`)과 닉네임(`이름#태그`, 최대 30자)을 입력한다. 실행하면 `POST /api/v1/admin/weekly-reports/valorant`에 `{ riotId, region }`을 보내고 요청 JSON·응답 `data` JSON·HTTP 오류를 표시한다. 기존 관리자 인증과 권한 가드를 사용하며, 요청 중 입력·중복 실행을 막는다. 같은 계정의 해당 주 리포트가 있으면 덮어쓴다.
+
+수집·분석에 수 분 이상 걸릴 수 있다. 페이지를 떠나면 브라우저 요청을 중단하지만 서버 작업 취소를 보장하지 않는다. 선행 조건은 주간 리포트 백엔드와 관리자 생성 경로의 nginx timeout(`1h`) 반영이다. 키·모델 설정은 백엔드에서만 관리한다. 브라우저 테스트는 `npm run test:e2e -- e2e/admin-auth.spec.ts --grep 'admin generates a weekly report' --workers=1`이며 API는 모의 응답을 사용한다.
+
+상세를 받지 못한 경기가 있으면 가능한 경기로 만든 리포트를 유지하고 `notice`를 표시한다. 관리자에게는 `collectionIssues`의 경기 ID·KST 시각·맵·HTTP 상태·사유도 보여준다. 누락 대조는 HenrikDev 최근 최대 20건 랭크 이력 범위이며 전체 기간의 완전성을 보장하지 않는다.
+
+멤버십 콘텐츠(`/membership/content`)의 주간 리포트는 `GET /api/v1/memberships/weekly-report`로 조회한다. 조회 중·실패·403·빈 결과를 구분하고 예시 전적으로 대체하지 않는다. 사용자에게는 쉬운 누락 안내만 보여주며 관리자 진단은 공개하지 않는다. 기존 예시 화면은 `/membership/content-preview`로 유지하고 이 모드에서는 리포트 API를 호출하지 않는다. 패치노트는 현재 공식 발표 요약을 유지한다.
+
 
 ## 공통 모달·기타 화면 v2
 
