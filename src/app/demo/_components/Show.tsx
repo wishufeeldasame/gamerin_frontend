@@ -3,11 +3,12 @@
 import Image from 'next/image';
 import { useEffect, useRef, type ReactNode } from 'react';
 import {
-  ArrowUp, Bell, Bookmark, BookOpen, Check, CheckCheck, CheckCircle2, Clock3, Heart, Home, Image as ImageIcon, LoaderCircle, MapPin,
-  MessageCircle, MessageSquare, MoreHorizontal, Paperclip, Plus, RefreshCw, Repeat2, Search, Settings, Smile, SquarePen, Star, Trash2,
+  ArrowRight, ArrowUp, BarChart3, Bell, Bookmark, BookOpen, Check, CheckCheck, CheckCircle2, Clock3, Gamepad2, Heart, Home, Image as ImageIcon, LoaderCircle, MapPin,
+  MessageCircle, MessageSquare, MoreHorizontal, Paperclip, Plus, RefreshCw, Repeat2, Search, Settings, Smile, SquarePen, Star, Target, Trash2,
   Upload, User, Video, Wallet, X,
 } from 'lucide-react';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
+import { MEMBERSHIP_CONTENT } from '@/lib/membership-content';
 import { Camera, Collapse, Count, Roll, Stage, Toast, type Act } from '@/components/stageshow';
 import type { Rect } from '@/components/stageshow/kit/measure';
 
@@ -21,34 +22,37 @@ const NOTE_TEXT = '마지막 진입 판단을 배우고 싶어요.';
 const MSG_TEXT = '마지막 진입 판단이 궁금해요.';
 const CHAPTERS = [
   { label: '전적 연동', title: '게임 전적이\n곧 내 프로필.' },
+  { label: '주간 리포트', title: '이번 주 전적은\nAI 리포트로.' },
   { label: '플레이 공유', title: '멋진 플레이는\n피드에서 함께.' },
   { label: '1:1 멘토링', title: '다음 티어는\n멘토와 함께.' },
   { label: '메시지', title: '신청부터 대화까지\n한 곳에서.' },
 ];
 
-type Screen = 'profile' | 'feed' | 'mentoring' | 'messages';
+type Screen = 'profile' | 'report' | 'feed' | 'mentoring' | 'messages';
 type S = {
   cover: boolean; wipe: number; chapter: number; screen: Screen; zoom: Rect | null; toast: string; toastOn: boolean;
-  linkOpen: boolean; riot: string; riotFocus: boolean; linking: boolean; linked: boolean; statsIn: boolean; rep: boolean;
+  linkOpen: boolean; riot: string; riotFocus: boolean; linking: boolean; linked: boolean; statsIn: boolean; rep: boolean; reportScrolled: boolean;
   draft: string; drafting: boolean; attached: boolean; posted: boolean; progress: number; playing: boolean; scrolled: boolean; likes: number; burst: number; comments: number;
   applyOpen: boolean; note: string; applied: boolean; accepted: boolean; mileage: number;
   msg: string; msgFocus: boolean; sent: boolean; read: boolean; typing: boolean; replied: boolean;
 };
 const initial: S = {
   cover: true, wipe: 0, chapter: 0, screen: 'profile', zoom: null, toast: '', toastOn: false,
-  linkOpen: false, riot: '', riotFocus: false, linking: false, linked: false, statsIn: false, rep: false,
+  linkOpen: false, riot: '', riotFocus: false, linking: false, linked: false, statsIn: false, rep: false, reportScrolled: false,
   draft: '', drafting: false, attached: false, posted: false, progress: 0, playing: false, scrolled: false, likes: 0, burst: 0, comments: 0,
   applyOpen: false, note: '', applied: false, accepted: false, mileage: 50000,
   msg: '', msgFocus: false, sent: false, read: false, typing: false, replied: false,
 };
 // 모션 줄이기에서 보이는 정지 화면: 게시물에 반응이 달린 순간.
-const poster: S = { ...initial, cover: false, chapter: 2, screen: 'feed', linked: true, statsIn: true, rep: true, posted: true, progress: 1, scrolled: true, likes: 28, comments: 2 };
+const poster: S = { ...initial, cover: false, chapter: 3, screen: 'feed', linked: true, statsIn: true, rep: true, posted: true, progress: 1, scrolled: true, likes: 28, comments: 2 };
 
 // 카메라가 당겨 잡는 영역(폭 1280 무대 좌표, 내용은 위에서부터 720 안에 놓인다). 레이아웃은 showcase.css 의 고정 치수와 맞춘다.
 const Z = {
   name: { x: 264, y: 60, width: 640, height: 230 },
   link: { x: 400, y: 150, width: 480, height: 330 },
   stats: { x: 264, y: 306, width: 640, height: 390 },
+  reportStats: { x: 264, y: 119, width: 792, height: 330 },
+  reportAi: { x: 264, y: 300, width: 792, height: 345 },
   composer: { x: 264, y: 0, width: 640, height: 330 },
   react: { x: 264, y: 316, width: 640, height: 400 },
   program: { x: 264, y: 120, width: 484, height: 300 },
@@ -98,8 +102,19 @@ async function script(a: Act<S>) {
   await a.set({ rep: true, toast: '대표 티어가 Immortal 3로 표시돼요', toastOn: true });
   await a.wait(1500);
 
-  // 2. 피드에 게임 클립 업로드 → 재생·좋아요·댓글
-  await cut(a, 2, { screen: 'feed' });
+  // 2. 멤버십 콘텐츠: 주간 전적 리포트(프리뷰 예시 데이터)
+  await cut(a, 2, { screen: 'report' });
+  a.mark('report');
+  await a.wait(500);
+  await a.set({ zoom: Z.reportStats });
+  await a.wait(1800);
+  await a.set({ zoom: Z.reportAi });
+  await a.wait(2000);
+  await a.set({ zoom: null, reportScrolled: true });
+  await a.wait(1600);
+
+  // 3. 피드에 게임 클립 업로드 → 재생·좋아요·댓글
+  await cut(a, 3, { screen: 'feed' });
   a.mark('feed');
   await a.wait(300);
   await a.click({ at: 'composer', x: 0.3, y: 0.5 });
@@ -128,8 +143,8 @@ async function script(a: Act<S>) {
   await a.set({ comments: 2 });
   await a.wait(1100);
 
-  // 3. 멘토링 신청 → 수락
-  await cut(a, 3, { screen: 'mentoring', playing: false });
+  // 4. 멘토링 신청 → 수락
+  await cut(a, 4, { screen: 'mentoring', playing: false });
   a.mark('mentoring');
   await a.wait(300);
   await a.set({ zoom: Z.program });
@@ -146,8 +161,8 @@ async function script(a: Act<S>) {
   await a.wait(1200);
   await a.click('chat-start');
 
-  // 4. 멘토와 메시지
-  await cut(a, 4, { screen: 'messages' });
+  // 5. 멘토와 메시지
+  await cut(a, 5, { screen: 'messages' });
   a.mark('messages');
   await a.wait(300);
   await a.click({ at: 'msg-input', x: 0.3, y: 0.5 });
@@ -266,6 +281,62 @@ function Profile({ s }: { s: S }) {
       </div>
       <Rail s={s} />
     </>
+  );
+}
+
+// 실제 /membership/content-preview 와 같은 예시 데이터를 그대로 쓴다.
+const REPORT = MEMBERSHIP_CONTENT.weeklyReport;
+const day = (date: string) => date.slice(5).replace('-', '.');
+const Change = ({ now, before, unit }: { now: number | null; before: number | null; unit: string }) => {
+  if (now === null || before === null) return null;
+  const diff = Math.round((now - before) * 10) / 10;
+  if (diff === 0) return <span>동일</span>;
+  return <span data-dir={diff > 0 ? 'up' : 'down'}>{diff > 0 ? '+' : ''}{diff}{unit}</span>;
+};
+
+function Report({ s }: { s: S }) {
+  return (
+    <div className="sc-wide sc-report">
+      <div className="sc-report-inner" data-scrolled={s.reportScrolled || undefined}>
+        <h2>멤버십 콘텐츠</h2>
+        <span className="sc-sub">주간 전적 리포트는 매주 월요일 갱신됩니다. · 예시 데이터입니다.</span>
+        <div className="sc-card sc-report-card">
+          <div className="sc-report-head">
+            <div>
+              <h3><BarChart3 size={18} />주간 전적 요약<span className="sc-ai">AI 리포트</span></h3>
+              <span className="sc-sub">{day(REPORT.weekStart)} ~ {day(REPORT.weekEnd)} · 지난주({day(REPORT.previousWeekStart)} ~ {day(REPORT.previousWeekEnd)}) 대비</span>
+            </div>
+            <dl><div><dt>총 플레이</dt><dd>{REPORT.totalMatches}<span>경기</span></dd></div><div><dt>플레이한 게임</dt><dd>{REPORT.games.length}<span>개</span></dd></div></dl>
+          </div>
+          {REPORT.games.map((game) => {
+            const prev = game.previousWeek;
+            const stats = [
+              { label: '경기 수', now: game.matches, before: prev?.matches ?? null, unit: '경기', changeUnit: '경기' },
+              { label: '승률', now: game.winRate, before: prev?.winRate ?? null, unit: '%', changeUnit: '%p' },
+              { label: 'K/D', now: game.kd, before: prev?.kd ?? null, unit: '', changeUnit: '' },
+              ...(game.headshotRate !== undefined ? [{ label: '헤드샷(HS%)', now: game.headshotRate, before: prev?.headshotRate ?? null, unit: '%', changeUnit: '%p' }] : []),
+            ];
+            return (
+              <div key={game.game} className="sc-rgame">
+                <div className="sc-rgame-top">
+                  <span className="sc-rgame-icon"><Gamepad2 size={17} /></span><h4>{game.gameLabel}</h4><span className="sc-grow" />
+                  {game.tierLabel && <span className="sc-sub">티어{prev?.tierLabel && prev.tierLabel !== game.tierLabel && <>{' '}{prev.tierLabel}<ArrowRight size={12} /></>}<em>{game.tierLabel}</em>{prev?.tierLabel === game.tierLabel && '유지'}</span>}
+                </div>
+                <div className="sc-rstats" style={{ gridTemplateColumns: `repeat(${stats.length}, 1fr)` }}>
+                  {stats.map((stat) => (
+                    <div key={stat.label}><span>{stat.label}</span><strong>{stat.now === null ? '—' : `${stat.now}${stat.unit}`}</strong><small><Change now={stat.now} before={stat.before} unit={stat.changeUnit} />{stat.before !== null && ` 지난주 ${stat.before}${stat.unit}`}</small></div>
+                  ))}
+                </div>
+                <strong>{game.analysis.headline}</strong>
+                <p>{game.analysis.summary}</p>
+                <strong className="sc-rfocus"><Target size={15} />다음 주 체크 포인트</strong>
+                <p>{game.analysis.focus}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -445,7 +516,7 @@ function Title({ open }: { open: boolean }) {
   );
 }
 
-const SCREENS: [Screen, (props: { s: S }) => ReactNode][] = [['profile', Profile], ['feed', Feed], ['mentoring', Mentoring], ['messages', Messages]];
+const SCREENS: [Screen, (props: { s: S }) => ReactNode][] = [['profile', Profile], ['report', Report], ['feed', Feed], ['mentoring', Mentoring], ['messages', Messages]];
 
 export default function Show({ height }: { height: number }) {
   return (
@@ -465,7 +536,7 @@ export default function Show({ height }: { height: number }) {
           <div className="sc-progress">{CHAPTERS.map((c, i) => <i key={c.label} data-on={s.chapter > i || undefined} />)}</div>
           {s.wipe > 0 && (
             <div className="sc-wipe" key={s.wipe}>
-              <div className="sc-wipe-panel"><span>0{s.wipe} / 04 · {CHAPTERS[s.wipe - 1].label}</span><strong>{CHAPTERS[s.wipe - 1].title}</strong></div>
+              <div className="sc-wipe-panel"><span>0{s.wipe} / 0{CHAPTERS.length} · {CHAPTERS[s.wipe - 1].label}</span><strong>{CHAPTERS[s.wipe - 1].title}</strong></div>
             </div>
           )}
           <Title open={s.cover} />
