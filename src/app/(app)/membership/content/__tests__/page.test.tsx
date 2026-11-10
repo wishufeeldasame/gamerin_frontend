@@ -30,7 +30,7 @@ describe('MembershipContentPage', () => {
       render(<MembershipContentPage />);
       expect(screen.getByRole('status')).toHaveTextContent(report.notice);
       expect(screen.getByText('불러올 수 있는 경기 기록이 없습니다.')).toBeInTheDocument();
-      expect(screen.queryByText('이번 주 플레이 기록이 없습니다.')).not.toBeInTheDocument();
+      expect(screen.queryByText('해당 기간의 플레이 기록이 없습니다.')).not.toBeInTheDocument();
       expect(screen.queryByText(/HTTP 404|HenrikDev|경기 ID/)).not.toBeInTheDocument();
     } finally {
       report.notice = savedNotice;
@@ -158,7 +158,7 @@ describe('MembershipContentPage', () => {
       MEMBERSHIP_CONTENT.patchNotes = [];
       MEMBERSHIP_CONTENT.weeklyReport.games = [];
       render(<MembershipContentPage />);
-      expect(screen.getByText('이번 주 플레이 기록이 없습니다.')).toBeInTheDocument();
+      expect(screen.getByText('해당 기간의 플레이 기록이 없습니다.')).toBeInTheDocument();
       expect(screen.getByText('아직 요약된 패치노트가 없습니다.')).toBeInTheDocument();
     } finally {
       MEMBERSHIP_CONTENT.patchNotes = notes;
@@ -212,15 +212,14 @@ describe('MembershipContentPage', () => {
     expect(loginPrompt.requestLogin).toHaveBeenCalledWith({ returnTo: '/membership/content' });
   });
 
-  it('조회 실패를 재시도하고 빈 리포트를 경기 미플레이로 단정하지 않는다', async () => {
+  it('조회 실패를 재시도하고 빈 리포트에 플레이 기록 없음 안내를 표시한다', async () => {
     reportView.path = '/membership/content';
     membershipApi.fetchMyWeeklyReport.mockRejectedValueOnce(new ApiError('리포트 조회 실패', 503))
       .mockResolvedValueOnce({ ...MEMBERSHIP_CONTENT.weeklyReport, totalMatches: 0, games: [] });
     render(<MembershipContentPage />);
     expect(await screen.findByRole('alert')).toHaveTextContent('리포트 조회 실패');
     await userEvent.click(screen.getByRole('button', { name: '다시 시도' }));
-    expect(await screen.findByText(/아직 표시할 주간 리포트가 없습니다/)).toBeInTheDocument();
-    expect(screen.queryByText('이번 주 플레이 기록이 없습니다.')).not.toBeInTheDocument();
+    expect(await screen.findByText('해당 기간의 플레이 기록이 없습니다.')).toBeInTheDocument();
   });
 
   it('계정이 바뀌면 이전 계정 리포트를 숨기고 새 요청을 보내며 화면 이탈 시 중단한다', async () => {

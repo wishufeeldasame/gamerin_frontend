@@ -67,6 +67,23 @@ function page(items: NotificationRecord[], nextCursor: string | null, hasNext: b
 }
 
 describe('NotificationPanel server synchronization', () => {
+  it('리포트 완료 시스템 알림을 읽고 멤버십 콘텐츠로 이동한다', async () => {
+    const reportNotification: NotificationRecord = {
+      ...notification('weekly-report', ''),
+      type: 'weekly_report_ready',
+      actor: null,
+      postId: null,
+      postNumber: null,
+    };
+    mocks.fetchNotifications.mockResolvedValue(page([reportNotification], null, false));
+    mocks.fetchUnreadNotificationCount.mockResolvedValue(1);
+    const onClose = vi.fn();
+    render(<NotificationPanel onClose={onClose} />);
+    fireEvent.click(await screen.findByRole('button', { name: /주간 전적 리포트가 완성되었습니다/ }));
+    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/membership/content'));
+    expect(mocks.markNotificationRead).toHaveBeenCalledWith('weekly-report');
+    expect(onClose).toHaveBeenCalled();
+  });
   beforeEach(() => {
     mocks.fetchNotifications.mockReset();
     mocks.fetchUnreadNotificationCount.mockReset();

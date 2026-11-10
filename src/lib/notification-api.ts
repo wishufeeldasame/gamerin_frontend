@@ -23,7 +23,8 @@ export type NotificationType =
   | 'mentoring_completed'
   | 'mentoring_refunded'
   | 'mentoring_review'
-  | 'mention';
+  | 'mention'
+  | 'weekly_report_ready';
 
 export interface NotificationActor {
   userId: string;

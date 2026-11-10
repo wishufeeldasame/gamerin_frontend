@@ -35,6 +35,12 @@ function createNotification(
 describe('getNotificationPresentation', () => {
   const cases = [
     {
+      type: 'weekly_report_ready',
+      message: '주간 전적 리포트가 완성되었습니다. 지난주 플레이를 확인해 보세요.',
+      iconKind: 'bell',
+      href: '/membership/content',
+    },
+    {
       type: 'like',
       message: '플레이어님이 내 게시글을 좋아합니다.',
       iconKind: 'heart',

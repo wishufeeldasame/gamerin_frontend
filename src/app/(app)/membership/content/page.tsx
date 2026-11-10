@@ -84,6 +84,7 @@ export default function MembershipContentPage() {
             <Crown size={14} aria-hidden="true" /> 멤버십 전용
           </span>
           <h1 className="mt-3 text-display text-fg-primary">멤버십 콘텐츠</h1>
+          <p className="mt-3 text-caption text-fg-secondary">주간 전적 리포트는 매주 월요일 갱신됩니다.</p>
           {preview ? <p className="mt-3 text-caption text-fg-tertiary">예시 데이터입니다.</p> : null}
           {/* 예시 화면에서 실제 리포트로 가는 링크는 멤버십 회원에게만 보인다. */}
           {!preview || user?.membershipBadge ? (
@@ -143,7 +144,7 @@ export default function MembershipContentPage() {
             </p>
           ) : null}
           {weeklyReport.games.length === 0 ? (
-            <p className="p-6 text-body text-fg-secondary">{weeklyReport.notice ? '불러올 수 있는 경기 기록이 없습니다.' : preview ? '이번 주 플레이 기록이 없습니다.' : '아직 표시할 주간 리포트가 없습니다. 게임 연동 여부와 리포트 생성 일정을 확인해 주세요.'}</p>
+            <p className="p-6 text-body text-fg-secondary">{weeklyReport.notice ? '불러올 수 있는 경기 기록이 없습니다.' : '해당 기간의 플레이 기록이 없습니다.'}</p>
           ) : (
             <ul className="space-y-4 p-4 sm:p-6">
               {weeklyReport.games.map((game) => (
