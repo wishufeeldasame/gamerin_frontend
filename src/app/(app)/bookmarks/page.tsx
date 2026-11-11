@@ -10,6 +10,7 @@ import {
 } from '@/lib/feed-api';
 import { type BookmarkScope, type PostRecord, getPostHref } from '@/lib/feed-api';
 import { Post } from '@/app/home/components/Post';
+import { RightSidebar } from '@/app/home/components/RightSidebar';
 import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
 import { useBookmarkCollections } from '@/app/context/BookmarkCollectionContext';
 import { useCursorList } from '@/hooks/useCursorList';
@@ -368,6 +369,10 @@ export default function BookmarksPage() {
             );
           })}
           <NewCollectionButton />
+        </div>
+        {/* 다른 화면처럼 오른쪽 열이 보이는 xl 이상에서만 노출한다. */}
+        <div className="mt-6 hidden xl:block">
+          <RightSidebar />
         </div>
       </aside>
 
