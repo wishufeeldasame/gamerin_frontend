@@ -28,6 +28,7 @@ import { EditProfileModal, type EditProfileUserInfo } from '@/app/home/component
 import { Post } from '@/app/home/components/Post';
 import { ReportContentModal } from '@/app/home/components/Report';
 import { SuggestedFriendsCard } from '@/app/home/components/SuggestedFriendsCard';
+import { RightSidebar } from '@/app/home/components/RightSidebar';
 import {
   PostRecord,
   FollowUserRecord,
@@ -1358,7 +1359,7 @@ export default function ProfilePage() {
 
       <aside
         aria-label="프로필 요약"
-        className="hidden w-[300px] shrink-0 space-y-6 pt-2 xl:sticky xl:top-[var(--app-header-height)] xl:block xl:self-start"
+        className="hidden w-80 shrink-0 space-y-6 pt-2 xl:sticky xl:top-[var(--app-header-height)] xl:block xl:self-start"
       >
         <section>
           <h2 className="mb-3 text-heading text-fg-primary">인증된 전적</h2>
@@ -1390,6 +1391,7 @@ export default function ProfilePage() {
           )}
         </section>
         <SuggestedFriendsCard />
+        <RightSidebar />
       </aside>
 
       {isOwnProfile && showFetchStatsModal ? (
