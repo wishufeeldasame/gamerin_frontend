@@ -15,6 +15,6 @@ export default defineConfig({
     clearMocks: true,
     restoreMocks: true,
     unstubGlobals: true,
-    exclude: ['e2e/**', 'node_modules/**', '.next/**'],
+    exclude: ['e2e/**', 'node_modules/**', '.next/**', '.claude/**'],
   },
 });
