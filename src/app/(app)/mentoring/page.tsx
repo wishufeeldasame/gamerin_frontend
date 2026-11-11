@@ -988,6 +988,9 @@ export default function MentoringPage() {
         setSelectedProgramReviewsLoading(false);
       }
     } catch (error) {
+      if (openedProgramIdRef.current === programId) {
+        openedProgramIdRef.current = null;
+      }
       showError(error);
     } finally {
       setDetailLoading(false);
@@ -1926,9 +1929,21 @@ export default function MentoringPage() {
         </div>
 
         {detailPageMode && !detailLoading && !selectedProgram ? (
-          <p className="rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
-            {errorMessage || '프로그램 정보를 불러오지 못했습니다.'}
-          </p>
+          <div className="rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
+            <p>{errorMessage || '프로그램 정보를 불러오지 못했습니다.'}</p>
+            {requestedProgramId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  openedProgramIdRef.current = requestedProgramId;
+                  void openProgramDetail(requestedProgramId);
+                }}
+                className="btn-secondary mt-3 text-caption"
+              >
+                다시 시도
+              </button>
+            ) : null}
+          </div>
         ) : null}
 
         {detailLoading || selectedProgram ? (
@@ -2644,12 +2659,13 @@ function MentoringDialog({ label, width, onBackdropClick, active = true, inline 
   const panel = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (inline) return;
     const trigger = document.activeElement;
     panel.current?.focus();
     return () => {
       if (trigger instanceof HTMLElement && trigger.isConnected) trigger.focus();
     };
-  }, []);
+  }, [inline]);
 
   return (
     <div className={inline ? undefined : DIALOG_BACKDROP} onClick={inline ? undefined : onBackdropClick}>
@@ -2657,12 +2673,12 @@ function MentoringDialog({ label, width, onBackdropClick, active = true, inline 
         ref={panel}
         role={inline ? undefined : 'dialog'}
         aria-modal={inline ? undefined : active || undefined}
-        aria-label={label}
-        tabIndex={-1}
+        aria-label={inline ? undefined : label}
+        tabIndex={inline ? undefined : -1}
         className={inline ? 'relative' : `${DIALOG_PANEL} ${width}`}
-        onClick={(event) => event.stopPropagation()}
+        onClick={inline ? undefined : (event) => event.stopPropagation()}
         onKeyDown={(event) => {
-          if (!active || event.key !== 'Tab') return;
+          if (inline || !active || event.key !== 'Tab') return;
           const controls = event.currentTarget.querySelectorAll<HTMLElement>(
             'button:not(:disabled), a[href], input:not(:disabled), textarea:not(:disabled), select:not(:disabled)',
           );
@@ -2675,7 +2691,9 @@ function MentoringDialog({ label, width, onBackdropClick, active = true, inline 
           }
         }}
       >
-        <div aria-hidden="true" className="absolute left-1/2 top-2.5 h-1 w-10 -translate-x-1/2 rounded-full bg-line-strong lg:hidden" />
+        {!inline ? (
+          <div aria-hidden="true" className="absolute left-1/2 top-2.5 h-1 w-10 -translate-x-1/2 rounded-full bg-line-strong lg:hidden" />
+        ) : null}
         {children}
       </div>
     </div>
