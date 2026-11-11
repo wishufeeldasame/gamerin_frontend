@@ -27,7 +27,7 @@ const TEAM = [
   { name: '이상혁', role: '백엔드' },
 ];
 
-const Logo = () => <span className="demo-logo"><Image src="/logo.png" alt="" width={28} height={28} /><span>Gamer<em>IN</em></span></span>;
+const Logo = () => <span className="demo-logo"><Image src="/logo.svg" alt="" width={28} height={28} /><span>Gamer<em>IN</em></span></span>;
 const Go = () => <Link href="/" className="demo-go">GamerIN 바로가기<ArrowRight size={16} aria-hidden="true" /></Link>;
 
 export default function ShowcasePage() {

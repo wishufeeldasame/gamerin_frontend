@@ -23,7 +23,7 @@ export function AuthPageShell({ title, description, icon, back, children }: Auth
       <div className="hidden border-r border-line bg-canvas p-10 md:flex md:flex-[0_0_45%] md:items-center md:justify-center">
         <div className="flex w-full max-w-80 flex-col items-center gap-6 text-center">
           <Image
-            src="/logo.png"
+            src="/logo.svg"
             alt="GamerIN Logo"
             width={224}
             height={224}
@@ -54,7 +54,7 @@ export function AuthPageShell({ title, description, icon, back, children }: Auth
           className="mx-auto my-auto w-full max-w-[400px] space-y-6"
         >
           <div className="space-y-4">
-            <Image src="/logo.png" alt="" width={96} height={96} className="h-24 w-24 object-contain md:hidden" priority />
+            <Image src="/logo.svg" alt="" width={96} height={96} className="h-24 w-24 object-contain md:hidden" priority />
             {icon ? (
               <>
                 <div aria-hidden="true" className="flex h-12 w-12 items-center justify-center rounded-full bg-brand-subtle text-fg-brand">
