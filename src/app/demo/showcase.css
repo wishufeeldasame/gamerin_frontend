@@ -3,7 +3,7 @@
   --canvas: #FAFAFA; --surface: #FFFFFF; --line: #E4E4E7; --brand: #F5B93D; --fg-primary: #151518; --fg-secondary: #52525B;
   min-height: 100dvh; display: flex; flex-direction: column; background: var(--canvas); color: var(--fg-primary); color-scheme: light; font-size: 15px; line-height: 1.6;
 
-  & a:focus-visible { outline: 2px solid var(--fg-primary); outline-offset: 3px; }
+  & a:focus-visible, & .demo-install-button:focus-visible { outline: 2px solid var(--fg-primary); outline-offset: 3px; }
   & .demo-wrap { width: min(100% - 32px, 1120px); margin-inline: auto; }
   & .demo-logo { display: flex; align-items: center; gap: 8px; font-size: 20px; font-weight: 800; letter-spacing: -0.03em; }
   & .demo-logo img { border-radius: 7px; }
@@ -11,10 +11,21 @@
   & .demo-go { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 10px; background: var(--brand); color: #1A1406; font-size: 14px; font-weight: 700; white-space: nowrap; transition: filter 150ms; }
   & .demo-go:hover { filter: brightness(1.06); }
   & .demo-header { position: sticky; top: 0; z-index: 10; border-bottom: 1px solid var(--line); background: #FAFAFAE6; backdrop-filter: blur(10px); }
-  & .demo-header > div { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+  & .demo-header > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-height: 60px; padding-block: 8px; }
+  & .demo-header-actions { min-width: 0; margin-inline-start: auto; }
+  & .demo-header-buttons { display: flex; align-items: center; gap: 12px; }
   & .demo-hero { padding: 48px 0 28px; text-align: center; }
   & .demo-hero h1 { font-size: clamp(30px, 5vw, 52px); font-weight: 800; line-height: 1.2; letter-spacing: -0.035em; text-wrap: balance; }
   & .demo-hero p { margin-top: 12px; color: var(--fg-secondary); text-wrap: balance; }
+  & .demo-install-button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg-primary); font-size: 14px; font-weight: 700; cursor: pointer; }
+  & .demo-install-button:hover { border-color: var(--fg-secondary); }
+  & .demo-install-guide { font-size: 13px; color: var(--fg-secondary); }
+  & .demo-install-guide p { margin-top: 6px; }
+  & .demo-install-guide a { text-decoration: underline; }
+
+  @media (display-mode: standalone) {
+    & .demo-install-button, & .demo-install-guide { display: none; }
+  }
   & .demo-caption { margin-top: 12px; text-align: center; font-size: 13px; color: var(--fg-secondary); }
   & .demo-section { padding: 72px 0 0; }
   & .demo-section h2 { font-size: 26px; font-weight: 800; letter-spacing: -0.025em; }

@@ -84,6 +84,13 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    // Older installed web apps and shortcuts can still open these URLs.
+    return [
+      { source: "/login", destination: "/?login=1", permanent: false },
+      { source: "/home", destination: "/", permanent: false },
+    ];
+  },
   async rewrites() {
     if (!apiBaseUrl) {
       return [];
