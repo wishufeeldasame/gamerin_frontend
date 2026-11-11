@@ -42,6 +42,7 @@ const mileageApi = vi.hoisted(() => ({
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: navigation.push }),
   useSearchParams: () => navigation.searchParams,
+  useParams: () => ({}),
 }));
 vi.mock('@/app/context/AuthContext', () => ({
   useAuth: () => ({
@@ -300,28 +301,15 @@ describe('MentoringPage deep links', () => {
     expect(screen.queryByRole('button', { name: '프로그램 신고' })).not.toBeInTheDocument();
   });
 
-  it('프로그램 상세를 키보드로 닫으면 원래 카드로 포커스가 돌아간다', async () => {
+  it('프로그램 카드를 클릭하면 모달 대신 상세 페이지 URL로 이동한다', async () => {
     const user = userEvent.setup();
     mentoringApi.fetchMentoringPrograms.mockResolvedValue(pageResponse([program]));
-    mentoringApi.fetchMentoringProgramDetail.mockResolvedValue({ ...program, mentorId: 'mentor-2', mentorAbout: '' });
     render(<MentoringPage />);
 
-    const card = await screen.findByRole('button', { name: new RegExp(program.title) });
-    await user.click(card);
-    const dialog = await screen.findByRole('dialog', { name: program.title });
-    expect(dialog).toHaveFocus();
-    await user.tab();
-    expect(within(dialog).getByRole('button', { name: '프로그램 상세 닫기' })).toHaveFocus();
-    const report = within(dialog).getByRole('button', { name: '프로그램 신고' });
-    await user.click(report);
-    expect(await screen.findByRole('dialog', { name: '멘토링 프로그램 신고' })).toBeInTheDocument();
-    await user.keyboard('{Escape}');
-    expect(screen.queryByRole('dialog', { name: '멘토링 프로그램 신고' })).not.toBeInTheDocument();
-    expect(dialog).toBeInTheDocument();
-    expect(report).toHaveFocus();
-    await user.keyboard('{Escape}');
-    expect(dialog).not.toBeInTheDocument();
-    expect(card).toHaveFocus();
+    await user.click(await screen.findByRole('button', { name: new RegExp(program.title) }));
+
+    expect(navigation.push).toHaveBeenCalledWith(`/mentoring/programs/${program.publicNo ?? encodeURIComponent(program.id)}`);
+    expect(screen.queryByRole('dialog', { name: program.title })).not.toBeInTheDocument();
   });
 
   it('opens the owned program and highlights a review identified by reviewId', async () => {

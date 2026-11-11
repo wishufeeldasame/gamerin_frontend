@@ -4,18 +4,23 @@ import { useConfirm } from '@/app/context/ConfirmContext';
 import {
   AlertCircle,
   Check,
+  ChevronLeft,
   Clock3,
   Flag,
+  Gamepad2,
+  ImagePlus,
   CreditCard,
   Loader2,
   MessageCircle,
+  Pencil,
   Plus,
   Star,
+  Trash2,
   Wallet,
   X,
 } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { MembershipBadge } from '@/app/home/components/MembershipBadge';
 import { RepresentativeTierBadge } from '@/app/home/components/RepresentativeTierBadge';
 import type { RepresentativeTier } from '@/lib/representative-tier';
@@ -34,6 +39,8 @@ import {
   cancelMentoringApplication,
   completeMentoringApplication,
   createMentoringProgram,
+  deleteMentoringProgram,
+  uploadMentoringProgramImage,
   createMentoringReview,
   emptyPage,
   type GameResponse,
@@ -62,6 +69,7 @@ import { fetchMyMileageBalance } from '@/lib/mileage-api';
 import { useEscapeKey } from '@/hooks/useEscapeKey';
 import { useMileageBalance } from '@/hooks/useMileageBalance';
 import { getInitials } from '@/lib/feed-api';
+import { toAbsoluteAssetUrl } from '@/lib/asset-url';
 
 import type { PageResponse } from '@/types/api';
 type MentoringTab = 'find' | 'mine' | 'programs' | 'become';
@@ -150,6 +158,187 @@ function parseTags(value: string) {
 
 function buildProgramContent(method: string, content: string) {
   return `[진행 방식]\n${method.trim() || '추후 협의'}\n\n[상세 설명]\n${content.trim()}`;
+}
+
+const PROGRAM_IMAGE_LINE = /^!\[([^\]]*)\]\((\/uploads\/[^\s)]+)\)$/;
+
+// 상세 설명 안의 `![설명](/uploads/...)` 줄은 이미지로, 나머지는 텍스트로 그린다.
+function ProgramDescription({ content, className }: { content: string; className?: string }) {
+  const blocks: Array<{ type: 'text'; value: string } | { type: 'image'; alt: string; src: string }> = [];
+  for (const line of content.split('\n')) {
+    const match = line.trim().match(PROGRAM_IMAGE_LINE);
+    if (match) {
+      blocks.push({ type: 'image', alt: match[1], src: match[2] });
+      continue;
+    }
+    const last = blocks[blocks.length - 1];
+    if (last?.type === 'text') last.value += `\n${line}`;
+    else blocks.push({ type: 'text', value: line });
+  }
+
+  return (
+    <div className={className}>
+      {blocks.map((block, index) =>
+        block.type === 'image' ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img key={index} src={toAbsoluteAssetUrl(block.src) ?? block.src} alt={block.alt || '프로그램 설명 이미지'} loading="lazy" className="my-3 h-auto max-w-[50%] rounded-control" />
+        ) : block.value.trim() ? (
+          <p key={index} className="whitespace-pre-wrap">{block.value.trim()}</p>
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+// 상세 설명 중 첫 이미지를 목록 카드 썸네일로 쓴다.
+function firstProgramImage(content: string) {
+  for (const line of content.split('\n')) {
+    const match = line.trim().match(PROGRAM_IMAGE_LINE);
+    if (match) return match[2];
+  }
+  return null;
+}
+
+// 카드 설명에는 이미지 줄을 빼고 글만 보여 준다.
+function stripProgramImages(content: string) {
+  return content.split('\n').filter((line) => !PROGRAM_IMAGE_LINE.test(line.trim())).join('\n').trim();
+}
+
+type EditorSegment = { type: 'text'; text: string } | { type: 'image'; alt: string; src: string };
+
+function parseEditorSegments(value: string): EditorSegment[] {
+  const segments: EditorSegment[] = [];
+  for (const line of value.split('\n')) {
+    const match = line.trim().match(PROGRAM_IMAGE_LINE);
+    if (match) {
+      segments.push({ type: 'image', alt: match[1], src: match[2] });
+      continue;
+    }
+    const last = segments[segments.length - 1];
+    if (last?.type === 'text') last.text += `\n${line}`;
+    else segments.push({ type: 'text', text: line });
+  }
+  // 이미지 앞뒤·이미지 사이에는 항상 글을 쓸 수 있는 칸을 둔다.
+  const padded: EditorSegment[] = [];
+  segments.forEach((segment, index) => {
+    if (segment.type === 'image' && (index === 0 || segments[index - 1].type === 'image')) padded.push({ type: 'text', text: '' });
+    padded.push(segment);
+  });
+  if (padded[padded.length - 1]?.type === 'image') padded.push({ type: 'text', text: '' });
+  return padded.length ? padded : [{ type: 'text', text: '' }];
+}
+
+function serializeEditorSegments(segments: EditorSegment[]) {
+  return segments.map((segment) => (segment.type === 'image' ? `![${segment.alt}](${segment.src})` : segment.text)).join('\n');
+}
+
+// 글과 이미지를 한 칸 안에서 보면서 편집한다. 저장 형식은 기존과 같은 텍스트(`![이미지](/uploads/...)` 줄)다.
+function ProgramContentEditor({ value, onChange, onError }: {
+  value: string;
+  onChange: (value: string) => void;
+  onError: (error: unknown) => void;
+}) {
+  const segments = useMemo(() => parseEditorSegments(value), [value]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const caretRef = useRef<{ index: number; pos: number } | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  const update = (next: EditorSegment[]) => onChange(serializeEditorSegments(next));
+  const firstImageIndex = segments.findIndex((segment) => segment.type === 'image');
+
+  // 대표 이미지 = 본문의 첫 이미지. 선택한 이미지를 현재 첫 이미지 바로 앞으로 옮긴다.
+  const setRepresentative = (index: number) => {
+    const image = segments[index];
+    if (image.type !== 'image' || index === firstImageIndex) return;
+    const rest = segments.filter((_, i) => i !== index);
+    rest.splice(firstImageIndex, 0, image);
+    update(rest);
+  };
+
+  const handleFile = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      onError(new Error('이미지 파일만 첨부할 수 있습니다.'));
+      return;
+    }
+    setUploading(true);
+    try {
+      const { imageUrl } = await uploadMentoringProgramImage(file);
+      const image: EditorSegment = { type: 'image', alt: '이미지', src: imageUrl };
+      const caret = caretRef.current;
+      const index = caret && segments[caret.index]?.type === 'text' ? caret.index : segments.length - 1;
+      const target = segments[index];
+      if (target.type === 'text') {
+        const pos = caret && caret.index === index ? Math.min(caret.pos, target.text.length) : target.text.length;
+        const next = [...segments];
+        next.splice(index, 1, { type: 'text', text: target.text.slice(0, pos) }, image, { type: 'text', text: target.text.slice(pos) });
+        update(next);
+      } else {
+        update([...segments, image, { type: 'text', text: '' }]);
+      }
+    } catch (error) {
+      onError(error);
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  return (
+    <div className="input-base h-auto space-y-2 py-3">
+      {segments.map((segment, index) =>
+        segment.type === 'image' ? (
+          <div key={index} className="relative w-fit max-w-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={toAbsoluteAssetUrl(segment.src) ?? segment.src} alt={segment.alt} className="h-auto max-h-40 max-w-[50%] rounded-control" />
+            {index === firstImageIndex ? (
+              <span className="absolute left-2 top-2 rounded-full bg-brand px-2 py-0.5 text-caption text-fg-on-brand">대표</span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setRepresentative(index)}
+                className="absolute left-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-caption text-white"
+              >
+                대표 이미지로 설정
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label="이미지 삭제"
+              onClick={() => update(segments.filter((_, i) => i !== index))}
+              className="absolute right-2 top-2 grid size-7 place-items-center rounded-full bg-black/60 text-white"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        ) : (
+          <textarea
+            key={index}
+            value={segment.text}
+            rows={Math.max(index === 0 ? 3 : 1, segment.text.split('\n').length)}
+            placeholder={segments.length === 1 ? '상세 설명을 입력하세요.' : undefined}
+            aria-label="상세 설명"
+            className="block w-full resize-none bg-transparent text-body text-fg-primary outline-none"
+            onChange={(event) => {
+              const next = [...segments];
+              next[index] = { type: 'text', text: event.target.value };
+              update(next);
+            }}
+            onSelect={(event) => { caretRef.current = { index, pos: event.currentTarget.selectionStart }; }}
+            onFocus={(event) => { caretRef.current = { index, pos: event.currentTarget.selectionStart }; }}
+          />
+        ),
+      )}
+      <div className="flex items-center gap-3 pt-1">
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(event) => void handleFile(event)} />
+        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="btn-secondary">
+          {uploading ? <Loader2 size={16} className="animate-spin" /> : <ImagePlus size={16} />}
+          이미지 추가
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function splitProgramContent(rawContent?: string | null) {
@@ -270,7 +459,10 @@ export default function MentoringPage() {
   const requestedApplicationId = searchParams.get('applicationId')?.trim() || null;
   const requestedReviewId = searchParams.get('reviewId')?.trim() || null;
   const requestedMineTab = searchParams.get('tab') === 'mine';
-  const requestedProgramId = searchParams.get('programId')?.trim() || null;
+  const params = useParams<{ programId?: string }>();
+  const routeProgramId = typeof params?.programId === 'string' ? params.programId.trim() || null : null;
+  const detailPageMode = Boolean(routeProgramId);
+  const requestedProgramId = routeProgramId ?? (searchParams.get('programId')?.trim() || null);
   const openedProgramIdRef = useRef<string | null>(null);
   const programReportButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -291,6 +483,8 @@ export default function MentoringPage() {
   const [mentorAbout, setMentorAbout] = useState('');
 
   const [programForm, setProgramForm] = useState<ProgramForm>(defaultProgramForm);
+  const [editingProgram, setEditingProgram] = useState<(MentoringProgramResponse | MentoringProgramDetailResponse) | null>(null);
+  const [editProgramForm, setEditProgramForm] = useState<ProgramForm>(defaultProgramForm);
   const [selectedProgram, setSelectedProgram] = useState<MentoringProgramDetailResponse | null>(null);
   const [programReportOpen, setProgramReportOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -771,7 +965,7 @@ export default function MentoringPage() {
 
     try {
       const detail = await fetchMentoringProgramDetail(programId);
-      const sourceProgram = [...programPage.content, ...ownedPrograms].find((program) => program.id === programId);
+      const sourceProgram = [...programPage.content, ...ownedPrograms].find((program) => program.id === programId || String(program.publicNo) === programId);
       setSelectedProgram({
         ...detail,
         status: detail.status ?? sourceProgram?.status ?? 'CLOSED',
@@ -798,6 +992,14 @@ export default function MentoringPage() {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  // 목록 카드 클릭: 모달 대신 상세 페이지 URL로 이동한다.
+  const goToProgramDetail = (program: { id: string; publicNo?: number }) => router.push(`/mentoring/programs/${program.publicNo ?? encodeURIComponent(program.id)}`);
+  // 상세 페이지에서는 목록으로 돌아가고, 기존 딥링크(?programId=) 모달에서는 모달만 닫는다.
+  const exitProgramDetail = () => {
+    if (detailPageMode) router.push('/mentoring');
+    else closeProgramDetail();
   };
 
   const openProgramDetailRef = useRef(openProgramDetail);
@@ -843,6 +1045,10 @@ export default function MentoringPage() {
     try {
       if (!gamesReady) {
         throw new Error(gamesLoading ? '게임 목록을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.' : GAMES_ERROR_MESSAGE);
+      }
+
+      if (!programForm.content.trim()) {
+        throw new Error('상세 설명을 입력해 주세요.');
       }
 
       const price = Number(programForm.price);
@@ -910,6 +1116,122 @@ export default function MentoringPage() {
     }
   };
 
+  const openEditProgramModal = (program: MentoringProgramResponse | MentoringProgramDetailResponse) => {
+    clearMessages();
+    const { method, content } = splitProgramContent(program.content);
+    setEditingProgram(program);
+    setEditProgramForm({
+      gameName: program.gameName,
+      title: program.title,
+      method,
+      content,
+      availableTimeDesc: program.availableTimeDesc ?? '',
+      price: String(program.price),
+      tags: (program.tags ?? []).join(', '),
+    });
+  };
+
+  const closeEditProgramModal = () => {
+    if (pendingAction.startsWith('edit-program:')) return;
+    setEditingProgram(null);
+  };
+
+  const handleEditProgramFormChange = (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = event.target;
+    setEditProgramForm((current) => ({
+      ...current,
+      [name]: name === 'price' ? value.replace(/[^0-9]/g, '') : value,
+    }));
+  };
+
+  const handleSubmitEditProgram = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!requireAuth('프로그램을 수정하려면 로그인이 필요해요.')) return;
+    if (!editingProgram) return;
+
+    setPendingAction(`edit-program:${editingProgram.id}`);
+    clearMessages();
+    try {
+      if (!editProgramForm.content.trim()) {
+        throw new Error('상세 설명을 입력해 주세요.');
+      }
+      const price = Number(editProgramForm.price);
+      if (price < 0 || Number.isNaN(price)) {
+        throw new Error('가격을 올바르게 입력해 주세요.');
+      }
+
+      const updated = await updateMentoringProgram(editingProgram.id, {
+        title: editProgramForm.title.trim(),
+        content: buildProgramContent(editProgramForm.method, editProgramForm.content),
+        availableTimeDesc: editProgramForm.availableTimeDesc.trim(),
+        price,
+        status: editingProgram.status,
+        tags: parseTags(editProgramForm.tags),
+      });
+
+      setOwnedPrograms((current) =>
+        current.map((ownedProgram) => (ownedProgram.id === editingProgram.id ? updated : ownedProgram))
+      );
+      if (selectedProgram?.id === editingProgram.id) {
+        setSelectedProgram((current) =>
+          current
+            ? {
+                ...current,
+                title: updated.title,
+                content: updated.content,
+                availableTimeDesc: updated.availableTimeDesc,
+                price: updated.price,
+                status: updated.status,
+                tags: updated.tags,
+              }
+            : current
+        );
+      }
+      setEditingProgram(null);
+      showNotice('프로그램을 수정했습니다.');
+      await Promise.all([loadOwnedPrograms(), loadPrograms()]);
+    } catch (error) {
+      showError(error);
+    } finally {
+      setPendingAction('');
+    }
+  };
+
+  const handleDeleteProgram = async (program: { id: string; title: string }) => {
+    if (closeProgramLockRef.current) return;
+
+    closeProgramLockRef.current = true;
+    let requested = false;
+    try {
+      const ok = await confirm({
+        message: '이 프로그램을 삭제할까요? 삭제 후에는 되돌릴 수 없습니다.',
+        confirmLabel: '삭제', danger: true,
+      });
+      if (!ok) return;
+      requested = true;
+      setPendingAction(`delete-program:${program.id}`);
+      clearMessages();
+      await deleteMentoringProgram(program.id);
+
+      setOwnedPrograms((current) => current.filter((ownedProgram) => ownedProgram.id !== program.id));
+      setSelectedOwnedProgramId(null);
+      if (selectedProgram?.id === program.id) {
+        closeProgramDetail();
+        if (detailPageMode) {
+          router.push('/mentoring?tab=programs');
+          return;
+        }
+      }
+      showNotice('프로그램을 삭제했습니다.');
+      await Promise.all([loadCurrentMentorProfile(), loadOwnedPrograms(), loadPrograms()]);
+    } catch (error) {
+      showError(error);
+    } finally {
+      closeProgramLockRef.current = false;
+      if (requested) setPendingAction('');
+    }
+  };
+
   const handleApplyProgram = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!requireAuth('멘토링에 참여하려면 로그인이 필요해요.')) return;
@@ -937,6 +1259,10 @@ export default function MentoringPage() {
         message: applicationMessage.trim(),
       });
       closeProgramDetail();
+      if (detailPageMode) {
+        router.push('/mentoring?tab=mine');
+        return;
+      }
       showNotice('멘토링 요청이 접수되었습니다.');
       await loadApplications();
       setActiveTab('mine');
@@ -1002,7 +1328,7 @@ export default function MentoringPage() {
   // 충전 후 원래 프로그램 상세로 돌아오게 한다. 신청은 사용자가 다시 확정한다.
   const goToMileageCharge = () => {
     if (!requireAuth('마일리지를 충전하려면 로그인이 필요해요.', { returnTo: '/wallet' })) return;
-    const returnTo = selectedProgram ? `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
+    const returnTo = selectedProgram ? `/mentoring/programs/${selectedProgram.publicNo ?? encodeURIComponent(selectedProgram.id)}` : '/mentoring?tab=mine';
     setShowMileageShortageModal(false);
     closeProgramDetail();
     router.push(`/wallet?returnTo=${encodeURIComponent(returnTo)}`);
@@ -1040,10 +1366,11 @@ export default function MentoringPage() {
   useEscapeKey(() => {
     if (programReportOpen) closeProgramReport();
     else if (showMileageShortageModal) setShowMileageShortageModal(false);
+    else if (editingProgram) closeEditProgramModal();
     else if (reviewTarget) closeReviewModal();
     else if (selectedOwnedProgramId) setSelectedOwnedProgramId(null);
-    else if (selectedProgram && !detailLoading) closeProgramDetail();
-  }, Boolean(showMileageShortageModal || reviewTarget || selectedOwnedProgramId || selectedProgram));
+    else if (selectedProgram && !detailLoading && !detailPageMode) closeProgramDetail();
+  }, Boolean(showMileageShortageModal || editingProgram || reviewTarget || selectedOwnedProgramId || selectedProgram));
 
   const handleSubmitReview = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1115,6 +1442,15 @@ export default function MentoringPage() {
   return (
     <div className="px-4 pb-6 pt-2 md:px-6 lg:pt-6 xl:pr-0">
       <div className="mx-auto max-w-[940px] xl:ml-0">
+        {detailPageMode ? (
+          <div className="sticky top-0 z-20 flex items-center gap-1 bg-canvas px-2 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] lg:static lg:-ml-2 lg:px-0 lg:pb-4 lg:pt-0">
+            <Link href="/mentoring" className={`btn-icon text-icon-primary ${FOCUS_RING}`} aria-label="뒤로 가기">
+              <ChevronLeft size={24} strokeWidth={1.67} />
+            </Link>
+            <h1 className="text-title text-fg-primary">멘토링 목록</h1>
+          </div>
+        ) : null}
+        <div hidden={detailPageMode}>
         <header className="mb-4 flex flex-wrap items-start justify-between gap-x-3 gap-y-2 lg:items-center">
           <div>
             <h1 className="text-title text-fg-primary">멘토링</h1>
@@ -1259,7 +1595,7 @@ export default function MentoringPage() {
                         program={program}
                         game={gameLabel(program.gameName)}
                         rating={formatRatingLabel(mentorStatsById[program.mentorId])}
-                        onOpen={() => openProgramDetail(program.id)}
+                        onOpen={() => goToProgramDetail(program)}
                       />
                     ))}
                   </div>
@@ -1401,7 +1737,10 @@ export default function MentoringPage() {
                               program={program}
                               game={gameLabel(program.gameName)}
                               owned
-                              onOpen={() => setSelectedOwnedProgramId(program.id)}
+                              deleting={pendingAction === `delete-program:${program.id}`}
+                              onEdit={() => openEditProgramModal(program)}
+                              onDelete={() => void handleDeleteProgram(program)}
+                              onOpen={() => goToProgramDetail(program)}
                             />
                           ))}
                         </div>
@@ -1516,17 +1855,14 @@ export default function MentoringPage() {
                       />
                     </label>
 
-                    <label className="mt-4 block space-y-2">
+                    <div className="mt-4 space-y-2">
                       <span className="text-label text-fg-secondary">상세 설명</span>
-                      <textarea
-                        name="content"
+                      <ProgramContentEditor
                         value={programForm.content}
-                        onChange={handleProgramFormChange}
-                        required
-                        rows={5}
-                        className="input-base h-auto resize-y py-3"
+                        onChange={(content) => setProgramForm((current) => ({ ...current, content }))}
+                        onError={showError}
                       />
-                    </label>
+                    </div>
 
                     <div className="mt-4 grid gap-4 md:grid-cols-2">
                       <input
@@ -1587,20 +1923,29 @@ export default function MentoringPage() {
             </section>
           ) : null}
         </div>
+        </div>
+
+        {detailPageMode && !detailLoading && !selectedProgram ? (
+          <p className="rounded-control bg-subtle p-6 text-center text-body text-fg-tertiary">
+            {errorMessage || '프로그램 정보를 불러오지 못했습니다.'}
+          </p>
+        ) : null}
 
         {detailLoading || selectedProgram ? (
           <MentoringDialog
             label={selectedProgram?.title ?? '프로그램 상세'}
             width="lg:max-w-[560px]"
-            onBackdropClick={detailLoading ? undefined : closeProgramDetail}
+            onBackdropClick={detailLoading ? undefined : exitProgramDetail}
             active={!showMileageShortageModal && !programReportOpen}
+            inline={detailPageMode}
           >
             {detailLoading || !selectedProgram ? (
-              <div className="flex h-64 items-center justify-center">
+              <div className={detailPageMode ? 'flex h-64 items-center justify-center rounded-card border border-line-card bg-surface' : 'flex h-64 items-center justify-center'}>
                 <Loader2 className="animate-spin text-fg-tertiary" />
               </div>
             ) : (
-              <div>
+              <div className={detailPageMode ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-5' : undefined}>
+                <div className={detailPageMode ? 'min-w-0 rounded-card border border-line-card bg-surface p-4 lg:p-6' : undefined}>
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="inline-block rounded-sm bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
@@ -1610,7 +1955,7 @@ export default function MentoringPage() {
                   </div>
                   <button
                     type="button"
-                    onClick={closeProgramDetail}
+                    onClick={exitProgramDetail}
                     aria-label="프로그램 상세 닫기"
                     className="btn-icon"
                   >
@@ -1645,7 +1990,7 @@ export default function MentoringPage() {
                   <p className="mb-1 text-label text-fg-secondary">진행 방식</p>
                   <p>{[selectedProgram.availableTimeDesc, selectedProgramContent.method].filter(Boolean).join(' · ') || '추후 협의'}</p>
                   <p className="mt-4 mb-1 text-label text-fg-secondary">상세 설명</p>
-                  <p className="whitespace-pre-wrap">{selectedProgramContent.content}</p>
+                  <ProgramDescription content={selectedProgramContent.content} />
                 </div>
 
                 <div className="mt-6">
@@ -1709,61 +2054,155 @@ export default function MentoringPage() {
                     onClose={closeProgramReport}
                   />
                 ) : null}
+                </div>
 
-                {currentUserOwnsProgram(selectedProgram.mentorId) ? (
-                  <p className="mt-5 rounded-control bg-subtle p-4 text-label text-fg-secondary">
-                    내가 등록한 프로그램입니다.
-                  </p>
-                ) : selectedProgramApplication ? (
-                  <div className="mt-5 rounded-xl border border-line bg-success-subtle p-4">
-                    <p className="text-label text-fg-primary">이미 신청한 프로그램</p>
-                    <p className="mt-2 text-caption leading-5 text-fg-secondary">
-                      이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
-                    </p>
-                    <div className="mt-3 flex flex-wrap gap-2 text-caption text-fg-secondary">
-                      <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
-                      <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
+                <aside className={detailPageMode ? 'mt-5 rounded-card border border-line-card bg-surface p-4 lg:sticky lg:top-6 lg:mt-0 lg:p-5' : 'mt-5'}>
+                  {detailPageMode ? (
+                    <div className="mb-4 border-b border-line pb-4">
+                      <span className="inline-block rounded-sm bg-subtle px-2 py-0.5 text-caption text-fg-secondary">
+                        {gameLabel(selectedProgram.gameName)}
+                      </span>
+                      <p className="mt-2 break-words text-heading text-fg-primary">{selectedProgram.title}</p>
+                      <p className="mt-2 flex items-center gap-1.5 text-caption text-fg-secondary">
+                        <Star size={14} className="text-fg-brand" />
+                        <span>{formatRatingValue(selectedMentorStats)}</span>
+                        <span>({selectedMentorStats?.reviewCount ?? 0})</span>
+                        <span>· 멘티 {selectedMentorStats?.menteeCount ?? 0}명</span>
+                      </p>
+                      <p className="mt-3 text-title text-fg-primary">{formatMileage(selectedProgram.price)}</p>
                     </div>
-                  </div>
-                ) : selectedProgram.status !== 'ACTIVE' ? (
-                  <div className="mt-5 rounded-xl border border-line bg-subtle p-4">
-                    <p className="text-label text-fg-secondary">마감된 프로그램</p>
-                    <p className="mt-2 text-caption leading-5 text-fg-secondary">
-                      이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
+                  ) : null}
+
+                  {currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                    <p className="rounded-control bg-subtle p-4 text-label text-fg-secondary">
+                      내가 등록한 프로그램입니다.
                     </p>
-                  </div>
-                ) : !user ? <button type="button" className="btn-primary mt-5 w-full" onClick={() => requireAuth('멘토링을 신청하려면 로그인이 필요해요.', { returnTo: `/mentoring?programId=${encodeURIComponent(selectedProgram.id)}` })}>로그인하고 신청하기</button> : (
-                  <form onSubmit={handleApplyProgram} className="mt-5">
-                    <div className="mb-4 rounded-xl bg-brand-subtle p-4 text-caption text-fg-secondary">
-                      신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.
-                    </div>
-
-                    <label className="block space-y-2">
-                      <span className="text-label text-fg-secondary">멘토에게 보낼 메시지</span>
-                      <textarea
-                        value={applicationMessage}
-                        onChange={(event) => setApplicationMessage(event.target.value)}
-                        required
-                        rows={4}
-                        placeholder="원하는 멘토링 방향이나 현재 고민을 적어 주세요."
-                        className="input-base h-auto resize-y py-3"
-                      />
-                    </label>
-
-                    <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
-                      <div>
-                        <p className="text-caption text-fg-secondary">신청 금액</p>
-                        <p className="text-heading text-fg-primary">{formatMileage(selectedProgram.price)}</p>
+                  ) : null}
+                  {currentUserOwnsProgram(selectedProgram.mentorId) ? (
+                    <div className="mt-3 space-y-3">
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+                        <div>
+                          <p className="text-label text-fg-primary">프로그램 수정</p>
+                          <p className="mt-1 text-caption text-fg-secondary">
+                            제목, 가격, 진행 방식, 상세 설명을 수정할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openEditProgramModal(selectedProgram)}
+                          disabled={pendingAction === `edit-program:${selectedProgram.id}`}
+                          className="rounded-lg bg-subtle p-3 text-fg-secondary disabled:opacity-40"
+                          aria-label="프로그램 수정"
+                        >
+                          <Pencil size={16} />
+                        </button>
                       </div>
-                      <div className="flex flex-wrap gap-2">
-                        <button type="button" onClick={closeProgramDetail} className="btn-secondary">취소</button>
-                        <button type="submit" disabled={pendingAction === `apply:${selectedProgram.id}`} className="btn-primary">
-                          {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+                        <div>
+                          <p className="text-label text-fg-primary">프로그램 마감</p>
+                          <p className="mt-1 text-caption text-fg-secondary">
+                            더 이상 운영하지 않을 프로그램은 새 신청을 받지 않도록 마감할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await handleCloseProgram(selectedProgram);
+                            if (detailPageMode) void openProgramDetailRef.current(selectedProgram.id);
+                          }}
+                          disabled={selectedProgram.status !== 'ACTIVE' || pendingAction === `close-program:${selectedProgram.id}`}
+                          className="rounded-lg bg-subtle p-3 text-fg-secondary disabled:opacity-40"
+                          aria-label={selectedProgram.status === 'ACTIVE' ? '프로그램 마감' : '이미 마감된 프로그램'}
+                        >
+                          <Clock3 size={16} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+                        <div>
+                          <p className="text-label text-fg-primary">프로그램 삭제</p>
+                          <p className="mt-1 text-caption text-fg-secondary">
+                            진행 중인 멘토링이 없는 프로그램은 삭제할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => void handleDeleteProgram(selectedProgram)}
+                          disabled={pendingAction === `delete-program:${selectedProgram.id}`}
+                          className="rounded-lg bg-subtle p-3 text-fg-danger disabled:opacity-40"
+                          aria-label="프로그램 삭제"
+                        >
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
-                  </form>
-                )}
+                  ) : selectedProgramApplication ? (
+                    <div className="rounded-xl border border-line bg-success-subtle p-4">
+                      <p className="text-label text-fg-primary">이미 신청한 프로그램</p>
+                      <p className="mt-2 text-caption leading-5 text-fg-secondary">
+                        이미 이 멘토링을 신청했습니다. 내 멘토링 탭에서 진행 상태를 확인해 주세요.
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2 text-caption text-fg-secondary">
+                        <span>상태: {statusLabel[selectedProgramApplication.status] ?? selectedProgramApplication.status}</span>
+                        <span>결제: {paymentLabel[selectedProgramApplication.paymentStatus] ?? selectedProgramApplication.paymentStatus}</span>
+                      </div>
+                    </div>
+                  ) : selectedProgram.status !== 'ACTIVE' ? (
+                    <div className="rounded-xl border border-line bg-subtle p-4">
+                      <p className="text-label text-fg-secondary">마감된 프로그램</p>
+                      <p className="mt-2 text-caption leading-5 text-fg-secondary">
+                        이 프로그램은 현재 새 신청을 받지 않습니다. 다른 모집 중 프로그램을 선택해 주세요.
+                      </p>
+                    </div>
+                  ) : !user ? (
+                    <button
+                      type="button"
+                      className="btn-primary w-full"
+                      onClick={() => requireAuth('멘토링을 신청하려면 로그인이 필요해요.', { returnTo: `/mentoring/programs/${selectedProgram.publicNo ?? encodeURIComponent(selectedProgram.id)}` })}
+                    >
+                      로그인하고 신청하기
+                    </button>
+                  ) : (
+                    <form onSubmit={handleApplyProgram}>
+                      <div className="mb-4 rounded-xl bg-brand-subtle p-4 text-caption text-fg-secondary">
+                        신청 시 프로그램 가격만큼의 마일리지가 멘토링 완료 전까지 보류됩니다.
+                      </div>
+
+                      <label className="block space-y-2">
+                        <span className="text-label text-fg-secondary">멘토에게 보낼 메시지</span>
+                        <textarea
+                          value={applicationMessage}
+                          onChange={(event) => setApplicationMessage(event.target.value)}
+                          required
+                          rows={4}
+                          placeholder="원하는 멘토링 방향이나 현재 고민을 적어 주세요."
+                          className="input-base h-auto resize-y py-3"
+                        />
+                      </label>
+
+                      {detailPageMode ? (
+                        <div className="mt-4 flex flex-col gap-2">
+                          <button type="submit" disabled={pendingAction === `apply:${selectedProgram.id}`} className="btn-primary w-full">
+                            {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
+                          </button>
+                          <button type="button" onClick={exitProgramDetail} className="btn-secondary w-full">취소</button>
+                        </div>
+                      ) : (
+                        <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                          <div>
+                            <p className="text-caption text-fg-secondary">신청 금액</p>
+                            <p className="text-heading text-fg-primary">{formatMileage(selectedProgram.price)}</p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={exitProgramDetail} className="btn-secondary">취소</button>
+                            <button type="submit" disabled={pendingAction === `apply:${selectedProgram.id}`} className="btn-primary">
+                              {pendingAction === `apply:${selectedProgram.id}` ? '신청 중...' : '신청하고 결제하기'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </form>
+                  )}
+                </aside>
               </div>
             )}
           </MentoringDialog>
@@ -1860,10 +2299,28 @@ export default function MentoringPage() {
               <p className="font-semibold text-fg-primary">진행 방식</p>
               <p>{splitProgramContent(selectedOwnedProgram.content).method || '추후 협의'}</p>
               <p className="mt-4 font-semibold text-fg-primary">상세 설명</p>
-              <p>{splitProgramContent(selectedOwnedProgram.content).content}</p>
+              <ProgramDescription content={splitProgramContent(selectedOwnedProgram.content).content} />
             </div>
 
             <div className="mt-5 flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+              <div>
+                <p className="text-label text-fg-primary">프로그램 수정</p>
+                <p className="mt-1 text-caption text-fg-secondary">
+                  제목, 가격, 진행 방식, 상세 설명을 수정할 수 있습니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => openEditProgramModal(selectedOwnedProgram)}
+                disabled={pendingAction === `edit-program:${selectedOwnedProgram.id}`}
+                className="rounded-lg bg-subtle p-3 text-fg-secondary disabled:opacity-40"
+                aria-label="프로그램 수정"
+              >
+                <Pencil size={16} />
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
               <div>
                 <p className="text-label text-fg-primary">프로그램 마감</p>
                 <p className="mt-1 text-caption text-fg-secondary">
@@ -1881,6 +2338,24 @@ export default function MentoringPage() {
                 aria-label={selectedOwnedProgram.status === 'ACTIVE' ? '프로그램 마감' : '이미 마감된 프로그램'}
               >
                 <Clock3 size={16} />
+              </button>
+            </div>
+
+            <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-line-card p-4">
+              <div>
+                <p className="text-label text-fg-primary">프로그램 삭제</p>
+                <p className="mt-1 text-caption text-fg-secondary">
+                  진행 중인 멘토링이 없는 프로그램은 삭제할 수 있습니다.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleDeleteProgram(selectedOwnedProgram)}
+                disabled={pendingAction === `delete-program:${selectedOwnedProgram.id}`}
+                className="rounded-lg bg-subtle p-3 text-fg-danger disabled:opacity-40"
+                aria-label="프로그램 삭제"
+              >
+                <Trash2 size={16} />
               </button>
             </div>
 
@@ -1931,6 +2406,119 @@ export default function MentoringPage() {
                 </p>
               )}
             </div>
+          </MentoringDialog>
+        ) : null}
+
+        {editingProgram ? (
+          <MentoringDialog label="프로그램 수정" width="lg:max-w-[640px]" onBackdropClick={closeEditProgramModal}>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-caption text-fg-secondary">{gameLabel(editingProgram.gameName)}</p>
+                <h2 className="mt-1 text-title text-fg-primary">프로그램 수정</h2>
+              </div>
+              <button
+                type="button"
+                onClick={closeEditProgramModal}
+                aria-label="프로그램 수정 닫기"
+                disabled={pendingAction === `edit-program:${editingProgram.id}`}
+                className="btn-icon"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitEditProgram} className="mt-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="space-y-2">
+                  <span className="text-label text-fg-secondary">게임</span>
+                  <input
+                    value={gameLabel(editingProgram.gameName)}
+                    disabled
+                    className="input-base opacity-60"
+                  />
+                </label>
+
+                <label className="space-y-2">
+                  <span className="text-label text-fg-secondary">가격</span>
+                  <input
+                    name="price"
+                    value={editProgramForm.price}
+                    onChange={handleEditProgramFormChange}
+                    required
+                    inputMode="numeric"
+                    className="input-base"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-4 block space-y-2">
+                <span className="text-label text-fg-secondary">프로그램 제목</span>
+                <input
+                  name="title"
+                  value={editProgramForm.title}
+                  onChange={handleEditProgramFormChange}
+                  required
+                  className="input-base"
+                />
+              </label>
+
+              <label className="mt-4 block space-y-2">
+                <span className="text-label text-fg-secondary">진행 방식</span>
+                <input
+                  name="method"
+                  value={editProgramForm.method}
+                  onChange={handleEditProgramFormChange}
+                  required
+                  className="input-base"
+                />
+              </label>
+
+              <div className="mt-4 space-y-2">
+                <span className="text-label text-fg-secondary">상세 설명</span>
+                <ProgramContentEditor
+                  value={editProgramForm.content}
+                  onChange={(content) => setEditProgramForm((current) => ({ ...current, content }))}
+                  onError={showError}
+                />
+              </div>
+
+              <div className="mt-4 grid gap-4 md:grid-cols-2">
+                <input
+                  name="availableTimeDesc"
+                  value={editProgramForm.availableTimeDesc}
+                  onChange={handleEditProgramFormChange}
+                  placeholder="가능한 시간대"
+                  aria-label="가능한 시간대"
+                  className="input-base"
+                />
+                <input
+                  name="tags"
+                  value={editProgramForm.tags}
+                  onChange={handleEditProgramFormChange}
+                  placeholder="태그, 쉼표로 구분"
+                  aria-label="태그"
+                  className="input-base"
+                />
+              </div>
+
+              <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={closeEditProgramModal}
+                  disabled={pendingAction === `edit-program:${editingProgram.id}`}
+                  className="btn-secondary"
+                >
+                  취소
+                </button>
+                <button
+                  type="submit"
+                  disabled={pendingAction === `edit-program:${editingProgram.id}`}
+                  className="btn-primary"
+                >
+                  {pendingAction === `edit-program:${editingProgram.id}` ? '저장 중...' : '수정 저장'}
+                </button>
+              </div>
+            </form>
           </MentoringDialog>
         ) : null}
 
@@ -2044,11 +2632,13 @@ export default function MentoringPage() {
   );
 }
 
-function MentoringDialog({ label, width, onBackdropClick, active = true, children }: {
+function MentoringDialog({ label, width, onBackdropClick, active = true, inline = false, children }: {
   label: string;
   width: string;
   onBackdropClick?: () => void;
   active?: boolean;
+  /** true면 모달 오버레이 없이 페이지 본문에 그대로 렌더링한다. */
+  inline?: boolean;
   children: ReactNode;
 }) {
   const panel = useRef<HTMLDivElement>(null);
@@ -2062,14 +2652,14 @@ function MentoringDialog({ label, width, onBackdropClick, active = true, childre
   }, []);
 
   return (
-    <div className={DIALOG_BACKDROP} onClick={onBackdropClick}>
+    <div className={inline ? undefined : DIALOG_BACKDROP} onClick={inline ? undefined : onBackdropClick}>
       <div
         ref={panel}
-        role="dialog"
-        aria-modal={active || undefined}
+        role={inline ? undefined : 'dialog'}
+        aria-modal={inline ? undefined : active || undefined}
         aria-label={label}
         tabIndex={-1}
-        className={`${DIALOG_PANEL} ${width}`}
+        className={inline ? 'relative' : `${DIALOG_PANEL} ${width}`}
         onClick={(event) => event.stopPropagation()}
         onKeyDown={(event) => {
           if (!active || event.key !== 'Tab') return;
@@ -2092,45 +2682,87 @@ function MentoringDialog({ label, width, onBackdropClick, active = true, childre
   );
 }
 
-function ProgramCard({ program, game, rating, owned, onOpen }: {
+function ProgramCard({ program, game, rating, owned, deleting, onEdit, onDelete, onOpen }: {
   program: MentoringProgramResponse;
   game: string;
   rating?: string;
   owned?: boolean;
+  deleting?: boolean;
+  onEdit?: () => void;
+  onDelete?: () => void;
   onOpen: () => void;
 }) {
   const mentor = programMentorName(program);
   const { method, content } = splitProgramContent(program.content);
-  const description = [program.availableTimeDesc, method || content].filter(Boolean).join(' · ');
+  const description = [program.availableTimeDesc, method || stripProgramImages(content)].filter(Boolean).join(' · ');
+  const thumbnail = firstProgramImage(content);
 
   return (
-    <button
-      type="button"
-      onClick={onOpen}
-      className={`flex min-w-0 flex-col rounded-card border border-line-card bg-surface p-4 text-left transition hover:border-line-strong sm:p-5 ${FOCUS_RING}`}
-    >
-      <span className="flex w-full flex-wrap items-baseline justify-between gap-2 text-caption text-fg-secondary">
-        <span className="rounded-sm bg-subtle px-2 py-0.5">{game}</span>
-        {rating ? <span>{rating}</span> : null}
-        {!owned && program.status !== 'ACTIVE' ? <span>마감</span> : null}
-      </span>
-      <span className="mt-3 block w-full break-words text-heading text-fg-primary">{program.title}</span>
-      <span className="mt-3 mb-3 line-clamp-2 break-words text-caption text-fg-secondary">{description || '시간 협의 가능'}</span>
-      <span className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-label text-fg-primary">
-        {owned ? (
-          <span className={program.status === 'ACTIVE' ? 'text-fg-brand' : 'text-fg-secondary'}>
-            {program.status === 'ACTIVE' ? '모집 중' : '마감'}
+    <div className="relative flex min-w-0 flex-col">
+      <button
+        type="button"
+        onClick={onOpen}
+        className={`flex min-w-0 flex-1 flex-col rounded-card border border-line-card bg-surface p-4 text-left transition hover:border-line-strong sm:p-5 ${FOCUS_RING}`}
+      >
+        {thumbnail ? (
+          <span className="-mx-4 -mt-4 mb-3 block aspect-video overflow-hidden rounded-t-card bg-subtle sm:-mx-5 sm:-mt-5">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={toAbsoluteAssetUrl(thumbnail) ?? thumbnail} alt="" loading="lazy" className="size-full object-cover" />
           </span>
         ) : (
-          <span className="flex min-w-0 items-center gap-2">
-            <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(mentor)}</span>
-            <span className="min-w-0 break-words">{mentor}</span>
-            <MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} />
+          // 이미지가 없으면 기본 썸네일(게임 아이콘)을 보여 목록 카드 높이를 맞춘다.
+          <span aria-hidden="true" className="-mx-4 -mt-4 mb-3 flex aspect-video flex-col items-center justify-center gap-2 overflow-hidden rounded-t-card bg-gradient-to-br from-subtle to-surface text-fg-tertiary sm:-mx-5 sm:-mt-5">
+            <Gamepad2 size={40} strokeWidth={1.5} />
           </span>
         )}
-        <span className="shrink-0 tabular-nums">{formatMileage(program.price)}</span>
-      </span>
-    </button>
+        <span className="flex w-full flex-wrap items-baseline justify-between gap-2 text-caption text-fg-secondary">
+          <span className="rounded-sm bg-subtle px-2 py-0.5">{game}</span>
+          {rating ? <span>{rating}</span> : null}
+          {!owned && program.status !== 'ACTIVE' ? <span>마감</span> : null}
+        </span>
+        <span className="mt-3 block w-full break-words text-heading text-fg-primary">{program.title}</span>
+        <span className="mt-3 mb-3 line-clamp-2 break-words text-caption text-fg-secondary">{description || '시간 협의 가능'}</span>
+        <span className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-label text-fg-primary">
+          {owned ? (
+            <span className={program.status === 'ACTIVE' ? 'text-fg-brand' : 'text-fg-secondary'}>
+              {program.status === 'ACTIVE' ? '모집 중' : '마감'}
+            </span>
+          ) : (
+            <span className="flex min-w-0 items-center gap-2">
+              <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(mentor)}</span>
+              <span className="min-w-0 break-words">{mentor}</span>
+              <MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} />
+            </span>
+          )}
+          <span className="shrink-0 tabular-nums">{formatMileage(program.price)}</span>
+        </span>
+      </button>
+      {owned && (onEdit || onDelete) ? (
+        <div className="absolute right-3 top-3 flex items-center gap-1.5">
+          {onEdit ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={`${program.title} 프로그램 수정`}
+              className={`grid size-8 place-items-center rounded-full bg-black/60 text-white transition hover:bg-black/80 ${FOCUS_RING}`}
+            >
+              <Pencil size={14} />
+            </button>
+          ) : null}
+          {onDelete ? (
+            <button
+              type="button"
+              onClick={onDelete}
+              disabled={deleting}
+              aria-label={`${program.title} 프로그램 삭제`}
+              className={`grid size-8 place-items-center rounded-full bg-black/60 text-white transition hover:bg-danger disabled:opacity-40 ${FOCUS_RING}`}
+            >
+              <Trash2 size={15} />
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
   );
 }
 

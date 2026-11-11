@@ -36,6 +36,8 @@ export interface GameResponse {
 
 export interface MentoringProgramResponse {
   id: string;
+  /** URL용 짧은 숫자 번호 */
+  publicNo?: number;
   mentorId: string;
   mentorNickName?: string;
   mentorNickname?: string;
@@ -54,6 +56,8 @@ export interface MentoringProgramResponse {
 
 export interface MentoringProgramDetailResponse {
   id: string;
+  /** URL용 짧은 숫자 번호 */
+  publicNo?: number;
   mentorId: string;
   mentorNickname: string;
   mentorAbout: string;
@@ -213,6 +217,16 @@ export function createMentoringProgram(payload: MentoringProgramRequest) {
   });
 }
 
+/** 프로그램 상세 설명에 넣을 이미지를 올리고 공개 URL을 돌려받는다. */
+export function uploadMentoringProgramImage(file: File) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return mentoringRequest<{ imageUrl: string }>(`${MENTORING_BASE}/program-images`, {
+    method: 'POST',
+    body: formData,
+  });
+}
+
 export function fetchMentoringPrograms(params: {
   gameName?: string;
   page?: number;
@@ -234,7 +248,7 @@ export function fetchMentoringPrograms(params: {
 }
 
 export function fetchMentoringProgramDetail(programId: string) {
-  return mentoringRequest<MentoringProgramDetailResponse>(`${MENTORING_BASE}/programs/${programId}`, {
+  return mentoringRequest<MentoringProgramDetailResponse>(/^\d+$/.test(programId) ? `${MENTORING_BASE}/programs/no/${programId}` : `${MENTORING_BASE}/programs/${programId}`, {
     auth: 'optional',
   });
 }
