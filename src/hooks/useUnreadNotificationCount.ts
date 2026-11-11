@@ -13,6 +13,7 @@ const UNREAD_STALE_TIME_MS = 5_000;
 // 메시지 배지는 fetchCount에 fetchUnreadMessageCount를 넘겨 같은 갱신 규칙을 쓴다. fetchCount는 모듈 함수처럼 바뀌지 않는 값이어야 한다.
 export function useUnreadNotificationCount(
   fetchCount: (options: { signal: AbortSignal }) => Promise<number> = fetchUnreadNotificationCount,
+  intervalMs = UNREAD_REFRESH_INTERVAL_MS,
 ) {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
@@ -82,7 +83,7 @@ export function useUnreadNotificationCount(
 
   useVisiblePolling(() => refresh(), {
     enabled: Boolean(user),
-    intervalMs: UNREAD_REFRESH_INTERVAL_MS,
+    intervalMs,
   });
 
   return [count, setCount] as const;

@@ -6,6 +6,7 @@ import { useAuth } from '@/app/context/AuthContext';
 import { MobileTabBar, Sidebar } from '@/app/home/components/Sidebar';
 import { MobileTopBar } from '@/app/home/components/MobileTopBar';
 import { fetchUnreadMessageCount } from '@/lib/message-api';
+import { useMessageBadgeStream } from '@/hooks/useMessageBadgeStream';
 import { UnreadNotificationCountContext, useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 import { SessionUnavailableNotice } from '@/app/home/components/SessionUnavailableNotice';
 import { PopupProvider } from '@/app/context/PopupContext';
@@ -21,7 +22,9 @@ export default function AppLayout({
   const pathname = usePathname();
   const { user, isAuthReady, isSessionUnavailable, isAccountBlocked, isLoggingOut, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
-  const [unreadMessageCount] = useUnreadNotificationCount(fetchUnreadMessageCount);
+  // 메시지 배지는 스트림으로 바로 갱신하고, 스트림이 끊겨도 10초 안에 맞춰지도록 짧게 폴링한다.
+  const [unreadMessageCount] = useUnreadNotificationCount(fetchUnreadMessageCount, 10_000);
+  useMessageBadgeStream(Boolean(user) && pathname !== '/messages');
   // 자체 뒤로 헤더가 있는 하위 화면에서는 모바일 상단 바를 숨긴다(F15).
   const showTopBar = pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/membership/content-preview' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
 
