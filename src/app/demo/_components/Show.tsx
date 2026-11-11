@@ -511,7 +511,7 @@ function Title({ open }: { open: boolean }) {
       <span className="sc-title-kicker">YOUR NEXT PLAY STARTS HERE.</span>
       <div className="sc-title-text">게임 속 나를,<br /><em>게임 밖에서도.</em></div>
       <div className="sc-title-steps">{CHAPTERS.map((c) => <span key={c.label}>{c.label}</span>)}</div>
-      <div className="sc-title-mark"><Image src="/logo.png" alt="" width={34} height={34} style={{ width: 34, height: 34 }} />Gamer<em>IN</em></div>
+      <div className="sc-title-mark"><Image src="/logo.svg" alt="" width={34} height={34} style={{ width: 34, height: 34 }} />Gamer<em>IN</em></div>
     </div>
   );
 }
