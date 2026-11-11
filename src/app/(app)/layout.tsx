@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/app/context/AuthContext';
 import { MobileTabBar, Sidebar } from '@/app/home/components/Sidebar';
 import { MobileTopBar } from '@/app/home/components/MobileTopBar';
+import { fetchUnreadMessageCount } from '@/lib/message-api';
 import { UnreadNotificationCountContext, useUnreadNotificationCount } from '@/hooks/useUnreadNotificationCount';
 import { SessionUnavailableNotice } from '@/app/home/components/SessionUnavailableNotice';
 import { PopupProvider } from '@/app/context/PopupContext';
@@ -20,6 +21,7 @@ export default function AppLayout({
   const pathname = usePathname();
   const { user, isAuthReady, isSessionUnavailable, isAccountBlocked, isLoggingOut, logout } = useAuth();
   const [unreadCount, setUnreadCount] = useUnreadNotificationCount();
+  const [unreadMessageCount] = useUnreadNotificationCount(fetchUnreadMessageCount);
   // 자체 뒤로 헤더가 있는 하위 화면에서는 모바일 상단 바를 숨긴다(F15).
   const showTopBar = pathname !== '/wallet' && pathname !== '/membership' && pathname !== '/membership/content' && pathname !== '/membership/content-preview' && pathname !== '/settings' && !pathname.startsWith('/posts/') && !pathname.startsWith('/hashtags/');
 
@@ -47,13 +49,13 @@ export default function AppLayout({
 
       <div className="mx-auto flex max-w-[1212px] pt-[var(--app-header-height)]">
         <aside className="sticky top-0 hidden h-dvh w-[248px] shrink-0 px-4 pb-4 pt-6 lg:block">
-          <Sidebar unreadCount={unreadCount} onUnreadCountChange={setUnreadCount} />
+          <Sidebar unreadCount={unreadCount} unreadMessageCount={unreadMessageCount} onUnreadCountChange={setUnreadCount} />
         </aside>
 
         <main className="min-w-0 flex-1 min-h-[calc(100dvh-var(--app-header-height))] pb-[var(--tab-bar-height)]">{user || !protectedPage ? children : <p className="p-6 text-label text-fg-secondary">로그인 후 이용할 수 있습니다.</p>}</main>
       </div>
 
-      <MobileTabBar unreadCount={unreadCount} />
+      <MobileTabBar unreadCount={unreadCount} unreadMessageCount={unreadMessageCount} />
     </div>
     </UnreadNotificationCountContext.Provider>
     </PendingPostsProvider>

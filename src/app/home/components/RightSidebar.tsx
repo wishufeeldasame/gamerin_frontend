@@ -9,7 +9,9 @@ export function RightSidebar() {
       <Link href="/privacy" className="hover:underline">
         개인정보처리방침
       </Link>
-      <span>© 2026 GamerIN</span>
+      <Link href="/demo" className="hover:underline">
+        © 2026 GamerIN
+      </Link>
     </footer>
   );
 }

@@ -25,6 +25,8 @@ interface UseCursorListOptions<T> {
   getKey: (item: T) => CursorListKey;
   queryKey?: QueryKey;
   enabled?: boolean;
+  // 첫 렌더에만 읽는다. 있으면 같은 queryKey 동안 첫 페이지를 다시 받지 않는다(뒤로가기 복원용).
+  initialPage?: CursorPage<T> | null;
   initialErrorMessage?: string;
   loadMoreErrorMessage?: string;
   onPageLoaded?: (page: CursorPage<T>, context: PageLoadedContext<T>) => void;
@@ -53,6 +55,7 @@ export function useCursorList<T>({
   getKey,
   queryKey = null,
   enabled = true,
+  initialPage = null,
   initialErrorMessage = '목록을 불러오지 못했습니다.',
   loadMoreErrorMessage = '목록을 더 불러오지 못했습니다.',
   onPageLoaded,
@@ -63,15 +66,17 @@ export function useCursorList<T>({
   const onPageLoadedRef = useRef(onPageLoaded);
   const initialErrorMessageRef = useRef(initialErrorMessage);
   const loadMoreErrorMessageRef = useRef(loadMoreErrorMessage);
-  const itemsRef = useRef<T[]>([]);
+  const restoredRef = useRef(initialPage ? { page: initialPage, queryKey } : null);
+  const restored = restoredRef.current?.page;
+  const itemsRef = useRef<T[]>(restored?.items ?? []);
   const initialControllerRef = useRef<AbortController | null>(null);
   const loadMoreControllerRef = useRef<AbortController | null>(null);
   const generationRef = useRef(0);
   const mountedRef = useRef(true);
-  const [items, setItemsState] = useState<T[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [hasNext, setHasNext] = useState(false);
-  const [loading, setLoading] = useState(enabled);
+  const [items, setItemsState] = useState<T[]>(restored?.items ?? []);
+  const [nextCursor, setNextCursor] = useState<string | null>(restored?.nextCursor ?? null);
+  const [hasNext, setHasNext] = useState(Boolean(restored?.hasNext && restored.nextCursor));
+  const [loading, setLoading] = useState(enabled && !restored);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadMoreError, setLoadMoreError] = useState<string | null>(null);
@@ -134,9 +139,14 @@ export function useCursorList<T>({
 
   useEffect(() => {
     mountedRef.current = true;
-    if (enabled) {
+    // 복원한 목록은 queryKey가 바뀌기 전까지 그대로 둔다. 개발 모드의 effect 재실행에도 다시 받지 않는다.
+    if (enabled && restoredRef.current?.queryKey === queryKey) {
+      // 받아 둔 목록을 유지한다.
+    } else if (enabled) {
+      restoredRef.current = null;
       void fetchFirstPage(true);
     } else {
+      restoredRef.current = null;
       cancelRequests();
       generationRef.current += 1;
       setItems([]);

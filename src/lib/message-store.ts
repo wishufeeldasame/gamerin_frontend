@@ -151,6 +151,15 @@ export function shouldShowMessageDateSeparator(messages: ChatMessage[], index: n
   );
 }
 
+// 같은 사람이 같은 분에 이어 보낸 메시지는 마지막 것에만 시간을 표시한다.
+export function shouldShowMessageTime(messages: ChatMessage[], index: number) {
+  const current = messages[index];
+  const next = messages[index + 1];
+  // 읽음 여부가 갈리는 지점은 '읽음'/'보냄' 표시를 남긴다.
+  if (!current || !next || next.senderId !== current.senderId || next.read !== current.read) return true;
+  return Math.floor(Date.parse(next.createdAt) / 60_000) !== Math.floor(Date.parse(current.createdAt) / 60_000);
+}
+
 export function formatConversationTime(createdAt: string) {
   return formatRelativeTimeLabel(createdAt);
 }

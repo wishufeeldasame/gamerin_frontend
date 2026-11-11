@@ -47,7 +47,7 @@ function useMenuLinks() {
   });
 }
 
-export function MobileTabBar({ unreadCount }: { unreadCount: number }) {
+export function MobileTabBar({ unreadCount, unreadMessageCount = 0 }: { unreadCount: number; unreadMessageCount?: number }) {
   const pathname = usePathname();
   const byIcon = new Map(useMenuLinks().map((item) => [item.icon, item]));
   const links = [
@@ -66,7 +66,9 @@ export function MobileTabBar({ unreadCount }: { unreadCount: number }) {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] pr-[env(safe-area-inset-right)] lg:hidden"
     >
       <ul className="grid h-16 grid-cols-5">
-        {links.map((item) => (
+        {links.map((item) => {
+          const unread = item.icon === Bell ? unreadCount : item.icon === MessageSquare ? unreadMessageCount : 0;
+          return (
           <li key={item.label}>
             <Link
               href={item.href}
@@ -77,13 +79,14 @@ export function MobileTabBar({ unreadCount }: { unreadCount: number }) {
             >
               <span className="relative">
                 <item.icon size={22} strokeWidth={1.67} className={item.isActive ? 'text-icon-brand' : undefined} />
-                {item.icon === Bell && unreadCount > 0 ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-surface" /> : null}
+                {unread > 0 ? <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-brand ring-2 ring-surface" /> : null}
               </span>
               {item.label}
-              {item.icon === Bell && unreadCount > 0 ? <span className="sr-only">, 읽지 않은 알림 {unreadCount}개</span> : null}
+              {unread > 0 ? <span className="sr-only">, 읽지 않은 {item.icon === Bell ? '알림' : '메시지'} {unread}개</span> : null}
             </Link>
           </li>
-        ))}
+          );
+        })}
       </ul>
     </nav>
   );
@@ -228,10 +231,11 @@ function AccountCard() {
 
 interface SidebarProps {
   unreadCount: number;
+  unreadMessageCount?: number;
   onUnreadCountChange: (count: number) => void;
 }
 
-export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
+export function Sidebar({ unreadCount, unreadMessageCount = 0, onUnreadCountChange }: SidebarProps) {
   const requireAuth = useRequireAuth();
   const links = useMenuLinks();
   const search = useShellPopup();
@@ -257,11 +261,19 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
   const pathname = usePathname();
   const onSearchRoute = !panelOpen && (pathname === '/search' || pathname.startsWith('/hashtags/'));
 
+  const countBadge = (count: number, noun: string) => (count > 0 ? (
+    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-2xs font-bold text-fg-on-brand">
+      <span aria-hidden="true">{count > 99 ? '99+' : count}</span>
+      <span className="sr-only">, 읽지 않은 {noun} {count}개</span>
+    </span>
+  ) : null);
+
   const linkItem = (item: (typeof links)[number]) => (
     <li key={item.label}>
       <Link href={item.href} aria-current={item.isActive ? 'page' : undefined} className={navItemClass(item.isActive)}>
         <NavIcon icon={item.icon} active={item.isActive} />
         {item.label}
+        {item.icon === MessageSquare ? countBadge(unreadMessageCount, '메시지') : null}
       </Link>
     </li>
   );
@@ -303,12 +315,7 @@ export function Sidebar({ unreadCount, onUnreadCountChange }: SidebarProps) {
             notification,
             Bell,
             '알림',
-            unreadCount > 0 ? (
-              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-brand px-1.5 text-2xs font-bold text-fg-on-brand">
-                <span aria-hidden="true">{unreadCount > 99 ? '99+' : unreadCount}</span>
-                <span className="sr-only">, 읽지 않은 알림 {unreadCount}개</span>
-              </span>
-            ) : null,
+            countBadge(unreadCount, '알림'),
           )}
           {rest.map(linkItem)}
           {/* 모바일 탭바는 5칸 고정이라 menuItems에 넣지 않고 데스크톱 사이드바에만 둔다. */}

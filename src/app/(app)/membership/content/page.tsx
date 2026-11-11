@@ -85,6 +85,7 @@ export default function MembershipContentPage() {
           </span>
           <h1 className="mt-3 text-display text-fg-primary">멤버십 콘텐츠</h1>
           <p className="mt-3 text-caption text-fg-secondary">주간 전적 리포트는 매주 월요일 갱신됩니다.</p>
+          <p className="mt-1 text-caption text-fg-tertiary">지금은 발로란트만 지원하며, 다른 게임은 지원 예정입니다.</p>
           {preview ? <p className="mt-3 text-caption text-fg-tertiary">예시 데이터입니다.</p> : null}
           {/* 예시 화면에서 실제 리포트로 가는 링크는 멤버십 회원에게만 보인다. */}
           {!preview || user?.membershipBadge ? (

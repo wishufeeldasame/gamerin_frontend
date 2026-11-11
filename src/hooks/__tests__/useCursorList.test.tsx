@@ -179,4 +179,26 @@ describe('useCursorList', () => {
     unmount();
     expect(signal?.aborted).toBe(true);
   });
+
+  it('initialPage가 있으면 첫 페이지를 다시 받지 않고 queryKey가 바뀌면 새로 받는다', async () => {
+    const loadPage = vi.fn().mockResolvedValue(page([{ id: '9', label: '새 목록' }]));
+    const { result, rerender } = renderHook(
+      ({ queryKey }) => useCursorList({
+        loadPage,
+        getKey: (item: Item) => item.id,
+        queryKey,
+        initialPage: page([{ id: '1', label: '복원' }], 'next', true),
+      }),
+      { initialProps: { queryKey: 'a' } },
+    );
+
+    expect(result.current.loading).toBe(false);
+    expect(result.current.items.map((item) => item.id)).toEqual(['1']);
+    expect(result.current.nextCursor).toBe('next');
+    expect(result.current.hasNext).toBe(true);
+    expect(loadPage).not.toHaveBeenCalled();
+
+    rerender({ queryKey: 'b' });
+    await waitFor(() => expect(result.current.items.map((item) => item.id)).toEqual(['9']));
+  });
 });

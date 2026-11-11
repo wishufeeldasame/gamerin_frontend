@@ -252,6 +252,13 @@ export async function fetchConversationMessages(conversationId: string, cursor?:
   return page;
 }
 
+// 모든 대화의 읽지 않은 메시지 수. 셸의 메시지 메뉴 배지에 쓴다.
+export async function fetchUnreadMessageCount(options: { signal?: AbortSignal } = {}) {
+  const data = await messageRequest<{ unreadCount: number }>('/unread-count', { signal: options.signal });
+  const count = Number(data.unreadCount);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
 export async function markConversationRead(conversationId: string) {
   await messageRequest<null>(`/conversations/${conversationId}/read`, {
     method: 'PATCH',

@@ -10,7 +10,10 @@ const UNREAD_REFRESH_INTERVAL_MS = 60_000;
 const UNREAD_STALE_TIME_MS = 5_000;
 
 // 앱 셸(사이드바 알림 메뉴·모바일 상단 바)이 함께 쓰는 읽지 않은 알림 수. 셸에서 한 번만 호출한다.
-export function useUnreadNotificationCount() {
+// 메시지 배지는 fetchCount에 fetchUnreadMessageCount를 넘겨 같은 갱신 규칙을 쓴다. fetchCount는 모듈 함수처럼 바뀌지 않는 값이어야 한다.
+export function useUnreadNotificationCount(
+  fetchCount: (options: { signal: AbortSignal }) => Promise<number> = fetchUnreadNotificationCount,
+) {
   const { user } = useAuth();
   const [count, setCount] = useState(0);
   const requestRef = useRef<Promise<void> | null>(null);
@@ -38,7 +41,7 @@ export function useUnreadNotificationCount() {
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
-    const request = fetchUnreadNotificationCount({ signal: controller.signal })
+    const request = fetchCount({ signal: controller.signal })
       .then((nextCount) => {
         if (!controller.signal.aborted) {
           setCount(nextCount);
@@ -59,7 +62,7 @@ export function useUnreadNotificationCount() {
 
     requestRef.current = request;
     return request;
-  }, [user]);
+  }, [user, fetchCount]);
 
   useEffect(() => {
     void refresh(true);
