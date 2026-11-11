@@ -37,13 +37,16 @@ if (!isProduction) {
   ].forEach((source) => connectSources.add(source));
 }
 
-const mediaSources = ["'self'", "blob:", ...(apiOrigin ? [apiOrigin] : [])];
+// 로컬 개발에서는 NEXT_PUBLIC_API_BASE_URL 없이 백엔드(8080)로 직접 붙으므로 이미지·미디어 출처에도 허용한다.
+const devApiOrigins = isProduction ? [] : ["http://localhost:8080", "http://127.0.0.1:8080"];
+const mediaSources = ["'self'", "blob:", ...(apiOrigin ? [apiOrigin] : []), ...devApiOrigins];
 const imageSources = [
   "'self'",
   "data:",
   "blob:",
   "https://images.unsplash.com",
   ...(apiOrigin ? [apiOrigin] : []),
+  ...devApiOrigins,
 ];
 
 const contentSecurityPolicy = [
