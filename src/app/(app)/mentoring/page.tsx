@@ -376,6 +376,21 @@ function programMentorName(program: MentoringProgramResponse | MentoringProgramD
   return '멘토';
 }
 
+function profileHref(handle?: string | null) {
+  return handle ? `/profile/${encodeURIComponent(handle)}` : null;
+}
+
+// 핸들이 있으면 해당 유저 프로필로 이동하는 링크, 없으면 일반 텍스트로 그린다.
+function ProfileLink({ handle, className, children }: { handle?: string | null; className?: string; children: ReactNode }) {
+  const href = profileHref(handle);
+  if (!href) return <span className={className}>{children}</span>;
+  return (
+    <Link href={href} className={`${className ?? ''} hover:underline ${FOCUS_RING}`}>
+      {children}
+    </Link>
+  );
+}
+
 function applicationGuide(role: 'mentor' | 'mentee', status: ApplicationStatus, paymentStatus: PaymentStatus) {
   if (status === 'APPLIED') {
     return role === 'mentor'
@@ -1980,8 +1995,10 @@ export default function MentoringPage() {
 
                 <div className="mt-4">
                   <p className="flex flex-wrap items-center gap-2 text-label text-fg-primary">
-                    <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(programMentorName(selectedProgram))}</span>
-                    {programMentorName(selectedProgram)}
+                    <ProfileLink handle={selectedProgram.mentorHandle} className="flex items-center gap-2 rounded-full">
+                      <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(programMentorName(selectedProgram))}</span>
+                      {programMentorName(selectedProgram)}
+                    </ProfileLink>
                     <MembershipBadgeInline active={selectedProgram.membershipBadge} tier={selectedProgram.representativeTier} />
                   </p>
 
@@ -2026,7 +2043,7 @@ export default function MentoringPage() {
                         <article key={review.id} className="rounded-xl border border-line-card p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <p className="flex items-center gap-1 font-semibold text-fg-primary">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
+                              <p className="flex items-center gap-1 font-semibold text-fg-primary"><ProfileLink handle={review.menteeHandle} className="flex items-center gap-1.5 rounded-full"><span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(review.menteeNickname)}</span>{review.menteeNickname}</ProfileLink><MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
                               <p className="mt-1 text-caption text-fg-secondary">
                                 {formatDateTime(review.createdAt)}
                               </p>
@@ -2401,7 +2418,7 @@ export default function MentoringPage() {
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <p className="flex items-center gap-1 font-semibold text-fg-primary">{review.menteeNickname}<MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
+                          <p className="flex items-center gap-1 font-semibold text-fg-primary"><ProfileLink handle={review.menteeHandle} className="flex items-center gap-1.5 rounded-full"><span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(review.menteeNickname)}</span>{review.menteeNickname}</ProfileLink><MembershipBadge active={review.membershipBadge} /><RepresentativeTierBadge tier={review.representativeTier} /></p>
                           <p className="mt-1 text-caption text-fg-secondary">
                             {formatDateTime(review.createdAt)}
                           </p>
@@ -2717,10 +2734,13 @@ function ProgramCard({ program, game, rating, owned, deleting, onEdit, onDelete,
 
   return (
     <div className="relative flex min-w-0 flex-col">
+      {/* 카드 안에 프로필 링크(<a>)가 있어 버튼 안에 중첩하지 않도록 본문 버튼과 하단 영역을 나눈다. */}
+      <div className="flex min-w-0 flex-1 flex-col rounded-card border border-line-card bg-surface transition hover:border-line-strong">
       <button
         type="button"
         onClick={onOpen}
-        className={`flex min-w-0 flex-1 flex-col rounded-card border border-line-card bg-surface p-4 text-left transition hover:border-line-strong sm:p-5 ${FOCUS_RING}`}
+        aria-label={[game, rating, program.title, description || '시간 협의 가능', owned ? null : mentor, formatMileage(program.price)].filter(Boolean).join(' ')}
+        className={`flex min-w-0 flex-1 flex-col rounded-t-card p-4 pb-0 text-left sm:p-5 sm:pb-0 ${FOCUS_RING}`}
       >
         {thumbnail ? (
           <span className="-mx-4 -mt-4 mb-3 block aspect-video overflow-hidden rounded-t-card bg-subtle sm:-mx-5 sm:-mt-5">
@@ -2740,21 +2760,24 @@ function ProgramCard({ program, game, rating, owned, deleting, onEdit, onDelete,
         </span>
         <span className="mt-3 block w-full break-words text-heading text-fg-primary">{program.title}</span>
         <span className="mt-3 mb-3 line-clamp-2 break-words text-caption text-fg-secondary">{description || '시간 협의 가능'}</span>
-        <span className="mt-auto flex w-full flex-wrap items-center justify-between gap-2 border-t border-line pt-3 text-label text-fg-primary">
-          {owned ? (
-            <span className={program.status === 'ACTIVE' ? 'text-fg-brand' : 'text-fg-secondary'}>
-              {program.status === 'ACTIVE' ? '모집 중' : '마감'}
-            </span>
-          ) : (
-            <span className="flex min-w-0 items-center gap-2">
+      </button>
+      <div className="mx-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pb-4 pt-3 text-label text-fg-primary sm:mx-5 sm:pb-5">
+        {owned ? (
+          <span className={program.status === 'ACTIVE' ? 'text-fg-brand' : 'text-fg-secondary'}>
+            {program.status === 'ACTIVE' ? '모집 중' : '마감'}
+          </span>
+        ) : (
+          <span className="flex min-w-0 items-center gap-2">
+            <ProfileLink handle={program.mentorHandle} className="flex min-w-0 items-center gap-2 rounded-full">
               <span aria-hidden="true" className="grid size-7 shrink-0 place-items-center rounded-full bg-subtle text-caption text-fg-secondary">{getInitials(mentor)}</span>
               <span className="min-w-0 break-words">{mentor}</span>
-              <MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} />
-            </span>
-          )}
-          <span className="shrink-0 tabular-nums">{formatMileage(program.price)}</span>
-        </span>
-      </button>
+            </ProfileLink>
+            <MembershipBadgeInline active={program.membershipBadge} tier={program.representativeTier} />
+          </span>
+        )}
+        <span className="shrink-0 tabular-nums">{formatMileage(program.price)}</span>
+      </div>
+      </div>
       {owned && (onEdit || onDelete) ? (
         <div className="absolute right-3 top-3 flex items-center gap-1.5">
           {onEdit ? (

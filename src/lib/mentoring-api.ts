@@ -41,6 +41,8 @@ export interface MentoringProgramResponse {
   mentorId: string;
   mentorNickName?: string;
   mentorNickname?: string;
+  /** 멘토 프로필 이동용 핸들 */
+  mentorHandle?: string;
   gameName: string;
   title: string;
   content: string | null;
@@ -60,6 +62,7 @@ export interface MentoringProgramDetailResponse {
   publicNo?: number;
   mentorId: string;
   mentorNickname: string;
+  mentorHandle?: string;
   mentorAbout: string;
   gameName: string;
   title: string;
@@ -107,6 +110,8 @@ export interface MentoringReviewResponse {
   programId: string;
   programTitle: string;
   menteeNickname: string;
+  /** 리뷰 작성자 프로필 이동용 핸들 */
+  menteeHandle?: string;
   rating: number;
   content: string;
   createdAt: string;
