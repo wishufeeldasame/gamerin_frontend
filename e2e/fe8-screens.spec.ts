@@ -19,7 +19,7 @@ async function checkHover(control: Locator, theme: 'light' | 'dark', lightBackgr
   }
 }
 const screens: Screen[] = [
-  { name: 'composer-suggestions-hover', path: '/', action: async (page, theme) => { await page.getByPlaceholder('무슨 생각을 하고 있나요?').fill('#게'); await checkHover(page.getByRole('button', { name: /#게임.*게시글 1개/ }), theme, [250, 250, 250]); } },
+  { name: 'composer-suggestions-hover', path: '/', action: async (page, theme) => { await page.getByPlaceholder('무슨 생각을 하고 있나요?').fill('#게'); await checkHover(page.getByRole('button', { name: /#게임.*게시글 1개/ }), theme, [244, 244, 245]); } },
   { name: 'profile-follower-row-hover', path: '/profile/viewer', action: async (page, theme) => { await page.getByRole('button', { name: /팔로워/ }).first().click(); await expect(page.getByRole('heading', { name: '팔로워', exact: true })).toBeVisible(); await checkHover(page.getByRole('link', { name: /대화상대/ }).locator('..'), theme, [250, 250, 250]); } },
   { name: 'profile-disconnect-cancel-hover', path: '/profile/viewer', linkedStats: true, action: async (page, theme) => { await clickTab('전적')(page); await click('PUBG 전적 연결 해제')(page); await expect(page.getByRole('heading', { name: 'PUBG 전적 연결을 해제할까요?' })).toBeVisible(); await checkHover(page.getByRole('button', { name: '취소', exact: true }), theme, [244, 244, 245]); } },
   { name: 'messages-attachment-trigger-hover', path: '/messages', action: async (page, theme) => { await page.getByRole('button', { name: /대화상대/ }).click(); await checkHover(page.getByRole('button', { name: '첨부 메뉴', exact: true }), theme, [228, 228, 231]); } },
@@ -75,7 +75,8 @@ const screens: Screen[] = [
   { name: 'post-menu-hover', path: '/', action: async page => { await click('게시글 메뉴')(page); await page.getByRole('button', { name: '게시글 신고', exact: true }).hover(); } },
   { name: 'post-detail-menu-hover', path: '/posts/1', action: async page => { await click('게시글 메뉴')(page); await page.getByRole('button', { name: '게시글 신고', exact: true }).hover(); } },
   { name: 'post-menu-cancel-hover', path: '/', action: async page => { await click('게시글 메뉴')(page); await page.getByRole('button', { name: '취소', exact: true }).hover(); } },
-  { name: 'notifications-open', path: '/', action: click('알림') },
+  // lg 미만에서는 알림이 패널이 아니라 하단 탭의 /notifications 링크다.
+  { name: 'notifications-open', path: '/', action: async (page) => { await page.getByRole(page.viewportSize()!.width < 1024 ? 'link' : 'button', { name: '알림', exact: true }).click(); } },
   { name: 'messages-new', path: '/messages', action: click('새 대화 시작') },
   { name: 'signup-invalid', path: '/signup', anonymous: true, action: async page => { await acceptSignupConsent(page); await page.locator('input[name="nickname"]').fill('A'); await page.locator('input[name="email"]').fill('bad'); } },
   { name: 'signup-password-match', path: '/signup', anonymous: true, action: async page => { await acceptSignupConsent(page); await page.locator('input[name="nickname"]').fill('테스터'); await page.locator('input[name="email"]').fill('viewer@example.com'); await verifySignupEmail(page); await page.locator('input[name="username"]').fill('viewer'); await page.locator('input[name="new-password"]').fill('Password1!'); await page.locator('input[name="new-password-confirm"]').fill('Password1!'); } },

@@ -33,7 +33,7 @@ for (const screenMode of [
     await page.setViewportSize({ width: screenMode.width, height: screenMode.height });
     await page.emulateMedia({ colorScheme: screenMode.dark ? 'dark' : 'light' });
     for (const [path, heading, marker] of [
-      ['/admin', '대시보드', '처리 완료 상태 신고'],
+      ['/admin', '대시보드', '현재 처리 완료 상태인 신고 수'],
       ['/admin/users', '사용자 관리', '@target'],
       ['/admin/reports', '신고 관리', '신고 당시 게시글 요약'],
       ['/admin/reports/RPT-INTEGRATION', '신고 상세', '신고 당시 내용 요약'],

@@ -42,6 +42,8 @@ for (const theme of ['light', 'dark'] as const) {
       await expect(page.getByLabel('비밀번호 확인', { exact: true })).toHaveAttribute('aria-invalid', 'true');
       await expect(page.getByRole('button', { name: '가입 완료' })).toBeDisabled();
       await page.getByLabel('비밀번호 확인', { exact: true }).fill('Password1!');
+      // 좁은 화면에서 왼쪽 아래 Next 개발 오버레이가 '이전' 버튼 클릭을 가로챈다(개발 서버 전용).
+      await page.addStyleTag({ content: 'nextjs-portal { display: none !important; }' });
       await page.getByRole('button', { name: '이전', exact: true }).click();
       await expect(page.getByLabel('필수 항목 전체 동의')).toBeChecked();
       await page.getByRole('button', { name: '다음', exact: true }).click();

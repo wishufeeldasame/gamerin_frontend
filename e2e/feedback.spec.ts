@@ -61,7 +61,7 @@ async function mockApp(page: Page, options: { posts?: typeof post[]; distinctLik
 
 for (const width of [390, 1280]) {
   for (const theme of ['light', 'dark']) {
-    test(`설정 알림: ${width}px · ${theme}에서 검증·미리보기·계정 삭제 안내와 기존 데이터 보존`, async ({ page }, info) => {
+    test(`설정 알림: ${width}px · ${theme}에서 검증·비밀번호 변경·계정 삭제 취소와 기존 데이터 보존`, async ({ page }, info) => {
       await page.setViewportSize({ width, height: 844 });
       await mockApp(page);
       await page.addInitScript((selectedTheme) => {
@@ -77,7 +77,8 @@ for (const width of [390, 1280]) {
       const changes: string[] = [];
       page.on('request', (request) => {
         if (['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method())
-          && !new URL(request.url()).pathname.endsWith('/auth/refresh')) {
+          // 세션 갱신과 셸의 메시지 스트림 연결은 사용자 조작과 무관한 백그라운드 요청이다.
+          && !/\/(auth\/refresh|messages\/stream-token)$/.test(new URL(request.url()).pathname)) {
           changes.push(request.method() + ' ' + new URL(request.url()).pathname);
         }
       });
@@ -97,37 +98,46 @@ for (const width of [390, 1280]) {
       await next.fill('new-password');
       await confirmation.fill('different-password');
       await submit.click();
-      await expect(page.getByRole('alert').filter({ hasText: '새 비밀번호 확인이 일치하지 않습니다' }))
-        .toHaveText(/새 비밀번호 확인이 일치하지 않습니다/);
+      await expect(page.getByRole('alert').filter({ hasText: '새 비밀번호가 일치하지 않습니다' }))
+        .toHaveText(/새 비밀번호가 일치하지 않습니다/);
       await expect(confirmation).toHaveValue('different-password');
       await page.getByRole('button', { name: '알림 닫기' }).click();
+      // 비밀번호 정책(영문·숫자·특수문자) 위반은 요청 없이 막는다.
       await confirmation.fill('new-password');
       await submit.click();
-      await expect(page.getByRole('status')).toHaveText(/현재는 프론트 미리보기입니다/);
-      await expect(page.getByRole('status')).toHaveAttribute('aria-live', 'polite');
-      for (const input of [current, next, confirmation]) await expect(input).toHaveValue('');
-      await page.getByRole('button', { name: '알림 닫기' }).click();
-      const storedBefore = await page.evaluate(() => ({
-        user: localStorage.getItem('gamerin_user'),
-        settings: localStorage.getItem('gamerin_user_settings'),
-      }));
-      await page.getByRole('button', { name: '계정 삭제', exact: true }).click();
-      const notice = page.getByRole('status');
-      await expect(notice).toHaveText(/계정 삭제 기능은 준비 중입니다/);
-      await expect(page.getByRole('alertdialog')).toHaveCount(0);
-      expect(await page.evaluate(() => ({
-        user: localStorage.getItem('gamerin_user'),
-        settings: localStorage.getItem('gamerin_user_settings'),
-      }))).toEqual(storedBefore);
+      await expect(page.getByRole('alert').filter({ hasText: '영문, 숫자, 특수문자를 모두 포함' })).toBeVisible();
       expect(changes).toEqual([]);
-      expect(nativeDialogs).toEqual([]);
-      await expect(page).toHaveURL(/\/settings$/);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.getByRole('button', { name: '알림 닫기' }).click();
+      await next.fill('New-passw0rd!');
+      await confirmation.fill('New-passw0rd!');
+      await submit.click();
+      const notice = page.getByRole('status').filter({ hasText: '비밀번호가 변경되었습니다' });
+      await expect(notice).toHaveAttribute('aria-live', 'polite');
+      for (const input of [current, next, confirmation]) await expect(input).toHaveValue('');
       const bounds = await notice.boundingBox();
       expect(bounds).not.toBeNull();
       expect(bounds!.x).toBeGreaterThanOrEqual(0);
       expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
       await page.screenshot({ path: info.outputPath('settings-toast.png'), fullPage: true });
+      await page.getByRole('button', { name: '알림 닫기' }).click();
+      const storedBefore = await page.evaluate(() => ({
+        user: localStorage.getItem('gamerin_user'),
+        settings: localStorage.getItem('gamerin_user_settings'),
+      }));
+      // 계정 삭제는 확인창을 거치며, 취소하면 요청도 저장 데이터 변경도 없다.
+      await page.getByRole('button', { name: '계정 삭제', exact: true }).click();
+      const dialog = page.getByRole('alertdialog');
+      await expect(dialog).toContainText('정말 계정을 삭제할까요?');
+      await dialog.getByRole('button', { name: '취소', exact: true }).click();
+      await expect(dialog).toHaveCount(0);
+      expect(await page.evaluate(() => ({
+        user: localStorage.getItem('gamerin_user'),
+        settings: localStorage.getItem('gamerin_user_settings'),
+      }))).toEqual(storedBefore);
+      expect(changes).toEqual(['PATCH /api/v1/auth/password']);
+      expect(nativeDialogs).toEqual([]);
+      await expect(page).toHaveURL(/\/settings$/);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     });
   }
 }

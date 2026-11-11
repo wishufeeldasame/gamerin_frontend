@@ -102,11 +102,12 @@ for (const width of [390, 1440]) {
       await button.click();
       await expect(page.getByRole('alert').filter({ hasText: '비밀번호 입력칸을 모두 채워 주세요' })).toBeVisible();
       await page.mouse.move(0, 0);
-      await expect(button).toHaveCSS('background-color', 'rgb(0, 0, 0)');
-      await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
+      // 디자인 v2 btn-primary: --brand 배경, --fg-on-brand 글자, hover는 --brand-hover.
+      await expect(button).toHaveCSS('background-color', 'rgb(245, 185, 61)');
+      await expect(button).toHaveCSS('color', 'rgb(26, 20, 6)');
       await button.hover();
-      await expect(button).toHaveCSS('background-color', 'oklch(0.274 0.006 286.033)');
-      await expect(button).toHaveCSS('color', 'rgb(255, 255, 255)');
+      await expect(button).toHaveCSS('background-color', 'rgb(219, 154, 31)');
+      await expect(button).toHaveCSS('color', 'rgb(26, 20, 6)');
     });
   });
   test.describe(`${width}px dark`, () => {
@@ -118,12 +119,11 @@ for (const width of [390, 1440]) {
       expect(await contrast(active)).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByRole('button', { name: '팔로잉', exact: true }))).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByPlaceholder('무슨 생각을 하고 있나요?'), true)).toBeGreaterThanOrEqual(4.5);
-      expect(await contrast(page.getByPlaceholder('외부 링크 URL'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'home');
       await page.getByRole('button', { name: '게시글 메뉴', exact: true }).click();
       await capture(page, info, 'post-menu'); await page.keyboard.press('Escape');
       await expect(page.getByRole('button', { name: '게시글 메뉴', exact: true })).toBeFocused();
-      await page.getByRole('button', { name: '알림', exact: true }).click();
+      await page.getByRole(width < 1024 ? 'link' : 'button', { name: /^알림(?:\s*,|$)/ }).click();
       const notification = page.getByText('테스터님이 내 게시글을 좋아합니다.');
       await expect(notification).toBeVisible(); expect(await contrast(notification)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'notifications');
@@ -137,7 +137,7 @@ for (const width of [390, 1440]) {
       expect(await contrast(page.getByText('보낸 메시지', { exact: true }).last())).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByText('오후 03:00', { exact: true }))).toBeGreaterThanOrEqual(4.5);
       expect(await contrast(page.getByText('읽음 오후 03:00', { exact: true }))).toBeGreaterThanOrEqual(4.5);
-      expect(await contrast(page.getByPlaceholder('대화상대님에게 메시지 보내기'), true)).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(page.getByPlaceholder('메시지 입력'), true)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'messages');
     });
     test('profile editor and game stats cards', async ({ page }, info) => {
@@ -153,7 +153,7 @@ for (const width of [390, 1440]) {
       await page.getByRole('button', { name: '전적 추가', exact: true }).click();
       const game = page.getByRole('heading', { name: 'League of Legends', exact: true });
       await expect(game).toBeVisible(); await expect.poll(() => contrast(game)).toBeGreaterThanOrEqual(4.5);
-      expect(await contrast(page.getByText('등급, 승률, 킬/데스/어시스트 비율 연동', { exact: true }))).toBeGreaterThanOrEqual(4.5);
+      expect(await contrast(page.getByText('티어, 승률, 최근 5경기 KDA', { exact: true }))).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'game-stats');
     });
     test('share inputs, report selection, confirmation and failure', async ({ page }, info) => {
@@ -202,7 +202,7 @@ for (const width of [390, 1440]) {
       // FE-12 preserves the server message for public authentication failures.
       const error = page.getByText('로그인이 필요합니다.', { exact: true });
       await expect(error).toBeVisible();
-      await expect.poll(() => handle.evaluate(element => getComputedStyle(element).borderColor)).toBe('oklch(0.704 0.191 22.216)');
+      await expect.poll(() => handle.evaluate(element => getComputedStyle(element).borderColor)).toBe('rgb(248, 113, 113)');
       expect(await contrast(error)).toBeGreaterThanOrEqual(4.5);
       await capture(page, info, 'auth-invalid');
       await page.goto('/auth/reset-password?token=fe8-fixture');
@@ -210,7 +210,7 @@ for (const width of [390, 1440]) {
       expect(await contrast(password, true)).toBeGreaterThanOrEqual(4.5);
       await password.focus(); await expect(password).toHaveCSS('border-color', 'rgb(245, 185, 61)');
       await password.fill('short');
-      await expect.poll(() => password.evaluate(element => getComputedStyle(element).borderColor)).toBe('oklch(0.704 0.191 22.216)');
+      await expect.poll(() => password.evaluate(element => getComputedStyle(element).borderColor)).toBe('rgb(248, 113, 113)');
       await expect(page.getByRole('button', { name: '비밀번호 변경하기' })).toBeDisabled();
       await capture(page, info, 'reset-invalid');
     });
