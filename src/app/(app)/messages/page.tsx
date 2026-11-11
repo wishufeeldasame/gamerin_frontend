@@ -55,6 +55,7 @@ import {
   hideDeliveredPendingMessages,
   mergeMessages,
   shouldShowMessageDateSeparator,
+  shouldShowMessageTime,
 } from '@/lib/message-store';
 import { useUnloadWarning } from '@/hooks/useUnloadWarning';
 import { loadUploadRecords, saveUploadRecord, removeUploadRecord, trackUpload, UploadJobError, UPLOAD_PHASE_LABELS } from '@/lib/upload-jobs';
@@ -463,6 +464,7 @@ function MessageAttachmentMedia({
 function MessageBubble({
   chatMessage,
   mine,
+  showTime,
   isActionOpen,
   actionLoading,
   onToggleAction,
@@ -472,6 +474,7 @@ function MessageBubble({
 }: {
   chatMessage: ChatMessage;
   mine: boolean;
+  showTime: boolean;
   isActionOpen: boolean;
   actionLoading: boolean;
   onToggleAction: () => void;
@@ -546,7 +549,7 @@ function MessageBubble({
           ) : null}
         </div>
 
-        <div
+        {showTime ? <div
           className={`mt-1 flex items-center gap-1 text-caption text-fg-tertiary ${
             mine ? 'justify-end' : 'justify-start'
           }`}
@@ -557,7 +560,7 @@ function MessageBubble({
               ? `${chatMessage.read ? '읽음' : '보냄'} ${formatChatTime(chatMessage.createdAt)}`
               : formatChatTime(chatMessage.createdAt)}
           </span>
-        </div>
+        </div> : null}
       </div>
     </div>
   );
@@ -1933,6 +1936,7 @@ export default function MessagesPage() {
                           <MessageBubble
                             chatMessage={chatMessage}
                             mine={chatMessage.senderId === 'me'}
+                            showTime={shouldShowMessageTime(activeMessages, index)}
                             isActionOpen={messageActionId === chatMessage.id}
                             actionLoading={messageActionLoading}
                             onToggleAction={() =>

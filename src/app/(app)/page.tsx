@@ -3,7 +3,7 @@
 import { useAuth } from '@/app/context/AuthContext';
 import { requestLogin } from '@/lib/login-prompt';
 import { useRequireAuth } from '@/hooks/useRequireAuth';
-import { Suspense, useCallback, useEffect, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { MessageSquare } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -16,7 +16,8 @@ import { useCursorList } from '@/hooks/useCursorList';
 import { usePendingPostsContext } from '@/app/context/PendingPostsContext';
 import { usePostLike } from '@/hooks/usePostLike';
 import { PostListSkeleton } from '@/app/home/components/LoadingSkeletons';
-import { type PostRecord, fetchFeed, getPostHref } from '@/lib/feed-api';
+import { type PostRecord, fetchFeed, fetchPostDetailByNumber, getPostHref } from '@/lib/feed-api';
+import { clearFeedSnapshot, peekFeedSnapshot, saveFeedSnapshot } from '@/lib/feed-restore';
 import {
   updatePostsBookmarkState,
   updatePostsLikeState,
@@ -40,6 +41,14 @@ function HomePageContent() {
     }
   }, [user, requestedFollowing, router]);
   const loadMoreSentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedKey = `${activeTab}:${user?.id ?? 'guest'}`;
+  // 게시물 상세에서 뒤로 돌아오면 받아 둔 목록을 다시 쓰고, 열었던 게시물이 있던 자리로 스크롤한다.
+  const [restored] = useState(() => peekFeedSnapshot<PostRecord>(feedKey));
+  useLayoutEffect(() => {
+    if (!restored) return;
+    const card = document.querySelector(`[data-feed-post-id="${CSS.escape(restored.postId)}"]`);
+    if (card) window.scrollBy(0, card.getBoundingClientRect().top - restored.top);
+  }, [restored]);
 
   const loadPage = useCallback((cursor: string | null, { signal }: { signal: AbortSignal }) => (
     fetchFeed(activeTab, cursor, 20, { signal })
@@ -59,10 +68,24 @@ function HomePageContent() {
   } = useCursorList<PostRecord>({
     loadPage,
     getKey: (post) => post.postId,
-    queryKey: `${activeTab}:${user?.id ?? 'guest'}`,
+    queryKey: feedKey,
+    initialPage: restored,
     initialErrorMessage: '피드를 불러오지 못했습니다.',
     loadMoreErrorMessage: '게시글을 더 불러오지 못했습니다.',
   });
+  useEffect(() => {
+    clearFeedSnapshot();
+    const opened = restored?.items.find((item) => item.postId === restored.postId);
+    if (!opened) return;
+    // 상세에서 바꾼 좋아요·댓글 수·본문을 복원한 목록에 반영한다. 실패하면 받아 둔 값을 그대로 둔다.
+    const controller = new AbortController();
+    fetchPostDetailByNumber(opened.postNumber, { signal: controller.signal })
+      .then((fresh) => setPosts((current) => current.map((item) => (
+        item.postId === fresh.postId ? { ...fresh, reposterInfo: item.reposterInfo } : item
+      ))))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, [restored, setPosts]);
   const loadMoreRef = useRef(loadMore);
   loadMoreRef.current = loadMore;
   const loadMoreErrorRef = useRef(loadMoreError);
@@ -146,9 +169,13 @@ function HomePageContent() {
     setPosts((current) => current.filter((item) => item.postId !== postId));
   };
 
-  const handleOpenPost = (postNumber: number, target: PostDetailTarget = 'post') => {
+  const handleOpenPost = (selected: PostRecord, target: PostDetailTarget = 'post') => {
     const search = target === 'comments' ? '?target=comments' : '';
-    router.push(getPostHref(postNumber, search));
+    const card = document.querySelector(`[data-feed-post-id="${CSS.escape(selected.postId)}"]`);
+    saveFeedSnapshot({
+      key: feedKey, items: posts, nextCursor, hasNext, postId: selected.postId, top: card?.getBoundingClientRect().top ?? 0,
+    });
+    router.push(getPostHref(selected.postNumber, search));
   };
 
   useEffect(() => {
@@ -232,15 +259,17 @@ function HomePageContent() {
               {posts.map((post) => (
                 <motion.div
                   key={post.postId}
-                  initial={{ opacity: 0, y: 20 }}
+                  data-feed-post-id={post.postId}
+                  // 복원한 목록은 등장 애니메이션 없이 제자리에 둔다(이동 중이면 스크롤 기준 위치가 어긋난다).
+                  initial={restored ? false : { opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                 >
                   <Post
                     post={post}
                     likeLoading={Boolean(likeLoadingByPostId[post.postId])}
                     onToggleLike={handleToggleLike}
-                    onOpenDetail={(selected) => handleOpenPost(selected.postNumber)}
-                    onOpenComments={(selected) => handleOpenPost(selected.postNumber, 'comments')}
+                    onOpenDetail={(selected) => handleOpenPost(selected)}
+                    onOpenComments={(selected) => handleOpenPost(selected, 'comments')}
                     onShare={handlePostUpdated}
                     onRepostChange={handleRepostChanged}
                     onDelete={(deletedPost) => handlePostDeleted(deletedPost.postId)}

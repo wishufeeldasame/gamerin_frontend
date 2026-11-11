@@ -6,6 +6,7 @@ import {
   isSameLocalDate,
   mergeMessages,
   shouldShowMessageDateSeparator,
+  shouldShowMessageTime,
   type ChatMessage,
   type PendingChatMessage,
 } from '@/lib/message-store';
@@ -116,5 +117,27 @@ describe('createClientId', () => {
     expect(ids[0]).toMatch(UUID_V4);
     expect(ids[1]).toMatch(UUID_V4);
     expect(ids[0]).not.toBe(ids[1]);
+  });
+});
+
+describe('shouldShowMessageTime', () => {
+  it('같은 사람이 같은 분에 보낸 메시지는 마지막 것에만 시간을 표시한다', () => {
+    const messages = [
+      createMessage('a', '2026-10-05T03:10:05.000Z'),
+      createMessage('b', '2026-10-05T03:10:50.000Z'),
+      createMessage('c', '2026-10-05T03:11:00.000Z'),
+      { ...createMessage('d', '2026-10-05T03:11:10.000Z'), senderId: 'other' },
+    ];
+
+    expect(messages.map((_, index) => shouldShowMessageTime(messages, index))).toEqual([false, true, true, true]);
+  });
+
+  it('같은 분이어도 읽음 여부가 갈리면 앞 메시지의 표시를 남긴다', () => {
+    const messages = [
+      createMessage('a', '2026-10-05T03:10:05.000Z'),
+      { ...createMessage('b', '2026-10-05T03:10:50.000Z'), read: false },
+    ];
+
+    expect(shouldShowMessageTime(messages, 0)).toBe(true);
   });
 });

@@ -280,9 +280,10 @@ export function Post({
     <>
       <article
         ref={articleRef}
-        className={`relative isolate overflow-hidden rounded-card border border-line-card bg-surface ${
+        // 메뉴가 카드보다 길면 카드 밖으로 나와야 하므로 overflow를 자르지 않고, 열린 동안 다음 카드 위에 올린다.
+        className={`relative isolate rounded-card border border-line-card bg-surface ${
           onOpenDetail ? 'cursor-pointer' : ''
-        }`}
+        } ${menuOpen ? 'z-10' : ''}`}
       >
         {onOpenDetail ? (
           <button
