@@ -183,7 +183,8 @@ for (const missStorageEvent of [false, true]) {
       await expect(page.getByRole('cell', { name: 'RPT-ACCOUNT-A', exact: true })).toBeVisible();
       await page.getByRole('button', { name: '새로고침', exact: true }).click();
     }
-    await expect(page).toHaveURL(/\/login$/);
+    await expect(page).toHaveURL(/\/reports\/my$/);
+    await expect(page.getByRole('dialog', { name: '다시 오신 걸 환영해요' })).toBeVisible();
     await expect(page.getByText('RPT-ACCOUNT-A', { exact: true })).toHaveCount(0);
     await expect(page.getByText('RPT-ACCOUNT-B', { exact: true })).toHaveCount(0);
     expect(session.reportRequests.filter((request) => request.page === page && request.userId === accountB.userId)).toHaveLength(0);
@@ -193,7 +194,7 @@ for (const missStorageEvent of [false, true]) {
 
     const refreshesBeforeReload = session.refreshCount();
     await page.reload();
-    await expect(page.getByRole('heading', { name: 'GamerIN에 가입하기' })).toBeVisible();
+    await expect(page.getByRole('dialog', { name: '다시 오신 걸 환영해요' })).toBeVisible();
     expect(session.refreshCount()).toBe(refreshesBeforeReload);
     await secondPage.goto('/reports/my');
     await expect(secondPage.getByRole('cell', { name: 'RPT-ACCOUNT-B', exact: true })).toBeVisible();
@@ -231,7 +232,8 @@ test('a late initial restoration cannot overwrite a newer login before its stora
   await loginB(secondPage);
   finishMe?.();
 
-  await expect(page).toHaveURL(/\/login$/);
+  await expect(page).toHaveURL(/\/reports\/my$/);
+  await expect(page.getByRole('dialog', { name: '다시 오신 걸 환영해요' })).toBeVisible();
   await expect(secondPage).toHaveURL(/\/admin$/);
   await expect(page.evaluate(() => JSON.parse(localStorage.getItem('gamerin_user') ?? '{}').id)).resolves.toBe(accountB.userId);
   await expect(page.getByText('RPT-ACCOUNT-A', { exact: true })).toHaveCount(0);

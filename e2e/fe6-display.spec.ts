@@ -16,7 +16,9 @@ const profile = {
 };
 const conversation = {
   id: 'conversation-1', recipient: { id: 'recipient', name: '대화상대', handle: '@MixedCase', role: 'USER', online: false },
-  messages: [], unreadCount: 0, updatedAt: createdAt,
+  // 메시지가 없는 빈 대화는 목록에서 숨겨지므로 한 건을 둔다.
+  messages: [{ id: 'message-1', senderId: 'recipient', text: '안녕하세요', createdAt, read: true, deliveryStatus: 'sent', attachments: [], sharedPost: null }],
+  unreadCount: 0, updatedAt: createdAt,
 };
 const cursorPage = { items: [], nextCursor: null, hasNext: false };
 const emptyPage = { content: [], totalPages: 0, totalElements: 0, number: 0, size: 10, first: true, last: true, empty: true };
@@ -128,7 +130,8 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await expect(page.locator('time').filter({ hasText: '9월 29일' })).toHaveAttribute('datetime', '2026-09-29T06:05:00.000Z');
         await expect(page.getByText('미배치', { exact: true })).toHaveCount(0);
         await checkLayout(page, info, 'home');
-        await page.getByRole('button', { name: /^알림(?:\s*,|$)/ }).click();
+        // lg 미만에서는 알림이 하단 탭의 /notifications 링크다.
+        await page.getByRole(viewport.width < 1024 ? 'link' : 'button', { name: /^알림(?:\s*,|$)/ }).click();
         await expect(page.getByText('테스터님이 내 게시글을 좋아합니다.')).toBeVisible();
         await expect(page.locator('time').last()).toHaveAttribute('title', '2026년 10월 6일 오후 3:04');
         await checkLayout(page, info, 'notifications');
@@ -169,7 +172,7 @@ for (const viewport of [{ width: 375, height: 812 }, { width: 1440, height: 1000
         await page.getByRole('tab', { name: '전적', exact: true }).click();
         await page.getByRole('button', { name: '전적 추가', exact: true }).click();
         await expect(page.getByText('게임 전적 연결', { exact: true })).toBeVisible();
-        await expect(page.getByText('등급, 승률, 킬/데스/어시스트 비율 연동', { exact: true })).toBeVisible();
+        await expect(page.getByText('티어, 승률, 최근 5경기 KDA', { exact: true })).toBeVisible();
         await expect(page.getByText(/^Sync /)).toHaveCount(0);
         const overlappingGameLabels = await page.getByRole('button', { name: '연결', exact: true })
           .evaluateAll((buttons) => buttons.flatMap((button) => {

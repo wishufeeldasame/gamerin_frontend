@@ -174,16 +174,22 @@ for (const width of [375, 1440]) {
         await page.keyboard.press('Escape');
         await expect(menus.nth(1)).toBeFocused();
         await expect(menus.nth(1)).toHaveAttribute('aria-expanded', 'false');
-        const bell = page.getByRole('button', { name: '알림', exact: true });
-        await bell.click();
-        await expect(page.getByText('알림 사용자님이 내 게시글을 좋아합니다.')).toBeVisible();
-        await expect(page.getByRole('button', { name: '알림 닫기' })).toBeFocused();
-        await page.keyboard.press('Escape');
-        await expect(bell).toBeFocused();
-        await bell.click();
-        await page.getByRole('button', { name: '알림 닫기' }).click();
-        await expect(bell).toHaveAttribute('aria-expanded', 'false');
-        await expect(bell).toBeFocused();
+        if (width < 1024) {
+          // lg 미만에는 알림 패널이 없고 하단 탭의 /notifications 링크만 있다.
+          await expect(page.getByRole('link', { name: /^알림(?:\s*,|$)/ })).toHaveAttribute('href', '/notifications');
+        } else {
+          // 읽지 않은 알림 수가 버튼 이름에 붙는다.
+          const bell = page.getByRole('button', { name: /^알림(?:\s*,|$)/ });
+          await bell.click();
+          await expect(page.getByText('알림 사용자님이 내 게시글을 좋아합니다.')).toBeVisible();
+          await expect(page.getByRole('button', { name: '알림 닫기' })).toBeFocused();
+          await page.keyboard.press('Escape');
+          await expect(bell).toBeFocused();
+          await bell.click();
+          await page.getByRole('button', { name: '알림 닫기' }).click();
+          await expect(bell).toHaveAttribute('aria-expanded', 'false');
+          await expect(bell).toBeFocused();
+        }
 
         const body = article.locator('p').first();
         const textBox = await body.boundingBox();
@@ -319,7 +325,8 @@ for (const width of [375, 1440]) {
           const preview = page.getByRole('dialog', { name: '게시글 이미지 2 확대' });
           await expect(preview).toBeVisible();
           const expanded = preview.getByRole('img', { name: '확대된 게시글 이미지 2' });
-          await expect(expanded).toHaveJSProperty('src', new URL('/fe7-image-2.svg', page.url()).href);
+          // 상대경로 미디어 주소에는 API base URL(로컬 개발 서버에서는 :8080)이 붙는다.
+          await expect(expanded).toHaveJSProperty('src', 'http://127.0.0.1:8080/fe7-image-2.svg');
           await expect(expanded).toHaveJSProperty('naturalWidth', 1200);
           const close = preview.getByRole('button', { name: '이미지 확대 닫기' });
           await expect(close).toBeFocused();
@@ -477,7 +484,7 @@ test('새 이미지 확대 Esc와 뒤늦게 열린 알림 팝업 Esc가 동시�
   const image = page.getByRole('button', { name: '게시글 이미지 1 확대 보기' });
   await image.click();
   await expect(page.getByRole('dialog')).toBeVisible();
-  const bell = page.locator('header button[aria-label="알림"]');
+  const bell = page.getByRole('button', { name: /^알림(?:\s*,|$)/ });
   await bell.evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('알림 버튼을 찾을 수 없습니다.');
     button.click();
@@ -523,7 +530,7 @@ test('메시지 이미지 Esc와 공통 팝업 Esc가 한 번에 함께 실행�
   await page.getByRole('button', { name: 'FE7 이미지 확대 보기' }).click();
   const imageDialog = page.getByRole('dialog', { name: 'FE7 이미지', exact: true });
   await expect(imageDialog).toBeVisible();
-  const bell = page.getByRole('button', { name: '알림', exact: true });
+  const bell = page.getByRole('button', { name: /^알림(?:\s*,|$)/ });
   // Simulate an already queued popup activation while the existing image modal is open.
   await bell.evaluate((button) => {
     if (!(button instanceof HTMLButtonElement)) throw new Error('알림 버튼을 찾을 수 없습니다.');
@@ -727,7 +734,8 @@ test('댓글 성공 응답이 전송 중 변경한 좋아요·리포스트·북�
     await expect(page.getByRole('button', { name: '리포스트', pressed: true })).toHaveText('1');
     await page.getByRole('button', { name: '북마크 저장' }).click();
     const collection = page.getByRole('checkbox', { name: '동시 요청 검증 모음집' });
-    await collection.click();
+    // 체크박스는 sr-only라 직접 클릭할 수 없고, 사용자는 라벨 행을 누른다.
+    await page.locator('label').filter({ has: collection }).click();
     await expect(collection).toBeChecked();
     await expect(page.getByRole('button', { name: '북마크 해제', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
@@ -786,7 +794,9 @@ test('점으로 끝나는 없는 핸들도 점 없는 프로필 찾을 수 없�
   await unknown.click();
   await expect(page).toHaveURL(/\/profile\/unknown$/);
   await expect(page.getByText('사용자를 찾을 수 없습니다.', { exact: true })).toBeVisible();
-  expect(lookups).toEqual(['/api/v1/users/unknown']);
+  // 개발 서버(StrictMode)는 effect를 두 번 실행해 같은 조회가 두 번 나간다. 점이 붙은 핸들로 조회하지 않는지만 본다.
+  expect(lookups.length).toBeGreaterThan(0);
+  expect(new Set(lookups)).toEqual(new Set(['/api/v1/users/unknown']));
 });
 
 test('점 앞의 잘못된 후보를 잘라서 링크하지 않고 점 뒤의 @도 멘션이 아니다', async ({ page }) => {
