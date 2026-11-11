@@ -8,6 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: 'GamerIN',
     description: '실력 인증부터 멘토링까지, 게이머들의 이력서이자 커뮤니티',
     lang: 'ko',
+    id: '/',
     start_url: '/',
     scope: '/',
     display: 'standalone',

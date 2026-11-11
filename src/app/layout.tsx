@@ -6,6 +6,7 @@ import { AuthProvider } from '@/app/context/AuthContext';
 import { BookmarkCollectionProvider } from '@/app/context/BookmarkCollectionContext';
 import { LoginPromptProvider } from '@/app/auth/_components/LoginPromptProvider';
 import { FeedbackProviders } from '@/app/context/FeedbackProviders';
+import { WebAppInstallProvider } from '@/app/context/WebAppInstallContext';
 import { APP_THEME_COLORS } from '@/lib/theme-colors';
 
 // 2. 서비스에 맞는 메타데이터 설정 (가독성과 검색 최적화)
@@ -70,7 +71,9 @@ export default function RootLayout({
         {/* 3. AuthProvider로 전체를 감싸서 로그인 상태를 전역으로 관리합니다. */}
         <AuthProvider>
           <BookmarkCollectionProvider>
-            <FeedbackProviders><LoginPromptProvider>{children}</LoginPromptProvider></FeedbackProviders>
+            <FeedbackProviders>
+              <LoginPromptProvider><WebAppInstallProvider>{children}</WebAppInstallProvider></LoginPromptProvider>
+            </FeedbackProviders>
           </BookmarkCollectionProvider>
         </AuthProvider>
       </body>

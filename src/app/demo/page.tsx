@@ -3,6 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { ArrowRight, BarChart3, BookOpen, Gamepad2, MessageSquare, Video } from 'lucide-react';
 import Showcase from './_components/Showcase';
+import WebAppInstall from './_components/WebAppInstall';
 import './showcase.css';
 
 export const metadata: Metadata = {
@@ -32,7 +33,12 @@ const Go = () => <Link href="/" className="demo-go">GamerIN 바로가기<ArrowRi
 export default function ShowcasePage() {
   return (
     <div className="demo-page">
-      <header className="demo-header"><div className="demo-wrap"><Logo /><Go /></div></header>
+      <header className="demo-header">
+        <div className="demo-wrap">
+          <Logo />
+          <WebAppInstall><Go /></WebAppInstall>
+        </div>
+      </header>
       <main>
         <div className="demo-wrap">
           <div className="demo-hero">
