@@ -30,7 +30,7 @@ describe('로그인 복귀 경로', () => {
     rememberLoginReturnTo('//evil.test');
     expect(readLoginReturnTo()).toBe('/');
   });
-  it.each([['/', true], ['/demo', true], ['/posts/7', true], ['/profile/player', true], ['/mentoring', true], ['/membership/content', true], ['/membership/content-preview', true], ['/membership/content-preview/private', false], ['/membership', false], ['/membership/content/private', false], ['/profile', false], ['/profile/me', false], ['/profile/%6de', false], ['/wallet', false], ['/search', false], ['/hashtags/game', false]])('공개 경로 %s = %s', (path, allowed) => {
+  it.each([['/', true], ['/demo', true], ['/posts/7', true], ['/profile/player', true], ['/mentoring', true], ['/mentoring/programs/12', true], ['/mentoring/programs/12/edit', false], ['/mentoring/programs', false],['/membership/content', true], ['/membership/content-preview', true], ['/membership/content-preview/private', false], ['/membership', false], ['/membership/content/private', false], ['/profile', false], ['/profile/me', false], ['/profile/%6de', false], ['/wallet', false], ['/search', false], ['/hashtags/game', false]])('공개 경로 %s = %s', (path, allowed) => {
     expect(isPublicAppPath(String(path))).toBe(allowed);
   });
 });
